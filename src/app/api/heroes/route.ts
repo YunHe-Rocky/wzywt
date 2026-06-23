@@ -4,10 +4,22 @@ import { prisma } from "@/lib/db";
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const roleType = searchParams.get("role_type");
-  const where = roleType ? { roleType } : {};
-  const heroes = await prisma.hero.findMany({ where, orderBy: { heroId: "asc" } });
-  return NextResponse.json(heroes.map((h) => ({
-    ...h,
-    skills: JSON.parse(h.skillsJson),
-  })));
+  const heroType = searchParams.get("hero_type");
+  const where: Record<string, unknown> = {};
+  if (roleType) where.roleType = roleType;
+  if (heroType) where.heroType = Number(heroType);
+  const heroes = await prisma.hero.findMany({
+    where,
+    orderBy: { heroId: "asc" },
+    select: {
+      heroId: true,
+      name: true,
+      title: true,
+      roleType: true,
+      heroType: true,
+      heroType2: true,
+      imageUrl: true,
+    },
+  });
+  return NextResponse.json(heroes);
 }
