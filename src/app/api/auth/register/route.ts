@@ -5,8 +5,8 @@ import { getSession } from "@/lib/session";
 
 export async function POST(req: NextRequest) {
   const { username, password } = await req.json();
-  if (!username || !password || username.length < 2 || password.length < 4) {
-    return NextResponse.json({ error: "用户名至少2位，密码至少4位" }, { status: 400 });
+  if (!username || !password || username.length < 2 || password.length < 11) {
+    return NextResponse.json({ error: "用户名至少2位，密码至少11位" }, { status: 400 });
   }
 
   const existing = await prisma.user.findUnique({ where: { username } });

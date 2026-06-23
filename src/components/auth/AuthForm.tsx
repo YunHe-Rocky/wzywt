@@ -144,11 +144,11 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
             </label>
             <input
               type="password"
-              placeholder="请输入密码（至少 4 位）"
+              placeholder="请输入密码（至少 11 位）"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              minLength={4}
+              minLength={11}
             />
           </div>
 
