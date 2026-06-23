@@ -1,6 +1,6 @@
 interface Player {
   userId: number;
-  rolePreferences: { roleType: string; preferenceRank: number }[];
+  rolePreferences: { roleType: string; preferenceRank: number; roleRank: number }[];
   heroPowers: Record<string, number[]>;
   peakPower: number;
 }
@@ -11,11 +11,17 @@ interface SplitResult {
   score: number;
   powerDiff: number;
   preferenceScore: number;
+  rankDiff: number;
+  rankCoverage: number;
 }
 
 const ROLES = ["top", "jungle", "mid", "adc", "support"];
-const W1 = 100;
-const W2 = 1;
+
+// Weights: coverage >> rank balance >> preference >> power
+const W_COVER = 100;
+const W_RANK = 50;
+const W_PREF = 10;
+const W_POWER = 1;
 
 function combinations<T>(arr: T[], k: number): T[][] {
   if (k === 0) return [[]];
@@ -47,10 +53,7 @@ function generateRoleAssignments(players: Player[]): RoleAssignment[] {
     const combos = combinations(remaining, needed);
     for (const combo of combos) {
       const nextRemaining = remaining.filter((id) => !combo.includes(id));
-      const newAssignments = [
-        ...current,
-        ...combo.map((userId) => ({ userId, roleType: ROLES[roleIndex] })),
-      ];
+      const newAssignments = [...current, ...combo.map((userId) => ({ userId, roleType: ROLES[roleIndex] }))];
       assign(nextRemaining, roleIndex + 1, newAssignments);
     }
   }
@@ -60,7 +63,8 @@ function generateRoleAssignments(players: Player[]): RoleAssignment[] {
 }
 
 function evaluateTeamSplit(
-  roleGroups: Map<string, Player[]>
+  roleGroups: Map<string, Player[]>,
+  players: Player[]
 ): { teamRed: { userId: number; roleType: string }[]; teamBlue: { userId: number; roleType: string }[]; powerDiff: number } {
   let bestSplit: { teamRed: any[]; teamBlue: any[]; powerDiff: number } = {
     teamRed: [], teamBlue: [], powerDiff: Infinity,
@@ -69,8 +73,7 @@ function evaluateTeamSplit(
   for (let mask = 0; mask < 32; mask++) {
     const red: { userId: number; roleType: string }[] = [];
     const blue: { userId: number; roleType: string }[] = [];
-    let redPower = 0;
-    let bluePower = 0;
+    let redPower = 0, bluePower = 0;
 
     for (let ri = 0; ri < 5; ri++) {
       const role = ROLES[ri];
@@ -107,25 +110,70 @@ function evaluateTeamSplit(
   return bestSplit;
 }
 
-function preferenceScore(assignments: { userId: number; roleType: string }[], players: Player[]): number {
-  let total = 0;
+// ── Scoring ──────────────────────────────────────────────────────────
+
+// Count players placed in a role they have a rank for (roleRank > 0)
+function rankCoverage(
+  assignments: { userId: number; roleType: string }[],
+  players: Player[]
+): number {
   const playerMap = new Map(players.map((p) => [p.userId, p]));
+  let coverage = 0;
   for (const a of assignments) {
-    const player = playerMap.get(a.userId);
-    if (!player) continue;
-    const pref = player.rolePreferences.find((p) => p.roleType === a.roleType);
-    if (pref) total += 6 - pref.preferenceRank;
+    const p = playerMap.get(a.userId);
+    const pref = p?.rolePreferences.find((pr) => pr.roleType === a.roleType);
+    if (pref && pref.roleRank > 0) coverage++;
+  }
+  return coverage;
+}
+
+// Rank balance: how close are Red and Blue rank sums
+function rankDiff(
+  teamRed: { userId: number; roleType: string }[],
+  teamBlue: { userId: number; roleType: string }[],
+  players: Player[]
+): number {
+  const playerMap = new Map(players.map((p) => [p.userId, p]));
+  let redSum = 0, blueSum = 0;
+  for (const a of teamRed) {
+    const p = playerMap.get(a.userId);
+    redSum += p?.rolePreferences.find((pr) => pr.roleType === a.roleType)?.roleRank || 0;
+  }
+  for (const a of teamBlue) {
+    const p = playerMap.get(a.userId);
+    blueSum += p?.rolePreferences.find((pr) => pr.roleType === a.roleType)?.roleRank || 0;
+  }
+  return Math.abs(redSum - blueSum);
+}
+
+// Preference satisfaction
+function preferenceScore(
+  assignments: { userId: number; roleType: string }[],
+  players: Player[]
+): number {
+  const playerMap = new Map(players.map((p) => [p.userId, p]));
+  let total = 0;
+  for (const a of assignments) {
+    const p = playerMap.get(a.userId);
+    if (!p) continue;
+    const pref = p.rolePreferences.find((pr) => pr.roleType === a.roleType);
+    if (pref) total += 6 - pref.preferenceRank; // rank 1 = 5pts, rank 5 = 1pt
   }
   return total;
 }
 
-export function splitTeams(players: Player[]): SplitResult | null {
-  if (players.length < 2) return null;
+// ── Main ─────────────────────────────────────────────────────────────
 
-  const roleAssignments = generateRoleAssignments(players);
+export function splitTeams(players: Player[]): SplitResult | null {
+  if (players.length < 10) return null;
+
+  // Only use 10 players for 5v5, extra players are unassigned
+  const selected = players.slice(0, 10);
+
+  const roleAssignments = generateRoleAssignments(selected);
   let bestResult: SplitResult | null = null;
   let bestScore = -Infinity;
-  const playerMap = new Map(players.map((p) => [p.userId, p]));
+  const playerMap = new Map(selected.map((p) => [p.userId, p]));
 
   for (const ra of roleAssignments) {
     const roleGroups = new Map<string, Player[]>();
@@ -135,9 +183,14 @@ export function splitTeams(players: Player[]): SplitResult | null {
       roleGroups.get(a.roleType)!.push(p);
     }
 
-    const split = evaluateTeamSplit(roleGroups);
-    const prefScore = preferenceScore([...split.teamRed, ...split.teamBlue], players);
-    const score = -split.powerDiff * W1 + prefScore * W2;
+    const split = evaluateTeamSplit(roleGroups, selected);
+    const allAssignments = [...split.teamRed, ...split.teamBlue];
+    const coverage = rankCoverage(allAssignments, players);
+    const rDiff = rankDiff(split.teamRed, split.teamBlue, players);
+    const pref = preferenceScore(allAssignments, players);
+
+    // coverage (higher=better) + rank balance (lower diff=better) + pref (higher=better) + power (lower=better)
+    const score = coverage * W_COVER + (-rDiff) * W_RANK + pref * W_PREF + (-split.powerDiff) * W_POWER;
 
     if (score > bestScore) {
       bestScore = score;
@@ -146,7 +199,9 @@ export function splitTeams(players: Player[]): SplitResult | null {
         teamBlue: split.teamBlue,
         score,
         powerDiff: split.powerDiff,
-        preferenceScore: prefScore,
+        preferenceScore: pref,
+        rankDiff: rDiff,
+        rankCoverage: coverage,
       };
     }
   }
