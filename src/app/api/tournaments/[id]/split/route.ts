@@ -85,11 +85,11 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     })),
   };
 
-  // Persist split result to tournament so it survives page refresh
-  await prisma.tournament.update({
-    where: { id: tournamentId },
-    data: { splitResult: splitData },
-  });
+  // Persist split result via raw SQL (Prisma Json field can be finicky)
+  await prisma.$executeRawUnsafe(
+    "UPDATE tournaments SET split_result = ? WHERE id = ?",
+    JSON.stringify(splitData), tournamentId
+  );
 
   await prisma.adminOperation.create({
     data: { tournamentId, adminId: userId, action: "split" },
