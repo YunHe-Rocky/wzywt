@@ -31,11 +31,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   // Lock tournament
   const tournament = await prisma.tournament.findUnique({ where: { id: tournamentId } });
   if (!tournament) return NextResponse.json({ error: "赛事不存在" }, { status: 404 });
-  if (tournament.status === "recruiting") {
-    await prisma.tournament.update({ where: { id: tournamentId }, data: { status: "locked" } });
-  }
 
-  // Get non-spectator players with role prefs and hero powers
+  // Get non-spectator players
   const players = await prisma.tournamentPlayer.findMany({
     where: { tournamentId, isSpectator: false },
     include: {
@@ -44,6 +41,22 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       },
     },
   });
+
+  // Validate minimum players
+  if (players.length < 10) {
+    return NextResponse.json({ error: `至少需要10人才能分队，当前${players.length}人` }, { status: 400 });
+  }
+  if (players.length % 2 !== 0) {
+    return NextResponse.json({ error: `需要偶数人数才能公平分队，当前${players.length}人（含${players.length % 2}名多余选手）` }, { status: 400 });
+  }
+
+  // Deadline check: warn if before deadline, but allow
+  const now = new Date();
+  const isBeforeDeadline = tournament.deadline > now;
+
+  if (tournament.status === "recruiting") {
+    await prisma.tournament.update({ where: { id: tournamentId }, data: { status: "locked" } });
+  }
 
   const algoPlayers = players.map((p) => {
     const heroPowers: Record<string, number[]> = {};
@@ -72,6 +85,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     teamBlue: result?.teamBlue || [],
     powerDiff: result?.powerDiff || 0,
     preferenceScore: result?.preferenceScore || 0,
+    isBeforeDeadline,
     playerDetails: players.map((p) => ({
       userId: p.userId,
       username: p.user.username,

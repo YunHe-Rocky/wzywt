@@ -406,14 +406,26 @@ export function TournamentDetail() {
 
   async function doSplit() {
     setAdminMsg("");
+    if (playerCount < 10) {
+      setAdminMsg(`分队需要至少10人，当前仅${playerCount}人`);
+      return;
+    }
+    if (playerCount % 2 !== 0) {
+      setAdminMsg(`需要偶数人数才能公平分队，当前${playerCount}人`);
+      return;
+    }
     const res = await fetch(`/api/tournaments/${id}/split`, { method: "POST" });
     const data = await res.json();
     if (res.ok) {
       setSplitResult(data);
       setTournament((prev) => prev ? { ...prev, status: "locked" } : null);
-      success("分队完成！");
+      if (data.isBeforeDeadline) {
+        success("分队完成！（截止时间未到，提前锁定）");
+      } else {
+        success("分队完成！");
+      }
     } else {
-      showError(data.error || "分队失败");
+      setAdminMsg(data.error || "分队失败");
     }
   }
 
@@ -625,7 +637,13 @@ export function TournamentDetail() {
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               {/* Split button */}
               {(tournament.status === "recruiting" || tournament.status === "locked") && (
-                <button onClick={doSplit} className="btn-primary" style={{ fontSize: 13, padding: "8px 18px" }}>
+                <button
+                  onClick={doSplit}
+                  className="btn-primary"
+                  disabled={playerCount < 10}
+                  title={playerCount < 10 ? `需要10人，当前${playerCount}人` : playerCount % 2 !== 0 ? `需要偶数人数` : ""}
+                  style={{ fontSize: 13, padding: "8px 18px" }}
+                >
                   分队 ({playerCount}人)
                 </button>
               )}
