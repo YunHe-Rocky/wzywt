@@ -143,11 +143,10 @@ export default function Home() {
         {open && !loaded ? (
           <div style={{ padding: "0 24px 24px" }}><SkeletonLines count={8} /></div>
         ) : open && (
-          <div style={{ borderTop: "1px solid var(--border)" }}>
-            {/* TOC — mobile: horizontal scroll; desktop: right sidebar */}
+          <div className={toc.length > 0 ? "doc-body" : ""} style={toc.length === 0 ? { padding: "20px 24px 24px" } : undefined}>
             {toc.length > 0 && (
               <div className="doc-toc">
-                <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", marginBottom: 6, letterSpacing: 2, flexShrink: 0 }}>快速定位</div>
+                <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", marginBottom: 8, letterSpacing: 2 }}>快速定位</div>
                 <div className="doc-toc-list">
                   {toc.map((item) => (
                     <a
@@ -168,8 +167,7 @@ export default function Home() {
                 </div>
               </div>
             )}
-            {/* Doc content */}
-            <div style={{ padding: "20px 24px 24px" }}>
+            <div className="doc-content">
               {nodes}
             </div>
           </div>
