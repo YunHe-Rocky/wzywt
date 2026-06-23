@@ -705,19 +705,28 @@
   }
 
   table, thead, tbody, th, td, tr {
+    display: revert;
+  }
+
+  table {
     display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    white-space: nowrap;
   }
 
   table thead {
-    display: none;
+    display: table-header-group;
   }
 
   table tr {
-    padding: 8px 0;
-    border-bottom: 1px solid var(--border);
+    display: table-row;
+    padding: 0;
+    border-bottom: none;
   }
 
-  table td {
-    padding: 4px 0;
+  table td, table th {
+    display: table-cell;
+    padding: 4px 8px;
   }
 }
