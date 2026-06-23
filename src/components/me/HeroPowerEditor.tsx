@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useToast } from "@/components/ui/Toast";
+import { HeroSelect } from "@/components/hero/HeroSelect";
 
 const ROLE_LABELS: Record<string, string> = {
   top: "对抗路", jungle: "打野", mid: "中路", adc: "发育路", support: "游走",
@@ -15,8 +17,9 @@ export function HeroPowerEditor() {
   const [heroOptions, setHeroOptions] = useState<Record<string, HeroOption[]>>({});
   const [activeRole, setActiveRole] = useState<string | null>(null);
   const [selectedHero, setSelectedHero] = useState("");
+  const [selectedHeroName, setSelectedHeroName] = useState("");
   const [powerScore, setPowerScore] = useState("");
-  const [msg, setMsg] = useState("");
+  const { success, error } = useToast();
 
   useEffect(() => {
     fetch("/api/users/me/heroes").then((r) => r.json()).then((d) => {
@@ -33,18 +36,15 @@ export function HeroPowerEditor() {
   }
 
   async function addHero() {
-    if (!activeRole || !selectedHero || !powerScore) return;
-    const hero = heroOptions[activeRole]?.find((h) => String(h.heroId) === selectedHero);
-    if (!hero) return;
+    if (!activeRole || !selectedHero || !selectedHeroName || !powerScore) return;
 
-    setMsg("");
     const res = await fetch("/api/users/me/heroes", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         roleType: activeRole,
-        heroId: hero.heroId,
-        heroName: hero.name,
+        heroId: parseInt(selectedHero),
+        heroName: selectedHeroName,
         powerScore: parseInt(powerScore),
       }),
     });
@@ -56,10 +56,10 @@ export function HeroPowerEditor() {
       }));
       setSelectedHero("");
       setPowerScore("");
-      setMsg("添加成功");
+      success("英雄添加成功");
     } else {
       const err = await res.json();
-      setMsg(err.error || "添加失败");
+      error(err.error || "添加失败");
     }
   }
 
@@ -69,53 +69,199 @@ export function HeroPowerEditor() {
       ...prev,
       [role]: prev[role].filter((h) => h.id !== id),
     }));
+    success("已删除英雄");
   }
 
   return (
-    <div className="bg-gray-900 rounded-lg p-6">
-      <h2 className="text-lg font-bold mb-4">英雄战力</h2>
-      <p className="text-sm text-gray-400 mb-4">每个分路选1-3个擅长的英雄，填写战力</p>
-      <div className="space-y-4">
-        {ROLES.map((role) => (
-          <div key={role}>
-            <button onClick={() => loadHeroes(role)}
-              className="text-left w-full flex items-center justify-between bg-gray-800 rounded px-4 py-3 hover:bg-gray-700">
-              <span>{ROLE_LABELS[role]}</span>
-              <span className="text-sm text-gray-400">
-                {(grouped[role] || []).map((h) => `${h.heroName}(${h.powerScore})`).join(", ") || "未选择"}
-              </span>
-            </button>
-            {activeRole === role && (
-              <div className="mt-2 ml-4 space-y-2">
-                {(grouped[role] || []).map((h) => (
-                  <div key={h.id} className="flex items-center gap-2 text-sm">
-                    <span className="text-gray-300">{h.heroName} — {h.powerScore} 战力</span>
-                    <button onClick={() => removeHero(h.id, role)}
-                      className="text-red-400 hover:text-red-300 text-xs">删除</button>
-                  </div>
-                ))}
-                {(grouped[role] || []).length < 3 && (
-                  <div className="flex items-center gap-2">
-                    <select value={selectedHero} onChange={(e) => setSelectedHero(e.target.value)}
-                      className="bg-gray-800 rounded px-2 py-1 text-sm border border-gray-700">
-                      <option value="">选择英雄</option>
-                      {(heroOptions[role] || []).map((h) => (
-                        <option key={h.heroId} value={h.heroId}>{h.name} ({h.title})</option>
-                      ))}
-                    </select>
-                    <input type="number" placeholder="战力" value={powerScore}
-                      onChange={(e) => setPowerScore(e.target.value)}
-                      className="w-24 bg-gray-800 rounded px-2 py-1 text-sm border border-gray-700" />
-                    <button onClick={addHero}
-                      className="px-3 py-1 bg-blue-600 hover:bg-blue-500 rounded text-sm">添加</button>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        ))}
+    <div className="card">
+      <div className="section-title">英雄战力</div>
+      <p style={{ color: "var(--text-secondary)", fontSize: 13, marginBottom: 20, lineHeight: 1.6 }}>
+        每个分路选 1-3 个擅长的英雄，填写战力
+      </p>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {ROLES.map((role) => {
+          const heroes = grouped[role] || [];
+          const expanded = activeRole === role;
+          const isFull = heroes.length >= 3;
+
+          return (
+            <div key={role}>
+              {/* Collapsed/Expandable row */}
+              <button
+                onClick={() =>
+                  expanded ? setActiveRole(null) : loadHeroes(role)
+                }
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  width: "100%",
+                  background: expanded ? "var(--bg-hover)" : "var(--bg-card)",
+                  border: `1px solid ${expanded ? "var(--border-gold)" : "var(--border)"}`,
+                  borderRadius: "var(--radius-sm)",
+                  padding: "12px 16px",
+                  color: "var(--text)",
+                  fontSize: 14,
+                  cursor: "pointer",
+                  transition: "background 0.15s, border-color 0.15s",
+                  textAlign: "left",
+                }}
+                onMouseEnter={(e) => {
+                  if (!expanded) {
+                    e.currentTarget.style.background = "var(--bg-hover)";
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!expanded) {
+                    e.currentTarget.style.background = "var(--bg-card)";
+                  }
+                }}
+              >
+                <span style={{
+                  fontWeight: 600,
+                  fontSize: 15,
+                  color: expanded ? "var(--gold)" : "var(--text)",
+                  transition: "color 0.15s",
+                }}>
+                  {ROLE_LABELS[role]}
+                </span>
+                <span className="hero-collapsed-summary" style={{
+                  color: expanded ? "var(--text-secondary)" : "var(--text-muted)",
+                  transition: "color 0.15s",
+                }}>
+                  {heroes.length > 0
+                    ? heroes.map((h) => `${h.heroName}(${h.powerScore})`).join(", ")
+                    : "未选择"}
+                </span>
+              </button>
+
+              {/* Expanded content */}
+              {expanded && (
+                <div
+                  style={{
+                    marginTop: 6,
+                    padding: "16px 16px 16px 20px",
+                    border: "1px solid var(--border-gold)",
+                    borderLeft: "2px solid var(--gold)",
+                    borderRadius: "0 var(--radius-sm) var(--radius-sm) 0",
+                    background: "var(--bg-card)",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 12,
+                    animation: "slide-up 0.2s ease-out",
+                  }}
+                >
+                  {/* Hero entries */}
+                  {heroes.map((h) => (
+                    <div
+                      key={h.id}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 12,
+                      }}
+                    >
+                      <span className="badge badge-gold" style={{
+                        fontSize: 13,
+                        padding: "5px 12px",
+                        fontWeight: 600,
+                      }}>
+                        {h.heroName}
+                      </span>
+                      <span style={{
+                        color: "var(--text-secondary)",
+                        fontSize: 13,
+                        flex: 1,
+                      }}>
+                        {h.powerScore} 战力
+                      </span>
+                      <button
+                        onClick={() => removeHero(h.id, role)}
+                        title="删除英雄"
+                        style={{
+                          background: "none",
+                          border: "1px solid var(--border)",
+                          borderRadius: "var(--radius-sm)",
+                          color: "var(--text-muted)",
+                          fontSize: 12,
+                          cursor: "pointer",
+                          padding: "4px 10px",
+                          transition: "all 0.15s",
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.color = "var(--red)";
+                          e.currentTarget.style.borderColor = "rgba(224, 80, 80, 0.3)";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.color = "var(--text-muted)";
+                          e.currentTarget.style.borderColor = "var(--border)";
+                        }}
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+
+                  {/* Add form — only shown when not full */}
+                  {!isFull && (
+                    <div className="hero-add-form">
+                      <HeroSelect
+                        roleType={role}
+                        value={selectedHero}
+                        onChange={(heroId, heroName) => {
+                          setSelectedHero(heroId);
+                          setSelectedHeroName(heroName);
+                        }}
+                      />
+                      <div className="hero-add-row">
+                        <input
+                          type="number"
+                          placeholder="战力"
+                          value={powerScore}
+                          onChange={(e) => setPowerScore(e.target.value)}
+                        />
+                        <button className="btn-primary" onClick={addHero}>
+                          添加
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Full indicator */}
+                  {isFull && (
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                        padding: "10px 14px",
+                        borderRadius: "var(--radius-sm)",
+                        background: "var(--bg-input)",
+                        border: "1px solid var(--border)",
+                      }}
+                    >
+                      <span style={{
+                        color: "var(--gold)",
+                        fontSize: 16,
+                        fontWeight: 700,
+                      }}>
+                        3/3
+                      </span>
+                      <span style={{
+                        color: "var(--text-muted)",
+                        fontSize: 12,
+                      }}>
+                        已达上限
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
-      {msg && <p className={`mt-2 text-sm ${msg === "添加成功" ? "text-green-400" : "text-red-400"}`}>{msg}</p>}
     </div>
   );
 }

@@ -551,6 +551,70 @@
   50% { opacity: 1; width: 80%; left: 10%; }
 }
 
+/* ── Hero Power Editor ── */
+.hero-collapsed-summary {
+  font-size: 13px;
+  font-weight: 400;
+  max-width: 60%;
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .hero-collapsed-summary {
+    max-width: 50%;
+    font-size: 12px;
+  }
+}
+
+/* ── Hero Add Form ── */
+.hero-add-form {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  padding: 12px 14px;
+  background: var(--bg-input);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+}
+
+.hero-add-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hero-add-row input {
+  width: 80px;
+}
+
+.hero-add-row .btn-primary {
+  padding: 10px 20px;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .hero-add-form {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .hero-add-row {
+    gap: 8px;
+  }
+
+  .hero-add-row input {
+    flex: 1;
+    width: auto;
+  }
+}
+
 /* ── Doc TOC ── */
 .doc-body {
   display: flex;
