@@ -1,4 +1,5 @@
 import { getIronSession, SessionOptions } from "iron-session";
+import { cookies } from "next/headers";
 
 export interface SessionData {
   userId?: number;
@@ -10,11 +11,10 @@ export const sessionOptions: SessionOptions = {
   cookieName: "wzyt_session",
   cookieOptions: {
     secure: process.env.NODE_ENV === "production",
-    maxAge: 60 * 60 * 24 * 7, // 7 days
+    maxAge: 60 * 60 * 24 * 7,
   },
 };
 
 export async function getSession() {
-  const { cookies } = await import("next/headers");
   return getIronSession<SessionData>(cookies(), sessionOptions);
 }
