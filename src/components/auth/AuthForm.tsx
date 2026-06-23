@@ -1,13 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useToast } from "@/components/ui/Toast";
 
 export function AuthForm({ mode }: { mode: "login" | "register" }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { success } = useToast();
+  const redirect = searchParams.get("redirect") || "/";
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -20,7 +22,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
       .then((r) => r.json())
       .then((d) => {
         if (d.user) {
-          router.replace("/");
+          router.replace(redirect);
         } else {
           setChecking(false);
         }
@@ -45,7 +47,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
     if (mode === "register") {
       success("欢迎加入王者演武堂！");
     }
-    router.push("/");
+    router.push(redirect);
     router.refresh();
   }
 
