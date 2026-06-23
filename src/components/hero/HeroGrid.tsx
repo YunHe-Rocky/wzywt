@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 interface Hero {
@@ -133,9 +133,9 @@ export function HeroGrid() {
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState(false);
 
-  useEffect(() => {
-    setLoading(true);
-    setFetchError(false);
+  const fetchRef = useRef<() => void>(() => {});
+
+  const fetchHeroes = useCallback(() => {
     const params = new URLSearchParams();
     if (roleFilter) params.set("role_type", roleFilter);
     if (classFilter) params.set("hero_type", classFilter);
@@ -153,6 +153,30 @@ export function HeroGrid() {
         setLoading(false);
       });
   }, [roleFilter, classFilter]);
+
+  useEffect(() => {
+    fetchRef.current = fetchHeroes;
+  });
+
+  useEffect(() => {
+    setLoading(true);
+    setFetchError(false);
+    fetchHeroes();
+  }, [roleFilter, classFilter, fetchHeroes]);
+
+  // SSE: auto-refresh when hero data changes (uses latest filters)
+  useEffect(() => {
+    const es = new EventSource("/api/heroes/watch");
+    es.onmessage = (e) => {
+      try {
+        const msg = JSON.parse(e.data);
+        if (msg.type === "heroes-updated") {
+          fetchRef.current();
+        }
+      } catch {}
+    };
+    return () => es.close();
+  }, []);
 
   const filtered = heroes.filter(
     (h) =>
