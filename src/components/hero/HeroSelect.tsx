@@ -1,0 +1,246 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+
+interface Hero {
+  heroId: number;
+  name: string;
+  title: string;
+  imageUrl: string;
+}
+
+interface Props {
+  roleType: string;
+  value: string;
+  onChange: (heroId: string, heroName: string) => void;
+}
+
+let pinyinModule: typeof import("pinyin").default | null = null;
+async function getPinyin() {
+  if (!pinyinModule) {
+    pinyinModule = (await import("pinyin")).default;
+  }
+  return pinyinModule;
+}
+
+function fuzzyMatch(hero: Hero, query: string): boolean {
+  if (!query) return true;
+  const q = query.toLowerCase().trim();
+
+  if (hero.name.includes(q)) return true;
+  if (hero.title.includes(q)) return true;
+
+  // Numeric heroId match (no pinyin needed)
+  if (String(hero.heroId).includes(q)) return true;
+
+  return false;
+}
+
+async function fuzzyMatchPinyin(hero: Hero, query: string): Promise<boolean> {
+  const q = query.toLowerCase().trim();
+
+  const pinyin = await getPinyin();
+
+  const pyInitials = pinyin(hero.name, { style: (pinyin as any).STYLE_FIRST_LETTER })
+    .map((item: string[]) => item[0])
+    .join("")
+    .toLowerCase();
+  if (pyInitials.includes(q)) return true;
+
+  const pyFull = pinyin(hero.name, { style: (pinyin as any).STYLE_NORMAL })
+    .map((item: string[]) => item[0])
+    .join("")
+    .toLowerCase();
+  if (pyFull.includes(q)) return true;
+
+  return false;
+}
+
+export function HeroSelect({ roleType, value, onChange }: Props) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const [heroes, setHeroes] = useState<Hero[]>([]);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    fetch(`/api/heroes?role_type=${roleType}`)
+      .then((r) => r.json())
+      .then(setHeroes);
+  }, [roleType]);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  const selectedHero = heroes.find((h) => String(h.heroId) === value);
+
+  const [filtered, setFiltered] = useState<Hero[]>(heroes);
+
+  useEffect(() => {
+    let cancelled = false;
+    // Instant basic filter
+    const basic = heroes.filter((h) => fuzzyMatch(h, search));
+    setFiltered(basic);
+    // Then enhance with pinyin (lazy loaded)
+    if (search.trim()) {
+      Promise.all(heroes.map(async (h) => {
+        if (basic.includes(h)) return h;
+        const match = await fuzzyMatchPinyin(h, search);
+        return match ? h : null;
+      })).then((results) => {
+        if (!cancelled) {
+          const pinyinResults = results.filter(Boolean) as Hero[];
+          if (pinyinResults.length > basic.length) {
+            setFiltered([...basic, ...pinyinResults.filter(h => !basic.includes(h))]);
+          }
+        }
+      });
+      return () => { cancelled = true; };
+    }
+  }, [heroes, search]);
+
+  return (
+    <div ref={ref} style={{ position: "relative", flex: 1 }}>
+      {/* Trigger */}
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          width: "100%",
+          padding: selectedHero ? "6px 10px" : "10px 14px",
+          background: "var(--bg-input)",
+          border: `1px solid ${open ? "var(--gold)" : "var(--border)"}`,
+          borderRadius: "var(--radius-sm)",
+          cursor: "pointer",
+          color: selectedHero ? "var(--text)" : "var(--text-muted)",
+          fontSize: 13,
+          transition: "border-color 0.15s",
+          minHeight: 40,
+        }}
+      >
+        {selectedHero ? (
+          <>
+            <img
+              src={selectedHero.imageUrl}
+              alt=""
+              style={{ width: 28, height: 28, borderRadius: 4, objectFit: "cover" }}
+              onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+            />
+            <span style={{ fontWeight: 600 }}>{selectedHero.name}</span>
+            <span style={{ color: "var(--text-muted)", fontSize: 11, marginLeft: "auto" }}>
+              {selectedHero.title}
+            </span>
+          </>
+        ) : (
+          "选择英雄..."
+        )}
+      </button>
+
+      {/* Dropdown */}
+      {open && (
+        <div
+          style={{
+            position: "absolute",
+            top: "100%",
+            left: 0,
+            right: 0,
+            zIndex: 200,
+            marginTop: 4,
+            background: "var(--bg-card)",
+            border: "1px solid var(--border)",
+            borderRadius: "var(--radius)",
+            boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
+            maxHeight: 320,
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
+          {/* Search input */}
+          <div style={{ padding: "8px 8px 0" }}>
+            <input
+              type="text"
+              placeholder="搜索（拼音/中文/缩写）..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              autoFocus
+              style={{ fontSize: 13, padding: "8px 10px" }}
+            />
+          </div>
+
+          {/* List */}
+          <div style={{ overflow: "auto", flex: 1, padding: "4px 4px 8px" }}>
+            {filtered.length === 0 ? (
+              <p style={{ padding: "16px", textAlign: "center", fontSize: 12, color: "var(--text-muted)", margin: 0 }}>
+                无匹配英雄
+              </p>
+            ) : (
+              filtered.map((hero) => (
+                <button
+                  key={hero.heroId}
+                  type="button"
+                  onClick={() => {
+                    onChange(String(hero.heroId), hero.name);
+                    setOpen(false);
+                    setSearch("");
+                  }}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    width: "100%",
+                    padding: "8px 10px",
+                    background: String(hero.heroId) === value ? "rgba(200,169,90,0.08)" : "transparent",
+                    border: "none",
+                    borderRadius: 6,
+                    cursor: "pointer",
+                    color: "var(--text)",
+                    fontSize: 13,
+                    textAlign: "left",
+                    transition: "background 0.1s",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = String(hero.heroId) === value
+                      ? "rgba(200,169,90,0.12)"
+                      : "var(--bg-hover)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = String(hero.heroId) === value
+                      ? "rgba(200,169,90,0.08)"
+                      : "transparent";
+                  }}
+                >
+                  <img
+                    src={hero.imageUrl}
+                    alt=""
+                    style={{
+                      width: 32,
+                      height: 32,
+                      borderRadius: 4,
+                      objectFit: "cover",
+                      background: "var(--bg-hover)",
+                    }}
+                    onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                  />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 600 }}>{hero.name}</div>
+                    <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{hero.title}</div>
+                  </div>
+                  <span className="badge badge-muted" style={{ fontSize: 10 }}>{hero.heroId}</span>
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
