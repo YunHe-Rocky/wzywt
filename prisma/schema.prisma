@@ -1,14 +1,133 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "mysql"
-  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            Int       @id @default(autoincrement())
+  username      String    @unique @db.VarChar(32)
+  passwordHash  String    @map("password_hash") @db.VarChar(255)
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  rolePreferences RolePreference[]
+  heroPowers      HeroPower[]
+  tournamentPlayers TournamentPlayer[]
+  tournamentAdmins TournamentAdmin[]
+  adminOperations AdminOperation[]
+  tempApplications TempPlayerApplication[]
+
+  @@map("users")
+}
+
+model Tournament {
+  id        Int       @id @default(autoincrement())
+  code      String    @unique @db.VarChar(8)
+  name      String    @db.VarChar(64)
+  deadline  DateTime
+  status    String    @default("recruiting") @db.VarChar(16)
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  players      TournamentPlayer[]
+  admins       TournamentAdmin[]
+  applications TempPlayerApplication[]
+  operations   AdminOperation[]
+
+  @@map("tournaments")
+}
+
+model TournamentPlayer {
+  id           Int     @id @default(autoincrement())
+  tournamentId Int     @map("tournament_id")
+  userId       Int     @map("user_id")
+  roleType     String? @map("role_type") @db.VarChar(16)
+  isTemporary  Boolean @default(false) @map("is_temporary")
+  isSpectator  Boolean @default(false) @map("is_spectator")
+  tempName     String? @map("temp_name") @db.VarChar(32)
+
+  tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([tournamentId, userId])
+  @@map("tournament_players")
+}
+
+model TournamentAdmin {
+  id           Int    @id @default(autoincrement())
+  tournamentId Int    @map("tournament_id")
+  userId       Int    @map("user_id")
+  role         String @db.VarChar(16)
+
+  tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([tournamentId, userId])
+  @@map("tournament_admins")
+}
+
+model TempPlayerApplication {
+  id           Int      @id @default(autoincrement())
+  tournamentId Int      @map("tournament_id")
+  applicantId  Int      @map("applicant_id")
+  tempName     String?  @map("temp_name") @db.VarChar(32)
+  status       String   @default("pending") @db.VarChar(16)
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  applicant  User       @relation(fields: [applicantId], references: [id], onDelete: Cascade)
+
+  @@map("temp_player_applications")
+}
+
+model RolePreference {
+  id             Int    @id @default(autoincrement())
+  userId         Int    @map("user_id")
+  roleType       String @map("role_type") @db.VarChar(16)
+  preferenceRank Int    @map("preference_rank")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roleType])
+  @@map("role_preferences")
+}
+
+model HeroPower {
+  id         Int    @id @default(autoincrement())
+  userId     Int    @map("user_id")
+  roleType   String @map("role_type") @db.VarChar(16)
+  heroId     Int    @map("hero_id")
+  heroName   String @map("hero_name") @db.VarChar(64)
+  powerScore Int    @map("power_score")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("hero_powers")
+}
+
+model Hero {
+  id         Int      @id @default(autoincrement())
+  heroId     Int      @unique @map("hero_id")
+  name       String   @db.VarChar(64)
+  title      String   @db.VarChar(64)
+  roleType   String   @map("role_type") @db.VarChar(16)
+  skillsJson String   @map("skills_json") @db.Text
+  updatedAt  DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@map("heroes")
+}
+
+model AdminOperation {
+  id           Int      @id @default(autoincrement())
+  tournamentId Int      @map("tournament_id")
+  adminId      Int      @map("admin_id")
+  action       String   @db.VarChar(32)
+  targetId     Int?     @map("target_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  admin      User       @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@map("admin_operations")
 }
