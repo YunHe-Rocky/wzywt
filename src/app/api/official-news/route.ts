@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import * as cheerio from "cheerio";
+import { getHeaders } from "@/lib/anti-bot";
 
 const FALLBACK_NEWS = [
   { title: "新英雄大禹上线", date: "2026-01-08", url: "https://pvp.qq.com/ingame/all/tobe/newheros/dayu.html" },
@@ -10,13 +11,7 @@ const FALLBACK_NEWS = [
 export async function GET() {
   try {
     const res = await fetch("https://pvp.qq.com/web201605/newslist.shtml", {
-      headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-        "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
-        "Referer": "https://pvp.qq.com/",
-        "Cache-Control": "no-cache",
-      },
+      headers: getHeaders("https://pvp.qq.com/"),
       signal: AbortSignal.timeout(8000),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
