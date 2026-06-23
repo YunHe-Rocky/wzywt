@@ -107,7 +107,7 @@ async function checkHeroes(): Promise<MonitorResult> {
 async function checkSkins(): Promise<MonitorResult> {
   try {
     const res = await fetch(HEROLIST_URL, {
-      headers: { "User-Agent": "Mozilla/5.0" },
+      headers: BROWSER_HEADERS,
       signal: AbortSignal.timeout(10000),
     });
     if (!res.ok) return { module: "skins", changed: false, detail: "HTTP " + res.status };

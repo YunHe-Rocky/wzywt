@@ -55,7 +55,11 @@ async function fetchDetail(heroId: number, idName?: string): Promise<string> {
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
         const res = await fetch(url, {
-          headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" },
+          headers: {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "zh-CN,zh;q=0.9",
+          },
           signal: AbortSignal.timeout(10000),
         });
         if (!res.ok) break;
@@ -80,7 +84,13 @@ async function fetchDetail(heroId: number, idName?: string): Promise<string> {
 // ── Check if image URL exists ───────────────────────────────────────
 async function imgExists(url: string): Promise<boolean> {
   try {
-    const res = await fetch(url, { method: "HEAD", signal: AbortSignal.timeout(5000) });
+    const res = await fetch(url, {
+      method: "HEAD",
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+      },
+      signal: AbortSignal.timeout(5000),
+    });
     return res.ok;
   } catch {
     return false;
@@ -155,7 +165,9 @@ function parseSkills(html: string): { name: string; cd: string; cost: string; de
 export async function syncHeroes(): Promise<{ inserted: number; updated: number }> {
   console.log("[sync] Fetching hero list...");
   const res = await fetch(HEROLIST_URL, {
-    headers: { "User-Agent": "Mozilla/5.0" },
+    headers: {
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+    },
     cache: "no-store",
   });
   if (!res.ok) throw new Error(`Hero list fetch failed: ${res.status}`);
