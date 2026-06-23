@@ -29,7 +29,9 @@ model Tournament {
   name      String    @db.VarChar(64)
   deadline  DateTime
   status    String    @default("recruiting") @db.VarChar(16)
-  createdAt DateTime  @default(now()) @map("created_at")
+  isPublic     Boolean   @default(false) @map("is_public")
+  announcement String?   @map("announcement") @db.Text
+  createdAt    DateTime  @default(now()) @map("created_at")
 
   players      TournamentPlayer[]
   admins       TournamentAdmin[]
@@ -88,6 +90,7 @@ model RolePreference {
   userId         Int    @map("user_id")
   roleType       String @map("role_type") @db.VarChar(16)
   preferenceRank Int    @map("preference_rank")
+  roleRank       Int    @default(0) @map("role_rank")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -115,6 +118,9 @@ model Hero {
   name       String   @db.VarChar(64)
   title      String   @db.VarChar(64)
   roleType   String   @map("role_type") @db.VarChar(16)
+  heroType   Int      @default(0) @map("hero_type")
+  imageUrl   String   @map("image_url") @db.VarChar(255)
+  skinsJson  String?  @map("skins_json") @db.Text
   skillsJson String   @map("skills_json") @db.Text
   updatedAt  DateTime @default(now()) @updatedAt @map("updated_at")
 
