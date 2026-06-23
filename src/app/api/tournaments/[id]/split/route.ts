@@ -73,21 +73,27 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   const result = splitTeams(algoPlayers);
 
-  await prisma.adminOperation.create({
-    data: { tournamentId, adminId: userId, action: "split" },
-  });
-
-  return NextResponse.json({
+  const splitData = {
     teamRed: result?.teamRed || [],
     teamBlue: result?.teamBlue || [],
     powerDiff: result?.powerDiff || 0,
     preferenceScore: result?.preferenceScore || 0,
-    isBeforeDeadline,
     playerDetails: players.map((p) => ({
       userId: p.userId,
       username: p.user.username,
       peakPower: algoPlayers.find((ap) => ap.userId === p.userId)?.peakPower || 0,
-      rolePreferences: p.user.rolePreferences,
     })),
+  };
+
+  // Persist split result to tournament so it survives page refresh
+  await prisma.tournament.update({
+    where: { id: tournamentId },
+    data: { splitResult: splitData },
   });
+
+  await prisma.adminOperation.create({
+    data: { tournamentId, adminId: userId, action: "split" },
+  });
+
+  return NextResponse.json({ ...splitData, isBeforeDeadline });
 }

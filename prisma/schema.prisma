@@ -31,6 +31,7 @@ model Tournament {
   status    String    @default("recruiting") @db.VarChar(16)
   isPublic     Boolean   @default(false) @map("is_public")
   announcement String?   @map("announcement") @db.Text
+  splitResult  Json?     @map("split_result")
   createdAt    DateTime  @default(now()) @map("created_at")
 
   players      TournamentPlayer[]

@@ -195,6 +195,10 @@ export function TournamentDetail() {
     if (res.ok) {
       const data = await res.json();
       setTournament(data.tournament);
+      // Load persisted split result
+      if (data.splitResult) {
+        setSplitResult(data.splitResult);
+      }
     } else if (res.status === 401 || res.status === 403) {
       router.replace("/login");
     }
@@ -440,7 +444,7 @@ export function TournamentDetail() {
             </div>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               {/* Split button */}
-              {(tournament.status === "recruiting" || tournament.status === "locked") && (
+              {(tournament.status === "recruiting" || tournament.status === "locked") && !splitResult && (
                 <button
                   onClick={doSplit}
                   className="btn-primary"
@@ -450,6 +454,11 @@ export function TournamentDetail() {
                 >
                   分队 ({playerCount}人)
                 </button>
+              )}
+              {splitResult && (
+                <span className="badge badge-gold" style={{ fontSize: 13, padding: "8px 18px" }}>
+                  已分队
+                </span>
               )}
               {/* Extend button */}
               {(tournament.status === "recruiting" || tournament.status === "locked") && (

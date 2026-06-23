@@ -23,7 +23,10 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   const isPlayer = tournament.players.some((p) => p.userId === userId);
   if (!isPlayer) return NextResponse.json({ error: "你不在该赛事中" }, { status: 403 });
 
-  return NextResponse.json({ tournament });
+  return NextResponse.json({
+    tournament,
+    splitResult: tournament.splitResult,
+  });
 }
 
 export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
@@ -46,7 +49,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   const { userId } = await requireAuth().catch(() => ({ userId: 0 }));
   if (!userId) return NextResponse.json({ error: "请先登录" }, { status: 401 });
 
-  const { name, deadline } = await req.json();
+  const { name, deadline, isPublic, announcement } = await req.json();
   const tournament = await prisma.tournament.findUnique({ where: { id: parseInt(params.id) } });
   if (!tournament) return NextResponse.json({ error: "赛事不存在" }, { status: 404 });
 
@@ -55,9 +58,15 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   });
   if (!admin) return NextResponse.json({ error: "仅管理员可修改赛事" }, { status: 403 });
 
+  const data: Record<string, unknown> = {};
+  if (name) data.name = name;
+  if (deadline) data.deadline = new Date(deadline);
+  if (typeof isPublic === "boolean") data.isPublic = isPublic;
+  if (announcement !== undefined) data.announcement = announcement;
+
   const updated = await prisma.tournament.update({
     where: { id: tournament.id },
-    data: { ...(name && { name }), ...(deadline && { deadline: new Date(deadline) }) },
+    data,
   });
 
   return NextResponse.json({ tournament: updated });
