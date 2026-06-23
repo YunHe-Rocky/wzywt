@@ -22,12 +22,13 @@ export async function GET(req: NextRequest) {
         const checks = await runAllMonitors();
         send({ type: "monitor-check", cycle: cycleCount, results: checks });
 
-        // 2. For any changed module, trigger the scraper
+        // 2. For any changed module, trigger ONLY that scraper
         const changed = checks.filter((c) => c.changed);
         if (changed.length > 0) {
-          send({ type: "scrape-triggered", modules: changed.map((c) => c.module) });
+          const changedModules = changed.map((c) => c.module);
+          send({ type: "scrape-triggered", modules: changedModules });
 
-          const events = await runMonitorAndScrape();
+          const events = await runMonitorAndScrape(changedModules);
           send({ type: "scrape-result", events });
 
           // Broadcast hero updates if heroes changed

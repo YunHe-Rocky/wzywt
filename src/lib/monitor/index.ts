@@ -4,7 +4,7 @@
 import { prisma } from "@/lib/db";
 
 // ── Config ─────────────────────────────────────────────────────────────
-const NEWS_URL = "https://pvp.qq.com/web201605/newslist.shtml";
+const NEWS_URL = "https://pvp.qq.com/web201605/news.shtml";
 const HEROLIST_URL = "https://pvp.qq.com/web201605/js/herolist.json";
 
 interface MonitorResult {
@@ -148,45 +148,40 @@ export async function runAllMonitors(): Promise<MonitorResult[]> {
   return results;
 }
 
-export async function runMonitorAndScrape(): Promise<MonitorEvent[]> {
+export async function runMonitorAndScrape(
+  changedModules?: string[]
+): Promise<MonitorEvent[]> {
   const events: MonitorEvent[] = [];
 
-  // Check all modules
-  const results = await runAllMonitors();
+  // If specific changed modules are passed, scrape only those
+  const toScrape = changedModules || [];
 
-  for (const r of results) {
-    events.push({ module: r.module, action: "check", detail: r.detail, timestamp: Date.now() });
+  if (toScrape.length === 0) return events;
 
-    if (!r.changed) continue;
-
-    // Trigger the corresponding scraper
-    events.push({ module: r.module, action: "scrape-start", detail: r.detail, timestamp: Date.now() });
+  for (const module of toScrape) {
+    events.push({ module, action: "scrape-start", detail: "detected change", timestamp: Date.now() });
 
     try {
-      switch (r.module) {
+      switch (module) {
         case "heroes": {
-          // Dynamic import to avoid circular deps and side effects
           const { syncHeroes } = await import("@/lib/heroes/sync");
           const result = await syncHeroes();
           events.push({ module: "heroes", action: "scrape-done", detail: `inserted=${result.inserted} updated=${result.updated}`, timestamp: Date.now() });
           break;
         }
         case "skins": {
-          // Signal skin download needed (actual download is a separate script)
           events.push({ module: "skins", action: "scrape-done", detail: "hero count changed, run scripts/download-hero-images.ts", timestamp: Date.now() });
           break;
         }
         case "news": {
-          // News scraping is handled by /api/official-news
           events.push({ module: "news", action: "scrape-done", detail: "news titles changed, refresh /api/official-news", timestamp: Date.now() });
           break;
         }
       }
     } catch (e: unknown) {
-      events.push({ module: r.module, action: "scrape-fail", detail: (e as Error).message, timestamp: Date.now() });
+      events.push({ module, action: "scrape-fail", detail: (e as Error).message, timestamp: Date.now() });
     }
   }
 
-  emit({ module: "all", action: "check", detail: "cycle complete", timestamp: Date.now() });
   return events;
 }
