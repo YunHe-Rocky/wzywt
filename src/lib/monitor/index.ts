@@ -4,7 +4,7 @@
 import { prisma } from "@/lib/db";
 
 // ── Config ─────────────────────────────────────────────────────────────
-const NEWS_URL = "https://pvp.qq.com/web201605/news.shtml";
+const NEWS_URL = "https://pvp.qq.com/web201605/newslist.shtml";
 const HEROLIST_URL = "https://pvp.qq.com/web201605/js/herolist.json";
 
 interface MonitorResult {
