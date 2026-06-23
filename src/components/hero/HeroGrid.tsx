@@ -14,20 +14,20 @@ interface Hero {
 }
 
 const ROLE_LABELS: Record<string, { label: string; color: string }> = {
-  top: { label: "对抗路", color: "#e05050" },
-  jungle: { label: "打野", color: "#50b050" },
-  mid: { label: "中路", color: "#5090d0" },
-  adc: { label: "发育路", color: "#e0a030" },
-  support: { label: "游走", color: "#b080d0" },
+  top: { label: "对抗路", color: "#e05555" },
+  jungle: { label: "打野", color: "#55b055" },
+  mid: { label: "中路", color: "#5588cc" },
+  adc: { label: "发育路", color: "#ddaa33" },
+  support: { label: "游走", color: "#aa66cc" },
 };
 
 const CLASS_LABELS: Record<number, { label: string; color: string }> = {
-  1: { label: "战士", color: "#d08050" },
-  2: { label: "法师", color: "#5090d0" },
-  3: { label: "坦克", color: "#90b050" },
-  4: { label: "刺客", color: "#c05080" },
-  5: { label: "射手", color: "#e0a030" },
-  6: { label: "辅助", color: "#b080d0" },
+  1: { label: "战士", color: "#dd7744" },
+  2: { label: "法师", color: "#44aaaa" },
+  3: { label: "坦克", color: "#88aa44" },
+  4: { label: "刺客", color: "#cc4466" },
+  5: { label: "射手", color: "#cc8833" },
+  6: { label: "辅助", color: "#66aacc" },
 };
 
 const ROLE_FILTERS = [
