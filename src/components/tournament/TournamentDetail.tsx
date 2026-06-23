@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useToast } from "@/components/ui/Toast";
-import { LineupSimulator } from "./LineupSimulator";
 
 interface PlayerInfo {
   userId: number; user: { id: number; username: string };
@@ -672,12 +671,6 @@ export function TournamentDetail() {
         </div>
       )}
 
-      {/* ================================================================== */}
-      {/*  LINEUP SIMULATOR (always visible when there are players)           */}
-      {/* ================================================================== */}
-      <LineupSimulator />
-
-      {/* ================================================================== */}
       {/*  ANNOUNCEMENT                                                       */}
       {/* ================================================================== */}
       {editingAnnouncement ? (
