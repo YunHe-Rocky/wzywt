@@ -26,12 +26,11 @@ const CLASS_TO_LANE: Record<number, string> = {
   6: "support",  // 辅助 → 游走
 };
 
-// Heroes where primary class→lane is misleading; use secondary class
-// e.g. 不知火舞: primary 4(刺客)→jungle, but actually mid via secondary 2(法师)
+// Heroes where class→lane mapping needs manual correction
+// Format: heroId → correct lane
+// Fill in based on confirmed in-game lane data
 const LANE_OVERRIDES: Record<number, string> = {
-  // 刺客+法师 hybrid → mid
-  157: "mid",    // 不知火舞
-  // Add more overrides as needed
+  // Add confirmed overrides here
 };
 
 function resolveRoleType(h: RawHero): string {
