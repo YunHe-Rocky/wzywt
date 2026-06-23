@@ -23,20 +23,11 @@ interface SplitResult {
   playerDetails: { userId: number; username: string; peakPower: number }[];
 }
 
-interface Hero {
-  id: number; heroId: number; name: string; title: string; roleType: string;
-}
-
 const ROLE_LABELS: Record<string, string> = {
   top: "对抗路", jungle: "打野", mid: "中路", adc: "发育路", support: "游走",
 };
 
 type TeamColor = "red" | "blue";
-
-const EMPTY_LINEUP: Record<TeamColor, Record<string, number | null>> = {
-  red: { top: null, jungle: null, mid: null, adc: null, support: null },
-  blue: { top: null, jungle: null, mid: null, adc: null, support: null },
-};
 
 // ============================================================================
 // LineupPanel — 阵容演练 (inline component, fully client-side)
@@ -51,48 +42,6 @@ function LineupPanel({
   teamPower: number;
 }) {
   const team = teamColor === "red" ? splitResult.teamRed : splitResult.teamBlue;
-  const [lineup, setLineup] = useState<Record<string, number | null>>(
-    EMPTY_LINEUP[teamColor]
-  );
-  const [heroesByRole, setHeroesByRole] = useState<Record<string, Hero[]>>({});
-  const [showLineup, setShowLineup] = useState(false);
-  const [loadingHeroes, setLoadingHeroes] = useState(false);
-
-  useEffect(() => {
-    if (!showLineup) return;
-    const roleSet = new Set(team.map((p) => p.roleType));
-    const roles = Array.from(roleSet);
-    const missingRoles = roles.filter((r) => !heroesByRole[r]);
-
-    if (missingRoles.length === 0) return;
-
-    setLoadingHeroes(true);
-    Promise.all(
-      missingRoles.map((role) =>
-        fetch(`/api/heroes?role_type=${role}`)
-          .then((r) => r.json())
-          .then((heroes) => ({ role, heroes }))
-      )
-    ).then((results) => {
-      setHeroesByRole((prev) => {
-        const next = { ...prev };
-        results.forEach(({ role, heroes }) => {
-          next[role] = heroes;
-        });
-        return next;
-      });
-      setLoadingHeroes(false);
-    });
-  }, [showLineup, team]);
-
-  const selectHero = (roleType: string, heroId: number | null) => {
-    setLineup((prev) => ({ ...prev, [roleType]: heroId }));
-  };
-
-  const resetLineup = () => {
-    setLineup({ ...EMPTY_LINEUP[teamColor] });
-  };
-
   const isRed = teamColor === "red";
 
   const teamLabel = isRed ? "红队" : "蓝队";
@@ -199,146 +148,6 @@ function LineupPanel({
         })}
       </div>
 
-      {/* ── Lineup Planning Toggle + Content ── */}
-      <div style={{ borderTop: `1px solid ${accentBorder}` }}>
-        <button
-          onClick={() => setShowLineup(!showLineup)}
-          style={{
-            width: "100%",
-            padding: "12px 24px",
-            background: "transparent",
-            border: "none",
-            cursor: "pointer",
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-            fontSize: 13,
-            fontWeight: 600,
-            color: "var(--text-secondary)",
-            transition: "color 0.15s",
-          }}
-          onMouseEnter={(e) => {
-            (e.currentTarget as HTMLElement).style.color = "var(--text)";
-          }}
-          onMouseLeave={(e) => {
-            (e.currentTarget as HTMLElement).style.color = "var(--text-secondary)";
-          }}
-        >
-          <span style={{
-            display: "inline-flex",
-            fontSize: 10,
-            transition: "transform 0.2s ease",
-            transform: showLineup ? "rotate(90deg)" : "rotate(0deg)",
-          }}>
-            ▶
-          </span>
-          阵容演练
-        </button>
-
-        {showLineup && (
-          <div className="animate-slide-up" style={{ padding: "0 24px 20px" }}>
-            {loadingHeroes ? (
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {[1, 2, 3, 4, 5].map((i) => (
-                  <div key={i} className="skeleton" style={{ height: 42, borderRadius: "var(--radius-sm)" }} />
-                ))}
-              </div>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {team.map((p) => {
-                  const heroes = heroesByRole[p.roleType] || [];
-                  const selectedHeroId = lineup[p.roleType];
-                  const selectedHero = heroes.find((h) => h.heroId === selectedHeroId);
-                  const detail = splitResult.playerDetails.find((d) => d.userId === p.userId);
-
-                  return (
-                    <div
-                      key={p.userId}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 10,
-                        padding: "8px 12px",
-                        borderRadius: "var(--radius-sm)",
-                        background: selectedHero ? "rgba(200, 169, 90, 0.06)" : "var(--bg-input)",
-                        border: selectedHero ? "1px solid var(--gold-dim)" : "1px solid var(--border)",
-                        transition: "border-color 0.15s, background 0.15s",
-                      }}
-                    >
-                      {/* Player name */}
-                      <span style={{
-                        fontSize: 13,
-                        fontWeight: 600,
-                        minWidth: 72,
-                        color: "var(--text)",
-                      }}>
-                        {detail?.username || "?"}
-                      </span>
-
-                      {/* Role tag */}
-                      <span style={{
-                        fontSize: 11,
-                        fontWeight: 600,
-                        padding: "2px 8px",
-                        borderRadius: 3,
-                        background: accentBg,
-                        color: accentText,
-                        minWidth: 44,
-                        textAlign: "center" as const,
-                        whiteSpace: "nowrap" as const,
-                      }}>
-                        {ROLE_LABELS[p.roleType]}
-                      </span>
-
-                      {/* Hero select */}
-                      <select
-                        value={selectedHeroId ?? ""}
-                        onChange={(e) =>
-                          selectHero(p.roleType, e.target.value ? Number(e.target.value) : null)
-                        }
-                        style={{
-                          flex: 1,
-                          fontSize: 12,
-                          fontWeight: selectedHero ? 600 : 400,
-                          padding: "6px 10px",
-                          background: "var(--bg-input)",
-                          border: `1px solid ${selectedHero ? "var(--gold-dim)" : "var(--border)"}`,
-                          borderRadius: "var(--radius-sm)",
-                          color: selectedHero ? "var(--gold-light)" : "var(--text-secondary)",
-                          outline: "none",
-                          cursor: "pointer",
-                          transition: "border-color 0.15s",
-                        }}
-                      >
-                        <option value="">选择英雄...</option>
-                        {heroes.map((h) => (
-                          <option key={h.heroId} value={h.heroId}>
-                            {h.name}{h.title ? ` · ${h.title}` : ""}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            {/* Reset button */}
-            <button
-              onClick={resetLineup}
-              className="btn-subtle"
-              style={{
-                marginTop: 14,
-                fontSize: 12,
-                padding: "7px 18px",
-                width: "100%",
-              }}
-            >
-              清空
-            </button>
-          </div>
-        )}
-      </div>
     </div>
   );
 }
