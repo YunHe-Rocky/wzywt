@@ -143,20 +143,12 @@ export default function Home() {
         {open && !loaded ? (
           <div style={{ padding: "0 24px 24px" }}><SkeletonLines count={8} /></div>
         ) : open && (
-          <div style={{ display: "flex", borderTop: "1px solid var(--border)" }}>
-            {/* Doc content */}
-            <div style={{ flex: 1, minWidth: 0, padding: "20px 24px 24px" }}>
-              {nodes}
-            </div>
-            {/* TOC sidebar */}
+          <div style={{ borderTop: "1px solid var(--border)" }}>
+            {/* TOC — mobile: horizontal scroll; desktop: right sidebar */}
             {toc.length > 0 && (
-              <div style={{
-                width: 160, flexShrink: 0, borderLeft: "1px solid var(--border)",
-                padding: "20px 14px", position: "sticky", top: 80, alignSelf: "flex-start",
-                maxHeight: "80vh", overflowY: "auto",
-              }}>
-                <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", marginBottom: 8, letterSpacing: 2 }}>快速定位</div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+              <div className="doc-toc">
+                <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", marginBottom: 6, letterSpacing: 2, flexShrink: 0 }}>快速定位</div>
+                <div className="doc-toc-list">
                   {toc.map((item) => (
                     <a
                       key={item.id}
@@ -165,20 +157,21 @@ export default function Home() {
                         e.preventDefault();
                         document.getElementById(item.id)?.scrollIntoView({ behavior: "smooth" });
                       }}
+                      className="doc-toc-item"
                       style={{
-                        fontSize: 11, textDecoration: "none", padding: "2px 0",
                         paddingLeft: item.level === 3 ? 10 : 0,
                         color: activeId === item.id ? "var(--gold)" : "var(--text-muted)",
                         fontWeight: activeId === item.id ? 600 : 400,
-                        whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
                       }}
-                      onMouseEnter={e => { (e.target as HTMLElement).style.color = "var(--gold-light)"; }}
-                      onMouseLeave={e => { (e.target as HTMLElement).style.color = activeId === item.id ? "var(--gold)" : "var(--text-muted)"; }}
                     >{item.text}</a>
                   ))}
                 </div>
               </div>
             )}
+            {/* Doc content */}
+            <div style={{ padding: "20px 24px 24px" }}>
+              {nodes}
+            </div>
           </div>
         )}
       </div>

@@ -551,6 +551,52 @@
   50% { opacity: 1; width: 80%; left: 10%; }
 }
 
+/* ── Doc TOC ── */
+.doc-toc {
+  border-bottom: 1px solid var(--border);
+  padding: 16px 24px 12px;
+}
+
+.doc-toc-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.doc-toc-item {
+  font-size: 11px;
+  text-decoration: none;
+  padding: 2px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
+  transition: all 0.15s;
+}
+
+.doc-toc-item:hover {
+  background: var(--bg-hover);
+}
+
+@media (min-width: 769px) {
+  .doc-toc {
+    float: right;
+    width: 160px;
+    border-bottom: none;
+    border-left: 1px solid var(--border);
+    padding: 20px 14px;
+    margin-left: 20px;
+  }
+
+  .doc-toc-list {
+    flex-direction: column;
+    gap: 1px;
+  }
+
+  .doc-toc-item {
+    padding: 2px 0;
+    border-radius: 0;
+  }
+}
+
 @keyframes energy-flow {
   0%, 100% { background-position: -200% 0; }
   50% { background-position: 200% 0; }
