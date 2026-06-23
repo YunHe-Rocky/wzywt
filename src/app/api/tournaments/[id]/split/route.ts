@@ -42,12 +42,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     },
   });
 
-  // Validate minimum players
+  // Validate minimum players (need at least 10 for 5v5)
   if (players.length < 10) {
     return NextResponse.json({ error: `至少需要10人才能分队，当前${players.length}人` }, { status: 400 });
-  }
-  if (players.length % 2 !== 0) {
-    return NextResponse.json({ error: `需要偶数人数才能公平分队，当前${players.length}人（含${players.length % 2}名多余选手）` }, { status: 400 });
   }
 
   // Deadline check: warn if before deadline, but allow

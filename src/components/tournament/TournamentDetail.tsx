@@ -410,10 +410,6 @@ export function TournamentDetail() {
       setAdminMsg(`分队需要至少10人，当前仅${playerCount}人`);
       return;
     }
-    if (playerCount % 2 !== 0) {
-      setAdminMsg(`需要偶数人数才能公平分队，当前${playerCount}人`);
-      return;
-    }
     const res = await fetch(`/api/tournaments/${id}/split`, { method: "POST" });
     const data = await res.json();
     if (res.ok) {
@@ -641,7 +637,7 @@ export function TournamentDetail() {
                   onClick={doSplit}
                   className="btn-primary"
                   disabled={playerCount < 10}
-                  title={playerCount < 10 ? `需要10人，当前${playerCount}人` : playerCount % 2 !== 0 ? `需要偶数人数` : ""}
+                  title={playerCount < 10 ? `需要10人，当前${playerCount}人` : ""}
                   style={{ fontSize: 13, padding: "8px 18px" }}
                 >
                   分队 ({playerCount}人)
