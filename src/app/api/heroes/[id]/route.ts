@@ -12,12 +12,15 @@ export async function GET(
   const hero = await prisma.hero.findUnique({ where: { heroId } });
   if (!hero) return NextResponse.json({ error: "英雄不存在" }, { status: 404 });
 
+  // Check for manual lane override
+  const override = await prisma.heroLaneOverride.findUnique({ where: { heroId } });
+
   return NextResponse.json({
     id: hero.id,
     heroId: hero.heroId,
     name: hero.name,
     title: hero.title,
-    roleType: hero.roleType,
+    roleType: override?.roleType || hero.roleType,
     heroType: hero.heroType,
     heroType2: hero.heroType2,
     imageUrl: hero.imageUrl,
@@ -41,16 +44,17 @@ export async function PATCH(
     return NextResponse.json({ error: "无效分路" }, { status: 400 });
   }
 
-  // Use raw SQL to avoid Prisma caching issues
-  await prisma.$executeRawUnsafe(
-    "UPDATE heroes SET role_type = ? WHERE hero_id = ?",
-    roleType, heroId
-  );
+  // Write to overrides table (survives external syncs)
+  await prisma.heroLaneOverride.upsert({
+    where: { heroId },
+    create: { heroId, roleType },
+    update: { roleType },
+  });
 
-  const updated = await prisma.hero.findUnique({
+  const hero = await prisma.hero.findUnique({
     where: { heroId },
     select: { heroId: true, name: true, roleType: true, heroType: true, heroType2: true },
   });
 
-  return NextResponse.json(updated);
+  return NextResponse.json({ ...hero, roleType });
 }
