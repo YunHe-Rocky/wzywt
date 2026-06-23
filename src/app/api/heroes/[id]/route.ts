@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireAuth } from "@/lib/auth";
+import { broadcastHeroUpdate } from "@/lib/sse/heroes";
 
 export async function GET(
   _req: NextRequest,
@@ -55,6 +56,9 @@ export async function PATCH(
     where: { heroId },
     select: { heroId: true, name: true, roleType: true, heroType: true, heroType2: true },
   });
+
+  // Broadcast to all connected clients so they refresh immediately
+  broadcastHeroUpdate([{ heroId, name: hero?.name }]);
 
   return NextResponse.json({ ...hero, roleType });
 }

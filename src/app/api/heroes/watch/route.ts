@@ -1,16 +1,8 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
+import { addClient, removeClient, broadcastHeroUpdate } from "@/lib/sse/heroes";
 
 const HEROLIST_URL = "https://pvp.qq.com/web201605/js/herolist.json";
-
-const clients: ReadableStreamController<Uint8Array>[] = [];
-
-function broadcast(data: object) {
-  const msg = `data: ${JSON.stringify(data)}\n\n`;
-  for (let i = clients.length - 1; i >= 0; i--) {
-    try { clients[i].enqueue(new TextEncoder().encode(msg)); } catch { clients.splice(i, 1); }
-  }
-}
 
 async function checkChanges() {
   try {
@@ -53,29 +45,28 @@ async function checkChanges() {
 export async function GET(req: NextRequest) {
   const stream = new ReadableStream({
     async start(controller) {
-      clients.push(controller);
+      addClient(controller);
 
       controller.enqueue(new TextEncoder().encode("data: {\"type\":\"connected\"}\n\n"));
 
       const interval = setInterval(async () => {
         const changes = await checkChanges();
         if (changes.length > 0) {
-          broadcast({ type: "heroes-updated", changes });
+          broadcastHeroUpdate(changes);
         }
-      }, 60000); // Check every 60s
+      }, 30000); // Check every 30s
 
-      // Initial check after 5s
+      // Initial check after 3s
       setTimeout(async () => {
         const changes = await checkChanges();
         if (changes.length > 0) {
-          broadcast({ type: "heroes-updated", changes });
+          broadcastHeroUpdate(changes);
         }
-      }, 5000);
+      }, 3000);
 
       req.signal.addEventListener("abort", () => {
         clearInterval(interval);
-        const idx = clients.indexOf(controller);
-        if (idx >= 0) clients.splice(idx, 1);
+        removeClient(controller);
       });
     },
   });
