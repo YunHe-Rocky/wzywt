@@ -97,27 +97,45 @@ async function checkHeroes(): Promise<MonitorResult> {
   }
 }
 
-// ── Skin Monitor (light: checks hero count; images checked per-hero) ───
+// ── Skin Monitor (light: checks skin names per hero from official JSON) ─
 async function checkSkins(): Promise<MonitorResult> {
   try {
-    // Skins change when heroes change. Use a simple count comparison.
-    const dbCount = await prisma.hero.count();
+    const res = await fetch(HEROLIST_URL, {
+      headers: { "User-Agent": "Mozilla/5.0" },
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!res.ok) return { module: "skins", changed: false, detail: "HTTP " + res.status };
 
-    const cache = await prisma.$queryRawUnsafe(
-      "SELECT value FROM kv_cache WHERE `key` = 'skins_hero_count'"
-    ) as { value: string }[];
+    const official = await res.json() as { ename: number; skin_name?: string }[];
 
-    const lastCount = cache.length > 0 ? parseInt(cache[0].value) : 0;
+    // Check skin fingerprints: sample every 5th hero's skin_name
+    const samples = official.filter((_, i) => i % 5 === 0);
+    let skinChanges = 0;
 
-    if (dbCount !== lastCount) {
-      await prisma.$executeRawUnsafe(
-        "INSERT INTO kv_cache (`key`, `value`) VALUES ('skins_hero_count', ?) ON DUPLICATE KEY UPDATE `value` = ?",
-        String(dbCount), String(dbCount)
-      );
-      return { module: "skins", changed: true, detail: `count ${lastCount}→${dbCount}` };
+    for (const h of samples) {
+      if (!h.skin_name) continue;
+      const db = await prisma.hero.findUnique({
+        where: { heroId: h.ename },
+        select: { skinsJson: true },
+      });
+      if (!db?.skinsJson) continue;
+
+      try {
+        const dbSkins: { name: string }[] = JSON.parse(db.skinsJson);
+        const dbNames = dbSkins.map((s) => s.name).sort().join("|");
+        const officialNames = h.skin_name.split("|").sort().join("|");
+
+        if (dbNames !== officialNames) {
+          skinChanges++;
+        }
+      } catch { continue; }
     }
 
-    return { module: "skins", changed: false, detail: "unchanged" };
+    if (skinChanges > 0) {
+      return { module: "skins", changed: true, detail: `${skinChanges} heroes have new/changed skins` };
+    }
+
+    return { module: "skins", changed: false, detail: "skins unchanged" };
   } catch (e: unknown) {
     return { module: "skins", changed: false, detail: (e as Error).message };
   }
@@ -170,7 +188,10 @@ export async function runMonitorAndScrape(
           break;
         }
         case "skins": {
-          events.push({ module: "skins", action: "scrape-done", detail: "hero count changed, run scripts/download-hero-images.ts", timestamp: Date.now() });
+          // Skin changes need hero sync (updates skinsJson) + image download
+          const { syncHeroes } = await import("@/lib/heroes/sync");
+          const result = await syncHeroes();
+          events.push({ module: "skins", action: "scrape-done", detail: `synced ${result.updated} heroes, run scripts/download-hero-images.ts for new images`, timestamp: Date.now() });
           break;
         }
         case "news": {
