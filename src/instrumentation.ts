@@ -14,7 +14,7 @@ export async function register() {
       }
     });
 
-    // Run once on startup
+    // Initial hero sync on startup
     console.log("[hero-sync] Running initial sync...");
     try {
       const result = await syncHeroes();
@@ -22,5 +22,21 @@ export async function register() {
     } catch (err) {
       console.error("[hero-sync] Initial sync failed:", err);
     }
+
+    // Check tournament deadlines every minute
+    cron.schedule("* * * * *", async () => {
+      const { prisma: db } = await import("./lib/db");
+      const now = new Date();
+
+      const expired = await db.tournament.findMany({
+        where: { status: "recruiting", deadline: { lte: now } },
+        include: { _count: { select: { players: { where: { isSpectator: false } } } } },
+      });
+
+      for (const t of expired) {
+        console.log(`[deadline] Tournament ${t.id} (${t.name}): ${t._count.players} players, auto-locking`);
+        await db.tournament.update({ where: { id: t.id }, data: { status: "locked" } });
+      }
+    });
   }
 }
