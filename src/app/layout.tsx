@@ -1,5 +1,6 @@
 import "./globals.css";
 import type { Metadata } from "next";
+import { Header } from "@/components/layout/Header";
 
 export const metadata: Metadata = {
   title: "王者演武堂",
@@ -9,7 +10,10 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="zh-CN">
-      <body className="font-sans bg-gray-950 text-gray-100 min-h-screen">{children}</body>
+      <body className="font-sans bg-gray-950 text-gray-100 min-h-screen">
+        <Header />
+        <main>{children}</main>
+      </body>
     </html>
   );
 }
