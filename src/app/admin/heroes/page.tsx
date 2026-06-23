@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 interface Hero {
   heroId: number;
@@ -38,12 +38,9 @@ export default function AdminHeroesPage() {
   const [heroes, setHeroes] = useState<Hero[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState<{ type: "ok" | "err"; text: string } | null>(null);
-  // Track pending changes: heroId → newRoleType
-  const [pending, setPending] = useState<Record<number, string>>({});
-  const pendingRef = useRef(pending);
-  pendingRef.current = pending;
+  const [saving, setSaving] = useState<Record<number, boolean>>({});
+  const [errors, setErrors] = useState<Record<number, string>>({});
+  const [needLogin, setNeedLogin] = useState(false);
 
   useEffect(() => {
     fetch("/api/heroes")
@@ -54,67 +51,37 @@ export default function AdminHeroesPage() {
       });
   }, []);
 
-  function changeLocal(heroId: number, roleType: string) {
-    setPending((prev) => ({ ...prev, [heroId]: roleType }));
-  }
+  async function changeLane(heroId: number, roleType: string) {
+    setSaving((prev) => ({ ...prev, [heroId]: true }));
+    setErrors((prev) => { const n = { ...prev }; delete n[heroId]; return n; });
 
-  async function saveAll() {
-    const changes = pendingRef.current;
-    const ids = Object.keys(changes);
-    if (ids.length === 0) {
-      setMessage({ type: "err", text: "没有待保存的修改" });
-      return;
-    }
-    setSaving(true);
-    setMessage(null);
-    let ok = 0;
-    let fail = 0;
-    for (const id of ids) {
-      try {
-        const res = await fetch(`/api/heroes/${id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ roleType: changes[Number(id)] }),
-        });
-        if (res.ok) {
-          ok++;
-        } else {
-          const err = await res.json().catch(() => ({ error: "请求失败" }));
-          if (res.status === 401) {
-            setMessage({ type: "err", text: "请先登录后再保存" });
-            setSaving(false);
-            return;
-          }
-          fail++;
-        }
-      } catch {
-        fail++;
-      }
-    }
-    // Apply saved changes to local state
-    setHeroes((prev) =>
-      prev.map((h) =>
-        changes[h.heroId] ? { ...h, roleType: changes[h.heroId] } : h
-      )
-    );
-    setPending({});
-    setSaving(false);
-    setMessage({ type: "ok", text: `保存成功：${ok} 位英雄，${fail > 0 ? `失败 ${fail} 位` : ""}` });
-    setTimeout(() => setMessage(null), 3000);
-  }
+    const res = await fetch(`/api/heroes/${heroId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ roleType }),
+    });
 
-  const pendingCount = Object.keys(pending).length;
+    if (res.ok) {
+      setHeroes((prev) =>
+        prev.map((h) => (h.heroId === heroId ? { ...h, roleType } : h))
+      );
+      setNeedLogin(false);
+    } else if (res.status === 401) {
+      setNeedLogin(true);
+    } else {
+      const err = await res.json().catch(() => ({ error: "保存失败" }));
+      setErrors((prev) => ({ ...prev, [heroId]: err.error || "保存失败" }));
+    }
+    setSaving((prev) => { const n = { ...prev }; delete n[heroId]; return n; });
+  }
 
   const filtered = heroes.filter((h) => {
-    // Show pending changes: use pending value if exists
-    const effectiveRole = pending[h.heroId] || h.roleType;
     if (!filter) return true;
     if (filter === "changed") {
-      const defaultLane = CLASS_TO_LANE[h.heroType];
-      return effectiveRole !== defaultLane;
+      const d = CLASS_TO_LANE[h.heroType];
+      return d && h.roleType !== d;
     }
-    if (filter === "unsaved") return pending[h.heroId] !== undefined;
-    return effectiveRole === filter;
+    return h.roleType === filter;
   });
 
   if (loading) {
@@ -133,34 +100,21 @@ export default function AdminHeroesPage() {
             英雄分路管理
           </h1>
           <p style={{ fontSize: 13, color: "var(--text-muted)", margin: 0 }}>
-            手动修正分路 · 同步不会覆盖 · 共 {heroes.length} 位英雄
+            修改即保存 · 同步不会覆盖 · 共 {heroes.length} 位英雄
           </p>
         </div>
-        <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-          <a href="/heroes" style={{ fontSize: 13, color: "var(--text-secondary)", textDecoration: "none" }}>
-            ← 图鉴
-          </a>
-          <button
-            className="btn-primary"
-            disabled={pendingCount === 0 || saving}
-            onClick={saveAll}
-            style={{ fontSize: 13, padding: "10px 24px" }}
-          >
-            {saving ? "保存中..." : `保存修改${pendingCount > 0 ? ` (${pendingCount})` : ""}`}
-          </button>
-        </div>
+        <a href="/heroes" style={{ fontSize: 13, color: "var(--text-secondary)", textDecoration: "none" }}>
+          ← 返回图鉴
+        </a>
       </div>
 
-      {/* Message */}
-      {message && (
+      {needLogin && (
         <div style={{
           marginBottom: 16, padding: "10px 16px", borderRadius: 6,
-          background: message.type === "ok" ? "rgba(80,176,80,0.1)" : "rgba(224,80,80,0.1)",
-          border: `1px solid ${message.type === "ok" ? "rgba(80,176,80,0.2)" : "rgba(224,80,80,0.2)"}`,
-          color: message.type === "ok" ? "var(--green)" : "var(--red)",
-          fontSize: 13, fontWeight: 500,
+          background: "rgba(224,80,80,0.1)", border: "1px solid rgba(224,80,80,0.2)",
+          color: "var(--red)", fontSize: 13,
         }}>
-          {message.text}
+          请先<a href="/login" style={{ color: "var(--gold)", fontWeight: 600 }}>登录</a>后再修改分路
         </div>
       )}
 
@@ -177,11 +131,6 @@ export default function AdminHeroesPage() {
         <button onClick={() => setFilter("changed")} className={filter === "changed" ? "btn-primary" : "btn-subtle"} style={{ padding: "5px 14px", fontSize: 12 }}>
           已修正
         </button>
-        {pendingCount > 0 && (
-          <button onClick={() => setFilter("unsaved")} className={filter === "unsaved" ? "btn-primary" : "btn-subtle"} style={{ padding: "5px 14px", fontSize: 12, borderColor: "rgba(240,192,64,0.4)" }}>
-            待保存 ({pendingCount})
-          </button>
-        )}
       </div>
 
       {/* Table */}
@@ -199,22 +148,14 @@ export default function AdminHeroesPage() {
             <tbody>
               {filtered.map((hero) => {
                 const cls = CLASS_LABELS[hero.heroType];
-                const effectiveRole = pending[hero.heroId] || hero.roleType;
-                const lane = ROLE_LABELS[effectiveRole];
+                const lane = ROLE_LABELS[hero.roleType];
                 const defaultLane = CLASS_TO_LANE[hero.heroType];
-                const isModified = effectiveRole !== defaultLane;
-                const isPending = pending[hero.heroId] !== undefined;
-                const originalLane = ROLE_LABELS[hero.roleType];
+                const isModified = hero.roleType !== defaultLane;
+                const isSaving = saving[hero.heroId];
+                const err = errors[hero.heroId];
 
                 return (
-                  <tr
-                    key={hero.heroId}
-                    style={{
-                      borderBottom: "1px solid var(--border-light)",
-                      background: isPending ? "rgba(240,192,64,0.04)" : "transparent",
-                      transition: "background 0.2s",
-                    }}
-                  >
+                  <tr key={hero.heroId} style={{ borderBottom: "1px solid var(--border-light)" }}>
                     <td style={{ padding: "8px 16px", color: "var(--text-muted)", fontSize: 11, fontFamily: "monospace" }}>
                       {hero.heroId}
                     </td>
@@ -247,35 +188,24 @@ export default function AdminHeroesPage() {
                     </td>
                     <td style={{ padding: "8px 16px" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        {/* Current/Original lane */}
-                        {isPending && (
-                          <span style={{
-                            display: "inline-block", padding: "2px 8px", borderRadius: 3,
-                            fontSize: 11, fontWeight: 600, textDecoration: "line-through",
-                            opacity: 0.5,
-                            background: originalLane ? originalLane.color + "18" : "var(--bg-hover)",
-                            color: originalLane ? originalLane.color : "var(--text-muted)",
-                          }}>
-                            {originalLane ? originalLane.label : hero.roleType}
-                          </span>
-                        )}
-                        {/* Effective/New lane */}
                         <span style={{
                           display: "inline-block", padding: "2px 8px", borderRadius: 3,
-                          fontSize: 11, fontWeight: 600,
+                          fontSize: 11, fontWeight: 600, flexShrink: 0,
                           background: lane ? lane.color + "18" : "var(--bg-hover)",
                           color: lane ? lane.color : "var(--text-muted)",
-                          border: `1px solid ${isPending ? "var(--gold)" : (lane ? lane.color + "25" : "var(--border)")}`,
-                          boxShadow: isPending ? "0 0 6px rgba(240,192,64,0.2)" : "none",
+                          border: "1px solid " + (lane ? lane.color + "25" : "var(--border)"),
                         }}>
-                          {lane ? lane.label : effectiveRole}
-                          {isModified && !isPending && <span style={{ marginLeft: 4, fontSize: 9, color: "var(--gold)" }}>*</span>}
+                          {lane ? lane.label : hero.roleType}
+                          {isModified && <span style={{ marginLeft: 4, fontSize: 9, color: "var(--gold)" }}>*</span>}
                         </span>
-                        {/* Dropdown */}
                         <select
-                          value={effectiveRole}
-                          onChange={(e) => changeLocal(hero.heroId, e.target.value)}
-                          style={{ padding: "4px 8px", fontSize: 12, width: 100 }}
+                          value={hero.roleType}
+                          disabled={isSaving}
+                          onChange={(e) => changeLane(hero.heroId, e.target.value)}
+                          style={{
+                            padding: "4px 8px", fontSize: 12, width: 110,
+                            opacity: isSaving ? 0.5 : 1,
+                          }}
                         >
                           {ROLES.map((r) => (
                             <option key={r} value={r}>
@@ -283,24 +213,8 @@ export default function AdminHeroesPage() {
                             </option>
                           ))}
                         </select>
-                        {isPending && (
-                          <button
-                            onClick={() => {
-                              setPending((prev) => {
-                                const next = { ...prev };
-                                delete next[hero.heroId];
-                                return next;
-                              });
-                            }}
-                            style={{
-                              background: "none", border: "none", cursor: "pointer",
-                              color: "var(--text-muted)", fontSize: 16, padding: 0, lineHeight: 1,
-                            }}
-                            title="撤销修改"
-                          >
-                            ↩
-                          </button>
-                        )}
+                        {isSaving && <span style={{ fontSize: 11, color: "var(--gold)", flexShrink: 0 }}>保存中...</span>}
+                        {err && <span style={{ fontSize: 11, color: "var(--red)", flexShrink: 0 }}>{err}</span>}
                       </div>
                     </td>
                   </tr>
