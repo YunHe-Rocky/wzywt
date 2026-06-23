@@ -57,10 +57,11 @@ export function Header() {
     router.refresh();
   }
 
-  const publicNav = [
-    { href: "/", label: "首页", icon: "🏠" },
-    { href: "/tournaments", label: "赛事", icon: "⚔️" },
-    { href: "/heroes", label: "英雄", icon: "📖" },
+  const navItems = [
+    { href: "/", label: "首页" },
+    { href: "/tournaments", label: "赛事大厅" },
+    { href: "/heroes", label: "英雄图鉴" },
+    { href: "/me", label: "个人空间" },
   ];
 
   const isActive = (href: string) => {
@@ -70,34 +71,13 @@ export function Header() {
 
   return (
     <header className="header-bar">
-      {/* 能量光晕 */}
       <div className="header-glow" />
-
       <div className="header-inner">
         {/* 左侧：项目名 */}
         <Link href="/" className="header-brand">
           王者演武堂
         </Link>
 
-        {/* 中间：导航（所有用户可见） */}
-        <nav className="header-nav">
-          {publicNav.map((item) => {
-            const active = isActive(item.href);
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`nav-link${active ? " active" : ""}`}
-              >
-                <span className="nav-link-icon">{item.icon}</span>
-                <span>{item.label}</span>
-                {active && <span className="nav-link-glow" />}
-              </Link>
-            );
-          })}
-        </nav>
-
-        {/* 右侧占位 */}
         <div style={{ flex: 1 }} />
 
         {/* 右侧：用户区 */}
@@ -125,23 +105,25 @@ export function Header() {
               </span>
             </button>
 
-            {/* 下拉菜单 */}
             {menuOpen && (
               <div role="menu" className="dropdown-menu">
-                <Link
-                  role="menuitem"
-                  href="/me"
-                  className={`dropdown-item${isActive("/me") ? " active" : ""}`}
-                  onClick={() => setMenuOpen(false)}
-                >
-                  👤 个人空间
-                </Link>
+                {navItems.map((item) => (
+                  <Link
+                    key={item.href}
+                    role="menuitem"
+                    href={item.href}
+                    className={`dropdown-item${isActive(item.href) ? " active" : ""}`}
+                    onClick={() => setMenuOpen(false)}
+                  >
+                    {item.label}
+                  </Link>
+                ))}
                 <div className="dropdown-divider" />
                 <button
                   onClick={logout}
                   className="dropdown-item dropdown-logout"
                 >
-                  🚪 退出登录
+                  退出登录
                 </button>
               </div>
             )}

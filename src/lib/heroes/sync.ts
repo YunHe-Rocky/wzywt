@@ -11,17 +11,33 @@ interface RawHero {
   cname: string;
   title: string;
   hero_type: number;
+  hero_type2?: number;
   id_name?: string;
 }
 
-const ROLE_MAP: Record<number, string> = {
+// Official type: 1=战士 2=法师 3=坦克 4=刺客 5=射手 6=辅助
+// Map to lane: use hero_type2 as fallback for ambiguous heroes
+const CLASS_TO_LANE: Record<number, string> = {
   1: "top",      // 战士 → 上路
   2: "mid",      // 法师 → 中路
-  3: "jungle",   // 刺客 → 打野
-  4: "top",      // 坦克 → 上路
+  3: "top",      // 坦克 → 上路
+  4: "jungle",   // 刺客 → 打野
   5: "adc",      // 射手 → 发育路
   6: "support",  // 辅助 → 游走
 };
+
+// Heroes where primary class→lane is misleading; use secondary class
+// e.g. 不知火舞: primary 4(刺客)→jungle, but actually mid via secondary 2(法师)
+const LANE_OVERRIDES: Record<number, string> = {
+  // 刺客+法师 hybrid → mid
+  157: "mid",    // 不知火舞
+  // Add more overrides as needed
+};
+
+function resolveRoleType(h: RawHero): string {
+  if (LANE_OVERRIDES[h.ename]) return LANE_OVERRIDES[h.ename];
+  return CLASS_TO_LANE[h.hero_type] || "top";
+}
 
 function sanitize(s: string): string {
   return s.replace(/\0/g, "").replace(/�/g, "").replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "").trim();
@@ -158,7 +174,7 @@ export async function syncHeroes(): Promise<{ inserted: number; updated: number 
     const batch = heroes.slice(b, b + batchSize);
     const results = await Promise.all(
       batch.map(async (h) => {
-        const roleType = ROLE_MAP[h.hero_type] || "top";
+        const roleType = resolveRoleType(h);
         const html = await fetchDetail(h.ename, h.id_name);
 
         // Skills
@@ -190,13 +206,14 @@ export async function syncHeroes(): Promise<{ inserted: number; updated: number 
       const existing = await prisma.hero.findUnique({ where: { heroId: h.ename } });
       if (!existing) {
         await prisma.hero.create({
-          data: { heroId: h.ename, name: h.cname, title: h.title, roleType, heroType: h.hero_type, imageUrl, skinsJson, skillsJson },
+          data: { heroId: h.ename, name: h.cname, title: h.title, roleType, heroType: h.hero_type, heroType2: h.hero_type2 ?? 0, imageUrl, skinsJson, skillsJson },
         });
         inserted++;
       } else {
+        // Update official data fields, but preserve roleType (may have been manually corrected)
         await prisma.hero.update({
           where: { heroId: h.ename },
-          data: { name: h.cname, title: h.title, roleType, heroType: h.hero_type, imageUrl, skinsJson, skillsJson },
+          data: { name: h.cname, title: h.title, heroType: h.hero_type, heroType2: h.hero_type2 ?? 0, imageUrl, skinsJson, skillsJson },
         });
         updated++;
       }
