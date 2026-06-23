@@ -21,7 +21,11 @@ export function Header() {
     fetch("/api/auth/me")
       .then((r) => r.json())
       .then((d) => {
-        setUser(d.user);
+        setUser(d.user ?? null);
+        setLoading(false);
+      })
+      .catch(() => {
+        setUser(null);
         setLoading(false);
       });
   }, [pathname]);
@@ -32,8 +36,17 @@ export function Header() {
         setMenuOpen(false);
       }
     }
+    function handleKeydown(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        setMenuOpen(false);
+      }
+    }
     document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
+    document.addEventListener("keydown", handleKeydown);
+    return () => {
+      document.removeEventListener("mousedown", handleClick);
+      document.removeEventListener("keydown", handleKeydown);
+    };
   }, []);
 
   async function logout() {
@@ -97,6 +110,8 @@ export function Header() {
         <div ref={menuRef} style={{ position: "relative" }}>
           <button
             onClick={() => setMenuOpen(!menuOpen)}
+            aria-expanded={menuOpen}
+            aria-haspopup="true"
             style={{
               display: "flex",
               alignItems: "center",
@@ -108,10 +123,10 @@ export function Header() {
               borderRadius: 6,
             }}
             onMouseEnter={(e) => {
-              (e.currentTarget as HTMLElement).style.background = "var(--bg-hover)";
+              e.currentTarget.style.background = "var(--bg-hover)";
             }}
             onMouseLeave={(e) => {
-              (e.currentTarget as HTMLElement).style.background = "transparent";
+              e.currentTarget.style.background = "transparent";
             }}
           >
             <div
@@ -139,6 +154,7 @@ export function Header() {
           {/* 下拉菜单 */}
           {menuOpen && (
             <div
+              role="menu"
               style={{
                 position: "absolute",
                 top: "calc(100% + 8px)",
@@ -155,6 +171,7 @@ export function Header() {
               {navItems.map((item) => (
                 <Link
                   key={item.href}
+                  role="menuitem"
                   href={item.href}
                   onClick={() => setMenuOpen(false)}
                   style={{
@@ -167,12 +184,12 @@ export function Header() {
                     transition: "all 0.12s",
                   }}
                   onMouseEnter={(e) => {
-                    (e.currentTarget as HTMLElement).style.background = "var(--bg-hover)";
-                    (e.currentTarget as HTMLElement).style.color = "var(--text)";
+                    e.currentTarget.style.background = "var(--bg-hover)";
+                    e.currentTarget.style.color = "var(--text)";
                   }}
                   onMouseLeave={(e) => {
-                    (e.currentTarget as HTMLElement).style.background = "transparent";
-                    (e.currentTarget as HTMLElement).style.color = isActive(item.href) ? "var(--gold)" : "var(--text-secondary)";
+                    e.currentTarget.style.background = "transparent";
+                    e.currentTarget.style.color = isActive(item.href) ? "var(--gold)" : "var(--text-secondary)";
                   }}
                 >
                   {item.label}
@@ -198,12 +215,12 @@ export function Header() {
                   color: "var(--text-secondary)",
                 }}
                 onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLElement).style.background = "var(--bg-hover)";
-                  (e.currentTarget as HTMLElement).style.color = "var(--red)";
+                  e.currentTarget.style.background = "var(--bg-hover)";
+                  e.currentTarget.style.color = "var(--red)";
                 }}
                 onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLElement).style.background = "transparent";
-                  (e.currentTarget as HTMLElement).style.color = "var(--text-secondary)";
+                  e.currentTarget.style.background = "transparent";
+                  e.currentTarget.style.color = "var(--text-secondary)";
                 }}
               >
                 退出登录
