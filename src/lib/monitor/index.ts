@@ -2,7 +2,7 @@
 // When changes are detected, triggers the corresponding scraper module.
 
 import { prisma } from "@/lib/db";
-import { getHeaders } from "@/lib/anti-bot";
+import { fetchWithRetry } from "@/lib/anti-bot";
 
 // ── Config ─────────────────────────────────────────────────────────────
 const NEWS_URL = "https://pvp.qq.com/web201605/newslist.shtml";
@@ -18,20 +18,16 @@ interface MonitorResult {
 // ── News Monitor (light: only checks headlines) ────────────────────────
 async function checkNews(): Promise<MonitorResult> {
   try {
-    const res = await fetch(NEWS_URL, {
-      headers: getHeaders("https://pvp.qq.com/"),
-      signal: AbortSignal.timeout(8000),
-    });
-    if (!res.ok) return { module: "news", changed: false, detail: "HTTP " + res.status };
+    const res = await fetchWithRetry(NEWS_URL, { timeout: 8000, referer: "https://pvp.qq.com/" });
+    if (!res.ok || !res.text) return { module: "news", changed: false, detail: "HTTP " + res.status };
 
-    const html = await res.text();
+    const html = res.text;
 
     // Light check: extract first headline
     const titleMatch = html.match(/<a[^>]*href="([^"]*)"[^>]*>([^<]{4,})<\/a>/);
     if (!titleMatch) return { module: "news", changed: false, detail: "no titles found" };
 
     const firstTitle = titleMatch[2].trim();
-    const firstUrl = titleMatch[1];
 
     // Compare with cached last title
     const cache = await prisma.$queryRawUnsafe(
@@ -57,13 +53,10 @@ async function checkNews(): Promise<MonitorResult> {
 // ── Hero Monitor (light: checks hero count + names) ────────────────────
 async function checkHeroes(): Promise<MonitorResult> {
   try {
-    const res = await fetch(HEROLIST_URL, {
-      headers: getHeaders("https://pvp.qq.com/"),
-      signal: AbortSignal.timeout(10000),
-    });
-    if (!res.ok) return { module: "heroes", changed: false, detail: "HTTP " + res.status };
+    const res = await fetchWithRetry(HEROLIST_URL, { timeout: 10000, referer: "https://pvp.qq.com/", isJson: true });
+    if (!res.ok || !res.json) return { module: "heroes", changed: false, detail: "HTTP " + res.status };
 
-    const official = await res.json() as { ename: number; cname: string; title: string; hero_type: number; hero_type2?: number }[];
+    const official = res.json as { ename: number; cname: string; title: string; hero_type: number; hero_type2?: number }[];
 
     // Light check: compare hero count and names
     const dbCount = await prisma.hero.count();
@@ -101,13 +94,10 @@ async function checkHeroes(): Promise<MonitorResult> {
 // ── Skin Monitor (light: checks skin names per hero from official JSON) ─
 async function checkSkins(): Promise<MonitorResult> {
   try {
-    const res = await fetch(HEROLIST_URL, {
-      headers: getHeaders("https://pvp.qq.com/"),
-      signal: AbortSignal.timeout(10000),
-    });
-    if (!res.ok) return { module: "skins", changed: false, detail: "HTTP " + res.status };
+    const res = await fetchWithRetry(HEROLIST_URL, { timeout: 10000, referer: "https://pvp.qq.com/", isJson: true });
+    if (!res.ok || !res.json) return { module: "skins", changed: false, detail: "HTTP " + res.status };
 
-    const official = await res.json() as { ename: number; skin_name?: string }[];
+    const official = res.json as { ename: number; skin_name?: string }[];
 
     // Check skin fingerprints: sample every 5th hero's skin_name
     const samples = official.filter((_, i) => i % 5 === 0);

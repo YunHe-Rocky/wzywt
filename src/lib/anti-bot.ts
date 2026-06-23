@@ -33,11 +33,17 @@ export async function fetchWithRetry(
 ): Promise<{ ok: boolean; status: number; text?: string; json?: unknown }> {
   const { timeout = 10000, referer, isJson } = options;
 
-  // Tier 1: Regular fetch with browser headers
+  // Tier 1: Regular fetch with rotating browser headers
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
+      // Rotate UA on each retry
+      const ua = getRandomUA();
+      const headers = {
+        ...getHeaders(referer),
+        "User-Agent": ua,
+      };
       const res = await fetch(url, {
-        headers: getHeaders(referer),
+        headers,
         signal: AbortSignal.timeout(timeout),
       });
 
