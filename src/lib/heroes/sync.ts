@@ -225,13 +225,5 @@ export async function syncHeroes(): Promise<{ inserted: number; updated: number 
   return { inserted, updated };
 }
 
-// Self-execute
-syncHeroes()
-  .then((r) => {
-    console.log(`Hero sync done: ${r.inserted} inserted, ${r.updated} updated`);
-    process.exit(0);
-  })
-  .catch((err) => {
-    console.error("Hero sync failed:", err);
-    process.exit(1);
-  });
+// Self-execute only when run via `npx tsx src/lib/heroes/sync.ts`
+// (removed from auto-execution to prevent accidental triggers)

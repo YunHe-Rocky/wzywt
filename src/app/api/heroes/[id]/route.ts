@@ -41,9 +41,14 @@ export async function PATCH(
     return NextResponse.json({ error: "无效分路" }, { status: 400 });
   }
 
-  const updated = await prisma.hero.update({
+  // Use raw SQL to avoid Prisma caching issues
+  await prisma.$executeRawUnsafe(
+    "UPDATE heroes SET role_type = ? WHERE hero_id = ?",
+    roleType, heroId
+  );
+
+  const updated = await prisma.hero.findUnique({
     where: { heroId },
-    data: { roleType },
     select: { heroId: true, name: true, roleType: true, heroType: true, heroType2: true },
   });
 
