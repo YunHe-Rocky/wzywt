@@ -1,6 +1,7 @@
 import "./globals.css";
 import type { Metadata } from "next";
 import { Header } from "@/components/layout/Header";
+import { ToastProvider } from "@/components/ui/Toast";
 
 export const metadata: Metadata = {
   title: "王者演武堂",
@@ -10,9 +11,11 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="zh-CN">
-      <body className="font-sans bg-gray-950 text-gray-100 min-h-screen">
-        <Header />
-        <main>{children}</main>
+      <body className="font-sans" style={{ background: "var(--bg-root)", color: "var(--text)", minHeight: "100vh" }}>
+        <ToastProvider>
+          <Header />
+          <main className="main-content">{children}</main>
+        </ToastProvider>
       </body>
     </html>
   );
