@@ -135,6 +135,13 @@ model HeroLaneOverride {
   @@map("hero_lane_overrides")
 }
 
+model KvCache {
+  key   String @id @db.VarChar(64)
+  value String @db.Text
+
+  @@map("kv_cache")
+}
+
 model AdminOperation {
   id           Int      @id @default(autoincrement())
   tournamentId Int      @map("tournament_id")

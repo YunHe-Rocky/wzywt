@@ -1,68 +1,51 @@
 import { NextRequest } from "next/server";
-import { prisma } from "@/lib/db";
 import { addClient, removeClient, broadcastHeroUpdate } from "@/lib/sse/heroes";
+import { runAllMonitors, runMonitorAndScrape } from "@/lib/monitor";
 
-const HEROLIST_URL = "https://pvp.qq.com/web201605/js/herolist.json";
-
-async function checkChanges() {
-  try {
-    const res = await fetch(HEROLIST_URL, { headers: { "User-Agent": "Mozilla/5.0" } });
-    if (!res.ok) return [];
-    const official: { ename: number; cname: string; title: string; hero_type: number; hero_type2?: number }[] = await res.json();
-
-    const dbHeroes = await prisma.hero.findMany({
-      select: { heroId: true, name: true, title: true, heroType: true, heroType2: true },
-    });
-    const dbMap = new Map(dbHeroes.map((h) => [h.heroId, h]));
-
-    const changes: { heroId: number; name: string }[] = [];
-    for (const h of official) {
-      const db = dbMap.get(h.ename);
-      if (!db) {
-        console.log(`[watch] New hero: ${h.ename} ${h.cname}`);
-        continue;
-      }
-      // Check for any change in official data
-      if (db.name !== h.cname || db.title !== h.title || db.heroType !== h.hero_type || db.heroType2 !== (h.hero_type2 ?? 0)) {
-        await prisma.hero.update({
-          where: { heroId: h.ename },
-          data: {
-            name: h.cname,
-            title: h.title,
-            heroType: h.hero_type,
-            heroType2: h.hero_type2 ?? 0,
-          },
-        });
-        changes.push({ heroId: h.ename, name: h.cname });
-      }
-    }
-    return changes;
-  } catch {
-    return [];
-  }
-}
+let cycleCount = 0;
 
 export async function GET(req: NextRequest) {
   const stream = new ReadableStream({
     async start(controller) {
       addClient(controller);
 
-      controller.enqueue(new TextEncoder().encode("data: {\"type\":\"connected\"}\n\n"));
+      const send = (data: object) => {
+        controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(data)}\n\n`));
+      };
 
-      const interval = setInterval(async () => {
-        const changes = await checkChanges();
-        if (changes.length > 0) {
-          broadcastHeroUpdate(changes);
-        }
-      }, 30000); // Check every 30s
+      send({ type: "connected", modules: ["news", "heroes", "skins"] });
 
-      // Initial check after 3s
-      setTimeout(async () => {
-        const changes = await checkChanges();
-        if (changes.length > 0) {
-          broadcastHeroUpdate(changes);
+      // Run full cycle: check → detect changes → scrape → broadcast
+      const runCycle = async () => {
+        cycleCount++;
+        // 1. Check all modules (lightweight, no scraping)
+        const checks = await runAllMonitors();
+        send({ type: "monitor-check", cycle: cycleCount, results: checks });
+
+        // 2. For any changed module, trigger the scraper
+        const changed = checks.filter((c) => c.changed);
+        if (changed.length > 0) {
+          send({ type: "scrape-triggered", modules: changed.map((c) => c.module) });
+
+          const events = await runMonitorAndScrape();
+          send({ type: "scrape-result", events });
+
+          // Broadcast hero updates if heroes changed
+          const heroUpdates = events.filter((e) => e.module === "heroes" && e.action === "scrape-done");
+          if (heroUpdates.length > 0) {
+            const changes = heroUpdates.map((e) => ({ heroId: 0, name: e.detail }));
+            broadcastHeroUpdate(changes);
+          }
+        } else {
+          send({ type: "monitor-idle", cycle: cycleCount });
         }
-      }, 3000);
+      };
+
+      // Initial cycle after 5s
+      setTimeout(runCycle, 5000);
+
+      // Periodic check every 60s
+      const interval = setInterval(runCycle, 60000);
 
       req.signal.addEventListener("abort", () => {
         clearInterval(interval);
