@@ -141,9 +141,9 @@ export default function Home() {
       </div>
 
       {/* Dashboard Grid */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Main column */}
-        <div className="flex flex-col gap-4">
+        <div className="lg:col-span-2 flex flex-col gap-4">
           {/* Announcements */}
           <div className="bg-card border border-border rounded-md overflow-hidden">
             <div className="px-5 py-3 border-b border-border-light">
@@ -177,7 +177,7 @@ export default function Home() {
             </div>
             {!loaded ? <div className="px-5 py-6"><SkeletonLines count={2} /></div>
               : rooms.length === 0 ? <p className="text-center text-text-muted text-sm py-6">暂无公开房间</p>
-                : <div className="grid grid-cols-1 grid-cols-2 gap-0">
+                : <div className="grid grid-cols-1 sm:grid-cols-2 gap-0">
                   {rooms.map((room, i) => (
                     <Link key={room.id} href={`/tournaments/${room.id}`}
                       className="flex flex-col gap-1.5 px-5 py-3.5 no-underline hover:bg-hover/50 transition-colors border-b border-border-light border-r-0 last:border-b-0">
