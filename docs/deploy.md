@@ -9,7 +9,7 @@
 sudo dnf update -y
 
 # 安装基础工具
-sudo dnf install -y git curl wget vim tar gzip openssl
+sudo dnf install -y git curl wget vim tar gzip openssl unzip
 
 # 设置时区
 sudo timedatectl set-timezone Asia/Shanghai
@@ -71,31 +71,58 @@ pm2 startup systemd
 
 ## 五、部署项目
 
+### 方式一：Git 克隆（推荐）
+
 ```bash
 cd /opt
 
-# 克隆项目（替换为你的仓库地址）
-git clone https://github.com/你的用户名/yanwutang.git yanwutang
+# 克隆项目
+git clone <你的仓库地址> yanwutang
 cd /opt/yanwutang
 
 # 安装依赖
 npm install
+```
 
-# 配置环境变量
-cat > .env << 'EOF'
-DATABASE_URL="mysql://yanwutang:你的数据库密码@localhost:3306/yanwutang"
-SESSION_SECRET="$(openssl rand -base64 32)"
-EOF
-# 注意：上面 SESSION_SECRET 的 $(...) 在 cat << 'EOF' 中不会展开
-# 手动生成后填入：
+### 方式二：ZIP 上传（Windows → Linux）
+
+**重要：** Windows 压缩的文件传到 Linux 后，`node_modules/.bin/` 下的可执行文件权限会丢失，导致 `npm run build` 报 `Permission denied`。
+
+```bash
+# 上传 zip 到服务器
+scp 王者演武堂.zip root@你的服务器IP:/opt/
+
+# 解压
+cd /opt
+unzip 王者演武堂.zip -d yanwutang
+cd /opt/yanwutang
+
+# ⚠️ 关键步骤：删除 node_modules 重新安装
+# Windows 打包的 node_modules 在 Linux 上权限不对，必须重装
+rm -rf node_modules
+npm install
+```
+
+### 配置环境变量
+
+```bash
+# 生成 session 密钥
 openssl rand -base64 32
-vim .env  # 把生成的密钥填入 SESSION_SECRET=
+
+cat > .env << 'ENVEOF'
+DATABASE_URL="mysql://yanwutang:你的数据库密码@localhost:3306/yanwutang"
+SESSION_SECRET="上面生成的密钥填这里"
+
+# QQ邮箱 SMTP（用于注册验证码和找回密码）
+# 登录QQ邮箱 → 设置 → 账户 → 开启SMTP服务 → 获取授权码
+EMAIL_HOST=smtp.qq.com
+EMAIL_PORT=465
+EMAIL_USER=你的QQ号@qq.com
+EMAIL_PASS=QQ邮箱SMTP授权码
+ENVEOF
 
 # 初始化数据库表结构
 npx prisma db push
-
-# 首次同步英雄数据（约 3-5 分钟，130 个英雄）
-npx tsx src/lib/heroes/sync.ts
 
 # 生产构建
 npm run build
@@ -105,7 +132,7 @@ npm run build
 
 ```bash
 # 启动 Web 服务（端口 8081）
-pm2 start node_modules/.bin/next --name yanwutang -- start -p 8081
+pm2 start node_modules/next/dist/bin/next --name yanwutang -- start -p 8081
 
 # 启动定时任务
 pm2 start scripts/cron.ts --name yanwutang-cron --interpreter tsx
@@ -187,13 +214,63 @@ sudo chmod +x /opt/backup-db.sh
 ```bash
 cd /opt/yanwutang
 git pull
-npm install
-npx prisma db push
+npm install          # 依赖可能有更新
+npx prisma db push   # 数据库迁移
 npm run build
 pm2 restart all
 ```
 
-## 十二、常用运维命令
+## 十二、常见问题
+
+### `npm run build` 报 Permission denied
+
+```
+sh: line 1: /opt/yanwutang/node_modules/.bin/next: Permission denied
+```
+
+**原因：** 项目是从 Windows 打包的 zip 上传的，`node_modules/.bin/` 下的文件没有执行权限。
+
+**解决：**
+```bash
+rm -rf node_modules
+npm install
+npm run build
+```
+
+### 数据库连接失败
+
+```bash
+# 检查 MySQL 是否运行
+sudo systemctl status mysqld
+
+# 检查 .env 中 DATABASE_URL 是否正确
+cat /opt/yanwutang/.env | grep DATABASE_URL
+
+# 测试连接
+mysql -u yanwutang -p -e "SELECT 1"
+```
+
+### 端口被占用
+
+```bash
+# 查看端口占用
+sudo ss -tlnp | grep 8081
+
+# 杀掉占用进程
+sudo kill -9 <PID>
+```
+
+### 邮箱验证码发不出去
+
+```bash
+# 检查 SMTP 配置
+cat /opt/yanwutang/.env | grep EMAIL
+
+# 确认QQ邮箱已开启SMTP服务且授权码正确
+# 确认防火墙未拦截465端口
+```
+
+## 十三、常用运维命令
 
 ```bash
 # 服务状态
@@ -210,8 +287,8 @@ pm2 restart yanwutang       # 重启 Web
 pm2 restart all             # 重启所有
 sudo systemctl restart nginx
 
-# 手动触发英雄同步
-cd /opt/yanwutang && npx tsx src/lib/heroes/sync.ts
+# 手动同步英雄数据
+cd /opt/yanwutang && npm run sync-heroes
 
 # 查看数据库
 mysql -u yanwutang -p yanwutang
@@ -224,9 +301,9 @@ mysql -u yanwutang -p yanwutang
 | Node 版本 | `node -v` → v20.x |
 | MySQL 运行 | `sudo systemctl status mysqld` → active |
 | 数据库存在 | `mysql -u yanwutang -p -e "USE yanwutang; SHOW TABLES;"` |
-| Web 运行 | `curl http://localhost:8081` → 200 |
-| PM2 进程 | `pm2 status` → 2 个 online |
+| Web 运行 | `curl http://localhost:8081/login` → 200 |
+| PM2 进程 | `pm2 status` → yanwutang online |
 | Nginx 运行 | `sudo systemctl status nginx` → active |
-| 域名访问 | `curl http://你的域名` → 200 |
-| HTTPS | `curl https://你的域名` → 200 (配置 SSL 后) |
-| 监控 SSE | `curl http://localhost:8081/api/heroes/watch` → SSE 数据流 |
+| 域名访问 | `curl http://你的域名/login` → 200 |
+| HTTPS | `curl https://你的域名/login` → 200 (配置 SSL 后) |
+| 邮箱功能 | 注册页点击"发送验证码"能收到邮件 |
