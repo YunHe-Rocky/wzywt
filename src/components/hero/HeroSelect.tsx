@@ -173,10 +173,13 @@ export function HeroSelect({ roleType, value, onChange }: Props) {
               style={{ width: 28, height: 28, borderRadius: 4, objectFit: "cover" }}
               onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
             />
-            <span style={{ fontWeight: 600 }}>{selectedHero.name}</span>
-            <span style={{ color: "var(--text-muted)", fontSize: 11, marginLeft: "auto" }}>
-              {selectedHero.title}
-            </span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 5 }}>
+                <span style={{ fontWeight: 600, fontSize: 13 }}>{selectedHero.name}</span>
+                <span style={{ color: "var(--text-muted)", fontSize: 10, fontFamily: "monospace" }}>#{selectedHero.heroId}</span>
+              </div>
+              <div style={{ color: "var(--text-muted)", fontSize: 10, marginTop: 1 }}>{selectedHero.title}</div>
+            </div>
           </>
         ) : (
           <>
@@ -274,10 +277,12 @@ export function HeroSelect({ roleType, value, onChange }: Props) {
                     onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
                   />
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 600 }}>{hero.name}</div>
-                    <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{hero.title}</div>
+                    <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+                      <span style={{ fontWeight: 600 }}>{hero.name}</span>
+                      <span style={{ fontSize: 10, color: "var(--text-muted)", fontFamily: "monospace" }}>#{hero.heroId}</span>
+                    </div>
+                    <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 1 }}>{hero.title}</div>
                   </div>
-                  <span className="badge badge-muted" style={{ fontSize: 10 }}>{hero.heroId}</span>
                 </button>
               ))
             )}
