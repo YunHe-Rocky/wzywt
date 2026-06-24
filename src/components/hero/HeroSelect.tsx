@@ -106,7 +106,7 @@ export function HeroSelect({ roleType, value, onChange }: Props) {
   }, [heroes, search]);
 
   return (
-    <div ref={ref} style={{ position: "relative", flex: 1, height: "100%" }}>
+    <div ref={ref} style={{ position: "relative", flex: 1 }}>
       {/* Trigger */}
       <button
         type="button"
@@ -116,7 +116,6 @@ export function HeroSelect({ roleType, value, onChange }: Props) {
           alignItems: "center",
           gap: 8,
           width: "100%",
-          height: "100%",
           padding: selectedHero ? "6px 8px 6px 10px" : "8px 8px 8px 12px",
           background: open ? "var(--bg-hover)" : "var(--bg-input)",
           border: `1px solid ${open ? "var(--gold)" : "var(--border)"}`,

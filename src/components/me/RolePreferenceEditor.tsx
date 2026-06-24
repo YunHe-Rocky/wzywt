@@ -180,16 +180,18 @@ export function RolePreferenceEditor() {
 
             {/* Add hero form */}
             {!isFull ? (
-              <div className="mt-3 flex gap-2 items-stretch">
+              <div className="mt-3 flex gap-2 items-start">
                 <div className="flex-1 min-w-0">
                   <HeroSelect roleType={activeTab} value={selHero}
                     onChange={(hid, hn) => { setSelHero(hid); setSelHeroName(hn); }} />
                 </div>
-                <input type="number" placeholder="战力" value={selPower}
-                  onChange={e => setSelPower(e.target.value)}
-                  className="w-[72px] text-[13px] px-2 rounded-md bg-input border border-border text-text shrink-0" />
-                <button className="btn-primary !px-4 !text-[13px] shrink-0"
-                  onClick={() => addHero(activeTab)}>添加</button>
+                <div className="flex gap-2 items-stretch shrink-0">
+                  <input type="number" placeholder="战力" value={selPower}
+                    onChange={e => setSelPower(e.target.value)}
+                    className="w-[72px] text-[13px] px-2 rounded-md bg-input border border-border text-text" />
+                  <button className="btn-primary !px-4 !text-[13px]"
+                    onClick={() => addHero(activeTab)}>添加</button>
+                </div>
               </div>
             ) : (
               <div className="mt-3 px-3 py-2 rounded-md bg-input/30 border border-border text-center text-xs text-text-muted">
