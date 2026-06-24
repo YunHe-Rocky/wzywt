@@ -725,19 +725,23 @@ export function TournamentDetail() {
                     <button
                       onClick={async () => {
                         const name = p.isTemporary ? (p.tempName || "临时选手") : p.user.username;
-                        if (!confirm(`确定踢出 ${name} 吗？`)) return;
+                        const isCoOwner = adminRole?.role === "co_owner";
+                        const msg = isCoOwner
+                          ? `确定将次房主 ${name} 降级并踢出吗？`
+                          : `确定踢出 ${name} 吗？`;
+                        if (!confirm(msg)) return;
                         const res = await fetch(`/api/tournaments/${id}/kick`, {
                           method: "POST",
                           headers: { "Content-Type": "application/json" },
                           body: JSON.stringify({ targetUserId: p.userId }),
                         });
-                        if (res.ok) { refreshTournament(); success("已踢出"); }
+                        if (res.ok) { refreshTournament(); success(isCoOwner ? "已降级并踢出" : "已踢出"); }
                         else { const d = await res.json(); showError(d.error); }
                       }}
                       className="btn-subtle"
                       style={{ fontSize: 12, padding: "5px 12px", color: "var(--red)", whiteSpace: "nowrap" }}
                     >
-                      踢出
+                      {adminRole?.role === "co_owner" ? "降级并踢出" : "踢出"}
                     </button>
                   )}
                 </div>

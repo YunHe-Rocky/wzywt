@@ -17,13 +17,27 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   });
   if (targetIsOwner) return NextResponse.json({ error: "不能踢出房主" }, { status: 400 });
 
-  await prisma.tournamentPlayer.delete({
-    where: { tournamentId_userId: { tournamentId, userId: targetUserId } },
+  // 如果目标是次房主，先降级再踢出
+  const targetIsCoOwner = await prisma.tournamentAdmin.findFirst({
+    where: { tournamentId, userId: targetUserId, role: "co_owner" },
   });
 
-  await prisma.adminOperation.create({
-    data: { tournamentId, adminId: userId, action: "kick", targetId: targetUserId },
-  });
+  await prisma.$transaction([
+    ...(targetIsCoOwner
+      ? [prisma.tournamentAdmin.delete({ where: { tournamentId_userId: { tournamentId, userId: targetUserId } } })]
+      : []),
+    prisma.tournamentPlayer.delete({
+      where: { tournamentId_userId: { tournamentId, userId: targetUserId } },
+    }),
+    prisma.adminOperation.create({
+      data: {
+        tournamentId,
+        adminId: userId,
+        action: targetIsCoOwner ? "demote_and_kick" : "kick",
+        targetId: targetUserId,
+      },
+    }),
+  ]);
 
   return NextResponse.json({ ok: true });
 }
