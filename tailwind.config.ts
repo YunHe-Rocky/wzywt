@@ -9,7 +9,7 @@ const config: Config = {
         nav: "#1e212a",
         card: "#22262e",
         hover: "#292d36",
-        input: "#1e212a",
+        input: "#252a34",
         border: { DEFAULT: "rgba(255,255,255,0.06)", light: "rgba(255,255,255,0.04)", gold: "rgba(168,144,104,0.12)" },
         text: { DEFAULT: "#e0e3ea", secondary: "#b0b4be", muted: "#777b88" },
         gold: { DEFAULT: "#a89068", light: "#c0b090", dim: "#807050" },

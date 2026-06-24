@@ -12,7 +12,7 @@
     #22262e 10%,
     #22262e 100%);
   --bg-hover: #292d36;
-  --bg-input: #1e212a;
+  --bg-input: #252a34;
   --border: rgba(255, 255, 255, 0.06);
   --border-light: rgba(255, 255, 255, 0.04);
   --border-top: rgba(255, 255, 255, 0.08);
@@ -58,7 +58,7 @@
 
   input, select, textarea {
     background: var(--bg-input);
-    border: 1px solid var(--border);
+    border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: var(--radius-sm);
     padding: 10px 14px;
     color: var(--text);
@@ -69,8 +69,8 @@
   }
 
   input:focus, select:focus, textarea:focus {
-    border-color: rgba(184, 152, 96, 0.4);
-    box-shadow: 0 0 0 2px rgba(184, 152, 96, 0.06);
+    border-color: var(--gold-light);
+    box-shadow: 0 0 0 2px rgba(168, 144, 104, 0.1);
   }
 
   input::placeholder {
