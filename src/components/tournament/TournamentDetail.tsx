@@ -484,6 +484,21 @@ export function TournamentDetail() {
                   {tournament.isPublic ? "🔓 公开中" : "🔒 私有"}
                 </button>
               )}
+              {/* Resign button -- only for co-owners */}
+              {!isOwner && (
+                <button
+                  onClick={async () => {
+                    if (!confirm("确定辞去管理权限吗？你将变为普通选手。")) return;
+                    const res = await fetch(`/api/tournaments/${id}/admin/resign`, { method: "POST" });
+                    if (res.ok) { refreshTournament(); success("已辞去管理权限"); }
+                    else { const d = await res.json(); showError(d.error); }
+                  }}
+                  className="btn-subtle"
+                  style={{ fontSize: 13, padding: "8px 18px", color: "var(--red)" }}
+                >
+                  辞去管理
+                </button>
+              )}
             </div>
           </div>
         </div>
