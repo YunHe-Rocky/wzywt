@@ -5,6 +5,58 @@ const FALLBACK_NEWS = [
   { title: "新赛季更新公告", date: new Date().toISOString().slice(0, 10), url: "https://pvp.qq.com/web201605/news.shtml" },
 ];
 
+function isValidUrl(url: string): boolean {
+  if (!url || url === "#" || url.startsWith("javascript:")) return false;
+  return true;
+}
+
+function resolveUrl(href: string): string {
+  if (!href) return "#";
+  if (href.startsWith("http")) return href;
+  if (href.startsWith("//")) return "https:" + href;
+  if (href.startsWith("/")) return "https://pvp.qq.com" + href;
+  return "https://pvp.qq.com/web201605/" + href;
+}
+
+function extractNewsFromHtml(html: string): { title: string; date: string; url: string }[] {
+  const items: { title: string; date: string; url: string }[] = [];
+  const seen = new Set<string>();
+
+  // Try to find news items by looking for link patterns near date patterns
+  // Strategy: find all links with reasonable href, then try to extract date from nearby context
+  const linkPattern = /<a[^>]*href\s*=\s*["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+  const datePattern = /(\d{4}[-/.]\d{1,2}[-/.]\d{1,2})/;
+
+  let linkMatch;
+  while ((linkMatch = linkPattern.exec(html)) !== null) {
+    const rawHref = linkMatch[1];
+    const innerHtml = linkMatch[2];
+
+    if (!isValidUrl(rawHref)) continue;
+
+    // Extract text from inner HTML (strip tags)
+    const title = innerHtml.replace(/<[^>]*>/g, "").trim();
+    if (title.length < 4 || title.length > 100) continue;
+
+    // Skip duplicates
+    if (seen.has(title)) continue;
+    seen.add(title);
+
+    const url = resolveUrl(rawHref);
+
+    // Try to find date in ~300 chars before the link
+    const contextStart = Math.max(0, linkMatch.index - 300);
+    const context = html.slice(contextStart, linkMatch.index + linkMatch[0].length);
+    const dateMatch = context.match(datePattern);
+    const date = dateMatch ? dateMatch[1].replace(/[./]/g, "-") : new Date().toISOString().slice(0, 10);
+
+    items.push({ title, date, url });
+    if (items.length >= 10) break;
+  }
+
+  return items;
+}
+
 export async function GET() {
   try {
     // 从缓存读取
@@ -25,25 +77,7 @@ export async function GET() {
     });
 
     if (res.ok && res.text) {
-      const html = res.text;
-      const newsItems: { title: string; date: string; url: string }[] = [];
-      const linkRegex = /<a[^>]*href="([^"]*)"[^>]*>([^<]{4,})<\/a>/g;
-      let match;
-      while ((match = linkRegex.exec(html)) !== null) {
-        const href = match[1];
-        const title = match[2].trim();
-        if (title.length < 4) continue;
-        let url = href;
-        if (url && !url.startsWith("http")) {
-          url = url.startsWith("/") ? `https://pvp.qq.com${url}` : `https://pvp.qq.com/web201605/${url}`;
-        }
-        const contextStart = Math.max(0, match.index - 200);
-        const context = html.slice(contextStart, match.index);
-        const dateMatch = context.match(/(\d{4}[-/.]\d{1,2}[-/.]\d{1,2})/);
-        const date = dateMatch ? dateMatch[1].replace(/[./]/g, "-") : new Date().toISOString().slice(0, 10);
-        newsItems.push({ title, date, url });
-        if (newsItems.length >= 10) break;
-      }
+      const newsItems = extractNewsFromHtml(res.text);
 
       if (newsItems.length > 0) {
         await prisma.$executeRawUnsafe(

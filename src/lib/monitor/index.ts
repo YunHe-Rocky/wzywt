@@ -191,24 +191,35 @@ export async function runMonitorAndScrape(
             if (res.ok && res.text) {
               const html = res.text;
               const newsItems: { title: string; date: string; url: string }[] = [];
-              const linkRegex = /<a[^>]*href="([^"]*)"[^>]*>([^<]{4,})<\/a>/g;
+              const seen = new Set<string>();
+              const linkRegex = /<a[^>]*href\s*=\s*["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+              const datePattern = /(\d{4}[-/.]\d{1,2}[-/.]\d{1,2})/;
               let match;
+
               while ((match = linkRegex.exec(html)) !== null) {
-                const href = match[1];
-                const title = match[2].trim();
-                if (title.length < 4) continue;
-                let url = href;
-                if (url && !url.startsWith("http")) {
-                  url = url.startsWith("/") ? `https://pvp.qq.com${url}` : `https://pvp.qq.com/web201605/${url}`;
-                }
-                // 尝试在周围提取日期
-                const contextStart = Math.max(0, match.index - 200);
-                const context = html.slice(contextStart, match.index);
-                const dateMatch = context.match(/(\d{4}[-/.]\d{1,2}[-/.]\d{1,2})/);
+                const rawHref = match[1];
+                const innerHtml = match[2];
+                if (!rawHref || rawHref === "#" || rawHref.startsWith("javascript:")) continue;
+
+                const title = innerHtml.replace(/<[^>]*>/g, "").trim();
+                if (title.length < 4 || title.length > 100) continue;
+                if (seen.has(title)) continue;
+                seen.add(title);
+
+                let url = rawHref;
+                if (url.startsWith("//")) url = "https:" + url;
+                else if (url.startsWith("/")) url = "https://pvp.qq.com" + url;
+                else if (!url.startsWith("http")) url = "https://pvp.qq.com/web201605/" + url;
+
+                const ctxStart = Math.max(0, match.index - 300);
+                const context = html.slice(ctxStart, match.index + match[0].length);
+                const dateMatch = context.match(datePattern);
                 const date = dateMatch ? dateMatch[1].replace(/[./]/g, "-") : new Date().toISOString().slice(0, 10);
+
                 newsItems.push({ title, date, url });
                 if (newsItems.length >= 10) break;
               }
+
               if (newsItems.length > 0) {
                 await prisma.$executeRawUnsafe(
                   "INSERT INTO kv_cache (`key`, `value`) VALUES ('official_news', ?) ON DUPLICATE KEY UPDATE `value` = ?",
