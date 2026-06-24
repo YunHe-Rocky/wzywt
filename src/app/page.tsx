@@ -9,6 +9,11 @@ interface User { userId: number; username: string; }
 interface TocItem { id: string; text: string; level: number }
 interface Announcement { date: string; title: string; version: string | null; brief: string; slug: string; content?: string; }
 
+function AnnouncementContent({ a }: { a: Announcement }) {
+  const { nodes } = useMD(`## ${a.title}\n\n*${a.date}*\n\n${a.content || ""}`);
+  return <div className="px-5 pb-4 animate-slide-up">{nodes}</div>;
+}
+
 function SkeletonLines({ count }: { count: number }) {
   return <div className="flex flex-col gap-2.5">
     {Array.from({ length: count }).map((_, i) => <div key={i} className="skeleton rounded h-3.5" style={{ width: `${70 + Math.random() * 30}%` }} />)}
@@ -160,11 +165,7 @@ export default function Home() {
                       </div>
                       <span className={`text-text-muted text-xs mt-1 shrink-0 transition-transform ${activeSlug === a.slug ? "rotate-90" : ""}`}>&#9654;</span>
                     </button>
-                    {activeSlug === a.slug && (
-                      <div className="px-5 pb-4 animate-slide-up">
-                        {useMD(`## ${a.title}\n\n*${a.date}*\n\n${a.content || ""}`).nodes}
-                      </div>
-                    )}
+                    {activeSlug === a.slug && <AnnouncementContent a={a} />}
                   </div>
                 ))}
           </div>
