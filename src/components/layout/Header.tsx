@@ -91,9 +91,28 @@ export function Header() {
             </button>
 
             {menuOpen && (
-              <div className="absolute right-0 top-full mt-1 w-40 bg-card border border-border rounded-lg shadow-2xl py-1 animate-slide-up">
+              <div className="absolute right-0 top-full mt-1 w-48 bg-card border border-border rounded-lg shadow-2xl py-1 animate-slide-up">
+                {/* User info */}
+                <div className="px-4 py-3 border-b border-border-light">
+                  <div className="flex items-center gap-2.5">
+                    <span className="w-8 h-8 rounded-full bg-gradient-to-br from-gold to-gold-dim flex items-center justify-center text-sm font-bold text-root shrink-0">
+                      {user.username[0]}
+                    </span>
+                    <div className="min-w-0">
+                      <div className="text-sm font-semibold text-text truncate">{user.username}</div>
+                      <div className="text-[10px] text-text-muted">召唤师</div>
+                    </div>
+                  </div>
+                </div>
+                <Link href="/me" onClick={() => setMenuOpen(false)}
+                  className="flex items-center gap-2 px-4 py-2.5 text-sm text-text-secondary hover:text-text hover:bg-hover no-underline transition-colors">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                  个人空间
+                </Link>
+                <div className="border-t border-border-light my-1" />
                 <button onClick={logout}
-                  className="w-full text-left px-4 py-2 text-sm text-red hover:bg-red/5 transition-colors">
+                  className="w-full text-left flex items-center gap-2 px-4 py-2.5 text-sm text-red/80 hover:text-red hover:bg-red/5 transition-colors">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
                   退出登录
                 </button>
               </div>
