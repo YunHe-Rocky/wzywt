@@ -12,9 +12,6 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="zh-CN">
-      <head>
-        <meta name="viewport" content="width=1024" />
-      </head>
       <body className="font-sans" style={{ background: "var(--bg-root)", color: "var(--text)", minHeight: "100vh" }}>
         <ToastProvider>
           <Header />
