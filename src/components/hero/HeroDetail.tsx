@@ -98,7 +98,7 @@ export function HeroDetailView() {
 
   if (loading) {
     return (
-      <div style={{ maxWidth: 720, margin: "0 auto", padding: "40px 24px" }}>
+      <div className="hero-detail" style={{ maxWidth: 720, margin: "0 auto", padding: "40px 24px" }}>
         <div className="skeleton" style={{ height: 300 }} />
       </div>
     );
@@ -118,7 +118,7 @@ export function HeroDetailView() {
   const skillLabels = ["被动", "一技能", "二技能", "三技能"];
 
   return (
-    <div style={{ maxWidth: 720, margin: "0 auto", padding: "40px 24px" }}>
+    <div className="hero-detail" style={{ maxWidth: 720, margin: "0 auto", padding: "40px 24px" }}>
       {/* Back link */}
       <button
         onClick={() => router.push("/heroes")}
@@ -240,6 +240,14 @@ export function HeroDetailView() {
           </div>
         ))}
       </div>
+
+      <style jsx>{`
+        @media (max-width: 480px) {
+          .hero-detail {
+            padding: 24px 16px !important;
+          }
+        }
+      `}</style>
     </div>
   );
 }
