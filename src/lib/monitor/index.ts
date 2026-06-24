@@ -5,7 +5,7 @@ import { prisma } from "@/lib/db";
 import { fetchWithRetry } from "@/lib/anti-bot";
 
 // ── Config ─────────────────────────────────────────────────────────────
-const NEWS_URL = "https://pvp.qq.com/web201605/newslist.shtml";
+const NEWS_URL = "https://pvp.qq.com/";
 const HEROLIST_URL = "https://pvp.qq.com/web201605/js/herolist.json";
 
 interface MonitorResult {
@@ -23,11 +23,12 @@ async function checkNews(): Promise<MonitorResult> {
 
     const html = res.text;
 
-    // Light check: extract first headline
-    const titleMatch = html.match(/<a[^>]*href="([^"]*)"[^>]*>([^<]{4,})<\/a>/);
-    if (!titleMatch) return { module: "news", changed: false, detail: "no titles found" };
+    // Extract first headline (support nested HTML in links)
+    const linkMatch = html.match(/<a[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/i);
+    if (!linkMatch) return { module: "news", changed: false, detail: "no titles found" };
 
-    const firstTitle = titleMatch[2].trim();
+    const firstTitle = linkMatch[2].replace(/<[^>]*>/g, "").trim();
+    if (!firstTitle) return { module: "news", changed: false, detail: "no titles found" };
 
     // Compare with cached last title
     const cache = await prisma.$queryRawUnsafe(
