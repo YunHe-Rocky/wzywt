@@ -66,6 +66,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     <ToastContext.Provider value={ctx}>
       {children}
       <div
+        className="toast-container"
         style={{
           position: "fixed",
           top: 72,
@@ -104,6 +105,15 @@ export function ToastProvider({ children }: { children: ReactNode }) {
           </div>
         ))}
       </div>
+      <style jsx>{`
+        @media (max-width: 480px) {
+          .toast-container {
+            right: 12px !important;
+            left: 12px !important;
+            align-items: stretch !important;
+          }
+        }
+      `}</style>
     </ToastContext.Provider>
   );
 }

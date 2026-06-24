@@ -857,7 +857,7 @@ export function TournamentDetail() {
           </h3>
 
           {/* Team cards side by side */}
-          <div style={{
+          <div className="split-result-grid" style={{
             display: "grid",
             gridTemplateColumns: "1fr 1fr",
             gap: 16,
@@ -904,7 +904,7 @@ export function TournamentDetail() {
           {/*  STATS BAR                                                   */}
           {/* =========================================================== */}
           <div
-            className="card"
+            className="card stats-bar"
             style={{
               marginTop: 16,
               padding: "24px 32px",
@@ -1050,6 +1050,13 @@ export function TournamentDetail() {
         @media (max-width: 640px) {
           .tournament-detail {
             padding: 24px 12px 48px !important;
+          }
+          .split-result-grid {
+            grid-template-columns: 1fr !important;
+          }
+          .stats-bar {
+            gap: 16px !important;
+            padding: 16px 20px !important;
           }
         }
       `}</style>

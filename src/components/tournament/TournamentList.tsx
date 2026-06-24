@@ -152,10 +152,10 @@ export function TournamentList() {
             <div className="card" style={{ position: "absolute", marginTop: 4, padding: 16, zIndex: 10, minWidth: 260 }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
                 <button type="button" onClick={() => { if (calendarMonth === 0) { setCalendarMonth(11); setCalendarYear(y => y - 1); } else setCalendarMonth(m => m - 1); }}
-                  style={{ background: "none", border: "none", color: "var(--text-secondary)", cursor: "pointer", fontSize: 18 }}>‹</button>
+                  style={{ background: "none", border: "none", color: "var(--text-secondary)", cursor: "pointer", fontSize: 18, padding: "8px 12px", minWidth: 44 }}>‹</button>
                 <span style={{ fontSize: 14, fontWeight: 600, color: "var(--text)" }}>{calendarYear}年{calendarMonth + 1}月</span>
                 <button type="button" onClick={() => { if (calendarMonth === 11) { setCalendarMonth(0); setCalendarYear(y => y + 1); } else setCalendarMonth(m => m + 1); }}
-                  style={{ background: "none", border: "none", color: "var(--text-secondary)", cursor: "pointer", fontSize: 18 }}>›</button>
+                  style={{ background: "none", border: "none", color: "var(--text-secondary)", cursor: "pointer", fontSize: 18, padding: "8px 12px", minWidth: 44 }}>›</button>
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2, marginBottom: 4, textAlign: "center" }}>
                 {["日","一","二","三","四","五","六"].map(d => <span key={d} style={{ fontSize: 11, color: "var(--text-muted)", padding: "4px 0" }}>{d}</span>)}

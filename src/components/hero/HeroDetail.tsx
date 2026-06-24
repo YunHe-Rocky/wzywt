@@ -129,7 +129,7 @@ export function HeroDetailView() {
       </button>
 
       {/* Hero header */}
-      <div style={{ display: "flex", gap: 28, marginBottom: 32, alignItems: "flex-start" }}>
+      <div className="hero-header" style={{ display: "flex", gap: 28, marginBottom: 32, alignItems: "flex-start" }}>
         {/* Image */}
         <div style={{ flexShrink: 0 }}>
           <div
@@ -245,6 +245,11 @@ export function HeroDetailView() {
         @media (max-width: 480px) {
           .hero-detail {
             padding: 24px 16px !important;
+          }
+          .hero-header {
+            flex-direction: column !important;
+            gap: 16px !important;
+            align-items: center !important;
           }
         }
       `}</style>

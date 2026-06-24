@@ -147,7 +147,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
   const switchHref = mode === "login" ? "/register" : "/login";
 
   return (
-    <div style={{
+    <div className="auth-form-container" style={{
       display: "flex", alignItems: "center", justifyContent: "center",
       minHeight: "calc(100vh - 64px)", padding: "0 24px",
     }}>
