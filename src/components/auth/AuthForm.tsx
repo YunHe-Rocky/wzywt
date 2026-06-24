@@ -168,6 +168,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
 
   return (
     <div
+      className="auth-form-container"
       style={{
         display: "flex",
         alignItems: "center",
@@ -539,6 +540,14 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
           </div>
         </>
       )}
+
+      <style jsx>{`
+        @media (max-width: 480px) {
+          .auth-form-container {
+            padding: 0 16px !important;
+          }
+        }
+      `}</style>
     </div>
   );
 }

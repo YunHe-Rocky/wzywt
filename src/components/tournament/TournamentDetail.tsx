@@ -312,7 +312,7 @@ export function TournamentDetail() {
 
   return (
     <div
-      className="animate-fade-in"
+      className="tournament-detail animate-fade-in"
       style={{ maxWidth: 860, margin: "0 auto", padding: "40px 16px 64px" }}
     >
 
@@ -1027,6 +1027,14 @@ export function TournamentDetail() {
           </div>
         </>
       )}
+
+      <style jsx>{`
+        @media (max-width: 640px) {
+          .tournament-detail {
+            padding: 24px 12px 48px !important;
+          }
+        }
+      `}</style>
     </div>
   );
 }

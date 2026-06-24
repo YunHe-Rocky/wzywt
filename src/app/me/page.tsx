@@ -10,6 +10,7 @@ export default function MePage() {
 
   return (
     <div
+      className="me-page"
       style={{
         maxWidth: 720,
         margin: "0 auto",
@@ -21,10 +22,12 @@ export default function MePage() {
       }}
     >
       <h1
+        className="me-title"
         style={{
           fontSize: 28,
           fontWeight: 700,
           color: "var(--text)",
+          margin: 0,
         }}
       >
         个人空间
@@ -38,6 +41,7 @@ export default function MePage() {
 
       {/* Danger zone */}
       <div
+        className="danger-zone"
         style={{
           animation: "slide-up 0.4s 0.15s ease-out both",
           padding: "20px",
@@ -82,6 +86,21 @@ export default function MePage() {
       </div>
 
       <DeleteAccountModal open={showDelete} onClose={() => setShowDelete(false)} />
+
+      <style jsx>{`
+        @media (max-width: 480px) {
+          .me-page {
+            padding: 24px 16px !important;
+            gap: 20px !important;
+          }
+          .me-title {
+            font-size: 22px !important;
+          }
+          .danger-zone {
+            padding: 16px !important;
+          }
+        }
+      `}</style>
     </div>
   );
 }

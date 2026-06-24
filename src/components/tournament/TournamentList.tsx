@@ -67,7 +67,7 @@ export function TournamentList() {
   }
 
   return (
-    <div style={{ maxWidth: 780, margin: "0 auto", padding: "48px 16px 64px" }}>
+    <div className="tournament-list" style={{ maxWidth: 780, margin: "0 auto", padding: "48px 16px 64px" }}>
 
       {/* ============ PAGE HEADER ============ */}
       <div style={{
@@ -597,6 +597,13 @@ export function TournamentList() {
         </>
       )}
 
+      <style jsx>{`
+        @media (max-width: 480px) {
+          .tournament-list {
+            padding: 24px 12px 48px !important;
+          }
+        }
+      `}</style>
     </div>
   );
 }

@@ -128,7 +128,13 @@ export function HeroPowerEditor() {
                 </span>
                 <span className="hero-collapsed-summary" style={{
                   color: expanded ? "var(--text-secondary)" : "var(--text-muted)",
+                  fontSize: 12,
                   transition: "color 0.15s",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                  maxWidth: "55%",
+                  textAlign: "right",
                 }}>
                   {heroes.length > 0
                     ? heroes.map((h) => `${h.heroName}(${h.powerScore})`).join(", ")
@@ -205,7 +211,7 @@ export function HeroPowerEditor() {
 
                   {/* Add form — only shown when not full */}
                   {!isFull && (
-                    <div className="hero-add-form">
+                    <div>
                       <HeroSelect
                         roleType={role}
                         value={selectedHero}
@@ -214,7 +220,7 @@ export function HeroPowerEditor() {
                           setSelectedHeroName(heroName);
                         }}
                       />
-                      <div className="hero-add-row">
+                      <div className="hero-add-row" style={{ display: "flex", gap: 8, marginTop: 8 }}>
                         <input
                           type="number"
                           placeholder="战力"
@@ -262,6 +268,30 @@ export function HeroPowerEditor() {
           );
         })}
       </div>
+
+      <style jsx>{`
+        @media (max-width: 480px) {
+          .hero-collapsed-summary {
+            display: none;
+          }
+          .hero-add-form {
+            flex-direction: column;
+            gap: 8px;
+          }
+          .hero-add-row {
+            display: flex;
+            gap: 8px;
+            width: 100%;
+          }
+          .hero-add-row input {
+            flex: 1;
+            min-width: 0;
+          }
+          .hero-add-row button {
+            flex-shrink: 0;
+          }
+        }
+      `}</style>
     </div>
   );
 }
