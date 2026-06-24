@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { RolePreferenceEditor } from "@/components/me/RolePreferenceEditor";
-import { HeroPowerEditor } from "@/components/me/HeroPowerEditor";
 import { DeleteAccountModal } from "@/components/auth/DeleteAccountModal";
 import { SecurityQuestionModal } from "@/components/auth/SecurityQuestionModal";
 
@@ -44,9 +43,6 @@ export default function MePage() {
         个人空间
       </h1>
       <RolePreferenceEditor />
-      <div style={{ animation: "slide-up 0.4s 0.1s ease-out both" }}>
-        <HeroPowerEditor />
-      </div>
 
       {/* Account section */}
       <div

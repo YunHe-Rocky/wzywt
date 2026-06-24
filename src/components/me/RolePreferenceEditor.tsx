@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useToast } from "@/components/ui/Toast";
+import { HeroSelect } from "@/components/hero/HeroSelect";
 
 const ROLE_LABELS: Record<string, string> = {
   top: "对抗路", jungle: "打野", mid: "中路", adc: "发育路", support: "游走",
@@ -19,6 +20,8 @@ const RANK_TIERS = [
   { label: "无双王者", value: 8, color: "#F0A030", bg: "#281808" },
   { label: "荣耀王者", value: 9, color: "#FF4444", bg: "#280404" },
 ];
+
+const ROLES = ["top", "jungle", "mid", "adc", "support"];
 
 // ── SVG Icons ───────────────────────────────────────────────────────
 
@@ -88,20 +91,20 @@ function LaneIcon({ role, size = 24 }: { role: string; size?: number }) {
   );
 }
 
-// ── Component ───────────────────────────────────────────────────────
-
+// ── Types ───────────────────────────────────────────────────────────
 interface Pref {
   roleType: string; preferenceRank: number; roleRank: number; peakScore: number; peakRank: number;
 }
-
-interface HeroPower {
-  id: number; heroId: number; heroName: string; powerScore: number; roleType: string;
-}
+interface HeroEntry { id: number; heroId: number; heroName: string; powerScore: number }
 
 export function RolePreferenceEditor() {
   const [prefs, setPrefs] = useState<Pref[]>([]);
-  const [heroPowers, setHeroPowers] = useState<Record<string, HeroPower[]>>({});
+  const [heroesByRole, setHeroesByRole] = useState<Record<string, HeroEntry[]>>({});
   const [sharedRank, setSharedRank] = useState(0);
+  const [expandedRole, setExpandedRole] = useState<string | null>(null);
+  const [selHero, setSelHero] = useState("");
+  const [selHeroName, setSelHeroName] = useState("");
+  const [selPower, setSelPower] = useState("");
   const [saving, setSaving] = useState(false);
   const { success, error } = useToast();
 
@@ -123,11 +126,9 @@ export function RolePreferenceEditor() {
     });
     fetch("/api/users/me/heroes").then(r => r.json()).then(d => {
       if (d.heroPowers) {
-        const grouped: Record<string, HeroPower[]> = {};
-        for (const role of ["top", "jungle", "mid", "adc", "support"]) {
-          grouped[role] = d.heroPowers[role] || [];
-        }
-        setHeroPowers(grouped);
+        const grouped: Record<string, HeroEntry[]> = {};
+        for (const role of ROLES) grouped[role] = d.heroPowers[role] || [];
+        setHeroesByRole(grouped);
       }
     });
   }, []);
@@ -155,7 +156,7 @@ export function RolePreferenceEditor() {
     setPrefs(prev => prev.map((p, j) => (j === i ? { ...p, peakRank: rank } : p)));
   }
 
-  async function save() {
+  async function savePrefs() {
     setSaving(true);
     const res = await fetch("/api/users/me/roles", {
       method: "PUT",
@@ -171,15 +172,51 @@ export function RolePreferenceEditor() {
       }),
     });
     setSaving(false);
-    if (res.ok) success("保存成功");
+    if (res.ok) success("已保存");
     else error("保存失败");
+  }
+
+  async function addHero(role: string) {
+    if (!selHero || !selHeroName || !selPower) return;
+    const res = await fetch("/api/users/me/heroes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        roleType: role, heroId: parseInt(selHero),
+        heroName: selHeroName, powerScore: parseInt(selPower),
+      }),
+    });
+    if (res.ok) {
+      const created = await res.json();
+      setHeroesByRole(prev => ({
+        ...prev, [role]: [...(prev[role] || []), created],
+      }));
+      setSelHero(""); setSelPower("");
+      success("英雄已添加");
+    } else {
+      const err = await res.json();
+      error(err.error || "添加失败");
+    }
+  }
+
+  async function removeHero(id: number, role: string) {
+    await fetch(`/api/users/me/heroes?id=${id}`, { method: "DELETE" });
+    setHeroesByRole(prev => ({
+      ...prev, [role]: prev[role].filter(h => h.id !== id),
+    }));
+    success("已删除");
+  }
+
+  function toggleExpand(role: string) {
+    setExpandedRole(prev => prev === role ? null : role);
+    setSelHero(""); setSelPower("");
   }
 
   const activeTier = RANK_TIERS.find(t => t.value === sharedRank) || RANK_TIERS[0];
 
   return (
     <>
-      {/* ── 当前段位（独立） ── */}
+      {/* ── 当前段位 ── */}
       <div className="card" style={{ animation: "slide-up 0.4s ease-out both" }}>
         <div className="section-title">当前段位</div>
         <div style={{
@@ -194,55 +231,52 @@ export function RolePreferenceEditor() {
             <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", marginBottom: 8, letterSpacing: 1 }}>
               王者荣耀段位
             </div>
-            <select
-              value={sharedRank}
-              onChange={e => setSharedRankAndSync(parseInt(e.target.value))}
+            <select value={sharedRank} onChange={e => setSharedRankAndSync(parseInt(e.target.value))}
               style={{
                 width: "100%", maxWidth: 200, fontSize: 16, fontWeight: 700, padding: "10px 12px",
                 color: sharedRank > 0 ? activeTier.color : "var(--text-muted)",
                 background: "var(--bg-card)", border: "1px solid var(--border)",
                 borderRadius: "var(--radius-sm)",
-              }}
-            >
-              {RANK_TIERS.map(t => (
-                <option key={t.value} value={t.value}>{t.label}</option>
-              ))}
+              }}>
+              {RANK_TIERS.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
             </select>
           </div>
         </div>
       </div>
 
-      {/* ── 分路配置：偏好排序 + 巅峰分 + 历史段位 + 英雄战力 ── */}
+      {/* ── 分路配置 + 英雄战力 ── */}
       <div className="card" style={{ animation: "slide-up 0.4s 0.05s ease-out both" }}>
-        <div className="section-title">分路配置</div>
+        <div className="section-title">分路配置 & 英雄战力</div>
         <p style={{ color: "var(--text-secondary)", fontSize: 12, marginBottom: 16, lineHeight: 1.5 }}>
-          设置分路偏好排序、各分路巅峰赛历史最高分、历史最高段位
+          排序分路偏好，添加英雄战力，设置各分路巅峰赛历史最高分与历史最高段位
         </p>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {prefs.map((p, i) => {
-            const laneHeroes = heroPowers[p.roleType] || [];
-            const avgPower = laneHeroes.length > 0
-              ? Math.round(laneHeroes.reduce((s, h) => s + h.powerScore, 0) / laneHeroes.length)
+            const heroes = heroesByRole[p.roleType] || [];
+            const expanded = expandedRole === p.roleType;
+            const avgPower = heroes.length > 0
+              ? Math.round(heroes.reduce((s, h) => s + h.powerScore, 0) / heroes.length)
               : 0;
+            const isFull = heroes.length >= 3;
+
             return (
-              <div
-                key={p.roleType}
-                className="role-row"
-                style={{
-                  background: "var(--bg-card)",
-                  border: "1px solid var(--border)",
-                  borderRadius: "var(--radius-sm)",
-                  overflow: "hidden",
-                  transition: "background 0.15s",
-                }}
-                onMouseEnter={e => { e.currentTarget.style.background = "var(--bg-hover)"; }}
-                onMouseLeave={e => { e.currentTarget.style.background = "var(--bg-card)"; }}
-              >
+              <div key={p.roleType} style={{
+                background: "var(--bg-card)",
+                border: `1px solid ${expanded ? "var(--border-gold)" : "var(--border)"}`,
+                borderRadius: "var(--radius-sm)",
+                overflow: "hidden",
+                transition: "border-color 0.2s",
+              }}>
                 {/* Main row */}
                 <div style={{
-                  display: "flex", alignItems: "center", gap: 10, padding: "10px 14px",
-                }}>
+                  display: "flex", alignItems: "center", gap: 10,
+                  padding: "10px 14px",
+                  cursor: "pointer",
+                }}
+                  onMouseEnter={e => { if (!expanded) e.currentTarget.style.background = "var(--bg-hover)"; }}
+                  onMouseLeave={e => { if (!expanded) e.currentTarget.style.background = "var(--bg-card)"; }}
+                >
                   <span style={{ color: "var(--gold)", fontWeight: 700, fontSize: 15, minWidth: 22, textAlign: "center", flexShrink: 0 }}>
                     {i + 1}
                   </span>
@@ -251,25 +285,32 @@ export function RolePreferenceEditor() {
                     {ROLE_LABELS[p.roleType]}
                   </span>
 
-                  {/* Hero power summary */}
-                  <span style={{
-                    fontSize: 11, color: avgPower > 0 ? "var(--gold)" : "var(--text-muted)",
-                    minWidth: 70, textAlign: "center", flexShrink: 0,
-                  }}>
-                    {avgPower > 0 ? `战力 ${avgPower}` : "无战力"}
-                  </span>
+                  {/* Hero power pill — click to expand */}
+                  <button type="button" onClick={() => toggleExpand(p.roleType)}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 4, flexShrink: 0,
+                      padding: "4px 10px", borderRadius: 12, border: "1px solid var(--border)",
+                      background: expanded ? "rgba(192,168,74,0.1)" : "transparent",
+                      color: avgPower > 0 ? "var(--gold)" : "var(--text-muted)",
+                      fontSize: 12, fontWeight: avgPower > 0 ? 600 : 400,
+                      cursor: "pointer", transition: "all 0.15s",
+                    }}>
+                    {avgPower > 0 ? `${heroes.length}英雄 ${avgPower}` : "+ 添加英雄"}
+                    <span style={{ fontSize: 10, opacity: 0.5 }}>{expanded ? "▾" : "▸"}</span>
+                  </button>
 
                   {/* Peak score */}
-                  <input type="number" placeholder="巅峰分"
+                  <input type="number" placeholder="巅峰"
                     value={p.peakScore || ""}
                     onChange={e => setPeakScore(i, parseInt(e.target.value) || 0)}
                     style={{
-                      width: 70, fontSize: 12, padding: "5px 6px", flexShrink: 0,
+                      width: 62, fontSize: 12, padding: "5px 6px", flexShrink: 0,
                       color: p.peakScore > 0 ? "var(--gold)" : "var(--text-muted)",
                       fontWeight: p.peakScore > 0 ? 600 : 400,
                       background: "var(--bg-card)", border: "1px solid var(--border)",
                       borderRadius: "var(--radius-sm)",
                     }}
+                    onClick={e => e.stopPropagation()}
                   />
 
                   {/* Peak rank */}
@@ -281,40 +322,97 @@ export function RolePreferenceEditor() {
                         color: p.peakRank > 0 ? "var(--gold)" : "var(--text-muted)",
                         fontWeight: p.peakRank > 0 ? 600 : 400,
                       }}>
-                      {RANK_TIERS.map(t => (
-                        <option key={t.value} value={t.value}>{t.label}</option>
-                      ))}
+                      {RANK_TIERS.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
                     </select>
                   </div>
 
                   {/* Order buttons */}
                   <div style={{ display: "flex", gap: 2, flexShrink: 0 }}>
-                    <button className="btn-subtle" onClick={() => moveUp(i)} disabled={i === 0}
+                    <button className="btn-subtle" onClick={e => { e.stopPropagation(); moveUp(i); }}
+                      disabled={i === 0}
                       style={{ padding: "3px 7px", fontSize: 12, minWidth: 26, fontWeight: 600 }}>↑</button>
-                    <button className="btn-subtle" onClick={() => moveDown(i)} disabled={i === 4}
+                    <button className="btn-subtle" onClick={e => { e.stopPropagation(); moveDown(i); }}
+                      disabled={i === 4}
                       style={{ padding: "3px 7px", fontSize: 12, minWidth: 26, fontWeight: 600 }}>↓</button>
                   </div>
                 </div>
+
+                {/* Expanded hero section */}
+                {expanded && (
+                  <div style={{
+                    padding: "0 14px 14px",
+                    borderTop: "1px solid var(--border-gold)",
+                    animation: "slide-up 0.2s ease-out",
+                  }}>
+                    {/* Existing heroes */}
+                    {heroes.map(h => (
+                      <div key={h.id} style={{
+                        display: "flex", alignItems: "center", gap: 12,
+                        padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.04)",
+                      }}>
+                        <span style={{ flex: 1, color: "var(--text)", fontSize: 14, fontWeight: 500 }}>
+                          {h.heroName}
+                        </span>
+                        <span style={{ color: "var(--gold)", fontSize: 13, fontWeight: 600, minWidth: 60, textAlign: "right" }}>
+                          {h.powerScore}
+                        </span>
+                        <button onClick={() => removeHero(h.id, p.roleType)} title="删除"
+                          style={{
+                            background: "none", border: "none", color: "var(--text-muted)",
+                            cursor: "pointer", fontSize: 14, padding: "2px 6px",
+                          }}>✕</button>
+                      </div>
+                    ))}
+
+                    {/* Add hero form — if not full */}
+                    {!isFull ? (
+                      <div style={{ marginTop: 10, display: "flex", gap: 8, alignItems: "flex-end" }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <HeroSelect
+                            roleType={p.roleType}
+                            value={selHero}
+                            onChange={(heroId, heroName) => { setSelHero(heroId); setSelHeroName(heroName); }}
+                          />
+                        </div>
+                        <input type="number" placeholder="战力" value={selPower}
+                          onChange={e => setSelPower(e.target.value)}
+                          style={{
+                            width: 70, fontSize: 13, padding: "8px 6px",
+                            color: "var(--text)", background: "var(--bg-card)",
+                            border: "1px solid var(--border)", borderRadius: "var(--radius-sm)",
+                          }} />
+                        <button className="btn-primary" onClick={() => addHero(p.roleType)}
+                          style={{ padding: "8px 16px", fontSize: 13, fontWeight: 600, flexShrink: 0 }}>
+                          添加
+                        </button>
+                      </div>
+                    ) : (
+                      <div style={{
+                        marginTop: 10, padding: "8px 14px", borderRadius: "var(--radius-sm)",
+                        background: "rgba(255,255,255,0.03)", border: "1px solid var(--border)",
+                        textAlign: "center", fontSize: 12, color: "var(--text-muted)",
+                      }}>
+                        已满 3/3，删除后继续添加
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })}
         </div>
 
         <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 20 }}>
-          <button className="btn-primary" onClick={save} disabled={saving}
+          <button className="btn-primary" onClick={savePrefs} disabled={saving}
             style={{ fontSize: 14, fontWeight: 600, padding: "10px 28px" }}>
-            {saving ? "保存中..." : "保存"}
+            {saving ? "保存中..." : "保存配置"}
           </button>
         </div>
       </div>
 
       <style jsx>{`
         @media (max-width: 480px) {
-          .role-row > div {
-            gap: 6px !important;
-            padding: 8px 10px !important;
-            flex-wrap: wrap;
-          }
+          .card select, .card input { font-size: 12px !important; }
         }
       `}</style>
     </>
