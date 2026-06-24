@@ -1,155 +1,102 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import crypto from "crypto";
 
-const FALLBACK_NEWS = [
-  { title: "版本更新公告", date: new Date().toISOString().slice(0, 10), url: "https://pvp.qq.com/" },
-  { title: "新英雄上线", date: new Date().toISOString().slice(0, 10), url: "https://pvp.qq.com/" },
-  { title: "赛季活动公告", date: new Date().toISOString().slice(0, 10), url: "https://pvp.qq.com/" },
-];
-
-function extractNewsFromHtml(html: string): { title: string; date: string; url: string }[] {
-  const items: { title: string; date: string; url: string }[] = [];
-  const seen = new Set<string>();
-  const linkPattern = /<a[^>]*href\s*=\s*["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
-  const datePattern = /(\d{4}[-/.]\d{1,2}[-/.]\d{1,2})/;
-
-  let match;
-  while ((match = linkPattern.exec(html)) !== null) {
-    const rawHref = match[1];
-    const innerHtml = match[2];
-    if (!rawHref || rawHref === "#" || rawHref.startsWith("javascript:")) continue;
-    if (rawHref.startsWith("http") && !rawHref.includes("pvp.qq.com") && !rawHref.includes("qq.com")) continue;
-
-    const title = innerHtml.replace(/<[^>]*>/g, "").trim();
-    if (title.length < 4 || title.length > 80) continue;
-    if (seen.has(title)) continue;
-    seen.add(title);
-
-    let url = rawHref;
-    if (url.startsWith("//")) url = "https:" + url;
-    else if (url.startsWith("/")) url = "https://pvp.qq.com" + url;
-    else if (!url.startsWith("http")) url = "https://pvp.qq.com/" + url;
-
-    // Search wider context (500 chars before link) for a date
-    const ctxStart = Math.max(0, match.index - 500);
-    const context = html.slice(ctxStart, match.index + match[0].length);
-    const dateMatch = context.match(datePattern);
-    if (!dateMatch) continue; // skip items without a parseable date
-
-    const date = dateMatch[1].replace(/[./]/g, "-");
-    items.push({ title, date, url });
-    if (items.length >= 10) break;
-  }
-  return items;
+function md5(s: string): string {
+  return crypto.createHash("md5").update(s).digest("hex");
 }
 
-async function scrapeWithPlaywright(): Promise<{ title: string; date: string; url: string }[] | null> {
-  try {
-    const pw = require("playwright") as any;
-    const browser = await pw.chromium.launch({ headless: true });
-    const page = await browser.newPage();
-    await page.goto("https://pvp.qq.com/", {
-      waitUntil: "domcontentloaded",
-      timeout: 20000,
-    });
-    // Wait for SPA to render
-    await page.waitForTimeout(6000);
+interface GicpNewsItem {
+  sTitle: string;
+  sTargetIdxTime: string;
+  iId: number;
+  sRedirectURL?: string;
+}
 
-    // Use evaluate to extract news items from the rendered DOM
-    const items = await page.evaluate(() => {
-      const results: { title: string; date: string; url: string }[] = [];
-      const seen = new Set<string>();
-      const datePattern = /(\d{4}[-/.]\d{1,2}[-/.]\d{1,2})/;
+const SERVICE_ID = 18;
+const PC_TOKEN = "234ce0aef3020cb83887883877b64869";
+const SOURCE = "web_pc";
+const EXCLUSIVE_CHANNEL = "4";
+const API_URL = "https://apps.game.qq.com/cmc/cross";
 
-      function findDate(el: Element): string | null {
-        for (let level = 0; level < 4; level++) {
-          const container = el;
-          if (!container) break;
+async function fetchNewsChannel(chanid: string, limit: number = 5): Promise<{ title: string; date: string; url: string }[]> {
+  const timestamp = Math.floor(Date.now() / 1000);
+  const sign = md5(PC_TOKEN + SOURCE + SERVICE_ID + timestamp);
 
-          const text = (container as HTMLElement).innerText || "";
-          const m = text.match(datePattern);
-          if (m) return m[1].replace(/[./]/g, "-");
+  const params = new URLSearchParams({
+    serviceId: String(SERVICE_ID),
+    filter: "channel",
+    sortby: "sIdxTime",
+    source: SOURCE,
+    limit: String(limit),
+    logic: "or",
+    typeids: "1",
+    withtop: "yes",
+    chanid,
+    start: "0",
+    exclusiveChannel: EXCLUSIVE_CHANNEL,
+    exclusiveChannelSign: sign,
+    time: String(timestamp),
+  });
 
-          let prev = container.previousElementSibling;
-          while (prev) {
-            const pt = (prev as HTMLElement).innerText || "";
-            const pm = pt.match(datePattern);
-            if (pm) return pm[1].replace(/[./]/g, "-");
-            prev = prev.previousElementSibling;
-          }
+  const res = await fetch(`${API_URL}?${params}`, {
+    headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/131.0.0.0" },
+    signal: AbortSignal.timeout(10000),
+  });
 
-          el = el.parentElement!;
-        }
-        return null;
-      }
+  if (!res.ok) return [];
 
-      const links = Array.from(document.querySelectorAll("a"));
-      for (let i = 0; i < links.length; i++) {
-        const link = links[i];
-        const text = (link as HTMLElement).innerText?.trim();
-        const href = (link as HTMLAnchorElement).href;
-        if (!text || text.length < 4 || text.length > 80) continue;
-        if (!href || href === "#" || href.startsWith("javascript:")) continue;
-        if (seen.has(text)) continue;
-        seen.add(text);
+  const json = await res.json() as { status: number; data: { items: GicpNewsItem[] } };
+  if (json.status !== 0 || !json.data?.items) return [];
 
-        const date = findDate(link);
-        if (!date) continue;
-
-        results.push({ title: text, date, url: href });
-        if (results.length >= 10) break;
-      }
-      return results;
-    });
-
-    await browser.close();
-    return items;
-  } catch {
-    return null;
-  }
+  return json.data.items.map((item) => ({
+    title: item.sTitle,
+    date: item.sTargetIdxTime.slice(0, 10),
+    url: item.sRedirectURL || `https://pvp.qq.com/web201706/newsdetail.shtml?id=${item.iId}`,
+  }));
 }
 
 export async function GET() {
   try {
-    // 从缓存读取
+    // 从缓存读取 (1 小时有效)
     const cacheRow = await prisma.$queryRawUnsafe(
       "SELECT `value` FROM kv_cache WHERE `key` = 'official_news'"
     ) as { value: string }[];
 
     if (cacheRow.length > 0) {
-      const news = JSON.parse(cacheRow[0].value);
-      return NextResponse.json(news);
+      const cached = JSON.parse(cacheRow[0].value);
+      // Check if cache is within 1 hour
+      if (cached.timestamp && Date.now() - cached.timestamp < 3600000) {
+        return NextResponse.json(cached.items);
+      }
     }
 
-    // 缓存未命中 — 尝试 Playwright 渲染 SPA
-    const items = await scrapeWithPlaywright();
-    if (items && items.length > 0) {
+    // Fetch from both announcement and news channels
+    const [announcements, news] = await Promise.all([
+      fetchNewsChannel("1762", 5), // 公告
+      fetchNewsChannel("1761", 5), // 新闻
+    ]);
+
+    // Merge, deduplicate by title, sort by date desc
+    const seen = new Set<string>();
+    const merged: { title: string; date: string; url: string }[] = [];
+    for (const item of [...announcements, ...news]) {
+      if (seen.has(item.title)) continue;
+      seen.add(item.title);
+      merged.push(item);
+    }
+    merged.sort((a, b) => b.date.localeCompare(a.date));
+    const items = merged.slice(0, 10);
+
+    if (items.length > 0) {
+      const cacheData = { items, timestamp: Date.now() };
       await prisma.$executeRawUnsafe(
         "INSERT INTO kv_cache (`key`, `value`) VALUES ('official_news', ?) ON DUPLICATE KEY UPDATE `value` = ?",
-        JSON.stringify(items), JSON.stringify(items)
+        JSON.stringify(cacheData), JSON.stringify(cacheData)
       );
       return NextResponse.json(items);
     }
+  } catch { /* fall through to cache or empty */ }
 
-    // Playwright 不可用 — 尝试简单 HTTP 抓取
-    try {
-      const res = await fetch("https://pvp.qq.com/", {
-        headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/131.0.0.0" },
-        signal: AbortSignal.timeout(8000),
-      });
-      if (res.ok) {
-        const html = await res.text();
-        const newsItems = extractNewsFromHtml(html);
-        if (newsItems.length > 0) {
-          await prisma.$executeRawUnsafe(
-            "INSERT INTO kv_cache (`key`, `value`) VALUES ('official_news', ?) ON DUPLICATE KEY UPDATE `value` = ?",
-            JSON.stringify(newsItems), JSON.stringify(newsItems)
-          );
-          return NextResponse.json(newsItems);
-        }
-      }
-    } catch { /* fall through */ }
-  } catch { /* fall through */ }
-
-  return NextResponse.json(FALLBACK_NEWS);
+  return NextResponse.json([]);
 }
