@@ -5,12 +5,12 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        root: "#1a1d24",
-        nav: "#1e212a",
-        card: "#22262e",
-        hover: "#292d36",
-        input: "#252a34",
-        border: { DEFAULT: "rgba(255,255,255,0.06)", light: "rgba(255,255,255,0.04)", gold: "rgba(168,144,104,0.12)" },
+        root: "#161920",
+        nav: "#1b1e27",
+        card: "#242833",
+        hover: "#2d3240",
+        input: "#2a2f3b",
+        border: { DEFAULT: "rgba(255,255,255,0.08)", light: "rgba(255,255,255,0.05)", gold: "rgba(168,144,104,0.12)" },
         text: { DEFAULT: "#e0e3ea", secondary: "#b0b4be", muted: "#777b88" },
         gold: { DEFAULT: "#a89068", light: "#c0b090", dim: "#807050" },
         red: { DEFAULT: "#cc6666", dim: "#994444" },
