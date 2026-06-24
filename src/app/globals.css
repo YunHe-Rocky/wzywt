@@ -16,7 +16,7 @@
   --border: rgba(255, 255, 255, 0.06);
   --border-light: rgba(255, 255, 255, 0.04);
   --border-top: rgba(255, 255, 255, 0.08);
-  --border-gold: rgba(184, 152, 96, 0.15);
+  --border-gold: rgba(168, 144, 104, 0.12);
   --glass-highlight: 0 1px 0 rgba(255,255,255,0.04) inset;
   --glass-shadow: 0 1px 0 rgba(255,255,255,0.03) inset,
                   0 -1px 0 rgba(0,0,0,0.08) inset,
@@ -24,9 +24,9 @@
   --text: #e0e3ea;
   --text-secondary: #b0b4be;
   --text-muted: #777b88;
-  --gold: #b89860;
-  --gold-light: #c8b48c;
-  --gold-dim: #8a7040;
+  --gold: #a89068;
+  --gold-light: #c0b090;
+  --gold-dim: #807050;
   --red: #cc6666;
   --red-dim: #994444;
   --blue: #6898cc;
@@ -297,9 +297,9 @@
     justify-content: center;
     gap: 8px;
     padding: 10px 24px;
-    background: linear-gradient(180deg, #c8b48c 0%, #b89860 50%, #8a7040 100%);
-    color: #1a1208;
-    border: none;
+    background: linear-gradient(180deg, var(--gold-light) 0%, var(--gold) 50%, var(--gold-dim) 100%);
+    color: #f0ebe0;
+    border: 1px solid rgba(255,255,255,0.06);
     border-radius: var(--radius-sm);
     font-size: 14px;
     font-weight: 600;
@@ -316,7 +316,7 @@
     left: -50%;
     width: 50%;
     height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.12), transparent);
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent);
     transform: skewX(-20deg);
     transition: left 0.5s;
   }
@@ -326,14 +326,12 @@
   }
 
   .btn-primary:hover {
-    background: linear-gradient(180deg, #d0be96 0%, #c0a468 50%, #947848 100%);
-    box-shadow: 0 2px 12px rgba(184, 152, 96, 0.15);
-    transform: translateY(-1px);
+    filter: brightness(1.08);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
   }
 
   .btn-primary:active {
-    background: linear-gradient(180deg, #9a7a48 0%, #8a6a38 50%, #6a5028 100%);
-    transform: translateY(0);
+    filter: brightness(0.9);
     box-shadow: none;
   }
 
