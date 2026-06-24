@@ -43,9 +43,7 @@ export default function MePage() {
       >
         个人空间
       </h1>
-      <div style={{ animation: "slide-up 0.4s 0.05s ease-out both" }}>
-        <RolePreferenceEditor />
-      </div>
+      <RolePreferenceEditor />
       <div style={{ animation: "slide-up 0.4s 0.1s ease-out both" }}>
         <HeroPowerEditor />
       </div>
