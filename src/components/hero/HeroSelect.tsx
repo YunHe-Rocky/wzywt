@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 interface Hero {
   heroId: number;
@@ -78,6 +79,22 @@ export function HeroSelect({ roleType, value, onChange }: Props) {
     return () => document.removeEventListener("mousedown", handleClick);
   }, []);
 
+  const [pos, setPos] = useState({ top: 0, left: 0, width: 0 });
+  useEffect(() => {
+    if (!open || !ref.current) return;
+    function update() {
+      if (!ref.current) return;
+      const r = ref.current.getBoundingClientRect();
+      setPos({ top: r.bottom + 4, left: r.left, width: Math.max(r.width, 280) });
+    }
+    update();
+    window.addEventListener("scroll", update, true);
+    window.addEventListener("resize", update);
+    return () => {
+      window.removeEventListener("scroll", update, true);
+      window.removeEventListener("resize", update);
+    };
+  }, [open]);
 
   const selectedHero = heroes.find((h) => String(h.heroId) === value);
 
@@ -107,7 +124,7 @@ export function HeroSelect({ roleType, value, onChange }: Props) {
   }, [heroes, search]);
 
   return (
-    <div ref={ref} style={{ position: "relative", flex: 1, zIndex: open ? 9999 : "auto" }}>
+    <div ref={ref} style={{ position: "relative", flex: 1 }}>
       {/* Trigger */}
       <button
         type="button"
@@ -174,17 +191,15 @@ export function HeroSelect({ roleType, value, onChange }: Props) {
         </svg>
       </button>
 
-      {/* Dropdown */}
-      {open && (
+      {/* Dropdown — portal to body */}
+      {open && createPortal(
         <div
           style={{
-            position: "absolute",
-            top: "100%",
-            left: 0,
-            right: 0,
-            zIndex: 9999,
-            marginTop: 4,
-            minWidth: 280,
+            position: "fixed",
+            top: pos.top,
+            left: pos.left,
+            width: pos.width,
+            zIndex: 99999,
             background: "var(--bg-card)",
             border: "1px solid var(--border)",
             borderRadius: "var(--radius)",
@@ -271,7 +286,8 @@ export function HeroSelect({ roleType, value, onChange }: Props) {
               ))
             )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
