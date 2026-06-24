@@ -138,20 +138,20 @@ export function RolePreferenceEditor() {
                 <div className="flex items-center gap-2 sm:gap-2.5 px-3 sm:px-3.5 py-2.5 cursor-pointer hover:bg-hover transition-colors flex-wrap sm:flex-nowrap" onClick={() => setExpandedRole(expanded ? null : p.roleType)}>
                   <span className="text-gold font-bold text-[15px] w-[22px] text-center shrink-0">{i + 1}</span>
                   <LaneIcon role={p.roleType} size={26} />
-                  <span className="text-sm font-semibold text-text hidden sm:inline" style={{ flex: "1 1 0%", minWidth: 0 }}>{ROLE_LABELS[p.roleType]}</span>
+                  <span className="text-[13px] sm:text-sm font-semibold text-text truncate" style={{ flex: "1 1 0%", minWidth: 0 }}>{ROLE_LABELS[p.roleType]}</span>
 
-                  <button type="button" className={`flex items-center gap-1 shrink-0 px-2.5 py-1 rounded-full border text-xs font-semibold transition-colors ${expanded ? "bg-gold/10 border-gold/30 text-gold" : avgPower > 0 ? "border-border text-gold" : "border-border text-text-muted"}`}>
+                  <button type="button" className={`flex items-center gap-1 shrink-0 px-2.5 py-1 rounded-full border text-[11px] sm:text-xs font-semibold transition-colors ${expanded ? "bg-gold/10 border-gold/30 text-gold" : avgPower > 0 ? "border-border text-gold" : "border-border text-text-muted"}`}>
                     {avgPower > 0 ? `${heroes.length}英雄 ${avgPower}` : "+ 英雄"}
                     <span className="text-[10px] opacity-50">{expanded ? "▾" : "▸"}</span>
                   </button>
 
                   <input type="number" placeholder="巅峰" value={p.peakScore || ""} onChange={e => { e.stopPropagation(); setPeakScore(i, parseInt(e.target.value) || 0); }}
-                    className="w-[62px] text-xs px-1.5 py-1.5 rounded-md bg-card border border-border text-gold font-semibold shrink-0 focus:border-gold/40" />
+                    className="w-[52px] sm:w-[62px] text-xs px-1 py-1.5 rounded-md bg-card border border-border text-gold font-semibold shrink-0 focus:border-gold/40" />
 
                   <div className="flex items-center gap-1 shrink-0">
-                    <RankBadge value={p.peakRank} size={22} />
+                    <RankBadge value={p.peakRank} size={18} />
                     <select value={p.peakRank} onChange={e => { e.stopPropagation(); setPeakRank(i, parseInt(e.target.value)); }}
-                      className="w-[88px] text-xs px-1 py-1.5 rounded-md bg-card border border-border font-semibold"
+                      className="w-[72px] sm:w-[88px] text-[11px] sm:text-xs px-0.5 sm:px-1 py-1.5 rounded-md bg-card border border-border font-semibold"
                       style={{ color: p.peakRank > 0 ? "var(--gold)" : undefined }}>
                       {RANK_TIERS.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
                     </select>

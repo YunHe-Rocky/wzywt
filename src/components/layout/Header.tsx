@@ -102,10 +102,6 @@ export function Header() {
                   ))}
                   <div className="border-t border-border my-1" />
                 </div>
-                <Link href="/me" onClick={() => setMenuOpen(false)}
-                  className="block px-4 py-2 text-sm text-text-secondary hover:text-text hover:bg-hover no-underline">
-                  个人空间
-                </Link>
                 <button onClick={logout}
                   className="w-full text-left px-4 py-2 text-sm text-red hover:bg-red/5 transition-colors">
                   退出登录
