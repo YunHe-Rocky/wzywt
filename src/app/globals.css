@@ -6,11 +6,21 @@
   --bg-root: #1a1d24;
   --bg-nav: #1e212a;
   --bg-card: #22262e;
+  --bg-card-glass: linear-gradient(180deg,
+    rgba(255,255,255,0.03) 0%,
+    rgba(255,255,255,0.01) 10%,
+    #22262e 10%,
+    #22262e 100%);
   --bg-hover: #292d36;
   --bg-input: #1e212a;
   --border: rgba(255, 255, 255, 0.06);
   --border-light: rgba(255, 255, 255, 0.04);
+  --border-top: rgba(255, 255, 255, 0.08);
   --border-gold: rgba(184, 152, 96, 0.15);
+  --glass-highlight: 0 1px 0 rgba(255,255,255,0.04) inset;
+  --glass-shadow: 0 1px 0 rgba(255,255,255,0.03) inset,
+                  0 -1px 0 rgba(0,0,0,0.08) inset,
+                  0 2px 8px rgba(0,0,0,0.15);
   --text: #e0e3ea;
   --text-secondary: #b0b4be;
   --text-muted: #777b88;
@@ -412,27 +422,21 @@
 
   /* ── Cards ── */
   .card {
-    background: linear-gradient(180deg,
-      rgba(255,255,255,0.025) 0%,
-      rgba(255,255,255,0.01) 30%,
-      var(--bg-card) 30%,
-      var(--bg-card) 100%);
+    background: var(--bg-card-glass);
     border: 1px solid var(--border);
-    border-top: 1px solid rgba(255,255,255,0.08);
+    border-top: 1px solid var(--border-top);
     border-radius: var(--radius);
     padding: 24px;
     transition: border-color 0.3s, box-shadow 0.3s;
-    box-shadow: 0 1px 0 rgba(255,255,255,0.03) inset,
-                0 -1px 0 rgba(0,0,0,0.1) inset,
-                0 2px 8px rgba(0,0,0,0.15);
+    box-shadow: var(--glass-shadow);
   }
 
   .card:hover {
-    border-color: rgba(184, 152, 96, 0.15);
-    border-top-color: rgba(255,255,255,0.12);
-    box-shadow: 0 1px 0 rgba(255,255,255,0.04) inset,
-                0 -1px 0 rgba(0,0,0,0.1) inset,
-                0 4px 16px rgba(0,0,0,0.25);
+    border-color: rgba(184, 152, 96, 0.12);
+    border-top-color: rgba(255,255,255,0.1);
+    box-shadow: 0 1px 0 rgba(255,255,255,0.05) inset,
+                0 -1px 0 rgba(0,0,0,0.08) inset,
+                0 4px 16px rgba(0,0,0,0.2);
   }
 
   .card-interactive {
@@ -440,23 +444,27 @@
   }
 
   .card-interactive:hover {
-    border-color: rgba(184, 152, 96, 0.2);
+    border-color: rgba(184, 152, 96, 0.18);
     border-top-color: rgba(255,255,255,0.1);
-    box-shadow: 0 1px 0 rgba(255,255,255,0.03) inset,
-                0 -1px 0 rgba(0,0,0,0.1) inset,
-                0 4px 16px rgba(0,0,0,0.25);
+    box-shadow: var(--glass-highlight),
+                0 -1px 0 rgba(0,0,0,0.08) inset,
+                0 4px 16px rgba(0,0,0,0.2);
   }
 
   .card-red {
-    background: linear-gradient(160deg, rgba(204, 102, 102, 0.06), rgba(34, 38, 46, 0.98));
+    background: linear-gradient(160deg, rgba(204, 102, 102, 0.06), #22262e);
     border: 1px solid rgba(204, 102, 102, 0.1);
+    border-top: 1px solid rgba(255,255,255,0.06);
     border-radius: var(--radius);
+    box-shadow: var(--glass-shadow);
   }
 
   .card-blue {
-    background: linear-gradient(160deg, rgba(104, 152, 204, 0.06), rgba(34, 38, 46, 0.98));
+    background: linear-gradient(160deg, rgba(104, 152, 204, 0.06), #22262e);
     border: 1px solid rgba(104, 152, 204, 0.1);
+    border-top: 1px solid rgba(255,255,255,0.06);
     border-radius: var(--radius);
+    box-shadow: var(--glass-shadow);
   }
 
   /* ── Badges ── */

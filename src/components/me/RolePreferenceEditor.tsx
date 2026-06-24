@@ -130,38 +130,42 @@ export function RolePreferenceEditor() {
       <div className="card animate-slide-up" style={{ animationDelay: "0.05s", animationFillMode: "both" }}>
         <div className="section-title">分路配置 & 英雄战力</div>
 
-        {/* Tab bar */}
-        <div className="flex gap-1 p-1 bg-input rounded-md mb-4 overflow-x-auto">
+        {/* Priority config */}
+        <div className="flex flex-col gap-1.5 mb-4 p-3 rounded-md bg-input/50 border border-border/50">
+          <div className="text-[10px] font-semibold text-text-muted tracking-wider mb-0.5">分路优先级排序</div>
           {prefs.map((p, i) => (
-            <button key={p.roleType}
-              onClick={() => setActiveTab(p.roleType)}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded text-xs font-semibold shrink-0 transition-colors whitespace-nowrap
-                ${activeTab === p.roleType
-                  ? "bg-card text-gold-light border border-gold/15"
-                  : "text-text-muted hover:text-text-secondary"}`}>
-              <LaneIcon role={p.roleType} size={16} />
-              <span className="inline">{ROLE_LABELS[p.roleType]}</span>
-              <span className="text-[10px] opacity-60">{i + 1}</span>
-            </button>
+            <div key={p.roleType} className="flex items-center gap-2">
+              <span className="text-gold-light font-bold text-xs w-4 shrink-0">{p.preferenceRank}</span>
+              <button
+                onClick={() => setActiveTab(p.roleType)}
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs font-semibold shrink-0 transition-colors flex-1
+                  ${activeTab === p.roleType
+                    ? "bg-card text-gold-light border border-gold/15"
+                    : "bg-card/50 text-text-secondary border border-border/50 hover:border-gold/10"}`}>
+                <LaneIcon role={p.roleType} size={16} />
+                <span>{ROLE_LABELS[p.roleType]}</span>
+                <span className="text-[10px] opacity-50 ml-auto">
+                  {heroesByRole[p.roleType]?.length || 0}/3
+                </span>
+              </button>
+              <div className="flex gap-0.5 shrink-0">
+                <button className="w-5 h-5 flex items-center justify-center rounded bg-card border border-border/50 text-text-muted hover:text-gold-light hover:border-gold/20 text-[11px] disabled:opacity-30 disabled:cursor-default"
+                  onClick={() => moveUp(i)} disabled={i === 0}>▲</button>
+                <button className="w-5 h-5 flex items-center justify-center rounded bg-card border border-border/50 text-text-muted hover:text-gold-light hover:border-gold/20 text-[11px] disabled:opacity-30 disabled:cursor-default"
+                  onClick={() => moveDown(i)} disabled={i === 4}>▼</button>
+              </div>
+            </div>
           ))}
         </div>
 
         {/* Active tab content */}
         {activePref && (
           <div className="animate-slide-up">
-            {/* Sort arrows + lane header */}
+            {/* Lane header */}
             <div className="flex items-center gap-2 mb-3">
               <LaneIcon role={activePref.roleType} size={22} />
               <span className="text-sm font-bold text-text">{ROLE_LABELS[activePref.roleType]}</span>
               <span className="text-[10px] text-text-muted">优先度 {activePref.preferenceRank}</span>
-              <div className="flex gap-0.5 ml-auto">
-                <button className="btn-subtle !p-1 !text-xs !min-w-[26px]"
-                  onClick={() => moveUp(prefs.findIndex(p => p.roleType === activeTab))}
-                  disabled={activePref.preferenceRank === 1}>↑</button>
-                <button className="btn-subtle !p-1 !text-xs !min-w-[26px]"
-                  onClick={() => moveDown(prefs.findIndex(p => p.roleType === activeTab))}
-                  disabled={activePref.preferenceRank === 5}>↓</button>
-              </div>
             </div>
 
             {/* Heroes list */}
