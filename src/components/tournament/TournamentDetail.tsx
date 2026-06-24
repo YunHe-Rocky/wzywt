@@ -405,6 +405,31 @@ export function TournamentDetail() {
         </div>
       </div>
 
+      {/* Visitor banner — for public rooms when user is not a player */}
+      {!isPlayer && !isAdmin && tournament.status === "recruiting" && tournament.isPublic && (
+        <div className="card" style={{
+          marginBottom: 20,
+          padding: "16px 24px",
+          borderColor: "var(--gold)",
+          background: "rgba(192,168,74,0.04)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          flexWrap: "wrap",
+          gap: 12,
+        }}>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: "var(--gold)" }}>👋 你尚未加入此房间</div>
+            <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>
+              这是公开赛事，目前 {playerCount}/10 人参战，快来加入吧
+            </div>
+          </div>
+          <button onClick={join} className="btn-primary" style={{ fontSize: 14, padding: "10px 24px", fontWeight: 600 }}>
+            加入赛事
+          </button>
+        </div>
+      )}
+
       {/* Admin / Toast message */}
       {adminMsg && (
         <div style={{

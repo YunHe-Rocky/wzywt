@@ -1,12 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { useToast } from "@/components/ui/Toast";
 
 interface OfficialNews { title: string; date: string; url: string; }
-interface PublicTournament { id: number; name: string; code: string; announcement: string | null; joined: boolean; _count: { players: number }; deadline: string; }
+interface PublicTournament { id: number; name: string; code: string; announcement: string | null; _count: { players: number }; deadline: string; }
 interface User { userId: number; username: string; }
 interface TocItem { id: string; text: string; level: number }
 interface Announcement { date: string; title: string; slug: string; content?: string; }
@@ -97,8 +95,6 @@ function useAnnouncementMD(announcements: Announcement[]) {
 }
 
 export default function Home() {
-  const router = useRouter();
-  const { success: toastSuccess, error: toastError } = useToast();
   const [user, setUser] = useState<User | null>(null);
   const [authLoaded, setAuthLoaded] = useState(false);
   const [news, setNews] = useState<OfficialNews[]>([]);
@@ -107,7 +103,6 @@ export default function Home() {
   const [loaded, setLoaded] = useState(false);
   const [open, setOpen] = useState(false);
   const [activeId, setActiveId] = useState("");
-  const [joiningId, setJoiningId] = useState<number | null>(null);
   const tocRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -133,25 +128,6 @@ export default function Home() {
   }, [open, toc, combinedMD]);
 
   const latest = announcements[0];
-
-  async function joinRoom(roomId: number) {
-    setJoiningId(roomId);
-    const res = await fetch(`/api/tournaments/${roomId}/join`, { method: "POST" });
-    setJoiningId(null);
-    if (res.ok) {
-      toastSuccess("已加入房间！");
-      router.push(`/tournaments/${roomId}`);
-    } else {
-      const d = await res.json();
-      toastError(d.error || "加入失败");
-    }
-  }
-
-  async function refreshRooms() {
-    const res = await fetch("/api/tournaments/public");
-    const d = await res.json();
-    if (d.tournaments) setRooms(d.tournaments);
-  }
 
   return (
     <div style={{ maxWidth: 960, margin: "0 auto", padding: "32px 20px 48px" }}>
@@ -273,45 +249,26 @@ export default function Home() {
            rooms.length === 0 ? <EmptyPlaceholder text="暂无公开房间" /> :
            <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
             {rooms.map((room, i) => (
-              <li key={room.id} style={{
-                padding: i > 0 ? "10px 0" : "0 0 10px 0",
-                borderBottom: i < rooms.length - 1 ? "1px solid var(--border)" : "none",
-                display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10,
-              }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <Link href={`/tournaments/${room.id}`} style={{ textDecoration: "none" }}>
+              <li key={room.id} style={{ padding: i > 0 ? "8px 0" : "0 0 8px 0", borderBottom: i < rooms.length - 1 ? "1px solid var(--border)" : "none" }}>
+                <Link href={`/tournaments/${room.id}`} style={{ textDecoration: "none", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
                       <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text)" }}
                         onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = "var(--gold)"}
                         onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = "var(--text)"}
                       >{room.name}</span>
                       <span className="badge badge-gold" style={{ fontSize: 10, fontFamily: "monospace" }}>#{room.code}</span>
-                      <span style={{ fontSize: 11, color: room._count.players >= 10 ? "var(--gold)" : "var(--text-muted)" }}>
-                        {room._count.players}/10人
-                      </span>
                     </div>
                     <p style={{ fontSize: 12, color: "var(--text-muted)", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {room.announcement
                         ? (room.announcement.length > 60 ? room.announcement.slice(0, 60) + "..." : room.announcement)
                         : "暂无公告"}
                     </p>
-                  </Link>
-                </div>
-                {room.joined ? (
-                  <Link href={`/tournaments/${room.id}`}
-                    className="btn-subtle"
-                    style={{ fontSize: 12, padding: "5px 14px", whiteSpace: "nowrap", flexShrink: 0, textDecoration: "none" }}>
-                    进入
-                  </Link>
-                ) : (
-                  <button
-                    onClick={() => joinRoom(room.id)}
-                    disabled={joiningId === room.id}
-                    className="btn-primary"
-                    style={{ fontSize: 12, padding: "5px 14px", whiteSpace: "nowrap", flexShrink: 0 }}>
-                    {joiningId === room.id ? "..." : "加入"}
-                  </button>
-                )}
+                  </div>
+                  <span style={{ fontSize: 12, color: "var(--text-muted)", flexShrink: 0, fontWeight: 600 }}>
+                    {room._count.players}/10人
+                  </span>
+                </Link>
               </li>
             ))}
            </ul>
