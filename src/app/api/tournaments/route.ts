@@ -10,6 +10,7 @@ export async function GET() {
   const { userId } = await requireAuth().catch(() => ({ userId: 0 }));
   if (!userId) return NextResponse.json({ error: "请先登录" }, { status: 401 });
 
+  // 我的赛事（参与的 + 管理的）
   const tournaments = await prisma.tournament.findMany({
     where: {
       OR: [
@@ -25,14 +26,33 @@ export async function GET() {
     orderBy: { deadline: "asc" },
   });
 
-  return NextResponse.json({ tournaments });
+  const myIds = tournaments.map((t) => t.id);
+
+  // 公开可报名的赛事（排除已加入的）
+  const publicTournaments = await prisma.tournament.findMany({
+    where: {
+      isPublic: true,
+      status: "recruiting",
+      id: { notIn: myIds },
+    },
+    include: {
+      _count: { select: { players: true } },
+      admins: { select: { userId: true, role: true } },
+    },
+    orderBy: { deadline: "asc" },
+  });
+
+  return NextResponse.json({
+    tournaments,
+    publicTournaments,
+  });
 }
 
 export async function POST(req: NextRequest) {
   const { userId } = await requireAuth().catch(() => ({ userId: 0 }));
   if (!userId) return NextResponse.json({ error: "请先登录" }, { status: 401 });
 
-  const { name, deadline } = await req.json();
+  const { name, deadline, isPublic, announcement } = await req.json();
   if (!name || !deadline) {
     return NextResponse.json({ error: "赛事名称和截止时间必填" }, { status: 400 });
   }
@@ -44,6 +64,8 @@ export async function POST(req: NextRequest) {
       name,
       code,
       deadline: new Date(deadline),
+      isPublic: isPublic === true,
+      announcement: announcement || null,
       admins: { create: { userId, role: "owner" } },
       players: { create: { userId, isSpectator: false } },
     },
