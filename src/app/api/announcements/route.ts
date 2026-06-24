@@ -21,8 +21,7 @@ export async function GET(req: NextRequest) {
 
   const files = readdirSync(dir)
     .filter((f) => f.endsWith(".md"))
-    .sort()
-    .reverse();
+    .sort((a, b) => b.localeCompare(a));
 
   const { searchParams } = new URL(req.url);
   const includeContent = searchParams.get("full") === "true";
