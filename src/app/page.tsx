@@ -56,6 +56,30 @@ function useMD(md: string) {
         nodes.push(<h4 key={key++} id={id} style={{ fontSize: 13, fontWeight: 600, color: "var(--text)", margin: "8px 0 2px", scrollMarginTop: 16 }}>{text}</h4>);
         i++; continue;
       }
+      if (line.startsWith("![")) {
+        const imgMatch = line.match(/^!\[(.*?)\]\((.*?)\)/);
+        if (imgMatch) {
+          nodes.push(
+            <div key={key++} style={{ margin: "8px 0" }}>
+              <img src={imgMatch[2]} alt={imgMatch[1]} style={{ maxWidth: "100%", borderRadius: 6, border: "1px solid var(--border)" }} />
+              {imgMatch[1] && <p style={{ fontSize: 10, color: "var(--text-muted)", textAlign: "center", margin: "4px 0 0" }}>{imgMatch[1]}</p>}
+            </div>
+          );
+        }
+        i++; continue;
+      }
+      if (line.startsWith("> ")) {
+        const isWarning = line.includes("⚠️");
+        const isTip = line.includes("💡");
+        const bgColor = isWarning ? "rgba(224,80,80,0.06)" : isTip ? "rgba(80,176,80,0.06)" : "rgba(192,168,74,0.04)";
+        const borderColor = isWarning ? "rgba(224,80,80,0.15)" : isTip ? "rgba(80,176,80,0.15)" : "rgba(192,168,74,0.1)";
+        nodes.push(
+          <div key={key++} style={{ margin: "6px 0", padding: "8px 14px", background: bgColor, border: `1px solid ${borderColor}`, borderRadius: 6, fontSize: 12, color: "var(--text-secondary)", lineHeight: 1.6 }}>
+            <Inline text={line.replace(/^>\s*/, "")} />
+          </div>
+        );
+        i++; continue;
+      }
       if (line.startsWith("|")) {
         const rows: string[][] = [];
         while (i < lines.length && lines[i].startsWith("|")) { rows.push(lines[i].split("|").filter(c => c.trim())); i++; }

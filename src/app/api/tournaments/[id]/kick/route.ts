@@ -17,7 +17,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   });
   if (targetIsOwner) return NextResponse.json({ error: "不能踢出房主" }, { status: 400 });
 
-  // 如果目标是次房主，先降级再踢出
+  // 如果目标是管理，先降级再踢出
   const targetIsCoOwner = await prisma.tournamentAdmin.findFirst({
     where: { tournamentId, userId: targetUserId, role: "co_owner" },
   });

@@ -465,9 +465,9 @@ export function TournamentDetail() {
                 ⚙ 房间管理
               </span>
               {isOwner && <span className="badge badge-gold">房主</span>}
-              {!isOwner && <span className="badge badge-gold">次房主</span>}
+              {!isOwner && <span className="badge badge-gold">管理</span>}
               <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
-                {isOwner ? "可任命次房主、添加补位、踢人、分队、切换公开私有" : "可踢人、分队、延长截止（房主操作后5分钟内不可重复）"}
+                {isOwner ? "可任命管理、添加补位、踢人、分队、切换公开私有" : "可踢人、分队、延长截止（房主操作后5分钟内不可重复）"}
               </span>
             </div>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -667,7 +667,7 @@ export function TournamentDetail() {
             let roleLabel = "选手";
             let roleBadge = "badge";
             if (adminRole?.role === "owner") { roleLabel = "房主"; roleBadge = "badge badge-gold"; }
-            else if (adminRole?.role === "co_owner") { roleLabel = "次房主"; roleBadge = "badge badge-gold"; }
+            else if (adminRole?.role === "co_owner") { roleLabel = "管理"; roleBadge = "badge badge-gold"; }
 
             let typeLabel = "正式";
             if (p.isSpectator) typeLabel = "观众";
@@ -741,7 +741,7 @@ export function TournamentDetail() {
                     <button
                       onClick={async () => {
                         const username = p.isTemporary ? (p.tempName || "临时选手") : p.user.username;
-                        if (!confirm(`确定将 ${username} 设为次房主吗？次房主可以管理房间、踢人、分队。`)) return;
+                        if (!confirm(`确定将 ${username} 设为管理吗？管理可以管理房间、踢人、分队。`)) return;
                         setPromotingId(p.userId);
                         try {
                           const res = await fetch(`/api/tournaments/${id}/admin`, {
@@ -749,7 +749,7 @@ export function TournamentDetail() {
                             headers: { "Content-Type": "application/json" },
                             body: JSON.stringify({ targetUserId: p.userId, action: "promote" }),
                           });
-                          if (res.ok) { refreshTournament(); success(`已将 ${username} 设为次房主`); }
+                          if (res.ok) { refreshTournament(); success(`已将 ${username} 设为管理`); }
                           else { const d = await res.json(); showError(d.error); }
                         } finally {
                           setPromotingId(null);
@@ -759,14 +759,14 @@ export function TournamentDetail() {
                       className="btn-subtle"
                       style={{ fontSize: 12, padding: "5px 12px", whiteSpace: "nowrap", opacity: promotingId === p.userId ? 0.6 : 1 }}
                     >
-                      {promotingId === p.userId ? "..." : "设为次房主"}
+                      {promotingId === p.userId ? "..." : "设为管理"}
                     </button>
                   )}
                   {canDemote && (
                     <button
                       onClick={async () => {
                         const username = p.isTemporary ? (p.tempName || "临时选手") : p.user.username;
-                        if (!confirm(`确定撤销 ${username} 的次房主权限吗？`)) return;
+                        if (!confirm(`确定撤销 ${username} 的管理权限吗？`)) return;
                         setDemotingId(p.userId);
                         try {
                           const res = await fetch(`/api/tournaments/${id}/admin`, {
@@ -774,7 +774,7 @@ export function TournamentDetail() {
                             headers: { "Content-Type": "application/json" },
                             body: JSON.stringify({ targetUserId: p.userId, action: "demote" }),
                           });
-                          if (res.ok) { refreshTournament(); success(`已撤销 ${username} 的次房主权限`); }
+                          if (res.ok) { refreshTournament(); success(`已撤销 ${username} 的管理权限`); }
                           else { const d = await res.json(); showError(d.error); }
                         } finally {
                           setDemotingId(null);
@@ -795,7 +795,7 @@ export function TournamentDetail() {
                         const msg = p.isTemporary
                           ? `确定移除补位选手 ${name} 吗？`
                           : isCoOwner
-                            ? `确定将次房主 ${name} 降级并踢出吗？`
+                            ? `确定将管理 ${name} 降级并踢出吗？`
                             : `确定踢出 ${name} 吗？`;
                         if (!confirm(msg)) return;
                         const res = await fetch(`/api/tournaments/${id}/kick`, {
