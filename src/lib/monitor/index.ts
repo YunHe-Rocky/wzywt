@@ -167,11 +167,11 @@ export async function runMonitorAndScrape(
 
   if (toScrape.length === 0) return events;
 
-  for (const module of toScrape) {
-    events.push({ module, action: "scrape-start", detail: "detected change", timestamp: Date.now() });
+  for (const mod of toScrape) {
+    events.push({ module: mod, action: "scrape-start", detail: "detected change", timestamp: Date.now() });
 
     try {
-      switch (module) {
+      switch (mod) {
         case "heroes": {
           const { syncHeroes } = await import("@/lib/heroes/sync");
           const result = await syncHeroes();
@@ -186,12 +186,47 @@ export async function runMonitorAndScrape(
           break;
         }
         case "news": {
-          events.push({ module: "news", action: "scrape-done", detail: "news titles changed, refresh /api/official-news", timestamp: Date.now() });
+          try {
+            const res = await fetchWithRetry(NEWS_URL, { timeout: 8000, referer: "https://pvp.qq.com/" });
+            if (res.ok && res.text) {
+              const html = res.text;
+              const newsItems: { title: string; date: string; url: string }[] = [];
+              const linkRegex = /<a[^>]*href="([^"]*)"[^>]*>([^<]{4,})<\/a>/g;
+              let match;
+              while ((match = linkRegex.exec(html)) !== null) {
+                const href = match[1];
+                const title = match[2].trim();
+                if (title.length < 4) continue;
+                let url = href;
+                if (url && !url.startsWith("http")) {
+                  url = url.startsWith("/") ? `https://pvp.qq.com${url}` : `https://pvp.qq.com/web201605/${url}`;
+                }
+                // 尝试在周围提取日期
+                const contextStart = Math.max(0, match.index - 200);
+                const context = html.slice(contextStart, match.index);
+                const dateMatch = context.match(/(\d{4}[-/.]\d{1,2}[-/.]\d{1,2})/);
+                const date = dateMatch ? dateMatch[1].replace(/[./]/g, "-") : new Date().toISOString().slice(0, 10);
+                newsItems.push({ title, date, url });
+                if (newsItems.length >= 10) break;
+              }
+              if (newsItems.length > 0) {
+                await prisma.$executeRawUnsafe(
+                  "INSERT INTO kv_cache (`key`, `value`) VALUES ('official_news', ?) ON DUPLICATE KEY UPDATE `value` = ?",
+                  JSON.stringify(newsItems), JSON.stringify(newsItems)
+                );
+                events.push({ module: "news", action: "scrape-done", detail: `cached ${newsItems.length} items`, timestamp: Date.now() });
+              } else {
+                events.push({ module: "news", action: "scrape-done", detail: "no news items found", timestamp: Date.now() });
+              }
+            }
+          } catch (e: unknown) {
+            events.push({ module: "news", action: "scrape-fail", detail: (e as Error).message, timestamp: Date.now() });
+          }
           break;
         }
       }
     } catch (e: unknown) {
-      events.push({ module, action: "scrape-fail", detail: (e as Error).message, timestamp: Date.now() });
+      events.push({ module: mod, action: "scrape-fail", detail: (e as Error).message, timestamp: Date.now() });
     }
   }
 
