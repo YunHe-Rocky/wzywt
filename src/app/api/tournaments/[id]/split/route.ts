@@ -42,9 +42,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     },
   });
 
-  // Validate minimum players (need at least 10 for 5v5)
-  if (players.length < 10) {
-    return NextResponse.json({ error: `至少需要10人才能分队，当前${players.length}人` }, { status: 400 });
+  // Validate exactly 10 players for 5v5
+  if (players.length !== 10) {
+    return NextResponse.json({ error: `需要正好10人才能分队，当前${players.length}人` }, { status: 400 });
   }
 
   // Deadline check: warn if before deadline, but allow

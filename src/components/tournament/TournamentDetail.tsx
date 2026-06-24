@@ -174,6 +174,7 @@ export function TournamentDetail() {
   const [extendDay, setExtendDay] = useState<number | null>(null);
   const [extendHour, setExtendHour] = useState(20);
   const [extendMin, setExtendMin] = useState(0);
+  const [addingFiller, setAddingFiller] = useState(false);
   const { success, error: showError } = useToast();
 
   useEffect(() => {
@@ -218,8 +219,8 @@ export function TournamentDetail() {
 
   async function doSplit() {
     setAdminMsg("");
-    if (playerCount < 10) {
-      setAdminMsg(`分队需要至少10人，当前仅${playerCount}人`);
+    if (playerCount !== 10) {
+      setAdminMsg(`分队需要正好10人，当前${playerCount}人`);
       return;
     }
     const res = await fetch(`/api/tournaments/${id}/split`, { method: "POST" });
@@ -291,6 +292,8 @@ export function TournamentDetail() {
   const isOwner = tournament.admins.some((a) => a.userId === me?.userId && a.role === "owner");
   const isPlayer = tournament.players.some((p) => p.userId === me?.userId);
   const playerCount = tournament.players.filter((p) => !p.isSpectator).length;
+  const tempCount = tournament.players.filter((p) => p.isTemporary && !p.isSpectator).length;
+  const realCount = playerCount - tempCount;
   const spectatorCount = tournament.players.filter((p) => p.isSpectator).length;
 
   const statusLabel =
@@ -385,11 +388,11 @@ export function TournamentDetail() {
               <span style={{
                 fontSize: 15,
                 fontWeight: 700,
-                color: playerCount >= 10 ? "var(--gold)" : "var(--text)",
+                color: playerCount === 10 ? "var(--gold)" : "var(--text)",
               }}>
                 {playerCount}
               </span>
-              人参战
+              /10 人参战
             </span>
           </div>
         </div>
@@ -439,7 +442,7 @@ export function TournamentDetail() {
               {isOwner && <span className="badge badge-gold">房主</span>}
               {!isOwner && <span className="badge badge-gold">次房主</span>}
               <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
-                {isOwner ? "可任命次房主、踢人、分队、切换公开私有" : "可踢人、分队、延长截止（房主操作后5分钟内不可重复）"}
+                {isOwner ? "可任命次房主、添加补位、踢人、分队、切换公开私有" : "可踢人、分队、延长截止（房主操作后5分钟内不可重复）"}
               </span>
             </div>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -448,11 +451,11 @@ export function TournamentDetail() {
                 <button
                   onClick={doSplit}
                   className="btn-primary"
-                  disabled={playerCount < 10}
-                  title={playerCount < 10 ? `需要10人，当前${playerCount}人` : ""}
+                  disabled={playerCount !== 10}
+                  title={playerCount !== 10 ? `需要正好10人，当前${playerCount}人` : "开始分队"}
                   style={{ fontSize: 13, padding: "8px 18px" }}
                 >
-                  分队 ({playerCount}人)
+                  分队 ({playerCount}/10)
                 </button>
               )}
               {splitResult && (
@@ -466,6 +469,29 @@ export function TournamentDetail() {
                   延长截止
                 </button>
               )}
+              {/* Add filler player — owner only, recruiting/locked, not yet split */}
+              {isOwner && (tournament.status === "recruiting" || tournament.status === "locked") && !splitResult && (
+                <button
+                  onClick={async () => {
+                    setAddingFiller(true);
+                    const n = tempCount + 1;
+                    const res = await fetch(`/api/tournaments/${id}/temp-player`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ tempName: `补位${n}` }),
+                    });
+                    setAddingFiller(false);
+                    if (res.ok) { refreshTournament(); success(`已添加补位${n}`); }
+                    else { const d = await res.json(); showError(d.error); }
+                  }}
+                  disabled={addingFiller}
+                  className="btn-ghost"
+                  style={{ fontSize: 13, padding: "8px 18px", opacity: addingFiller ? 0.6 : 1 }}
+                >
+                  {addingFiller ? "..." : "添加补位"}
+                </button>
+              )}
+
               {/* Public toggle */}
               {tournament.status !== "finished" && (
                 <button
@@ -620,7 +646,7 @@ export function TournamentDetail() {
 
             let typeLabel = "正式";
             if (p.isSpectator) typeLabel = "观众";
-            else if (p.isTemporary) typeLabel = "临时";
+            else if (p.isTemporary) typeLabel = "补位";
 
             const canKick = isAdmin && p.userId !== me?.userId && adminRole?.role !== "owner";
             const canPromote = isOwner && !adminRole && !p.isSpectator && p.userId !== me?.userId;
@@ -739,24 +765,26 @@ export function TournamentDetail() {
                   {canKick && (
                     <button
                       onClick={async () => {
-                        const name = p.isTemporary ? (p.tempName || "临时选手") : p.user.username;
+                        const name = p.isTemporary ? (p.tempName || "补位选手") : p.user.username;
                         const isCoOwner = adminRole?.role === "co_owner";
-                        const msg = isCoOwner
-                          ? `确定将次房主 ${name} 降级并踢出吗？`
-                          : `确定踢出 ${name} 吗？`;
+                        const msg = p.isTemporary
+                          ? `确定移除补位选手 ${name} 吗？`
+                          : isCoOwner
+                            ? `确定将次房主 ${name} 降级并踢出吗？`
+                            : `确定踢出 ${name} 吗？`;
                         if (!confirm(msg)) return;
                         const res = await fetch(`/api/tournaments/${id}/kick`, {
                           method: "POST",
                           headers: { "Content-Type": "application/json" },
                           body: JSON.stringify({ targetUserId: p.userId }),
                         });
-                        if (res.ok) { refreshTournament(); success(isCoOwner ? "已降级并踢出" : "已踢出"); }
+                        if (res.ok) { refreshTournament(); success(p.isTemporary ? "已移除补位" : isCoOwner ? "已降级并踢出" : "已踢出"); }
                         else { const d = await res.json(); showError(d.error); }
                       }}
                       className="btn-subtle"
                       style={{ fontSize: 12, padding: "5px 12px", color: "var(--red)", whiteSpace: "nowrap" }}
                     >
-                      {adminRole?.role === "co_owner" ? "降级并踢出" : "踢出"}
+                      {p.isTemporary ? "移除补位" : adminRole?.role === "co_owner" ? "降级并踢出" : "踢出"}
                     </button>
                   )}
                 </div>
@@ -775,7 +803,8 @@ export function TournamentDetail() {
           fontSize: 12,
           color: "var(--text-muted)",
         }}>
-          <span>参赛 <b style={{ color: "var(--text)", fontWeight: 600 }}>{playerCount}</b> 人</span>
+          <span>参赛 <b style={{ color: "var(--text)", fontWeight: 600 }}>{playerCount}</b>/10 人</span>
+          {tempCount > 0 && <span>补位 <b style={{ color: "var(--text-secondary)", fontWeight: 600 }}>{tempCount}</b> 人</span>}
           {spectatorCount > 0 && <span>观战 <b style={{ color: "var(--text-secondary)", fontWeight: 600 }}>{spectatorCount}</b> 人</span>}
           <span style={{ marginLeft: "auto", fontSize: 11 }}>共 {tournament.players.length} 人</span>
         </div>

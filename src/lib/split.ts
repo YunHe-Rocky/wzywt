@@ -165,10 +165,9 @@ function preferenceScore(
 // ── Main ─────────────────────────────────────────────────────────────
 
 export function splitTeams(players: Player[]): SplitResult | null {
-  if (players.length < 10) return null;
+  if (players.length !== 10) return null;
 
-  // Only use 10 players for 5v5, extra players are unassigned
-  const selected = players.slice(0, 10);
+  const selected = players;
 
   const roleAssignments = generateRoleAssignments(selected);
   let bestResult: SplitResult | null = null;
