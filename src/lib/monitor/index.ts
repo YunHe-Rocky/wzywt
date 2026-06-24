@@ -3,9 +3,9 @@
 
 import { prisma } from "@/lib/db";
 import { fetchWithRetry } from "@/lib/anti-bot";
+import { fetchGicpNews, GICP_CHANNELS } from "@/lib/gicp";
 
 // ── Config ─────────────────────────────────────────────────────────────
-const NEWS_URL = "https://pvp.qq.com/";
 const HEROLIST_URL = "https://pvp.qq.com/web201605/js/herolist.json";
 
 interface MonitorResult {
@@ -15,22 +15,14 @@ interface MonitorResult {
   count?: number;
 }
 
-// ── News Monitor (light: only checks headlines) ────────────────────────
+// ── News Monitor (light: checks first headline via GICP API) ───────────
 async function checkNews(): Promise<MonitorResult> {
   try {
-    const res = await fetchWithRetry(NEWS_URL, { timeout: 8000, referer: "https://pvp.qq.com/" });
-    if (!res.ok || !res.text) return { module: "news", changed: false, detail: "HTTP " + res.status };
+    const items = await fetchGicpNews(GICP_CHANNELS.announcement, 1);
+    if (items.length === 0) return { module: "news", changed: false, detail: "no items from API" };
 
-    const html = res.text;
+    const firstTitle = items[0].title;
 
-    // Extract first headline (support nested HTML in links)
-    const linkMatch = html.match(/<a[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/i);
-    if (!linkMatch) return { module: "news", changed: false, detail: "no titles found" };
-
-    const firstTitle = linkMatch[2].replace(/<[^>]*>/g, "").trim();
-    if (!firstTitle) return { module: "news", changed: false, detail: "no titles found" };
-
-    // Compare with cached last title
     const cache = await prisma.$queryRawUnsafe(
       "SELECT value FROM kv_cache WHERE `key` = 'news_last_title'"
     ) as { value: string }[];
@@ -39,7 +31,6 @@ async function checkNews(): Promise<MonitorResult> {
       return { module: "news", changed: false, detail: "unchanged" };
     }
 
-    // Store new title
     await prisma.$executeRawUnsafe(
       "INSERT INTO kv_cache (`key`, `value`) VALUES ('news_last_title', ?) ON DUPLICATE KEY UPDATE `value` = ?",
       firstTitle, firstTitle
@@ -181,7 +172,7 @@ export async function runMonitorAndScrape(
 
           // Auto-download new images from CDN
           try {
-            const { downloadAllImages } = await import("@/../scripts/download-hero-images");
+            const { downloadAllImages } = await import("@/lib/heroes/download-images");
             const imgResult = await downloadAllImages();
             if (imgResult.heroes > 0 || imgResult.skins > 0) {
               events.push({ module: mod, action: "scrape-done", detail: `downloaded ${imgResult.heroes} hero + ${imgResult.skins} skin images`, timestamp: Date.now() });
