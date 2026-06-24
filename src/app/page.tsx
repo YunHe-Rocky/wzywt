@@ -127,8 +127,6 @@ export default function Home() {
     return () => io.disconnect();
   }, [open, toc, combinedMD]);
 
-  const latest = announcements[0];
-
   return (
     <div style={{ maxWidth: 960, margin: "0 auto", padding: "32px 20px 48px" }}>
       {/* Header */}
@@ -145,25 +143,27 @@ export default function Home() {
           style={{
             width: "100%", background: "none", border: "none", cursor: "pointer",
             padding: "18px 24px", textAlign: "left",
-            display: "flex", alignItems: "center", justifyContent: "space-between",
+            display: "flex", alignItems: "flex-start", justifyContent: "space-between",
             gap: 12,
           }}
           onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = "var(--bg-hover)"}
           onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = "transparent"}
         >
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 15, fontWeight: 700, color: "var(--gold)" }}>📣 系统公告</div>
-            {latest && (
-              <div style={{
-                fontSize: 12,
-                color: "var(--text-muted)",
-                marginTop: 3,
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
+            <div style={{ fontSize: 15, fontWeight: 700, color: "var(--gold)", marginBottom: announcements.length > 0 ? 6 : 0 }}>📣 系统公告</div>
+            {announcements.map((a, i) => (
+              <div key={a.slug} style={{
+                fontSize: 12, color: i === 0 ? "var(--text-secondary)" : "var(--text-muted)",
+                fontWeight: i === 0 ? 600 : 400,
+                marginTop: i > 0 ? 2 : 0,
+                overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
               }}>
-                {latest.date} · {latest.title}
+                <span style={{ color: "var(--text-muted)", fontWeight: 400, marginRight: 4 }}>{a.date}</span>
+                {a.title}
               </div>
+            ))}
+            {announcements.length === 0 && loaded && (
+              <div style={{ fontSize: 12, color: "var(--text-muted)" }}>暂无公告</div>
             )}
           </div>
           <span style={{
