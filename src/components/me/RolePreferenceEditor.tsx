@@ -119,17 +119,21 @@ export function RolePreferenceEditor() {
           <div className="flex-1 min-w-0">
             <div className="text-[10px] font-semibold text-text-muted mb-1.5 tracking-wider uppercase">当前段位</div>
             <select value={sharedRank} onChange={e => setSharedRankAndSync(parseInt(e.target.value))}
-              className="text-sm font-bold px-3 py-2 rounded-md bg-input border border-border text-text focus:border-gold/30 transition-colors w-full max-w-[180px]">
+              className="text-sm font-bold px-3 py-2 rounded-md bg-input border border-border text-text focus:border-gold/30 transition-colors w-full max-w-[200px]">
               {RANK_TIERS.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
             </select>
           </div>
         </div>
         <div className="h-px bg-gradient-to-r from-transparent via-border to-transparent my-2" />
         <div className="flex items-center gap-4 p-3">
-          <RankBadge value={sharedRank > 0 ? Math.max(...prefs.map(p => p.peakRank)) : 0} size={48} />
+          <RankBadge value={prefs[0]?.peakRank || 0} size={48} />
           <div className="flex-1 min-w-0">
             <div className="text-[10px] font-semibold text-text-muted mb-1.5 tracking-wider uppercase">历史最高段位</div>
-            <div className="text-xs text-text-muted">在每个分路的 Tab 内分别设置</div>
+            <select value={prefs[0]?.peakRank || 0}
+              onChange={e => { const v = parseInt(e.target.value); setPrefs(prev => prev.map(p => ({ ...p, peakRank: v }))); }}
+              className="text-sm font-bold px-3 py-2 rounded-md bg-input border border-border text-text focus:border-gold/30 transition-colors w-full max-w-[200px]">
+              {RANK_TIERS.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+            </select>
           </div>
         </div>
       </div>
@@ -207,20 +211,10 @@ export function RolePreferenceEditor() {
 
             {/* Extra stats */}
             <div className="mt-4 pt-4 border-t border-border-light">
-              <div>
-                <label className="text-[10px] font-semibold text-text-muted mb-1 block">巅峰赛分数</label>
-                <input type="number" placeholder="未设置" value={activePref.peakScore || ""}
-                  onChange={e => setPeakScore(activeTab, parseInt(e.target.value) || 0)}
-                  className="w-full text-sm px-3 py-2 rounded-md bg-input border border-border text-text max-w-[200px]" />
-              </div>
-              <div className="mt-3">
-                <label className="text-[10px] font-semibold text-text-muted mb-1 block">历史最高段位</label>
-                <select value={activePref.peakRank}
-                  onChange={e => setPeakRank(activeTab, parseInt(e.target.value))}
-                  className="w-full text-sm px-3 py-2 rounded-md bg-input border border-border text-text max-w-[200px]">
-                  {RANK_TIERS.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-                </select>
-              </div>
+              <label className="text-[10px] font-semibold text-text-muted mb-1 block">巅峰赛分数</label>
+              <input type="number" placeholder="未设置" value={activePref.peakScore || ""}
+                onChange={e => setPeakScore(activeTab, parseInt(e.target.value) || 0)}
+                className="w-full text-sm px-3 py-2 rounded-md bg-input border border-border text-text max-w-[200px]" />
             </div>
           </div>
         )}
