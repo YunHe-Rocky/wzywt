@@ -27,9 +27,9 @@ const EyeIcon = ({ open }: { open: boolean }) => (
   </svg>
 );
 
-const inputClass = "w-full px-3.5 py-2.5 rounded-md border border-gold/15 bg-white/3 text-[#e0d8c0] text-[13px] placeholder:text-text-muted focus:border-gold/40 focus:outline-none focus:shadow-[0_0_0_3px_rgba(240,192,64,0.08)] transition-colors box-border";
-const labelClass = "block text-[11px] font-bold text-gold-dim uppercase tracking-wider mb-1.5";
-const btnGold = "w-full py-3.5 rounded-md text-[15px] font-bold tracking-wider bg-gradient-to-b from-amber-200 via-gold to-gold-dim text-root hover:brightness-110 transition-all shadow-[0_4px_20px_rgba(240,192,64,0.2)] disabled:opacity-60 border border-white/10 cursor-pointer";
+const inputClass = "w-full px-3.5 py-2.5 rounded-md border border-gold/10 bg-white/[0.02] text-text text-[13px] placeholder:text-text-muted focus:border-gold/20 focus:outline-none transition-colors box-border";
+const labelClass = "block text-[11px] font-semibold text-text-muted uppercase tracking-wider mb-1.5";
+const btnGold = "w-full py-3.5 rounded-md text-[15px] font-bold tracking-wider bg-gradient-to-b from-gold-light via-gold to-gold-dim text-root hover:brightness-105 transition-all disabled:opacity-50 border border-gold/10 cursor-pointer";
 
 export function AuthForm({ mode }: { mode: "login" | "register" }) {
   const router = useRouter();
@@ -120,11 +120,11 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
         <div className="skeleton rounded-lg w-[420px] h-[400px]" />
       ) : (
         <div className="w-full max-w-[420px] px-9 py-10 rounded-xl relative overflow-hidden animate-slide-up"
-          style={{ background: "linear-gradient(180deg, #1a1830 0%, #12101c 100%)", border: "1px solid rgba(192,168,74,0.15)", boxShadow: "0 0 60px rgba(192,168,74,0.04), 0 4px 32px rgba(0,0,0,0.4)" }}>
+          style={{ background: "var(--bg-card)", border: "1px solid var(--border)", boxShadow: "0 4px 24px rgba(0,0,0,0.25)" }}>
           {/* Top glow */}
-          <div className="absolute -top-15 left-1/2 -translate-x-1/2 w-[200px] h-20 pointer-events-none" style={{ background: "radial-gradient(ellipse, rgba(192,168,74,0.12), transparent)" }} />
+          <div className="absolute -top-15 left-1/2 -translate-x-1/2 w-[200px] h-20 pointer-events-none" style={{ background: "radial-gradient(ellipse, rgba(184,152,96,0.08), transparent)" }} />
 
-          <h1 className="text-[28px] font-extrabold text-center m-0 mb-1.5 tracking-wider bg-gradient-to-r from-amber-200 via-gold to-gold-dim bg-clip-text text-transparent">{title}</h1>
+          <h1 className="text-[28px] font-extrabold text-center m-0 mb-1.5 tracking-wider text-gold-light">{title}</h1>
           <p className="text-[13px] text-center text-text-muted mb-7">{subtitle}</p>
 
           {/* Divider */}
@@ -225,7 +225,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
         <>
           <div onClick={() => setShowForgot(false)} className="fixed inset-0 bg-black/60 z-[1000]" />
           <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[1001] p-8 rounded-xl w-[380px] max-w-[90vw]"
-            style={{ background: "linear-gradient(180deg, #1a1830 0%, #12101c 100%)", border: "1px solid rgba(192,168,74,0.15)", boxShadow: "0 0 60px rgba(192,168,74,0.04), 0 4px 32px rgba(0,0,0,0.4)" }}>
+            style={{ background: "var(--bg-card)", border: "1px solid var(--border)", boxShadow: "0 4px 24px rgba(0,0,0,0.25)" }}>
             <div className="absolute -top-10 left-1/2 -translate-x-1/2 w-40 h-15 pointer-events-none" style={{ background: "radial-gradient(ellipse, rgba(192,168,74,0.1), transparent)" }} />
 
             {forgotStep === 1 ? (
