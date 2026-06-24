@@ -134,7 +134,7 @@ export function RolePreferenceEditor() {
             const isFull = heroes.length >= 3;
 
             return (
-              <div key={p.roleType} className={`rounded-md overflow-hidden transition-colors bg-card border ${expanded ? "border-gold/20" : "border-border"}`}>
+              <div key={p.roleType} className={`rounded-md transition-colors bg-card border ${expanded ? "border-gold/20 overflow-visible" : "border-border overflow-hidden"}`}>
                 <div className="flex items-center gap-2 sm:gap-2.5 px-3 sm:px-3.5 py-2.5 cursor-pointer hover:bg-hover transition-colors flex-wrap sm:flex-nowrap" onClick={() => setExpandedRole(expanded ? null : p.roleType)}>
                   <span className="text-gold font-bold text-[15px] w-[22px] text-center shrink-0">{i + 1}</span>
                   <LaneIcon role={p.roleType} size={26} />
