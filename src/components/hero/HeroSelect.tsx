@@ -139,7 +139,8 @@ export function HeroSelect({ roleType, value, onChange }: Props) {
           alignItems: "center",
           gap: 8,
           width: "100%",
-          padding: selectedHero ? "6px 8px 6px 10px" : "8px 8px 8px 12px",
+          height: 40,
+          padding: selectedHero ? "6px 8px 6px 10px" : "0 8px 0 12px",
           background: open ? "var(--bg-hover)" : "var(--bg-input)",
           border: `1px solid ${open ? "var(--gold)" : "var(--border)"}`,
           borderRadius: "var(--radius-sm)",
@@ -149,6 +150,7 @@ export function HeroSelect({ roleType, value, onChange }: Props) {
           fontWeight: selectedHero ? 400 : 500,
           transition: "background 0.15s, border-color 0.15s, box-shadow 0.15s",
           textAlign: "left" as const,
+          boxSizing: "border-box" as const,
         }}
         onMouseEnter={(e) => {
           if (!open) {
