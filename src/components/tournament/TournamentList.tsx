@@ -77,7 +77,7 @@ export function TournamentList() {
   for (let d = 1; d <= daysInMonth; d++) calendarCells.push(d);
 
   return (
-    <div className="tournament-list max-w-3xl mx-auto px-4 py-12 sm:py-16">
+    <div className="tournament-list max-w-3xl mx-auto px-4 py-12 py-16">
 
       {/* ============ PAGE HEADER ============ */}
       <div style={{ marginBottom: 24 }}>

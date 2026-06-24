@@ -140,7 +140,7 @@ export function RolePreferenceEditor() {
                   ? "bg-card text-gold-light border border-gold/15"
                   : "text-text-muted hover:text-text-secondary"}`}>
               <LaneIcon role={p.roleType} size={16} />
-              <span className="hidden sm:inline">{ROLE_LABELS[p.roleType]}</span>
+              <span className="inline">{ROLE_LABELS[p.roleType]}</span>
               <span className="text-[10px] opacity-60">{i + 1}</span>
             </button>
           ))}

@@ -119,9 +119,9 @@ export default function Home() {
   }, []);
 
   return (
-    <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+    <div className="max-w-5xl mx-auto px-4 px-6 py-6 py-8">
       {/* Brand + Quick Actions */}
-      <div className="mb-6 text-center sm:text-left">
+      <div className="mb-6 text-center text-left">
         <h1 className="text-2xl font-extrabold text-gold-light tracking-wider mb-1">王者演武堂</h1>
         <p className="text-sm text-text-secondary">5V5 内战分队 · 公平竞技</p>
         <div className="grid grid-cols-3 gap-3 mt-5 max-w-lg">
@@ -136,9 +136,9 @@ export default function Home() {
       </div>
 
       {/* Dashboard Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-3 gap-4">
         {/* Main column */}
-        <div className="lg:col-span-2 flex flex-col gap-4">
+        <div className="flex flex-col gap-4">
           {/* Announcements */}
           <div className="bg-card border border-border rounded-md overflow-hidden">
             <div className="px-5 py-3 border-b border-border-light">
@@ -176,10 +176,10 @@ export default function Home() {
             </div>
             {!loaded ? <div className="px-5 py-6"><SkeletonLines count={2} /></div>
               : rooms.length === 0 ? <p className="text-center text-text-muted text-sm py-6">暂无公开房间</p>
-                : <div className="grid grid-cols-1 sm:grid-cols-2 gap-0">
+                : <div className="grid grid-cols-1 grid-cols-2 gap-0">
                   {rooms.map((room, i) => (
                     <Link key={room.id} href={`/tournaments/${room.id}`}
-                      className="flex flex-col gap-1.5 px-5 py-3.5 no-underline hover:bg-hover/50 transition-colors border-b border-border-light sm:border-r-0 last:border-b-0">
+                      className="flex flex-col gap-1.5 px-5 py-3.5 no-underline hover:bg-hover/50 transition-colors border-b border-border-light border-r-0 last:border-b-0">
                       <div className="flex items-center justify-between gap-2">
                         <span className="text-sm font-semibold text-text truncate hover:text-gold-light transition-colors">{room.name}</span>
                         <span className="text-[10px] font-mono font-semibold text-gold/80 shrink-0">#{room.code}</span>

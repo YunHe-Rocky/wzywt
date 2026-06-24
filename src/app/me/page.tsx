@@ -17,8 +17,8 @@ export default function MePage() {
   }, []);
 
   return (
-    <div className="max-w-2xl mx-auto px-4 sm:px-6 py-8 sm:py-12 flex flex-col gap-8 animate-fade-in">
-      <h1 className="text-2xl sm:text-[28px] font-bold text-text m-0">个人空间</h1>
+    <div className="max-w-2xl mx-auto px-4 px-6 py-8 py-12 flex flex-col gap-8 animate-fade-in">
+      <h1 className="text-2xl text-[28px] font-bold text-text m-0">个人空间</h1>
 
       <RolePreferenceEditor />
 

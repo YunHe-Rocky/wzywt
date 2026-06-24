@@ -115,7 +115,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
   const switchHref = mode === "login" ? "/register" : "/login";
 
   return (
-    <div className="flex items-center justify-center min-h-[calc(100vh-56px)] px-4 sm:px-6">
+    <div className="flex items-center justify-center min-h-[calc(100vh-56px)] px-4 px-6">
       {checking ? (
         <div className="skeleton rounded-lg w-[420px] h-[400px]" />
       ) : (

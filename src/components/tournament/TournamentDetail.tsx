@@ -231,7 +231,7 @@ export function TournamentDetail() {
 
   return (
     <div
-      className="tournament-detail max-w-3xl mx-auto px-4 py-10 sm:py-16 animate-fade-in"
+      className="tournament-detail max-w-3xl mx-auto px-4 py-10 py-16 animate-fade-in"
     >
 
       {/* ================================================================== */}
@@ -813,7 +813,7 @@ export function TournamentDetail() {
           {/* =========================================================== */}
           {/*  STATS BAR                                                   */}
           {/* =========================================================== */}
-          <div className="card stats-bar !flex !items-center !justify-center !gap-12 !p-6 sm:!p-8 !mt-4">
+          <div className="card stats-bar !flex !items-center !justify-center !gap-12 !p-6 !p-8 !mt-4">
             {/* Power diff */}
             <div style={{ textAlign: "center" as const }}>
               <div style={{

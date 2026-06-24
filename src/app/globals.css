@@ -558,13 +558,6 @@
   white-space: nowrap;
 }
 
-@media (max-width: 640px) {
-  .hero-collapsed-summary {
-    max-width: 50%;
-    font-size: 12px;
-  }
-}
-
 /* ── Hero Add Form ── */
 .hero-add-form {
   display: flex;
@@ -592,23 +585,6 @@
   font-size: 13px;
   font-weight: 600;
   white-space: nowrap;
-}
-
-@media (max-width: 640px) {
-  .hero-add-form {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 10px;
-  }
-
-  .hero-add-row {
-    gap: 8px;
-  }
-
-  .hero-add-row input {
-    flex: 1;
-    width: auto;
-  }
 }
 
 /* ── Doc TOC ── */
@@ -655,52 +631,6 @@
   color: var(--text);
 }
 
-@media (max-width: 768px) {
-  .doc-body {
-    flex-direction: column-reverse;
-  }
-
-  .doc-toc {
-    width: 100%;
-    flex-shrink: 0;
-    border-left: none;
-    border-bottom: 1px solid var(--border);
-    padding: 12px 16px;
-    position: static;
-    max-height: none;
-    overflow-y: visible;
-    align-self: auto;
-    top: auto;
-  }
-
-  .doc-toc-list {
-    flex-direction: row;
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    gap: 6px;
-    padding-bottom: 4px;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-  }
-
-  .doc-toc-list::-webkit-scrollbar {
-    display: none;
-  }
-
-  .doc-toc-item {
-    flex-shrink: 0;
-    padding: 4px 10px;
-    border-radius: 4px;
-    font-size: 12px;
-    background: var(--bg-hover);
-    border: 1px solid var(--border);
-  }
-
-  .doc-content {
-    padding: 16px;
-  }
-}
-
 @keyframes energy-flow {
   0%, 100% { background-position: -200% 0; }
   50% { background-position: 200% 0; }
@@ -719,74 +649,3 @@
   animation: fade-in 0.3s ease-out;
 }
 
-@media (max-width: 640px) {
-  .main-content {
-    padding: 16px;
-  }
-
-  .header-inner {
-    padding: 0 12px;
-  }
-
-  .header-nav {
-    gap: 0;
-    margin-left: 12px;
-  }
-
-  .nav-link {
-    padding: 8px 8px;
-    font-size: 12px;
-  }
-
-  .nav-link-icon {
-    font-size: 14px;
-  }
-
-  .header-brand {
-    font-size: 14px;
-    letter-spacing: 1px;
-  }
-}
-
-/* ── Mobile responsive ── */
-@media (max-width: 768px) {
-  html {
-    font-size: 15px;
-  }
-
-  .card {
-    padding: 16px;
-    border-radius: 8px;
-  }
-
-  input, select, textarea {
-    font-size: 16px;
-    padding: 8px 12px;
-  }
-
-  table, thead, tbody, th, td, tr {
-    display: revert;
-  }
-
-  table {
-    display: block;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    white-space: nowrap;
-  }
-
-  table thead {
-    display: table-header-group;
-  }
-
-  table tr {
-    display: table-row;
-    padding: 0;
-    border-bottom: none;
-  }
-
-  table td, table th {
-    display: table-cell;
-    padding: 4px 8px;
-  }
-}
