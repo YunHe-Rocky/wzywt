@@ -17,10 +17,11 @@ interface SplitResult {
 const ROLES = ["top", "jungle", "mid", "adc", "support"];
 
 // Scoring weights
-const W_PREF = 350;
+const W_PREF = 500;
 const W_COVER = 50;
-const W_STRENGTH = 20;
+const W_STRENGTH = 15;
 const W_RANK = 30;
+const W_FAIRNESS = 200;
 
 // Compute per-player combat strength for a given role (max ~1000)
 function computeStrength(player: Player, roleType: string): number {
@@ -172,16 +173,52 @@ function rankDiff(
 function preferenceScore(
   assignments: { userId: number; roleType: string }[],
   players: Player[]
-): number {
+): { score: number; penalty: number } {
   const playerMap = new Map(players.map((p) => [p.userId, p]));
   let total = 0;
+  let penalty = 0;
   for (const a of assignments) {
     const p = playerMap.get(a.userId);
     if (!p) continue;
     const pref = p.rolePreferences.find((pr) => pr.roleType === a.roleType);
-    if (pref) total += 6 - pref.preferenceRank;
+    if (!pref) continue;
+
+    // Base: rank 1 = 5pts, rank 5 = 1pt
+    total += 6 - pref.preferenceRank;
+
+    // Main role bonus: +3 if assigned to player's strongest hero power role
+    const powers = p.heroPowers[a.roleType] || [];
+    const rolePower = powers.length > 0
+      ? powers.reduce((s, v) => s + v, 0) / powers.length
+      : 0;
+    let isMainRole = true;
+    for (const [otherRole, otherPowers] of Object.entries(p.heroPowers)) {
+      if (otherRole === a.roleType) continue;
+      const otherAvg = otherPowers.length > 0
+        ? otherPowers.reduce((s, v) => s + v, 0) / otherPowers.length
+        : 0;
+      if (otherAvg > rolePower) { isMainRole = false; break; }
+    }
+    if (isMainRole && rolePower > 0) total += 3;
+
+    // Fairness penalty: penalize 4th/5th choice + low proficiency
+    if (pref.preferenceRank === 4) penalty += 1;
+    if (pref.preferenceRank === 5) penalty += 3;
+
+    // Proficiency penalty: weighted by player strength, so moving a strong
+    // player off-role hurts more than moving a weak player off-role
+    if (rolePower === 0 && powers.length === 0) {
+      const hasAnyHeroes = Object.values(p.heroPowers).some(arr => arr.length > 0);
+      if (hasAnyHeroes) {
+        const peak = (pref?.peakScore || 0) / 7;
+        const rank = (pref?.roleRank || 0) * 15;
+        const peakR = (pref?.peakRank || 0) * 10;
+        const offRoleStrength = peak + rank + peakR;
+        penalty += Math.max(1, Math.round(offRoleStrength / 200));
+      }
+    }
   }
-  return total;
+  return { score: total, penalty };
 }
 
 // ── Main entry ──────────────────────────────────────────────────────
@@ -208,9 +245,9 @@ export function splitTeams(players: Player[]): SplitResult | null {
     const allAssignments = [...split.teamRed, ...split.teamBlue];
     const coverage = rankCoverage(allAssignments, players);
     const rDiff = rankDiff(split.teamRed, split.teamBlue, players);
-    const pref = preferenceScore(allAssignments, players);
+    const { score: pref, penalty } = preferenceScore(allAssignments, players);
 
-    const score = pref * W_PREF + coverage * W_COVER + (-split.strengthDiff) * W_STRENGTH + (-rDiff) * W_RANK;
+    const score = pref * W_PREF + coverage * W_COVER + (-split.strengthDiff) * W_STRENGTH + (-rDiff) * W_RANK + (-penalty) * W_FAIRNESS;
 
     if (score > bestScore) {
       bestScore = score;
