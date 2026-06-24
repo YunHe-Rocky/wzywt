@@ -13,6 +13,7 @@ export function Header() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [version, setVersion] = useState("V1.0.0");
   const menuRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const pathname = usePathname();
@@ -28,6 +29,15 @@ export function Header() {
         setUser(null);
         setLoading(false);
       });
+    // Auto-read latest version from announcements
+    fetch("/api/announcements")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.announcements?.length > 0 && d.announcements[0].version) {
+          setVersion(d.announcements[0].version);
+        }
+      })
+      .catch(() => {});
   }, [pathname]);
 
   useEffect(() => {
@@ -88,7 +98,7 @@ export function Header() {
             padding: "0 5px",
             lineHeight: "17px",
           }}>
-            V1.0.0
+            {version}
           </span>
         </div>
 
