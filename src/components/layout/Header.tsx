@@ -54,10 +54,10 @@ export function Header() {
       <div className="max-w-6xl mx-auto px-4 sm:px-6 h-14 flex items-center gap-4">
         {/* Brand */}
         <Link href="/" className="flex items-center gap-2 shrink-0 no-underline">
-          <span className="text-lg font-extrabold tracking-wider bg-gradient-to-b from-amber-200 via-gold to-gold-dim bg-clip-text text-transparent drop-shadow-[0_0_8px_rgba(240,192,64,0.3)]">
+          <span className="text-lg font-extrabold tracking-wider text-gold-light">
             王者演武堂
           </span>
-          <span className="text-[10px] font-semibold tracking-wider text-gold/60 border border-gold/20 rounded px-1.5 leading-4 hidden sm:inline">
+          <span className="text-[10px] font-semibold tracking-wider text-gold/70 border border-gold/15 rounded px-1.5 leading-4 hidden sm:inline">
             {version}
           </span>
         </Link>
