@@ -92,7 +92,7 @@ export function RolePreferenceEditor() {
     if (!selHero || !selHeroName || !selPower) return;
     const res = await fetch("/api/users/me/heroes", { method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ roleType: role, heroId: parseInt(selHero), heroName: selHeroName, powerScore: parseInt(selPower) }) });
-    if (res.ok) { const c = await res.json(); setHeroesByRole(p => ({ ...p, [role]: [...(p[role] || []), c] })); setSelHero(""); setSelPower(""); success("英雄已添加"); }
+    if (res.ok) { const c = await res.json(); setHeroesByRole(p => ({ ...p, [role]: [...(p[role] || []), c] })); setSelHero(""); setSelHeroName(""); setSelPower(""); success("英雄已添加"); }
     else { const e = await res.json(); error(e.error || "添加失败"); }
   }
 
@@ -172,6 +172,9 @@ export function RolePreferenceEditor() {
                         <button onClick={() => removeHero(h.id, p.roleType)} className="bg-transparent border-none text-text-muted hover:text-red cursor-pointer text-sm p-0.5">✕</button>
                       </div>
                     ))}
+                    {heroes.length === 0 && (
+                      <p className="text-xs text-text-muted py-2.5">尚未添加该分路的英雄，点击下方搜索并添加</p>
+                    )}
                     {!isFull ? (
                       <div className="mt-2.5 flex gap-2 items-end flex-wrap sm:flex-nowrap">
                         <div className="flex-1 min-w-0"><HeroSelect roleType={p.roleType} value={selHero} onChange={(hid, hn) => { setSelHero(hid); setSelHeroName(hn); }} /></div>

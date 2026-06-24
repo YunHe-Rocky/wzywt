@@ -116,15 +116,29 @@ export function HeroSelect({ roleType, value, onChange }: Props) {
           alignItems: "center",
           gap: 8,
           width: "100%",
-          padding: selectedHero ? "6px 10px" : "10px 14px",
-          background: "var(--bg-input)",
+          padding: selectedHero ? "6px 8px 6px 10px" : "8px 8px 8px 12px",
+          background: open ? "var(--bg-hover)" : "var(--bg-input)",
           border: `1px solid ${open ? "var(--gold)" : "var(--border)"}`,
           borderRadius: "var(--radius-sm)",
           cursor: "pointer",
-          color: selectedHero ? "var(--text)" : "var(--text-muted)",
+          color: selectedHero ? "var(--text)" : "var(--text-secondary)",
           fontSize: 13,
-          transition: "border-color 0.15s",
+          fontWeight: selectedHero ? 400 : 500,
+          transition: "background 0.15s, border-color 0.15s, box-shadow 0.15s",
           minHeight: 40,
+          textAlign: "left" as const,
+        }}
+        onMouseEnter={(e) => {
+          if (!open) {
+            e.currentTarget.style.background = "var(--bg-hover)";
+            e.currentTarget.style.borderColor = "rgba(240,192,64,0.3)";
+          }
+        }}
+        onMouseLeave={(e) => {
+          if (!open) {
+            e.currentTarget.style.background = "var(--bg-input)";
+            e.currentTarget.style.borderColor = "var(--border)";
+          }
         }}
       >
         {selectedHero ? (
@@ -141,8 +155,18 @@ export function HeroSelect({ roleType, value, onChange }: Props) {
             </span>
           </>
         ) : (
-          "选择英雄..."
+          <>
+            <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="var(--gold)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.7, flexShrink: 0 }}>
+              <circle cx={12} cy={12} r={10} />
+              <path d="M12 8v8M8 12h8" />
+            </svg>
+            <span style={{ flex: 1 }}>选择英雄</span>
+          </>
         )}
+        <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"
+          style={{ opacity: 0.4, flexShrink: 0, transition: "transform 0.2s", transform: open ? "rotate(180deg)" : "rotate(0)" }}>
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
       </button>
 
       {/* Dropdown */}
