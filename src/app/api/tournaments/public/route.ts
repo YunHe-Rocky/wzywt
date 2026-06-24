@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   const tournaments = await prisma.tournament.findMany({
     where: { status: "recruiting", isPublic: true },
@@ -16,5 +18,7 @@ export async function GET() {
     take: 6,
   });
 
-  return NextResponse.json({ tournaments });
+  return NextResponse.json({ tournaments }, {
+    headers: { "Cache-Control": "no-cache, no-store, must-revalidate" },
+  });
 }
