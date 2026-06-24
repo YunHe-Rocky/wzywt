@@ -30,11 +30,13 @@ function extractNewsFromHtml(html: string): { title: string; date: string; url: 
     else if (url.startsWith("/")) url = "https://pvp.qq.com" + url;
     else if (!url.startsWith("http")) url = "https://pvp.qq.com/" + url;
 
-    const ctxStart = Math.max(0, match.index - 300);
+    // Search wider context (500 chars before link) for a date
+    const ctxStart = Math.max(0, match.index - 500);
     const context = html.slice(ctxStart, match.index + match[0].length);
     const dateMatch = context.match(datePattern);
-    const date = dateMatch ? dateMatch[1].replace(/[./]/g, "-") : new Date().toISOString().slice(0, 10);
+    if (!dateMatch) continue; // skip items without a parseable date
 
+    const date = dateMatch[1].replace(/[./]/g, "-");
     items.push({ title, date, url });
     if (items.length >= 10) break;
   }
@@ -57,8 +59,30 @@ async function scrapeWithPlaywright(): Promise<{ title: string; date: string; ur
     const items = await page.evaluate(() => {
       const results: { title: string; date: string; url: string }[] = [];
       const seen = new Set<string>();
+      const datePattern = /(\d{4}[-/.]\d{1,2}[-/.]\d{1,2})/;
 
-      // Try to find all links with meaningful text
+      function findDate(el: Element): string | null {
+        for (let level = 0; level < 4; level++) {
+          const container = el;
+          if (!container) break;
+
+          const text = (container as HTMLElement).innerText || "";
+          const m = text.match(datePattern);
+          if (m) return m[1].replace(/[./]/g, "-");
+
+          let prev = container.previousElementSibling;
+          while (prev) {
+            const pt = (prev as HTMLElement).innerText || "";
+            const pm = pt.match(datePattern);
+            if (pm) return pm[1].replace(/[./]/g, "-");
+            prev = prev.previousElementSibling;
+          }
+
+          el = el.parentElement!;
+        }
+        return null;
+      }
+
       const links = Array.from(document.querySelectorAll("a"));
       for (let i = 0; i < links.length; i++) {
         const link = links[i];
@@ -69,11 +93,8 @@ async function scrapeWithPlaywright(): Promise<{ title: string; date: string; ur
         if (seen.has(text)) continue;
         seen.add(text);
 
-        // Extract date from nearby context
-        const parent = (link as HTMLElement).parentElement;
-        const context = parent?.innerText || text;
-        const dateMatch = context.match(/(\d{4}[-/.]\d{1,2}[-/.]\d{1,2})/);
-        const date = dateMatch ? dateMatch[1].replace(/[./]/g, "-") : new Date().toISOString().slice(0, 10);
+        const date = findDate(link);
+        if (!date) continue;
 
         results.push({ title: text, date, url: href });
         if (results.length >= 10) break;
