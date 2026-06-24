@@ -60,7 +60,6 @@ export function HeroSelect({ roleType, value, onChange }: Props) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [heroes, setHeroes] = useState<Hero[]>([]);
-  const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -79,31 +78,6 @@ export function HeroSelect({ roleType, value, onChange }: Props) {
     return () => document.removeEventListener("mousedown", handleClick);
   }, []);
 
-  useEffect(() => {
-    if (!open || !ref.current) return;
-    function update() {
-      if (!ref.current) return;
-      const rect = ref.current.getBoundingClientRect();
-      const w = Math.max(rect.width, 280);
-      let left = rect.left;
-      if (left + w > window.innerWidth - 8) left = window.innerWidth - w - 8;
-      if (left < 8) left = 8;
-      setDropdownStyle({
-        position: "fixed",
-        top: rect.bottom + 4,
-        left,
-        width: w,
-        zIndex: 9999,
-      });
-    }
-    update();
-    window.addEventListener("scroll", update, true);
-    window.addEventListener("resize", update);
-    return () => {
-      window.removeEventListener("scroll", update, true);
-      window.removeEventListener("resize", update);
-    };
-  }, [open]);
 
   const selectedHero = heroes.find((h) => String(h.heroId) === value);
 
@@ -204,7 +178,13 @@ export function HeroSelect({ roleType, value, onChange }: Props) {
       {open && (
         <div
           style={{
-            ...dropdownStyle,
+            position: "absolute",
+            top: "100%",
+            left: 0,
+            right: 0,
+            zIndex: 200,
+            marginTop: 4,
+            minWidth: 280,
             background: "var(--bg-card)",
             border: "1px solid var(--border)",
             borderRadius: "var(--radius)",
