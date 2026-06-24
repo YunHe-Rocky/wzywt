@@ -92,16 +92,6 @@ export function Header() {
 
             {menuOpen && (
               <div className="absolute right-0 top-full mt-1 w-40 bg-card border border-border rounded-lg shadow-2xl py-1 animate-slide-up">
-                {/* Mobile nav links inside dropdown */}
-                <div className="sm:hidden">
-                  {NAV.map(n => (
-                    <Link key={n.href} href={n.href} onClick={() => setMenuOpen(false)}
-                      className={`block px-4 py-2 text-sm no-underline ${active(n.href) ? "text-gold bg-gold/8" : "text-text-secondary hover:text-text hover:bg-hover"}`}>
-                      {n.label}
-                    </Link>
-                  ))}
-                  <div className="border-t border-border my-1" />
-                </div>
                 <button onClick={logout}
                   className="w-full text-left px-4 py-2 text-sm text-red hover:bg-red/5 transition-colors">
                   退出登录
