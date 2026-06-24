@@ -7,7 +7,7 @@ interface OfficialNews { title: string; date: string; url: string; }
 interface PublicTournament { id: number; name: string; code: string; announcement: string | null; _count: { players: number }; deadline: string; }
 interface User { userId: number; username: string; }
 interface TocItem { id: string; text: string; level: number }
-interface Announcement { date: string; title: string; slug: string; content?: string; }
+interface Announcement { date: string; title: string; version: string | null; brief: string; slug: string; content?: string; }
 
 function SkeletonLines({ count }: { count: number }) {
   return <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -102,7 +102,7 @@ export default function Home() {
           style={{
             width: "100%", background: isActive ? "var(--bg-hover)" : "transparent",
             border: "none", cursor: "pointer", padding: "12px 24px",
-            textAlign: "left", display: "flex", alignItems: "center",
+            textAlign: "left", display: "flex", alignItems: "flex-start",
             justifyContent: "space-between", gap: 12,
             transition: "background 0.15s",
           }}
@@ -110,13 +110,35 @@ export default function Home() {
           onMouseLeave={e => { if (!isActive) (e.currentTarget as HTMLElement).style.background = "transparent"; }}
         >
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: isActive ? "var(--gold)" : "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              {a.title}
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4, flexWrap: "wrap" }}>
+              {a.version && (
+                <span style={{
+                  fontSize: 9, fontWeight: 700, letterSpacing: 1,
+                  color: "rgba(192,168,74,0.7)", background: "rgba(192,168,74,0.06)",
+                  border: "1px solid rgba(192,168,74,0.15)", borderRadius: 3,
+                  padding: "0 5px", lineHeight: "17px", flexShrink: 0,
+                }}>
+                  {a.version}
+                </span>
+              )}
+              <span style={{
+                fontSize: 13, fontWeight: 600,
+                color: isActive ? "var(--gold)" : "var(--text)",
+                overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+              }}>
+                {a.title}
+              </span>
             </div>
-            <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>{a.date}</div>
+            <div style={{
+              fontSize: 11, color: "var(--text-muted)",
+              overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+            }}>
+              {a.brief}
+            </div>
+            <div style={{ fontSize: 10, color: "var(--text-muted)", marginTop: 3, opacity: 0.6 }}>{a.date}</div>
           </div>
           <span style={{
-            color: "var(--text-muted)", fontSize: 12, flexShrink: 0,
+            color: "var(--text-muted)", fontSize: 12, flexShrink: 0, marginTop: 2,
             transition: "transform 0.2s",
             transform: isActive ? "rotate(90deg)" : "rotate(0deg)",
           }}>▶</span>

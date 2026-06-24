@@ -5,6 +5,8 @@ import { join } from "path";
 interface Announcement {
   date: string;
   title: string;
+  version: string | null;
+  brief: string;
   slug: string;
   filename: string;
   content?: string;
@@ -35,15 +37,31 @@ export async function GET(req: NextRequest) {
     const slug = dateMatch[2];
     const content = readFileSync(join(dir, filename), "utf-8");
 
+    // Parse title line: "# V1.0.0 — Title" or "# Title"
     const titleMatch = content.match(/^#\s+(.+)/m);
-    const title = titleMatch ? titleMatch[1] : slug.replace(/-/g, " ");
+    let rawTitle = titleMatch ? titleMatch[1] : slug.replace(/-/g, " ");
+    let version: string | null = null;
+
+    // Extract version from title like "V1.0.0 — Something"
+    const versionMatch = rawTitle.match(/^(V\d+\.\d+\.\d+)\s*[—\-—]\s*(.+)/);
+    if (versionMatch) {
+      version = versionMatch[1];
+      rawTitle = versionMatch[2];
+    }
+
+    // Extract brief: first non-empty paragraph after the title (before any ## heading or ---)
+    const bodyWithoutTitle = content.replace(/^#\s+.+\n?/, "").trim();
+    const briefMatch = bodyWithoutTitle.match(/^([\s\S]+?)(?:\n\s*\n|\n##|\n---)/);
+    const brief = briefMatch ? briefMatch[1].trim() : bodyWithoutTitle.split("\n")[0]?.trim() || rawTitle;
 
     announcements.push({
       date,
-      title,
+      title: rawTitle,
+      version,
+      brief,
       slug,
       filename,
-      ...(includeContent ? { content: content.replace(/^#\s+.+\n?/, "").trim() } : {}),
+      ...(includeContent ? { content: bodyWithoutTitle } : {}),
     });
   }
 

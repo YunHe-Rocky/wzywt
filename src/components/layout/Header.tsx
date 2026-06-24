@@ -73,10 +73,24 @@ export function Header() {
     <header className="header-bar">
       <div className="header-glow" />
       <div className="header-inner">
-        {/* 左侧：项目名 */}
-        <Link href="/" className="header-brand">
-          王者演武堂
-        </Link>
+        {/* 左侧：项目名 + 版本 */}
+        <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexShrink: 0 }}>
+          <Link href="/" className="header-brand">
+            王者演武堂
+          </Link>
+          <span style={{
+            fontSize: 10,
+            fontWeight: 600,
+            letterSpacing: 1,
+            color: "rgba(192,168,74,0.65)",
+            border: "1px solid rgba(192,168,74,0.18)",
+            borderRadius: 3,
+            padding: "0 5px",
+            lineHeight: "17px",
+          }}>
+            V1.0.0
+          </span>
+        </div>
 
         <div style={{ flex: 1 }} />
 
