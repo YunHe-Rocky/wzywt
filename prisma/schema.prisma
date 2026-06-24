@@ -11,9 +11,9 @@ model User {
   id            Int       @id @default(autoincrement())
   username      String    @unique @db.VarChar(32)
   passwordHash     String    @map("password_hash") @db.VarChar(255)
-  email            String?   @unique
+  email            String?   @unique @db.VarChar(255)
   emailVerified    Boolean   @default(false) @map("email_verified")
-  resetCode        String?   @map("reset_code")
+  resetCode        String?   @map("reset_code") @db.VarChar(16)
   resetCodeExpires DateTime? @map("reset_code_expires")
   resetCodeAttempts Int      @default(0) @map("reset_code_attempts")
   createdAt        DateTime  @default(now()) @map("created_at")
