@@ -3,38 +3,45 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import type { ThemeId } from "./types";
 
+const HASH_THEME_MAP: Record<string, ThemeId> = {
+  "#1": "yanwu",
+  "#2": "alternate",
+};
+
 interface ThemeContextValue {
   theme: ThemeId;
-  setTheme: (t: ThemeId) => void;
 }
 
-const ThemeContext = createContext<ThemeContextValue>({
-  theme: "yanwu",
-  setTheme: () => {},
-});
+const ThemeContext = createContext<ThemeContextValue>({ theme: "yanwu" });
 
 export function useTheme() {
   return useContext(ThemeContext);
 }
 
-export function ThemeProvider({ children, initial = "yanwu" }: {
-  children: ReactNode;
-  initial?: ThemeId;
-}) {
-  const [theme, setTheme] = useState<ThemeId>(initial);
+function getThemeFromHash(): ThemeId {
+  if (typeof window === "undefined") return "yanwu";
+  return HASH_THEME_MAP[window.location.hash] || "yanwu";
+}
+
+export function ThemeProvider({ children }: { children: ReactNode }) {
+  const [theme, setTheme] = useState<ThemeId>("yanwu");
 
   useEffect(() => {
-    const stored = localStorage.getItem("theme") as ThemeId | null;
-    if (stored) setTheme(stored);
+    setTheme(getThemeFromHash());
+
+    function onHashChange() {
+      setTheme(getThemeFromHash());
+    }
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
   }, []);
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
-    localStorage.setItem("theme", theme);
   }, [theme]);
 
   return (
-    <ThemeContext.Provider value={{ theme, setTheme }}>
+    <ThemeContext.Provider value={{ theme }}>
       {children}
     </ThemeContext.Provider>
   );
