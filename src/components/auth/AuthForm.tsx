@@ -54,6 +54,10 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
   const [securityAnswer, setSecurityAnswer] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
+  // Password visibility
+  const [showPassword, setShowPassword] = useState(false);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+
   // Forgot password modal
   const [showForgot, setShowForgot] = useState(false);
   const [forgotStep, setForgotStep] = useState<1 | 2 | 3>(1);
@@ -228,16 +232,64 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
             {/* Password */}
             <div>
               <label style={labelStyle}>密码</label>
-              <input type="password" placeholder={mode === "register" ? "至少 11 位" : "请输入密码"}
-                value={password} onChange={(e) => setPassword(e.target.value)} required minLength={11} style={inputStyle} />
+              <div style={{ position: "relative" }}>
+                <input type={showPassword ? "text" : "password"} placeholder={mode === "register" ? "至少 11 位" : "请输入密码"}
+                  value={password} onChange={(e) => setPassword(e.target.value)} required minLength={11}
+                  style={{ ...inputStyle, paddingRight: 40 }} />
+                <button type="button" onClick={() => setShowPassword(!showPassword)}
+                  style={{
+                    position: "absolute", right: 0, top: 0, bottom: 0, width: 40,
+                    background: "none", border: "none", cursor: "pointer",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    color: showPassword ? "#c0a84a" : "#666",
+                  }}
+                  aria-label={showPassword ? "隐藏密码" : "显示密码"}
+                >
+                  {showPassword ? (
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+                      <line x1="1" y1="1" x2="23" y2="23" />
+                    </svg>
+                  ) : (
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                      <circle cx="12" cy="12" r="3" />
+                    </svg>
+                  )}
+                </button>
+              </div>
             </div>
 
             {/* Register: confirm password */}
             {mode === "register" && (
               <div>
                 <label style={labelStyle}>确认密码</label>
-                <input type="password" placeholder="再次输入密码" value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)} required minLength={11} style={inputStyle} />
+                <div style={{ position: "relative" }}>
+                  <input type={showPassword ? "text" : "password"} placeholder="再次输入密码" value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)} required minLength={11}
+                    style={{ ...inputStyle, paddingRight: 40 }} />
+                  <button type="button" onClick={() => setShowPassword(!showPassword)}
+                    style={{
+                      position: "absolute", right: 0, top: 0, bottom: 0, width: 40,
+                      background: "none", border: "none", cursor: "pointer",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      color: showPassword ? "#c0a84a" : "#666",
+                    }}
+                    aria-label={showPassword ? "隐藏密码" : "显示密码"}
+                  >
+                    {showPassword ? (
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+                        <line x1="1" y1="1" x2="23" y2="23" />
+                      </svg>
+                    ) : (
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                        <circle cx="12" cy="12" r="3" />
+                      </svg>
+                    )}
+                  </button>
+                </div>
               </div>
             )}
 
@@ -403,13 +455,61 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
                 }}>
                   <div>
                     <label style={labelStyle}>新密码</label>
-                    <input type="password" placeholder="至少 11 位" value={forgotPassword}
-                      onChange={(e) => setForgotPassword(e.target.value)} style={inputStyle} />
+                    <div style={{ position: "relative" }}>
+                      <input type={showForgotPassword ? "text" : "password"} placeholder="至少 11 位" value={forgotPassword}
+                        onChange={(e) => setForgotPassword(e.target.value)}
+                        style={{ ...inputStyle, paddingRight: 40 }} />
+                      <button type="button" onClick={() => setShowForgotPassword(!showForgotPassword)}
+                        style={{
+                          position: "absolute", right: 0, top: 0, bottom: 0, width: 40,
+                          background: "none", border: "none", cursor: "pointer",
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          color: showForgotPassword ? "#c0a84a" : "#666",
+                        }}
+                        aria-label={showForgotPassword ? "隐藏密码" : "显示密码"}
+                      >
+                        {showForgotPassword ? (
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+                            <line x1="1" y1="1" x2="23" y2="23" />
+                          </svg>
+                        ) : (
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                            <circle cx="12" cy="12" r="3" />
+                          </svg>
+                        )}
+                      </button>
+                    </div>
                   </div>
                   <div>
                     <label style={labelStyle}>确认新密码</label>
-                    <input type="password" placeholder="再次输入" value={forgotConfirm}
-                      onChange={(e) => setForgotConfirm(e.target.value)} style={inputStyle} />
+                    <div style={{ position: "relative" }}>
+                      <input type={showForgotPassword ? "text" : "password"} placeholder="再次输入" value={forgotConfirm}
+                        onChange={(e) => setForgotConfirm(e.target.value)}
+                        style={{ ...inputStyle, paddingRight: 40 }} />
+                      <button type="button" onClick={() => setShowForgotPassword(!showForgotPassword)}
+                        style={{
+                          position: "absolute", right: 0, top: 0, bottom: 0, width: 40,
+                          background: "none", border: "none", cursor: "pointer",
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          color: showForgotPassword ? "#c0a84a" : "#666",
+                        }}
+                        aria-label={showForgotPassword ? "隐藏密码" : "显示密码"}
+                      >
+                        {showForgotPassword ? (
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+                            <line x1="1" y1="1" x2="23" y2="23" />
+                          </svg>
+                        ) : (
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                            <circle cx="12" cy="12" r="3" />
+                          </svg>
+                        )}
+                      </button>
+                    </div>
                   </div>
                 </div>
                 {forgotError && (

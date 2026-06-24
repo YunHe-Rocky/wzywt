@@ -94,6 +94,8 @@ model RolePreference {
   roleType       String @map("role_type") @db.VarChar(16)
   preferenceRank Int    @map("preference_rank")
   roleRank       Int    @default(0) @map("role_rank")
+  peakScore      Int    @default(0) @map("peak_score")
+  peakRank       Int    @default(0) @map("peak_rank")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

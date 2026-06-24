@@ -20,7 +20,7 @@ const RANK_TIERS = [
   { label: "荣耀王者", value: 9 },
 ];
 
-interface Pref { roleType: string; preferenceRank: number; roleRank: number }
+interface Pref { roleType: string; preferenceRank: number; roleRank: number; peakScore: number; peakRank: number }
 
 export function RolePreferenceEditor() {
   const [prefs, setPrefs] = useState<Pref[]>([]);
@@ -33,11 +33,11 @@ export function RolePreferenceEditor() {
         setPrefs(d.preferences.sort((a: Pref, b: Pref) => a.preferenceRank - b.preferenceRank));
       } else {
         setPrefs([
-          { roleType: "top", preferenceRank: 1, roleRank: 0 },
-          { roleType: "jungle", preferenceRank: 2, roleRank: 0 },
-          { roleType: "mid", preferenceRank: 3, roleRank: 0 },
-          { roleType: "adc", preferenceRank: 4, roleRank: 0 },
-          { roleType: "support", preferenceRank: 5, roleRank: 0 },
+          { roleType: "top", preferenceRank: 1, roleRank: 0, peakScore: 0, peakRank: 0 },
+          { roleType: "jungle", preferenceRank: 2, roleRank: 0, peakScore: 0, peakRank: 0 },
+          { roleType: "mid", preferenceRank: 3, roleRank: 0, peakScore: 0, peakRank: 0 },
+          { roleType: "adc", preferenceRank: 4, roleRank: 0, peakScore: 0, peakRank: 0 },
+          { roleType: "support", preferenceRank: 5, roleRank: 0, peakScore: 0, peakRank: 0 },
         ]);
       }
     });
@@ -61,6 +61,14 @@ export function RolePreferenceEditor() {
     setPrefs((prev) => prev.map((p, i) => (i === index ? { ...p, roleRank: rank } : p)));
   }
 
+  function setPeakScore(index: number, score: number) {
+    setPrefs((prev) => prev.map((p, i) => (i === index ? { ...p, peakScore: score } : p)));
+  }
+
+  function setPeakRank(index: number, rank: number) {
+    setPrefs((prev) => prev.map((p, i) => (i === index ? { ...p, peakRank: rank } : p)));
+  }
+
   async function save() {
     setSaving(true);
     const res = await fetch("/api/users/me/roles", {
@@ -71,6 +79,8 @@ export function RolePreferenceEditor() {
           role_type: p.roleType,
           preference_rank: p.preferenceRank,
           role_rank: p.roleRank,
+          peak_score: p.peakScore,
+          peak_rank: p.peakRank,
         })),
       }),
     });
@@ -86,8 +96,21 @@ export function RolePreferenceEditor() {
     <div className="card">
       <div className="section-title">分路偏好与段位</div>
       <p style={{ color: "var(--text-secondary)", fontSize: 13, marginBottom: 20, lineHeight: 1.6 }}>
-        拖拽排序偏好，选择各分路段位。分队时优先按段位均衡 → 偏好 → 战力
+        拖拽排序偏好，设置各分路当前段位、历史最高巅峰分与历史最高段位
       </p>
+
+      {/* Column headers */}
+      <div style={{
+        display: "flex", alignItems: "center", gap: 10,
+        padding: "0 14px 6px", marginBottom: -2,
+      }}>
+        <span style={{ minWidth: 24, flexShrink: 0 }} />
+        <span style={{ flex: 1, minWidth: 60, fontSize: 10, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.5 }}>分路</span>
+        <span style={{ width: 100, fontSize: 10, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.5, flexShrink: 0 }}>当前段位</span>
+        <span style={{ width: 72, fontSize: 10, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.5, flexShrink: 0 }}>巅峰分</span>
+        <span style={{ width: 100, fontSize: 10, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.5, flexShrink: 0 }}>历史最高</span>
+        <span style={{ width: 60, flexShrink: 0 }} />
+      </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {prefs.map((p, i) => (
@@ -122,18 +145,48 @@ export function RolePreferenceEditor() {
             </span>
 
             {/* Role name */}
-            <span style={{ flex: 1, color: "var(--text)", fontSize: 14, fontWeight: 500 }}>
+            <span style={{ flex: 1, minWidth: 60, color: "var(--text)", fontSize: 14, fontWeight: 500 }}>
               {ROLE_LABELS[p.roleType]}
             </span>
 
-            {/* Rank tier select */}
+            {/* Current rank tier select */}
             <select
               value={p.roleRank}
               onChange={(e) => setRoleRank(i, parseInt(e.target.value))}
               style={{
-                width: 110, fontSize: 13, padding: "6px 8px", flexShrink: 0,
+                width: 100, fontSize: 13, padding: "6px 8px", flexShrink: 0,
                 color: p.roleRank > 0 ? "var(--gold)" : "var(--text-muted)",
                 fontWeight: p.roleRank > 0 ? 600 : 400,
+              }}
+            >
+              {RANK_TIERS.map((t) => (
+                <option key={t.value} value={t.value}>{t.label}</option>
+              ))}
+            </select>
+
+            {/* Peak score */}
+            <input
+              type="number"
+              placeholder="巅峰分"
+              value={p.peakScore || ""}
+              onChange={(e) => setPeakScore(i, parseInt(e.target.value) || 0)}
+              style={{
+                width: 72, fontSize: 13, padding: "6px 8px", flexShrink: 0,
+                color: p.peakScore > 0 ? "var(--gold)" : "var(--text-muted)",
+                fontWeight: p.peakScore > 0 ? 600 : 400,
+                background: "var(--bg-card)", border: "1px solid var(--border)",
+                borderRadius: "var(--radius-sm)",
+              }}
+            />
+
+            {/* Peak rank select */}
+            <select
+              value={p.peakRank}
+              onChange={(e) => setPeakRank(i, parseInt(e.target.value))}
+              style={{
+                width: 100, fontSize: 13, padding: "6px 8px", flexShrink: 0,
+                color: p.peakRank > 0 ? "var(--gold)" : "var(--text-muted)",
+                fontWeight: p.peakRank > 0 ? 600 : 400,
               }}
             >
               {RANK_TIERS.map((t) => (

@@ -18,9 +18,9 @@ interface Tournament {
 interface SplitResult {
   teamRed: { userId: number; roleType: string }[];
   teamBlue: { userId: number; roleType: string }[];
-  powerDiff: number;
+  strengthDiff: number;
   preferenceScore: number;
-  playerDetails: { userId: number; username: string; peakPower: number }[];
+  playerDetails: { userId: number; username: string }[];
 }
 
 const ROLE_LABELS: Record<string, string> = {
@@ -35,11 +35,9 @@ type TeamColor = "red" | "blue";
 function LineupPanel({
   teamColor,
   splitResult,
-  teamPower,
 }: {
   teamColor: TeamColor;
   splitResult: SplitResult;
-  teamPower: number;
 }) {
   const team = teamColor === "red" ? splitResult.teamRed : splitResult.teamBlue;
   const isRed = teamColor === "red";
@@ -71,24 +69,6 @@ function LineupPanel({
             {teamLabel}
           </span>
         </div>
-        <div style={{ textAlign: "right" as const }}>
-          <div style={{
-            fontSize: 28,
-            fontWeight: 700,
-            color: "var(--gold)",
-            lineHeight: 1,
-            fontFamily: "monospace",
-          }}>
-            {teamPower}
-          </div>
-          <div style={{
-            fontSize: 10,
-            color: "var(--text-muted)",
-            marginTop: 2,
-          }}>
-            总战力
-          </div>
-        </div>
         <span className={isRed ? "badge badge-red" : "badge badge-blue"} style={{ fontSize: 13, padding: "4px 14px" }}>
           {team.length} 人
         </span>
@@ -119,30 +99,18 @@ function LineupPanel({
                 {detail?.username || "?"}
               </span>
 
-              {/* Role badge + Power */}
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <span style={{
-                  fontSize: 12,
-                  fontWeight: 600,
-                  padding: "3px 10px",
-                  borderRadius: "var(--radius-sm)",
-                  background: accentBg,
-                  color: accentText,
-                  border: `1px solid ${accentBorder}`,
-                }}>
-                  {ROLE_LABELS[p.roleType]}
-                </span>
-                <span style={{
-                  fontSize: 18,
-                  fontWeight: 700,
-                  color: "var(--gold)",
-                  minWidth: 48,
-                  textAlign: "right" as const,
-                  fontFamily: "monospace",
-                }}>
-                  {detail?.peakPower || 0}
-                </span>
-              </div>
+              {/* Role badge */}
+              <span style={{
+                fontSize: 12,
+                fontWeight: 600,
+                padding: "3px 10px",
+                borderRadius: "var(--radius-sm)",
+                background: accentBg,
+                color: accentText,
+                border: `1px solid ${accentBorder}`,
+              }}>
+                {ROLE_LABELS[p.roleType]}
+              </span>
             </div>
           );
         })}
@@ -865,18 +833,10 @@ export function TournamentDetail() {
             <LineupPanel
               teamColor="red"
               splitResult={splitResult}
-              teamPower={splitResult.teamRed.reduce((sum, p) => {
-                const d = splitResult.playerDetails.find((x) => x.userId === p.userId);
-                return sum + (d?.peakPower || 0);
-              }, 0)}
             />
             <LineupPanel
               teamColor="blue"
               splitResult={splitResult}
-              teamPower={splitResult.teamBlue.reduce((sum, p) => {
-                const d = splitResult.playerDetails.find((x) => x.userId === p.userId);
-                return sum + (d?.peakPower || 0);
-              }, 0)}
             />
           </div>
 
@@ -927,18 +887,18 @@ export function TournamentDetail() {
                 fontSize: 32,
                 fontWeight: 700,
                 fontFamily: "monospace",
-                color: splitResult.powerDiff <= 50 ? "var(--green)" : "var(--gold)",
+                color: splitResult.strengthDiff <= 200 ? "var(--green)" : "var(--gold)",
                 lineHeight: 1,
               }}>
-                {splitResult.powerDiff}
+                {splitResult.strengthDiff}
               </div>
               <div style={{
                 fontSize: 11,
-                color: splitResult.powerDiff <= 50 ? "var(--green)" : "var(--gold-light)",
+                color: splitResult.strengthDiff <= 200 ? "var(--green)" : "var(--gold-light)",
                 fontWeight: 500,
                 marginTop: 4,
               }}>
-                {splitResult.powerDiff <= 50 ? "完美平衡" : "基本均衡"}
+                {splitResult.strengthDiff <= 200 ? "完美平衡" : splitResult.strengthDiff <= 500 ? "基本均衡" : "差距较大"}
               </div>
             </div>
 

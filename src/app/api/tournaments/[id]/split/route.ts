@@ -57,17 +57,14 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   const algoPlayers = players.map((p) => {
     const heroPowers: Record<string, number[]> = {};
-    let peakPower = 0;
     for (const hp of p.user.heroPowers) {
       if (!heroPowers[hp.roleType]) heroPowers[hp.roleType] = [];
       heroPowers[hp.roleType].push(hp.powerScore);
-      if (hp.powerScore > peakPower) peakPower = hp.powerScore;
     }
     return {
       userId: p.userId,
       rolePreferences: p.user.rolePreferences || [],
       heroPowers,
-      peakPower,
     };
   });
 
@@ -76,12 +73,11 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const splitData = {
     teamRed: result?.teamRed || [],
     teamBlue: result?.teamBlue || [],
-    powerDiff: result?.powerDiff || 0,
+    strengthDiff: result?.strengthDiff || 0,
     preferenceScore: result?.preferenceScore || 0,
     playerDetails: players.map((p) => ({
       userId: p.userId,
       username: p.user.username,
-      peakPower: algoPlayers.find((ap) => ap.userId === p.userId)?.peakPower || 0,
     })),
   };
 

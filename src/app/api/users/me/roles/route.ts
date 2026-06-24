@@ -24,11 +24,11 @@ export async function PUT(req: NextRequest) {
   }
 
   await prisma.$transaction(
-    preferences.map((p: { role_type: string; preference_rank: number; role_rank?: number }) =>
+    preferences.map((p: { role_type: string; preference_rank: number; role_rank?: number; peak_score?: number; peak_rank?: number }) =>
       prisma.rolePreference.upsert({
         where: { userId_roleType: { userId, roleType: p.role_type } },
-        update: { preferenceRank: p.preference_rank, roleRank: p.role_rank ?? 0 },
-        create: { userId, roleType: p.role_type, preferenceRank: p.preference_rank, roleRank: p.role_rank ?? 0 },
+        update: { preferenceRank: p.preference_rank, roleRank: p.role_rank ?? 0, peakScore: p.peak_score ?? 0, peakRank: p.peak_rank ?? 0 },
+        create: { userId, roleType: p.role_type, preferenceRank: p.preference_rank, roleRank: p.role_rank ?? 0, peakScore: p.peak_score ?? 0, peakRank: p.peak_rank ?? 0 },
       })
     )
   );
