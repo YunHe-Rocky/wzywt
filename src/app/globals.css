@@ -412,16 +412,27 @@
 
   /* ── Cards ── */
   .card {
-    background: var(--bg-card);
+    background: linear-gradient(180deg,
+      rgba(255,255,255,0.025) 0%,
+      rgba(255,255,255,0.01) 30%,
+      var(--bg-card) 30%,
+      var(--bg-card) 100%);
     border: 1px solid var(--border);
+    border-top: 1px solid rgba(255,255,255,0.08);
     border-radius: var(--radius);
     padding: 24px;
-    transition: border-color 0.3s, box-shadow 0.3s, transform 0.2s;
+    transition: border-color 0.3s, box-shadow 0.3s;
+    box-shadow: 0 1px 0 rgba(255,255,255,0.03) inset,
+                0 -1px 0 rgba(0,0,0,0.1) inset,
+                0 2px 8px rgba(0,0,0,0.15);
   }
 
   .card:hover {
     border-color: rgba(184, 152, 96, 0.15);
-    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.2);
+    border-top-color: rgba(255,255,255,0.12);
+    box-shadow: 0 1px 0 rgba(255,255,255,0.04) inset,
+                0 -1px 0 rgba(0,0,0,0.1) inset,
+                0 4px 16px rgba(0,0,0,0.25);
   }
 
   .card-interactive {
@@ -429,9 +440,11 @@
   }
 
   .card-interactive:hover {
-    border-color: rgba(184, 152, 96, 0.25);
-    box-shadow: 0 2px 16px rgba(0, 0, 0, 0.25);
-    transform: translateY(-1px);
+    border-color: rgba(184, 152, 96, 0.2);
+    border-top-color: rgba(255,255,255,0.1);
+    box-shadow: 0 1px 0 rgba(255,255,255,0.03) inset,
+                0 -1px 0 rgba(0,0,0,0.1) inset,
+                0 4px 16px rgba(0,0,0,0.25);
   }
 
   .card-red {

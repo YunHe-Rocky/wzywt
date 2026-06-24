@@ -99,12 +99,6 @@ function useMD(md: string) {
   }, [md]);
 }
 
-const QUICK_ACTIONS = [
-  { href: "/tournaments", label: "创建房间", desc: "发起内战", icon: "⚔️" },
-  { href: "/tournaments", label: "加入战斗", desc: "输入房间号", icon: "🔢" },
-  { href: "/heroes", label: "英雄图鉴", desc: "查看战力", icon: "📚" },
-];
-
 export default function Home() {
   const [user, setUser] = useState<User | null>(null);
   const [authLoaded, setAuthLoaded] = useState(false);
@@ -125,19 +119,10 @@ export default function Home() {
 
   return (
     <div className="max-w-5xl mx-auto px-4 px-6 py-6 py-8">
-      {/* Brand + Quick Actions */}
-      <div className="mb-6 text-center text-left">
+      {/* Brand */}
+      <div className="mb-5 text-center text-left">
         <h1 className="text-2xl font-extrabold text-gold-light tracking-wider mb-1">王者演武堂</h1>
         <p className="text-sm text-text-secondary">5V5 内战分队 · 公平竞技</p>
-        <div className="grid grid-cols-3 gap-3 mt-5 max-w-lg">
-          {QUICK_ACTIONS.map(a => (
-            <Link key={a.label} href={a.href}
-              className="flex flex-col items-center gap-2 p-3.5 rounded-md bg-card border border-border hover:border-gold/20 transition-colors no-underline group">
-              <span className="text-xl group-hover:scale-110 transition-transform">{a.icon}</span>
-              <span className="text-sm font-semibold text-text group-hover:text-gold-light transition-colors">{a.label}</span>
-            </Link>
-          ))}
-        </div>
       </div>
 
       {/* Dashboard Grid */}
@@ -149,11 +134,12 @@ export default function Home() {
             {!authLoaded ? <SkeletonLines count={3} />
               : user ? (
                 <>
-                  <span className="w-12 h-12 rounded-full bg-gradient-to-br from-gold/20 to-gold/5 border border-gold/15 inline-flex items-center justify-center text-lg font-bold text-gold-light mb-3">
+                  <span className="w-12 h-12 rounded-full bg-gradient-to-br from-gold/20 to-gold/5 border border-gold/15 inline-flex items-center justify-center text-lg font-bold text-gold-light mb-2">
                     {user.username[0]}
                   </span>
-                  <div className="text-sm font-bold text-text mb-0.5">{user.username}</div>
-                  <div className="text-xs text-text-muted mb-3">召唤师</div>
+                  <div className="text-sm font-bold text-text">{user.username}</div>
+                  <div className="text-xs text-text-muted mt-0.5 mb-3">召唤师</div>
+                  <div className="h-px bg-gradient-to-r from-transparent via-gold/15 to-transparent mb-3" />
                   <Link href="/me"
                     className="inline-block w-full py-2 text-[13px] font-semibold rounded-md bg-gradient-to-b from-gold-light via-gold to-gold-dim text-root hover:brightness-110 transition-all no-underline">
                     个人空间
@@ -162,6 +148,7 @@ export default function Home() {
               ) : (
                 <>
                   <p className="text-sm text-text-secondary mb-3">登录后查看个人数据</p>
+                  <div className="h-px bg-gradient-to-r from-transparent via-gold/15 to-transparent mb-3" />
                   <Link href="/login"
                     className="inline-block w-full py-2 text-[13px] font-semibold rounded-md bg-gradient-to-b from-gold-light via-gold to-gold-dim text-root hover:brightness-110 transition-all no-underline">
                     登录
