@@ -173,64 +173,31 @@ export async function runMonitorAndScrape(
 
     try {
       switch (mod) {
-        case "heroes": {
-          const { syncHeroes } = await import("@/lib/heroes/sync");
-          const result = await syncHeroes();
-          events.push({ module: "heroes", action: "scrape-done", detail: `inserted=${result.inserted} updated=${result.updated}`, timestamp: Date.now() });
-          break;
-        }
+        case "heroes":
         case "skins": {
-          // Skin changes need hero sync (updates skinsJson) + image download
           const { syncHeroes } = await import("@/lib/heroes/sync");
           const result = await syncHeroes();
-          events.push({ module: "skins", action: "scrape-done", detail: `synced ${result.updated} heroes, run scripts/download-hero-images.ts for new images`, timestamp: Date.now() });
+          events.push({ module: mod, action: "scrape-done", detail: `inserted=${result.inserted} updated=${result.updated}`, timestamp: Date.now() });
+
+          // Auto-download new images from CDN
+          try {
+            const { downloadAllImages } = await import("@/../scripts/download-hero-images");
+            const imgResult = await downloadAllImages();
+            if (imgResult.heroes > 0 || imgResult.skins > 0) {
+              events.push({ module: mod, action: "scrape-done", detail: `downloaded ${imgResult.heroes} hero + ${imgResult.skins} skin images`, timestamp: Date.now() });
+            }
+          } catch (e: unknown) {
+            events.push({ module: mod, action: "scrape-fail", detail: `image download: ${(e as Error).message}`, timestamp: Date.now() });
+          }
           break;
         }
         case "news": {
           try {
-            const res = await fetchWithRetry(NEWS_URL, { timeout: 8000, referer: "https://pvp.qq.com/" });
-            if (res.ok && res.text) {
-              const html = res.text;
-              const newsItems: { title: string; date: string; url: string }[] = [];
-              const seen = new Set<string>();
-              const linkRegex = /<a[^>]*href\s*=\s*["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
-              const datePattern = /(\d{4}[-/.]\d{1,2}[-/.]\d{1,2})/;
-              let match;
-
-              while ((match = linkRegex.exec(html)) !== null) {
-                const rawHref = match[1];
-                const innerHtml = match[2];
-                if (!rawHref || rawHref === "#" || rawHref.startsWith("javascript:")) continue;
-
-                const title = innerHtml.replace(/<[^>]*>/g, "").trim();
-                if (title.length < 4 || title.length > 100) continue;
-                if (seen.has(title)) continue;
-                seen.add(title);
-
-                let url = rawHref;
-                if (url.startsWith("//")) url = "https:" + url;
-                else if (url.startsWith("/")) url = "https://pvp.qq.com" + url;
-                else if (!url.startsWith("http")) url = "https://pvp.qq.com/web201605/" + url;
-
-                const ctxStart = Math.max(0, match.index - 300);
-                const context = html.slice(ctxStart, match.index + match[0].length);
-                const dateMatch = context.match(datePattern);
-                const date = dateMatch ? dateMatch[1].replace(/[./]/g, "-") : new Date().toISOString().slice(0, 10);
-
-                newsItems.push({ title, date, url });
-                if (newsItems.length >= 10) break;
-              }
-
-              if (newsItems.length > 0) {
-                await prisma.$executeRawUnsafe(
-                  "INSERT INTO kv_cache (`key`, `value`) VALUES ('official_news', ?) ON DUPLICATE KEY UPDATE `value` = ?",
-                  JSON.stringify(newsItems), JSON.stringify(newsItems)
-                );
-                events.push({ module: "news", action: "scrape-done", detail: `cached ${newsItems.length} items`, timestamp: Date.now() });
-              } else {
-                events.push({ module: "news", action: "scrape-done", detail: "no news items found", timestamp: Date.now() });
-              }
-            }
+            // Clear cache so next request fetches fresh data
+            await prisma.$executeRawUnsafe(
+              "DELETE FROM kv_cache WHERE `key` = 'official_news'"
+            );
+            events.push({ module: "news", action: "scrape-done", detail: "cache cleared, fresh data on next request", timestamp: Date.now() });
           } catch (e: unknown) {
             events.push({ module: "news", action: "scrape-fail", detail: (e as Error).message, timestamp: Date.now() });
           }
