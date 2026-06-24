@@ -131,7 +131,7 @@ export function HeroSelect({ roleType, value, onChange }: Props) {
         onMouseEnter={(e) => {
           if (!open) {
             e.currentTarget.style.background = "var(--bg-hover)";
-            e.currentTarget.style.borderColor = "rgba(240,192,64,0.3)";
+            e.currentTarget.style.borderColor = "rgba(184,152,96,0.3)";
           }
         }}
         onMouseLeave={(e) => {

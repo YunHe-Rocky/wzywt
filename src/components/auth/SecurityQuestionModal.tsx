@@ -9,29 +9,29 @@ const modalBackdrop: React.CSSProperties = {
 const modalCard: React.CSSProperties = {
   position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)",
   zIndex: 1001, padding: "32px 28px", width: 380, maxWidth: "90vw",
-  borderRadius: 12, border: "1px solid rgba(192,168,74,0.15)",
-  background: "linear-gradient(180deg, #1a1830 0%, #12101c 100%)",
-  boxShadow: "0 0 60px rgba(192,168,74,0.04), 0 8px 40px rgba(0,0,0,0.5)",
-  color: "#e0d8c0",
+  borderRadius: 12, border: "1px solid var(--border)",
+  background: "var(--bg-card)",
+  boxShadow: "0 4px 24px rgba(0,0,0,0.3)",
+  color: "var(--text)",
 };
 
 const glowStyle: React.CSSProperties = {
   position: "absolute", top: -40, left: "50%", transform: "translateX(-50%)",
-  width: 160, height: 60, background: "radial-gradient(ellipse, rgba(192,168,74,0.1), transparent)",
+  width: 160, height: 60, background: "radial-gradient(ellipse, rgba(184,152,96,0.1), transparent)",
   pointerEvents: "none" as const,
 };
 
 const goldBtn: React.CSSProperties = {
   width: "100%", padding: "11px 0", border: "1px solid rgba(255,255,255,0.08)",
   borderRadius: 6, fontSize: 13, fontWeight: 700, cursor: "pointer",
-  background: "linear-gradient(135deg, #d4b85a, #a08030)",
-  color: "#1a1408", letterSpacing: 0.5,
-  boxShadow: "0 3px 14px rgba(192,168,74,0.18)",
+  background: "linear-gradient(135deg, var(--gold-light), var(--gold-dim))",
+  color: "var(--bg-root)", letterSpacing: 0.5,
+  boxShadow: "0 2px 8px rgba(184,152,96,0.12)",
 };
 
 const inputStyle: React.CSSProperties = {
-  width: "100%", padding: "10px 12px", borderRadius: 6, border: "1px solid rgba(192,168,74,0.12)",
-  background: "rgba(255,255,255,0.03)", color: "#e0d8c0", fontSize: 13, boxSizing: "border-box",
+  width: "100%", padding: "10px 12px", borderRadius: 6, border: "1px solid rgba(184,152,96,0.08)",
+  background: "var(--bg-input)", color: "var(--text)", fontSize: 13, boxSizing: "border-box",
 };
 
 const labelStyle: React.CSSProperties = {
@@ -119,7 +119,7 @@ export function SecurityQuestionModal({
             <p style={{ fontSize: 11, color: "#888", margin: "0 0 18px" }}>请回答以下安全问题确认身份</p>
 
             <div style={{
-              background: "rgba(192,168,74,0.04)", border: "1px solid rgba(192,168,74,0.1)",
+              background: "rgba(192,168,74,0.04)", border: "1px solid rgba(184,152,96,0.1)",
               borderRadius: 8, padding: "12px 14px", marginBottom: 14,
             }}>
               <span style={{ fontSize: 10, fontWeight: 600, color: "#b0a060", display: "block", marginBottom: 4 }}>

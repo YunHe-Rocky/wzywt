@@ -120,7 +120,7 @@ export function Header() {
           </div>
         ) : (
           <Link href="/login"
-            className="px-5 py-1.5 text-sm font-semibold rounded-md bg-gradient-to-b from-gold-light via-gold to-gold-dim text-root hover:brightness-110 transition-all hover:-translate-y-px shadow-[0_2px_8px_rgba(240,192,64,0.2)] no-underline">
+            className="px-5 py-1.5 text-sm font-semibold rounded-md bg-gradient-to-b from-gold-light via-gold to-gold-dim text-root hover:brightness-110 transition-all hover:-translate-y-px shadow-[0_2px_6px_rgba(184,152,96,0.12)] no-underline">
             登录
           </Link>
         )}

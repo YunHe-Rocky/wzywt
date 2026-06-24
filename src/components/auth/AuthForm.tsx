@@ -155,7 +155,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
                   <div>
                     <label className={labelClass}>自定义问题</label>
                     <input placeholder="请输入你的安全问题" value={customQuestion}
-                      onChange={e => setCustomQuestion(e.target.value)} className={inputClass} style={{ borderColor: "rgba(192,168,74,0.3)" }} />
+                      onChange={e => setCustomQuestion(e.target.value)} className={inputClass} style={{ borderColor: "rgba(184,152,96,0.3)" }} />
                   </div>
                 )}
                 <div>
@@ -226,7 +226,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
           <div onClick={() => setShowForgot(false)} className="fixed inset-0 bg-black/60 z-[1000]" />
           <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[1001] p-8 rounded-xl w-[380px] max-w-[90vw]"
             style={{ background: "var(--bg-card)", border: "1px solid var(--border)", boxShadow: "0 4px 24px rgba(0,0,0,0.25)" }}>
-            <div className="absolute -top-10 left-1/2 -translate-x-1/2 w-40 h-15 pointer-events-none" style={{ background: "radial-gradient(ellipse, rgba(192,168,74,0.1), transparent)" }} />
+            <div className="absolute -top-10 left-1/2 -translate-x-1/2 w-40 h-15 pointer-events-none" style={{ background: "radial-gradient(ellipse, rgba(184,152,96,0.1), transparent)" }} />
 
             {forgotStep === 1 ? (
               <>

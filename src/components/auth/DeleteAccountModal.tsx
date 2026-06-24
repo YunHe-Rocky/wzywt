@@ -4,11 +4,10 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/ui/Toast";
 
-const cardBg = "linear-gradient(180deg, #1a1830 0%, #12101c 100%)";
 const inputStyle: React.CSSProperties = {
   width: "100%", padding: "10px 12px", borderRadius: 6,
-  border: "1px solid rgba(224,80,80,0.15)", background: "rgba(255,255,255,0.03)",
-  color: "#e0d8c0", fontSize: 13, boxSizing: "border-box",
+  border: "1px solid rgba(204,102,102,0.15)", background: "var(--bg-input)",
+  color: "var(--text)", fontSize: 13, boxSizing: "border-box",
 };
 
 export function DeleteAccountModal({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -57,15 +56,15 @@ export function DeleteAccountModal({ open, onClose }: { open: boolean; onClose: 
       <div style={{
         position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)",
         zIndex: 1001, padding: "28px", width: 400, maxWidth: "90vw",
-        borderRadius: 12, border: "1px solid rgba(224,80,80,0.15)",
-        background: cardBg, color: "#e0d8c0",
-        boxShadow: "0 0 60px rgba(224,80,80,0.04), 0 8px 40px rgba(0,0,0,0.5)",
+        borderRadius: 12, border: "1px solid rgba(204,102,102,0.1)",
+        background: "var(--bg-card)", color: "var(--text)",
+        boxShadow: "0 4px 24px rgba(0,0,0,0.3)",
       }}>
         {/* Top glow (red) */}
         <div style={{
           position: "absolute", top: -40, left: "50%", transform: "translateX(-50%)",
           width: 160, height: 60,
-          background: "radial-gradient(ellipse, rgba(224,80,80,0.08), transparent)",
+          background: "radial-gradient(ellipse, rgba(204,102,102,0.06), transparent)",
           pointerEvents: "none",
         }} />
 
@@ -76,16 +75,16 @@ export function DeleteAccountModal({ open, onClose }: { open: boolean; onClose: 
           注销账号
         </h3>
         <p style={{
-          fontSize: 12, color: "#888", textAlign: "center",
+          fontSize: 12, color: "var(--text-muted)", textAlign: "center",
           marginBottom: 18, lineHeight: 1.6,
         }}>
           此操作<strong style={{ color: "var(--red)" }}>不可撤销</strong>，全部数据将被永久删除
         </p>
 
         <div style={{
-          background: "rgba(224,80,80,0.04)", border: "1px solid rgba(224,80,80,0.1)",
+          background: "rgba(204,102,102,0.04)", border: "1px solid rgba(204,102,102,0.08)",
           borderRadius: 6, padding: "8px 12px", marginBottom: 18,
-          fontSize: 10, color: "#999", lineHeight: 1.6,
+          fontSize: 10, color: "var(--text-muted)", lineHeight: 1.6,
         }}>
           将删除：账号 · 密码 · 安全问题 · 分路偏好 · 段位 · 英雄战力 · 赛事记录 · 管理权限
         </div>
@@ -99,9 +98,9 @@ export function DeleteAccountModal({ open, onClose }: { open: boolean; onClose: 
               display: "inline-flex", alignItems: "center", justifyContent: "center",
               flexShrink: 0,
             }}>1</span>
-            <span style={{ fontSize: 12, fontWeight: 600, color: "#e0d8c0" }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text)" }}>
               输入 <code style={{
-                background: "rgba(224,80,80,0.08)", padding: "1px 4px",
+                background: "rgba(204,102,102,0.08)", padding: "1px 4px",
                 borderRadius: 3, fontSize: 11, color: "var(--red)",
               }}>DELETE</code> 确认删除
             </span>
@@ -119,18 +118,18 @@ export function DeleteAccountModal({ open, onClose }: { open: boolean; onClose: 
               display: "inline-flex", alignItems: "center", justifyContent: "center",
               flexShrink: 0,
             }}>2</span>
-            <span style={{ fontSize: 12, fontWeight: 600, color: "#e0d8c0" }}>验证安全问题</span>
+            <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text)" }}>验证安全问题</span>
           </div>
           {question ? (
             <div style={{
-              background: "rgba(224,80,80,0.04)", border: "1px solid rgba(224,80,80,0.1)",
+              background: "rgba(204,102,102,0.04)", border: "1px solid rgba(204,102,102,0.08)",
               borderRadius: 6, padding: "10px 12px", marginBottom: 8,
             }}>
-              <span style={{ fontSize: 10, color: "#999", display: "block", marginBottom: 2 }}>安全问题</span>
-              <span style={{ fontSize: 12, color: "#e0d8c0" }}>{question}</span>
+              <span style={{ fontSize: 10, color: "var(--text-muted)", display: "block", marginBottom: 2 }}>安全问题</span>
+              <span style={{ fontSize: 12, color: "var(--text)" }}>{question}</span>
             </div>
           ) : (
-            <p style={{ fontSize: 11, color: "#888", margin: "4px 0 8px" }}>加载安全问题中...</p>
+            <p style={{ fontSize: 11, color: "var(--text-muted)", margin: "4px 0 8px" }}>加载安全问题中...</p>
           )}
           <input type="text" placeholder="安全答案" value={answer}
             onChange={(e) => setAnswer(e.target.value)} style={inputStyle} />
@@ -140,14 +139,14 @@ export function DeleteAccountModal({ open, onClose }: { open: boolean; onClose: 
           <p style={{
             fontSize: 12, color: "var(--red)", textAlign: "center",
             marginBottom: 12, padding: "8px 12px",
-            background: "rgba(224,80,80,0.06)", borderRadius: "var(--radius-sm)",
+            background: "rgba(204,102,102,0.06)", borderRadius: 6,
           }}>{error}</p>
         )}
 
         <div style={{ display: "flex", gap: 10 }}>
           <button onClick={onClose} style={{
             flex: 1, padding: "11px 0", border: "1px solid rgba(255,255,255,0.08)",
-            borderRadius: 6, fontSize: 13, color: "#888",
+            borderRadius: 6, fontSize: 13, color: "var(--text-muted)",
             background: "transparent", cursor: "pointer",
           }}>取消</button>
           <button onClick={doDelete} disabled={!canDelete || loading} style={{
@@ -155,16 +154,16 @@ export function DeleteAccountModal({ open, onClose }: { open: boolean; onClose: 
             fontSize: 13, fontWeight: 600, color: "#fff",
             cursor: canDelete ? "pointer" : "not-allowed",
             background: canDelete
-              ? "linear-gradient(135deg, #e05050, #b03030)"
-              : "rgba(224,80,80,0.3)",
-            boxShadow: canDelete ? "0 3px 14px rgba(224,80,80,0.2)" : "none",
+              ? "var(--red)"
+              : "rgba(204,102,102,0.3)",
+            boxShadow: canDelete ? "0 3px 12px rgba(204,102,102,0.15)" : "none",
             opacity: (!canDelete || loading) ? 0.5 : 1,
           }}>{loading ? "注销中..." : "确认注销"}</button>
         </div>
 
         <p style={{
           textAlign: "center", marginTop: 10, marginBottom: 0,
-          fontSize: 11, color: "#888",
+          fontSize: 11, color: "var(--text-muted)",
         }}>
           完成①②步后按钮自动激活
         </p>
