@@ -175,10 +175,10 @@ export function HeroSelect({ roleType, value, onChange }: Props) {
             />
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: "flex", alignItems: "baseline", gap: 5 }}>
-                <span style={{ fontWeight: 600, fontSize: 13 }}>{selectedHero.name}</span>
-                <span style={{ color: "var(--text-muted)", fontSize: 10, fontFamily: "monospace" }}>#{selectedHero.heroId}</span>
+                <span style={{ fontWeight: 600, fontSize: 13, whiteSpace: "nowrap" }}>{selectedHero.name}</span>
+                <span style={{ color: "var(--text-muted)", fontSize: 10, fontFamily: "monospace", whiteSpace: "nowrap" }}>#{selectedHero.heroId}</span>
               </div>
-              <div style={{ color: "var(--text-muted)", fontSize: 10, marginTop: 1 }}>{selectedHero.title}</div>
+              <div style={{ color: "var(--text-muted)", fontSize: 10, marginTop: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{selectedHero.title}</div>
             </div>
           </>
         ) : (
@@ -278,10 +278,10 @@ export function HeroSelect({ roleType, value, onChange }: Props) {
                   />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
-                      <span style={{ fontWeight: 600 }}>{hero.name}</span>
-                      <span style={{ fontSize: 10, color: "var(--text-muted)", fontFamily: "monospace" }}>#{hero.heroId}</span>
+                      <span style={{ fontWeight: 600, whiteSpace: "nowrap" }}>{hero.name}</span>
+                      <span style={{ fontSize: 10, color: "var(--text-muted)", fontFamily: "monospace", whiteSpace: "nowrap" }}>#{hero.heroId}</span>
                     </div>
-                    <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 1 }}>{hero.title}</div>
+                    <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{hero.title}</div>
                   </div>
                 </button>
               ))
