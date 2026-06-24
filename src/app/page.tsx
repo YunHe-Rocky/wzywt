@@ -142,6 +142,51 @@ export default function Home() {
 
       {/* Dashboard Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* Sidebar — shows first on mobile, last on desktop */}
+        <div className="flex flex-col gap-4 lg:order-last">
+          {/* User card */}
+          <div className="bg-card border border-border rounded-md p-5 text-center">
+            {!authLoaded ? <SkeletonLines count={3} />
+              : user ? (
+                <>
+                  <span className="w-12 h-12 rounded-full bg-gradient-to-br from-gold/20 to-gold/5 border border-gold/15 inline-flex items-center justify-center text-lg font-bold text-gold-light mb-3">
+                    {user.username[0]}
+                  </span>
+                  <div className="text-sm font-bold text-text mb-0.5">{user.username}</div>
+                  <div className="text-xs text-text-muted mb-3">召唤师</div>
+                  <Link href="/me"
+                    className="inline-block w-full py-2 text-[13px] font-semibold rounded-md bg-gradient-to-b from-gold-light via-gold to-gold-dim text-root hover:brightness-110 transition-all no-underline">
+                    个人空间
+                  </Link>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm text-text-secondary mb-3">登录后查看个人数据</p>
+                  <Link href="/login"
+                    className="inline-block w-full py-2 text-[13px] font-semibold rounded-md bg-gradient-to-b from-gold-light via-gold to-gold-dim text-root hover:brightness-110 transition-all no-underline">
+                    登录
+                  </Link>
+                </>
+              )}
+          </div>
+
+          {/* Quick Nav */}
+          <div className="bg-card border border-border rounded-md p-4">
+            <div className="text-xs font-semibold text-text-muted mb-3 tracking-wider uppercase">快捷导航</div>
+            <div className="flex flex-col gap-0.5">
+              {[{ href: "/tournaments", label: "赛事大厅" },
+                { href: "/heroes", label: "英雄图鉴" },
+                { href: "/me", label: "个人空间" },
+              ].map(n => (
+                <Link key={n.href} href={n.href}
+                  className="px-2 py-1.5 text-sm text-text-secondary hover:text-text hover:bg-hover/50 rounded transition-colors no-underline">
+                  {n.label}
+                </Link>
+              ))}
+            </div>
+          </div>
+        </div>
+
         {/* Main column */}
         <div className="lg:col-span-2 flex flex-col gap-4">
           {/* Announcements */}
@@ -212,51 +257,6 @@ export default function Home() {
                     <span className="text-xs text-text-secondary hover:text-text transition-colors truncate">{item.title}</span>
                   </a>
                 ))}
-          </div>
-        </div>
-
-        {/* Sidebar */}
-        <div className="flex flex-col gap-4">
-          {/* User card */}
-          <div className="bg-card border border-border rounded-md p-5 text-center">
-            {!authLoaded ? <SkeletonLines count={3} />
-              : user ? (
-                <>
-                  <span className="w-12 h-12 rounded-full bg-gradient-to-br from-gold/20 to-gold/5 border border-gold/15 inline-flex items-center justify-center text-lg font-bold text-gold-light mb-3">
-                    {user.username[0]}
-                  </span>
-                  <div className="text-sm font-bold text-text mb-0.5">{user.username}</div>
-                  <div className="text-xs text-text-muted mb-3">召唤师</div>
-                  <Link href="/me"
-                    className="inline-block w-full py-2 text-[13px] font-semibold rounded-md bg-gradient-to-b from-gold-light via-gold to-gold-dim text-root hover:brightness-110 transition-all no-underline">
-                    个人空间
-                  </Link>
-                </>
-              ) : (
-                <>
-                  <p className="text-sm text-text-secondary mb-3">登录后查看个人数据</p>
-                  <Link href="/login"
-                    className="inline-block w-full py-2 text-[13px] font-semibold rounded-md bg-gradient-to-b from-gold-light via-gold to-gold-dim text-root hover:brightness-110 transition-all no-underline">
-                    登录
-                  </Link>
-                </>
-              )}
-          </div>
-
-          {/* Quick Nav */}
-          <div className="bg-card border border-border rounded-md p-4">
-            <div className="text-xs font-semibold text-text-muted mb-3 tracking-wider uppercase">快捷导航</div>
-            <div className="flex flex-col gap-0.5">
-              {[{ href: "/tournaments", label: "赛事大厅" },
-                { href: "/heroes", label: "英雄图鉴" },
-                { href: "/me", label: "个人空间" },
-              ].map(n => (
-                <Link key={n.href} href={n.href}
-                  className="px-2 py-1.5 text-sm text-text-secondary hover:text-text hover:bg-hover/50 rounded transition-colors no-underline">
-                  {n.label}
-                </Link>
-              ))}
-            </div>
           </div>
         </div>
       </div>
