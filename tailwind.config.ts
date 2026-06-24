@@ -5,16 +5,22 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        root: "#0a0a10",
-        nav: "#111118",
-        card: "#181824",
-        hover: "#202030",
-        border: "#282836",
-        text: { DEFAULT: "#e4e4ec", secondary: "#828296", muted: "#56566a" },
-        gold: { DEFAULT: "#c8a95a", light: "#dcc07a", dim: "#a08840" },
+        root: "#06080f",
+        nav: "#0a0e1a",
+        card: "#0e1224",
+        hover: "#161d3a",
+        input: "#0c1020",
+        border: { DEFAULT: "#1a2040", light: "#141a34", gold: "rgba(240,192,64,0.15)" },
+        text: { DEFAULT: "#e8e8f0", secondary: "#9098b8", muted: "#5a6080" },
+        gold: { DEFAULT: "#f0c040", light: "#f5d060", dim: "#c89820" },
         red: { DEFAULT: "#e05050", dim: "#b03030" },
         blue: { DEFAULT: "#5090d0", dim: "#3068a0" },
         green: { DEFAULT: "#50b050", dim: "#308030" },
+      },
+      borderRadius: {
+        sm: "6px",
+        DEFAULT: "8px",
+        lg: "12px",
       },
       fontFamily: {
         sans: ['"PingFang SC"', '"Microsoft YaHei"', 'sans-serif'],

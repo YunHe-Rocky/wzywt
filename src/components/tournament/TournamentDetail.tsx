@@ -49,73 +49,24 @@ function LineupPanel({
   const accentText = isRed ? "var(--red)" : "var(--blue)";
 
   return (
-    <div className={isRed ? "card-red" : "card-blue"} style={{ padding: 0, overflow: "hidden" }}>
-      {/* ── Team Header ── */}
-      <div
-        style={{
-          padding: "18px 24px",
-          borderBottom: `1px solid ${accentBorder}`,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span style={{
-            fontSize: 20,
-            fontWeight: 700,
-            color: "var(--text)",
-          }}>
-            {teamLabel}
-          </span>
-        </div>
-        <span className={isRed ? "badge badge-red" : "badge badge-blue"} style={{ fontSize: 13, padding: "4px 14px" }}>
-          {team.length} 人
-        </span>
+    <div className={`${isRed ? "card-red" : "card-blue"} !p-0 overflow-hidden`}>
+      <div className="flex items-center justify-between px-6 py-[18px] border-b" style={{ borderColor: accentBorder }}>
+        <span className="text-xl font-bold text-text">{teamLabel}</span>
+        <span className={`${isRed ? "badge badge-red" : "badge badge-blue"} !text-[13px] !px-3.5 !py-1`}>{team.length} 人</span>
       </div>
-
-      {/* ── Player Rows ── */}
-      <div style={{ padding: "14px 24px" }}>
+      <div className="px-6 py-3.5">
         {team.map((p) => {
           const detail = splitResult.playerDetails.find((d) => d.userId === p.userId);
           return (
-            <div
-              key={p.userId}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                padding: "10px 0",
-                borderBottom: "1px solid rgba(255,255,255,0.04)",
-              }}
-            >
-              {/* Player name */}
-              <span style={{
-                fontSize: 15,
-                fontWeight: 600,
-                color: "var(--text)",
-                minWidth: 80,
-              }}>
-                {detail?.username || "?"}
-              </span>
-
-              {/* Role badge */}
-              <span style={{
-                fontSize: 12,
-                fontWeight: 600,
-                padding: "3px 10px",
-                borderRadius: "var(--radius-sm)",
-                background: accentBg,
-                color: accentText,
-                border: `1px solid ${accentBorder}`,
-              }}>
+            <div key={p.userId} className="flex items-center justify-between py-2.5 border-b border-white/5">
+              <span className="text-[15px] font-semibold text-text min-w-[80px]">{detail?.username || "?"}</span>
+              <span className="text-xs font-semibold px-2.5 py-1 rounded-md border" style={{ background: accentBg, color: accentText, borderColor: accentBorder }}>
                 {ROLE_LABELS[p.roleType]}
               </span>
             </div>
           );
         })}
       </div>
-
     </div>
   );
 }
@@ -280,8 +231,7 @@ export function TournamentDetail() {
 
   return (
     <div
-      className="tournament-detail animate-fade-in"
-      style={{ maxWidth: 860, margin: "0 auto", padding: "40px 16px 64px" }}
+      className="tournament-detail max-w-3xl mx-auto px-4 py-10 sm:py-16 animate-fade-in"
     >
 
       {/* ================================================================== */}
@@ -863,17 +813,7 @@ export function TournamentDetail() {
           {/* =========================================================== */}
           {/*  STATS BAR                                                   */}
           {/* =========================================================== */}
-          <div
-            className="card stats-bar"
-            style={{
-              marginTop: 16,
-              padding: "24px 32px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 48,
-            }}
-          >
+          <div className="card stats-bar !flex !items-center !justify-center !gap-12 !p-6 sm:!p-8 !mt-4">
             {/* Power diff */}
             <div style={{ textAlign: "center" as const }}>
               <div style={{

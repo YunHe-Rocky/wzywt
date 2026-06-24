@@ -6,34 +6,30 @@ import Link from "next/link";
 import { useToast } from "@/components/ui/Toast";
 
 const PRESET_QUESTIONS = [
-  "你的出生城市是？",
-  "你母亲的名字是？",
-  "你父亲的名字是？",
-  "你第一只宠物的名字是？",
-  "你最喜欢的电影角色是？",
-  "你的小学名称是？",
-  "你最好的朋友的名字是？",
-  "你的座右铭是？",
+  "你的出生城市是？", "你母亲的名字是？", "你父亲的名字是？",
+  "你第一只宠物的名字是？", "你最喜欢的电影角色是？",
+  "你的小学名称是？", "你最好的朋友的名字是？", "你的座右铭是？",
 ];
 
-const cardBg = "linear-gradient(180deg, #1a1830 0%, #12101c 100%)";
-const cardBorder = "1px solid rgba(192,168,74,0.15)";
-const cardShadow = "0 0 60px rgba(192,168,74,0.04), 0 4px 32px rgba(0,0,0,0.4)";
-const inputStyle: React.CSSProperties = {
-  width: "100%", padding: "11px 14px", borderRadius: 6, border: "1px solid rgba(192,168,74,0.12)",
-  background: "rgba(255,255,255,0.03)", color: "#e0d8c0", fontSize: 13, boxSizing: "border-box",
-};
-const labelStyle: React.CSSProperties = {
-  fontSize: 11, fontWeight: 700, color: "#b0a060", display: "block", marginBottom: 6,
-  textTransform: "uppercase", letterSpacing: 1,
-};
-const goldBtn: React.CSSProperties = {
-  width: "100%", padding: "14px 0", border: "1px solid rgba(255,255,255,0.08)",
-  borderRadius: 6, fontSize: 15, fontWeight: 700, cursor: "pointer",
-  background: "linear-gradient(135deg, #d4b85a, #a08030)",
-  color: "#1a1408", letterSpacing: 1,
-  boxShadow: "0 4px 20px rgba(192,168,74,0.2)",
-};
+const EyeIcon = ({ open }: { open: boolean }) => (
+  <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+    {open ? (
+      <>
+        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+        <circle cx={12} cy={12} r={3} />
+      </>
+    ) : (
+      <>
+        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+        <line x1={1} y1={1} x2={23} y2={23} />
+      </>
+    )}
+  </svg>
+);
+
+const inputClass = "w-full px-3.5 py-2.5 rounded-md border border-gold/15 bg-white/3 text-[#e0d8c0] text-[13px] placeholder:text-text-muted focus:border-gold/40 focus:outline-none focus:shadow-[0_0_0_3px_rgba(240,192,64,0.08)] transition-colors box-border";
+const labelClass = "block text-[11px] font-bold text-gold-dim uppercase tracking-wider mb-1.5";
+const btnGold = "w-full py-3.5 rounded-md text-[15px] font-bold tracking-wider bg-gradient-to-b from-amber-200 via-gold to-gold-dim text-root hover:brightness-110 transition-all shadow-[0_4px_20px_rgba(240,192,64,0.2)] disabled:opacity-60 border border-white/10 cursor-pointer";
 
 export function AuthForm({ mode }: { mode: "login" | "register" }) {
   const router = useRouter();
@@ -41,12 +37,12 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
   const { success } = useToast();
   const redirect = searchParams.get("redirect") || "/";
 
-  // Common
   const [checking, setChecking] = useState(true);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   // Register
   const [securityQuestion, setSecurityQuestion] = useState("");
@@ -54,11 +50,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
   const [securityAnswer, setSecurityAnswer] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
-  // Password visibility
-  const [showPassword, setShowPassword] = useState(false);
-  const [showForgotPassword, setShowForgotPassword] = useState(false);
-
-  // Forgot password modal
+  // Forgot password
   const [showForgot, setShowForgot] = useState(false);
   const [forgotStep, setForgotStep] = useState<1 | 2 | 3>(1);
   const [forgotUsername, setForgotUsername] = useState("");
@@ -68,23 +60,16 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
   const [forgotConfirm, setForgotConfirm] = useState("");
   const [forgotError, setForgotError] = useState("");
   const [forgotLoading, setForgotLoading] = useState(false);
+  const [showForgotPw, setShowForgotPw] = useState(false);
 
   useEffect(() => {
-    fetch("/api/auth/me")
-      .then((r) => r.json())
-      .then((d) => {
-        if (d.user) router.replace(redirect);
-        else setChecking(false);
-      });
-  }, [router]);
-
-  // --- Handlers ---
+    fetch("/api/auth/me").then(r => r.json()).then(d => {
+      if (d.user) router.replace(redirect); else setChecking(false);
+    });
+  }, [router, redirect]);
 
   async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setError("");
-    setLoading(true);
-
+    e.preventDefault(); setError(""); setLoading(true);
     const body: Record<string, string> = { username, password };
     if (mode === "register") {
       body.securityQuestion = securityQuestion;
@@ -92,29 +77,20 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
       body.securityAnswer = securityAnswer;
       body.confirmPassword = confirmPassword;
     }
-
-    const res = await fetch(`/api/auth/${mode}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    const data = await res.json();
-    setLoading(false);
+    const res = await fetch(`/api/auth/${mode}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    const data = await res.json(); setLoading(false);
     if (!res.ok) { setError(data.error || "操作失败"); return; }
     if (mode === "register") success("欢迎加入王者演武堂！");
-    router.push(redirect);
-    router.refresh();
+    router.push(redirect); router.refresh();
   }
 
   async function lookupQuestion() {
     if (!forgotUsername) { setForgotError("请输入用户名"); return; }
     setForgotLoading(true); setForgotError("");
     const res = await fetch(`/api/auth/security-question?username=${encodeURIComponent(forgotUsername)}`);
-    const data = await res.json();
-    setForgotLoading(false);
+    const data = await res.json(); setForgotLoading(false);
     if (!res.ok) { setForgotError(data.error || "查询失败"); return; }
-    setForgotQuestion(data.question);
-    setForgotStep(2);
+    setForgotQuestion(data.question); setForgotStep(2);
   }
 
   async function verifyAndReset() {
@@ -123,25 +99,13 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
     if (forgotPassword !== forgotConfirm) { setForgotError("两次密码不一致"); return; }
     setForgotLoading(true); setForgotError("");
     const res = await fetch("/api/auth/reset-password", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        username: forgotUsername,
-        answer: forgotAnswer,
-        newPassword: forgotPassword,
-        confirmPassword: forgotConfirm,
-      }),
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username: forgotUsername, answer: forgotAnswer, newPassword: forgotPassword, confirmPassword: forgotConfirm }),
     });
-    const data = await res.json();
-    setForgotLoading(false);
+    const data = await res.json(); setForgotLoading(false);
     if (!res.ok) { setForgotError(data.error || "重置失败"); return; }
     success("密码已重置，请登录");
-    setShowForgot(false);
-    resetForgot();
-  }
-
-  function resetForgot() {
-    setForgotStep(1); setForgotUsername(""); setForgotQuestion("");
+    setShowForgot(false); setForgotStep(1); setForgotUsername(""); setForgotQuestion("");
     setForgotAnswer(""); setForgotPassword(""); setForgotConfirm(""); setForgotError("");
   }
 
@@ -151,393 +115,192 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
   const switchHref = mode === "login" ? "/register" : "/login";
 
   return (
-    <div className="auth-form-container" style={{
-      display: "flex", alignItems: "center", justifyContent: "center",
-      minHeight: "calc(100vh - 64px)", padding: "0 24px",
-    }}>
+    <div className="flex items-center justify-center min-h-[calc(100vh-56px)] px-4 sm:px-6">
       {checking ? (
-        <div className="skeleton" style={{ width: 420, height: 380, borderRadius: "var(--radius)" }} />
+        <div className="skeleton rounded-lg w-[420px] h-[400px]" />
       ) : (
-        <div style={{
-          width: "100%", maxWidth: 420, padding: "40px 36px 36px",
-          borderRadius: 12, position: "relative", overflow: "hidden",
-          background: cardBg, border: cardBorder, boxShadow: cardShadow,
-          color: "#e0d8c0", animation: "slide-up 0.5s ease-out",
-        }}>
+        <div className="w-full max-w-[420px] px-9 py-10 rounded-xl relative overflow-hidden animate-slide-up"
+          style={{ background: "linear-gradient(180deg, #1a1830 0%, #12101c 100%)", border: "1px solid rgba(192,168,74,0.15)", boxShadow: "0 0 60px rgba(192,168,74,0.04), 0 4px 32px rgba(0,0,0,0.4)" }}>
           {/* Top glow */}
-          <div style={{
-            position: "absolute", top: -60, left: "50%", transform: "translateX(-50%)",
-            width: 200, height: 80,
-            background: "radial-gradient(ellipse, rgba(192,168,74,0.12), transparent)",
-            pointerEvents: "none",
-          }} />
+          <div className="absolute -top-15 left-1/2 -translate-x-1/2 w-[200px] h-20 pointer-events-none" style={{ background: "radial-gradient(ellipse, rgba(192,168,74,0.12), transparent)" }} />
 
-          {/* Title */}
-          <h1 style={{
-            fontSize: 28, fontWeight: 800, textAlign: "center", margin: "0 0 6px",
-            background: "linear-gradient(135deg, #d4b85a, #c0a84a, #a08030)",
-            WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
-            letterSpacing: 2,
-          }}>{title}</h1>
-          <p style={{ fontSize: 13, textAlign: "center", color: "#888", margin: "0 0 28px" }}>{subtitle}</p>
+          <h1 className="text-[28px] font-extrabold text-center m-0 mb-1.5 tracking-wider bg-gradient-to-r from-amber-200 via-gold to-gold-dim bg-clip-text text-transparent">{title}</h1>
+          <p className="text-[13px] text-center text-text-muted mb-7">{subtitle}</p>
 
           {/* Divider */}
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 24 }}>
-            <div style={{ flex: 1, height: 1, background: "linear-gradient(90deg, transparent, rgba(192,168,74,0.2))" }} />
-            <div style={{ width: 6, height: 6, background: "#c0a84a", borderRadius: 1, transform: "rotate(45deg)" }} />
-            <div style={{ flex: 1, height: 1, background: "linear-gradient(-90deg, transparent, rgba(192,168,74,0.2))" }} />
+          <div className="flex items-center gap-2.5 mb-6">
+            <div className="flex-1 h-px bg-gradient-to-r from-transparent to-gold/20" />
+            <div className="w-1.5 h-1.5 bg-gold-dim rounded-sm rotate-45" />
+            <div className="flex-1 h-px bg-gradient-to-l from-transparent to-gold/20" />
           </div>
 
-          <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            {/* Username */}
+          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             <div>
-              <label style={labelStyle}>召唤师名称</label>
+              <label className={labelClass}>召唤师名称</label>
               <input type="text" placeholder="请输入召唤师名称" value={username}
-                onChange={(e) => setUsername(e.target.value)} required minLength={2} style={inputStyle} />
+                onChange={e => setUsername(e.target.value)} required minLength={2} className={inputClass} />
             </div>
 
-            {/* Register: security question + answer + confirm password */}
             {mode === "register" && (
               <>
                 <div>
-                  <label style={labelStyle}>安全问题</label>
-                  <select value={securityQuestion} onChange={(e) => setSecurityQuestion(e.target.value)}
-                    required style={{ ...inputStyle, cursor: "pointer" }}>
+                  <label className={labelClass}>安全问题</label>
+                  <select value={securityQuestion} onChange={e => setSecurityQuestion(e.target.value)} required className={`${inputClass} cursor-pointer`}>
                     <option value="">请选择安全问题</option>
-                    {PRESET_QUESTIONS.map((q) => <option key={q} value={q}>{q}</option>)}
+                    {PRESET_QUESTIONS.map(q => <option key={q} value={q}>{q}</option>)}
                     <option value="__custom__">自定义问题...</option>
                   </select>
                 </div>
-
                 {securityQuestion === "__custom__" && (
                   <div>
-                    <label style={labelStyle}>自定义问题</label>
+                    <label className={labelClass}>自定义问题</label>
                     <input placeholder="请输入你的安全问题" value={customQuestion}
-                      onChange={(e) => setCustomQuestion(e.target.value)}
-                      style={{ ...inputStyle, borderColor: "rgba(192,168,74,0.3)" }} />
+                      onChange={e => setCustomQuestion(e.target.value)} className={inputClass} style={{ borderColor: "rgba(192,168,74,0.3)" }} />
                   </div>
                 )}
-
                 <div>
-                  <label style={labelStyle}>安全答案</label>
+                  <label className={labelClass}>安全答案</label>
                   <input placeholder="请输入答案" value={securityAnswer}
-                    onChange={(e) => setSecurityAnswer(e.target.value)} required style={inputStyle} />
-                  <span style={{ fontSize: 10, color: "#665", display: "block", marginTop: 3 }}>
-                    用于找回密码和注销账号验证
-                  </span>
+                    onChange={e => setSecurityAnswer(e.target.value)} required className={inputClass} />
+                  <span className="block text-[10px] text-text-muted/60 mt-1">用于找回密码和注销账号验证</span>
                 </div>
               </>
             )}
 
             {/* Password */}
             <div>
-              <label style={labelStyle}>密码</label>
-              <div style={{ position: "relative" }}>
+              <label className={labelClass}>密码</label>
+              <div className="relative">
                 <input type={showPassword ? "text" : "password"} placeholder={mode === "register" ? "至少 11 位" : "请输入密码"}
-                  value={password} onChange={(e) => setPassword(e.target.value)} required minLength={11}
-                  style={{ ...inputStyle, paddingRight: 40 }} />
+                  value={password} onChange={e => setPassword(e.target.value)} required minLength={11} className={`${inputClass} pr-10`} />
                 <button type="button" onClick={() => setShowPassword(!showPassword)}
-                  style={{
-                    position: "absolute", right: 0, top: 0, bottom: 0, width: 40,
-                    background: "none", border: "none", cursor: "pointer",
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    color: showPassword ? "#c0a84a" : "#666",
-                  }}
-                  aria-label={showPassword ? "隐藏密码" : "显示密码"}
-                >
-                  {showPassword ? (
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
-                      <line x1="1" y1="1" x2="23" y2="23" />
-                    </svg>
-                  ) : (
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                      <circle cx="12" cy="12" r="3" />
-                    </svg>
-                  )}
+                  className={`absolute right-0 top-0 bottom-0 w-10 flex items-center justify-center bg-transparent border-none cursor-pointer ${showPassword ? "text-gold" : "text-text-muted"}`}
+                  aria-label={showPassword ? "隐藏密码" : "显示密码"}>
+                  <EyeIcon open={showPassword} />
                 </button>
               </div>
             </div>
 
-            {/* Register: confirm password */}
             {mode === "register" && (
               <div>
-                <label style={labelStyle}>确认密码</label>
-                <div style={{ position: "relative" }}>
+                <label className={labelClass}>确认密码</label>
+                <div className="relative">
                   <input type={showPassword ? "text" : "password"} placeholder="再次输入密码" value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)} required minLength={11}
-                    style={{ ...inputStyle, paddingRight: 40 }} />
+                    onChange={e => setConfirmPassword(e.target.value)} required minLength={11} className={`${inputClass} pr-10`} />
                   <button type="button" onClick={() => setShowPassword(!showPassword)}
-                    style={{
-                      position: "absolute", right: 0, top: 0, bottom: 0, width: 40,
-                      background: "none", border: "none", cursor: "pointer",
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                      color: showPassword ? "#c0a84a" : "#666",
-                    }}
-                    aria-label={showPassword ? "隐藏密码" : "显示密码"}
-                  >
-                    {showPassword ? (
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
-                        <line x1="1" y1="1" x2="23" y2="23" />
-                      </svg>
-                    ) : (
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                        <circle cx="12" cy="12" r="3" />
-                      </svg>
-                    )}
+                    className={`absolute right-0 top-0 bottom-0 w-10 flex items-center justify-center bg-transparent border-none cursor-pointer ${showPassword ? "text-gold" : "text-text-muted"}`}>
+                    <EyeIcon open={showPassword} />
                   </button>
                 </div>
               </div>
             )}
 
-            {/* Error */}
             {error && (
-              <div style={{
-                padding: "12px 14px", borderRadius: "var(--radius-sm)",
-                animation: "slide-up 0.2s ease-out",
-                background: "rgba(224,80,80,0.06)", border: "1px solid rgba(224,80,80,0.12)",
-              }}>
-                <p style={{ margin: 0, fontSize: 13, fontWeight: 500, color: "var(--red)", textAlign: "center" }}>
-                  {error}
-                </p>
+              <div className="px-3.5 py-3 rounded-md bg-red/5 border border-red/15 animate-slide-up">
+                <p className="m-0 text-[13px] font-medium text-red text-center">{error}</p>
               </div>
             )}
 
-            {/* Submit */}
-            <button type="submit" disabled={loading}
-              style={{ ...goldBtn, marginTop: 6, opacity: loading ? 0.6 : 1 }}>
+            <button type="submit" disabled={loading} className={`${btnGold} mt-1.5`}>
               {loading ? "请稍候..." : title}
             </button>
           </form>
 
-          {/* Links */}
-          <div style={{
-            display: "flex", justifyContent: "space-between", alignItems: "center",
-            marginTop: 28, fontSize: 14,
-          }}>
+          <div className="flex justify-between items-center mt-7 text-sm">
             {mode === "login" ? (
               <>
-                <button type="button" onClick={() => { setShowForgot(true); resetForgot(); }}
-                  style={{
-                    background: "none", border: "none", color: "#b0a060",
-                    cursor: "pointer", fontSize: 14, fontWeight: 600, padding: 0,
-                  }}>
-                  忘记密码？
-                </button>
-                <Link href={switchHref} style={{ color: "#b0a060", fontWeight: 600, textDecoration: "none" }}>
-                  {switchText}
-                </Link>
+                <button type="button" onClick={() => { setShowForgot(true); setForgotStep(1); setForgotUsername(""); setForgotQuestion(""); setForgotAnswer(""); setForgotPassword(""); setForgotConfirm(""); setForgotError(""); }}
+                  className="bg-transparent border-none text-gold-dim font-semibold cursor-pointer text-sm p-0">忘记密码？</button>
+                <Link href={switchHref} className="text-gold-dim font-semibold no-underline">{switchText}</Link>
               </>
             ) : (
-              <Link href={switchHref} style={{
-                color: "#b0a060", fontWeight: 600, textDecoration: "none", margin: "0 auto",
-              }}>
-                {switchText}
-              </Link>
+              <Link href={switchHref} className="text-gold-dim font-semibold no-underline mx-auto">{switchText}</Link>
             )}
           </div>
         </div>
       )}
 
-      {/* ================================================================ */}
-      {/*  FORGOT PASSWORD MODAL (security question based)                  */}
-      {/* ================================================================ */}
+      {/* ── Forgot Password Modal ── */}
       {showForgot && (
         <>
-          <div onClick={() => setShowForgot(false)}
-            style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 1000 }} />
-          <div style={{
-            position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)",
-            zIndex: 1001, padding: "32px 28px", width: 380, maxWidth: "90vw",
-            borderRadius: 12, border: cardBorder, background: cardBg, boxShadow: cardShadow,
-            color: "#e0d8c0",
-          }}>
-            <div style={{
-              position: "absolute", top: -40, left: "50%", transform: "translateX(-50%)",
-              width: 160, height: 60,
-              background: "radial-gradient(ellipse, rgba(192,168,74,0.1), transparent)",
-              pointerEvents: "none",
-            }} />
+          <div onClick={() => setShowForgot(false)} className="fixed inset-0 bg-black/60 z-[1000]" />
+          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[1001] p-8 rounded-xl w-[380px] max-w-[90vw]"
+            style={{ background: "linear-gradient(180deg, #1a1830 0%, #12101c 100%)", border: "1px solid rgba(192,168,74,0.15)", boxShadow: "0 0 60px rgba(192,168,74,0.04), 0 4px 32px rgba(0,0,0,0.4)" }}>
+            <div className="absolute -top-10 left-1/2 -translate-x-1/2 w-40 h-15 pointer-events-none" style={{ background: "radial-gradient(ellipse, rgba(192,168,74,0.1), transparent)" }} />
 
             {forgotStep === 1 ? (
               <>
-                <h3 style={{
-                  fontSize: 18, fontWeight: 700, color: "#e0d8c0",
-                  margin: "0 0 6px", textAlign: "center",
-                }}>
-                  找回密码
-                </h3>
-                <p style={{ fontSize: 11, color: "#888", textAlign: "center", marginBottom: 18 }}>
-                  输入用户名以验证身份
-                </p>
-                <div style={{ marginBottom: 14 }}>
-                  <label style={labelStyle}>召唤师名称</label>
-                  <input placeholder="请输入召唤师名称" value={forgotUsername}
-                    onChange={(e) => setForgotUsername(e.target.value)} style={inputStyle} />
+                <h3 className="text-lg font-bold text-text text-center mb-1.5">找回密码</h3>
+                <p className="text-[11px] text-text-muted text-center mb-[18px]">输入用户名以验证身份</p>
+                <div className="mb-3.5">
+                  <label className={labelClass}>召唤师名称</label>
+                  <input placeholder="请输入召唤师名称" value={forgotUsername} onChange={e => setForgotUsername(e.target.value)} className={inputClass} />
                 </div>
-                {forgotError && (
-                  <p style={{ fontSize: 12, color: "var(--red)", marginBottom: 12, textAlign: "center" }}>
-                    {forgotError}
-                  </p>
-                )}
-                <div style={{ display: "flex", gap: 10 }}>
-                  <button onClick={() => setShowForgot(false)} style={{
-                    flex: 1, padding: "10px 0", border: "1px solid rgba(255,255,255,0.08)",
-                    borderRadius: 6, fontSize: 13, color: "#888", background: "transparent", cursor: "pointer",
-                  }}>取消</button>
-                  <button onClick={lookupQuestion} disabled={forgotLoading} style={{
-                    ...goldBtn, flex: 1, fontSize: 13, padding: "10px 0", opacity: forgotLoading ? 0.6 : 1,
-                  }}>
-                    {forgotLoading ? "查询中..." : "下一步"}
-                  </button>
+                {forgotError && <p className="text-xs text-red text-center mb-3">{forgotError}</p>}
+                <div className="flex gap-2.5">
+                  <button onClick={() => setShowForgot(false)} className="flex-1 py-2.5 rounded-md border border-white/10 text-[13px] text-text-muted bg-transparent cursor-pointer">取消</button>
+                  <button onClick={lookupQuestion} disabled={forgotLoading}
+                    className="flex-1 py-2.5 rounded-md text-[13px] font-bold bg-gradient-to-b from-amber-200 via-gold to-gold-dim text-root disabled:opacity-60 cursor-pointer">下一步</button>
                 </div>
               </>
             ) : forgotStep === 2 ? (
               <>
-                <h3 style={{
-                  fontSize: 18, fontWeight: 700, color: "#e0d8c0",
-                  margin: "0 0 6px", textAlign: "center",
-                }}>
-                  验证安全问题
-                </h3>
-                <p style={{ fontSize: 11, color: "#888", textAlign: "center", marginBottom: 14 }}>
-                  账号：<span style={{ color: "#c0a84a" }}>{forgotUsername}</span>
-                </p>
-                <div style={{
-                  background: "rgba(192,168,74,0.04)", border: "1px solid rgba(192,168,74,0.1)",
-                  borderRadius: 8, padding: "12px 14px", marginBottom: 14,
-                }}>
-                  <span style={{
-                    fontSize: 10, fontWeight: 600, color: "#b0a060",
-                    display: "block", marginBottom: 4,
-                  }}>安全问题</span>
-                  <span style={{ fontSize: 13, color: "#e0d8c0", fontWeight: 500 }}>
-                    {forgotQuestion}
-                  </span>
+                <h3 className="text-lg font-bold text-text text-center mb-1.5">验证安全问题</h3>
+                <p className="text-[11px] text-text-muted text-center mb-3.5">账号：<span className="text-gold">{forgotUsername}</span></p>
+                <div className="bg-gold/5 border border-gold/15 rounded-lg p-3 mb-3.5">
+                  <span className="block text-[10px] font-semibold text-gold-dim mb-1">安全问题</span>
+                  <span className="text-[13px] text-text font-medium">{forgotQuestion}</span>
                 </div>
-                <div style={{ marginBottom: 14 }}>
-                  <label style={labelStyle}>安全答案</label>
-                  <input placeholder="请输入答案" value={forgotAnswer}
-                    onChange={(e) => setForgotAnswer(e.target.value)} style={inputStyle} />
+                <div className="mb-3.5">
+                  <label className={labelClass}>安全答案</label>
+                  <input placeholder="请输入答案" value={forgotAnswer} onChange={e => setForgotAnswer(e.target.value)} className={inputClass} />
                 </div>
-                {forgotError && (
-                  <p style={{ fontSize: 12, color: "var(--red)", marginBottom: 12, textAlign: "center" }}>
-                    {forgotError}
-                  </p>
-                )}
+                {forgotError && <p className="text-xs text-red text-center mb-3">{forgotError}</p>}
                 <button onClick={() => { setForgotStep(3); setForgotError(""); }}
-                  style={{ ...goldBtn, fontSize: 13, padding: "10px 0", marginBottom: 10 }}>
-                  继续设置新密码
-                </button>
-                <div style={{ textAlign: "center" }}>
-                  <button onClick={() => setShowForgot(false)} style={{
-                    background: "none", border: "none", color: "#888", fontSize: 11, cursor: "pointer",
-                  }}>取消</button>
+                  className={`${btnGold} text-[13px] py-2.5 mb-2.5`}>继续设置新密码</button>
+                <div className="text-center">
+                  <button onClick={() => setShowForgot(false)} className="bg-transparent border-none text-text-muted text-[11px] cursor-pointer">取消</button>
                 </div>
               </>
             ) : (
               <>
-                <h3 style={{
-                  fontSize: 18, fontWeight: 700, color: "#e0d8c0",
-                  margin: "0 0 6px", textAlign: "center",
-                }}>
-                  重置密码
-                </h3>
-                <p style={{ fontSize: 11, color: "#888", textAlign: "center", marginBottom: 18 }}>
-                  为 <span style={{ color: "#c0a84a" }}>{forgotUsername}</span> 设置新密码
-                </p>
-                <div style={{
-                  display: "flex", flexDirection: "column", gap: 12,
-                  marginBottom: forgotError ? 12 : 18,
-                }}>
+                <h3 className="text-lg font-bold text-text text-center mb-1.5">重置密码</h3>
+                <p className="text-[11px] text-text-muted text-center mb-[18px]">为 <span className="text-gold">{forgotUsername}</span> 设置新密码</p>
+                <div className="flex flex-col gap-3 mb-[18px]">
                   <div>
-                    <label style={labelStyle}>新密码</label>
-                    <div style={{ position: "relative" }}>
-                      <input type={showForgotPassword ? "text" : "password"} placeholder="至少 11 位" value={forgotPassword}
-                        onChange={(e) => setForgotPassword(e.target.value)}
-                        style={{ ...inputStyle, paddingRight: 40 }} />
-                      <button type="button" onClick={() => setShowForgotPassword(!showForgotPassword)}
-                        style={{
-                          position: "absolute", right: 0, top: 0, bottom: 0, width: 40,
-                          background: "none", border: "none", cursor: "pointer",
-                          display: "flex", alignItems: "center", justifyContent: "center",
-                          color: showForgotPassword ? "#c0a84a" : "#666",
-                        }}
-                        aria-label={showForgotPassword ? "隐藏密码" : "显示密码"}
-                      >
-                        {showForgotPassword ? (
-                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
-                            <line x1="1" y1="1" x2="23" y2="23" />
-                          </svg>
-                        ) : (
-                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                            <circle cx="12" cy="12" r="3" />
-                          </svg>
-                        )}
+                    <label className={labelClass}>新密码</label>
+                    <div className="relative">
+                      <input type={showForgotPw ? "text" : "password"} placeholder="至少 11 位" value={forgotPassword}
+                        onChange={e => setForgotPassword(e.target.value)} className={`${inputClass} pr-10`} />
+                      <button type="button" onClick={() => setShowForgotPw(!showForgotPw)}
+                        className={`absolute right-0 top-0 bottom-0 w-10 flex items-center justify-center bg-transparent border-none cursor-pointer ${showForgotPw ? "text-gold" : "text-text-muted"}`}>
+                        <EyeIcon open={showForgotPw} />
                       </button>
                     </div>
                   </div>
                   <div>
-                    <label style={labelStyle}>确认新密码</label>
-                    <div style={{ position: "relative" }}>
-                      <input type={showForgotPassword ? "text" : "password"} placeholder="再次输入" value={forgotConfirm}
-                        onChange={(e) => setForgotConfirm(e.target.value)}
-                        style={{ ...inputStyle, paddingRight: 40 }} />
-                      <button type="button" onClick={() => setShowForgotPassword(!showForgotPassword)}
-                        style={{
-                          position: "absolute", right: 0, top: 0, bottom: 0, width: 40,
-                          background: "none", border: "none", cursor: "pointer",
-                          display: "flex", alignItems: "center", justifyContent: "center",
-                          color: showForgotPassword ? "#c0a84a" : "#666",
-                        }}
-                        aria-label={showForgotPassword ? "隐藏密码" : "显示密码"}
-                      >
-                        {showForgotPassword ? (
-                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
-                            <line x1="1" y1="1" x2="23" y2="23" />
-                          </svg>
-                        ) : (
-                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                            <circle cx="12" cy="12" r="3" />
-                          </svg>
-                        )}
+                    <label className={labelClass}>确认新密码</label>
+                    <div className="relative">
+                      <input type={showForgotPw ? "text" : "password"} placeholder="再次输入" value={forgotConfirm}
+                        onChange={e => setForgotConfirm(e.target.value)} className={`${inputClass} pr-10`} />
+                      <button type="button" onClick={() => setShowForgotPw(!showForgotPw)}
+                        className={`absolute right-0 top-0 bottom-0 w-10 flex items-center justify-center bg-transparent border-none cursor-pointer ${showForgotPw ? "text-gold" : "text-text-muted"}`}>
+                        <EyeIcon open={showForgotPw} />
                       </button>
                     </div>
                   </div>
                 </div>
-                {forgotError && (
-                  <p style={{ fontSize: 12, color: "var(--red)", marginBottom: 12, textAlign: "center" }}>
-                    {forgotError}
-                  </p>
-                )}
-                <button onClick={verifyAndReset} disabled={forgotLoading} style={{
-                  ...goldBtn, fontSize: 13, padding: "10px 0", opacity: forgotLoading ? 0.6 : 1,
-                }}>
-                  {forgotLoading ? "重置中..." : "确认重置"}
-                </button>
-                <div style={{ textAlign: "center", marginTop: 14 }}>
-                  <button onClick={() => setShowForgot(false)} style={{
-                    background: "none", border: "none", color: "#888", fontSize: 11, cursor: "pointer",
-                  }}>取消</button>
+                {forgotError && <p className="text-xs text-red text-center mb-3">{forgotError}</p>}
+                <button onClick={verifyAndReset} disabled={forgotLoading}
+                  className={`${btnGold} text-[13px] py-2.5`}>确认重置</button>
+                <div className="text-center mt-3.5">
+                  <button onClick={() => setShowForgot(false)} className="bg-transparent border-none text-text-muted text-[11px] cursor-pointer">取消</button>
                 </div>
               </>
             )}
           </div>
         </>
       )}
-
-      <style jsx>{`
-        @media (max-width: 480px) {
-          .auth-form-container { padding: 0 16px !important; }
-        }
-      `}</style>
     </div>
   );
 }
