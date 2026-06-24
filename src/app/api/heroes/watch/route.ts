@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { NextRequest } from "next/server";
 import { addClient, removeClient, broadcastHeroUpdate } from "@/lib/sse/heroes";
 import { runAllMonitors, runMonitorAndScrape } from "@/lib/monitor";

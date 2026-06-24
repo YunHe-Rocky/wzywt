@@ -329,7 +329,7 @@ export function HeroGrid() {
 
       {!loading && !fetchError && filtered.length === 0 && (
         <p style={{ textAlign: "center", color: "var(--text-muted)", padding: "60px 0", fontSize: 14 }}>
-          未找到匹配"{search}"的英雄
+          未找到匹配&quot;{search}&quot;的英雄
         </p>
       )}
     </div>
