@@ -41,3 +41,10 @@ next-env.d.ts
 # prisma
 /prisma/*.db
 /prisma/*.db-journal
+
+# IDE / AI tools
+.claude/
+.superpowers/
+
+# development scripts & cache
+/verify_screenshots.py
