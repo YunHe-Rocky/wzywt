@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 
 interface OfficialNews { title: string; date: string; url: string; }
 interface PublicTournament { id: number; name: string; code: string; announcement: string | null; }
 interface User { userId: number; username: string; }
 interface TocItem { id: string; text: string; level: number }
+interface Announcement { date: string; title: string; slug: string; content?: string; }
 
 function SkeletonLines({ count }: { count: number }) {
   return <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -82,26 +83,39 @@ function useMD(md: string) {
   }, [md]);
 }
 
+function useAnnouncementMD(announcements: Announcement[]) {
+  return useMemo(() => {
+    // Concatenate all announcement content with separators for md rendering
+    const parts = announcements.map((a) => {
+      // Reconstruct with heading so useMD can find ## sections
+      return `## ${a.title}\n\n*${a.date}*\n\n${a.content || ""}`;
+    });
+    return parts.join("\n\n---\n\n");
+  }, [announcements]);
+}
+
 export default function Home() {
   const [user, setUser] = useState<User | null>(null);
   const [authLoaded, setAuthLoaded] = useState(false);
-  const [md, setMd] = useState("");
   const [news, setNews] = useState<OfficialNews[]>([]);
   const [rooms, setRooms] = useState<PublicTournament[]>([]);
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [open, setOpen] = useState(false);
   const [activeId, setActiveId] = useState("");
+  const tocRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     fetch("/api/auth/me").then(r => r.json()).then(d => { setUser(d.user); setAuthLoaded(true); });
     Promise.all([
-      fetch("/api/changelog?type=features").then(r => r.json()).then(d => { if (d.content) setMd(d.content); }).catch(() => {}),
+      fetch("/api/announcements?full=true").then(r => r.json()).then(d => { if (d.announcements) setAnnouncements(d.announcements); }).catch(() => {}),
       fetch("/api/official-news").then(r => r.json()).then(d => { if (Array.isArray(d)) setNews(d); }).catch(() => {}),
       fetch("/api/tournaments/public").then(r => r.json()).then(d => { if (d.tournaments) setRooms(d.tournaments); }).catch(() => {}),
     ]).finally(() => setLoaded(true));
   }, []);
 
-  const { nodes, toc } = useMD(md);
+  const combinedMD = useAnnouncementMD(announcements);
+  const { nodes, toc } = useMD(combinedMD);
 
   useEffect(() => {
     if (!open || !toc.length) return;
@@ -111,43 +125,65 @@ export default function Home() {
     );
     toc.forEach(({ id }) => { const el = document.getElementById(id); if (el) io.observe(el); });
     return () => io.disconnect();
-  }, [open, toc, md]);
+  }, [open, toc, combinedMD]);
+
+  const latest = announcements[0];
 
   return (
     <div style={{ maxWidth: 960, margin: "0 auto", padding: "32px 20px 48px" }}>
       {/* Header */}
-      <div style={{ marginBottom: 28 }}>
+      <div style={{ marginBottom: 24 }}>
         <h1 style={{ fontSize: 26, fontWeight: 700, color: "var(--text)", margin: "0 0 4px", letterSpacing: 1 }}>王者演武堂</h1>
         <p style={{ fontSize: 13, color: "var(--text-secondary)", margin: 0 }}>内战分队 · 公平竞技</p>
       </div>
 
-      {/* ── Expandable doc card ── */}
-      <div className="card" style={{ padding: 0, marginBottom: 20, overflow: "hidden" }}>
+      {/* ── System Announcements ── */}
+      <div className="card announcement-card" style={{ padding: 0, marginBottom: 20, overflow: "hidden" }}>
         <button
           onClick={() => setOpen(!open)}
+          className="announcement-toggle"
           style={{
             width: "100%", background: "none", border: "none", cursor: "pointer",
-            padding: "20px 24px", textAlign: "left",
+            padding: "18px 24px", textAlign: "left",
             display: "flex", alignItems: "center", justifyContent: "space-between",
+            gap: 12,
           }}
           onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = "var(--bg-hover)"}
           onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = "transparent"}
         >
-          <div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: "var(--text)" }}>📋 王者演武堂 — 功能说明</div>
-            <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>面向选手与赛事组织者 · 点击{open ? "收起" : "展开"}查阅完整文档</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 15, fontWeight: 700, color: "var(--gold)" }}>📣 系统公告</div>
+            {latest && (
+              <div style={{
+                fontSize: 12,
+                color: "var(--text-muted)",
+                marginTop: 3,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}>
+                {latest.date} · {latest.title}
+              </div>
+            )}
           </div>
-          <span style={{ color: "var(--text-muted)", fontSize: 14, transition: "transform 0.2s", transform: open ? "rotate(90deg)" : "rotate(0deg)" }}>▶</span>
+          <span style={{
+            color: "var(--text-muted)",
+            fontSize: 14,
+            flexShrink: 0,
+            transition: "transform 0.2s",
+            transform: open ? "rotate(90deg)" : "rotate(0deg)",
+          }}>▶</span>
         </button>
 
         {open && !loaded ? (
           <div style={{ padding: "0 24px 24px" }}><SkeletonLines count={8} /></div>
-        ) : open && (
-          <div className={toc.length > 0 ? "doc-body" : ""} style={toc.length === 0 ? { padding: "20px 24px 24px" } : undefined}>
+        ) : open && announcements.length > 0 && (
+          <div className="announcement-body" style={{ display: "flex" }}>
+            {/* TOC — desktop only */}
             {toc.length > 0 && (
-              <div className="doc-toc">
+              <div className="announcement-toc" ref={tocRef}>
                 <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", marginBottom: 8, letterSpacing: 2 }}>快速定位</div>
-                <div className="doc-toc-list">
+                <div className="announcement-toc-list">
                   {toc.map((item) => (
                     <a
                       key={item.id}
@@ -156,20 +192,29 @@ export default function Home() {
                         e.preventDefault();
                         document.getElementById(item.id)?.scrollIntoView({ behavior: "smooth" });
                       }}
-                      className="doc-toc-item"
+                      className="announcement-toc-item"
                       style={{
+                        display: "block",
+                        padding: "3px 0",
                         paddingLeft: item.level === 3 ? 10 : 0,
+                        fontSize: 11,
                         color: activeId === item.id ? "var(--gold)" : "var(--text-muted)",
                         fontWeight: activeId === item.id ? 600 : 400,
+                        textDecoration: "none",
                       }}
                     >{item.text}</a>
                   ))}
                 </div>
               </div>
             )}
-            <div className="doc-content">
+            <div className="announcement-content" style={{ flex: 1, minWidth: 0 }}>
               {nodes}
             </div>
+          </div>
+        )}
+        {open && announcements.length === 0 && loaded && (
+          <div style={{ padding: "0 24px 24px" }}>
+            <EmptyPlaceholder text="暂无系统公告" />
           </div>
         )}
       </div>
@@ -197,9 +242,9 @@ export default function Home() {
           }
         </div>
 
-        {/* Room announcements */}
+        {/* Public rooms */}
         <div className="card" style={{ padding: 20 }}>
-          <h3 className="section-title" style={{ marginTop: 0 }}>🏠 房间公告</h3>
+          <h3 className="section-title" style={{ marginTop: 0 }}>🏠 公开房间</h3>
           {!loaded ? <SkeletonLines count={3} /> :
            rooms.length === 0 ? <EmptyPlaceholder text="暂无公开房间" /> :
            <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
@@ -234,7 +279,29 @@ export default function Home() {
 
       <style jsx>{`
         .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-        @media (max-width: 768px) { .info-grid { grid-template-columns: 1fr; } }
+
+        .announcement-body {
+          padding: 0 24px 24px;
+        }
+
+        .announcement-toc {
+          width: 150px;
+          flex-shrink: 0;
+          padding-right: 20px;
+          border-right: 1px solid var(--border);
+        }
+
+        .announcement-content {
+          padding-left: 24px;
+        }
+
+        @media (max-width: 768px) {
+          .info-grid { grid-template-columns: 1fr; }
+          .announcement-toggle { padding: 14px 18px !important; }
+          .announcement-body { padding: 0 18px 18px; flex-direction: column; }
+          .announcement-toc { display: none; }
+          .announcement-content { padding-left: 0; }
+        }
       `}</style>
     </div>
   );
