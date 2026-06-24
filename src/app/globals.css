@@ -7,10 +7,8 @@
   --bg-nav: #1b1e27;
   --bg-card: #242833;
   --bg-card-glass: linear-gradient(180deg,
-    rgba(255,255,255,0.04) 0%,
-    rgba(255,255,255,0.015) 10%,
-    #242833 10%,
-    #242833 100%);
+    rgba(255,255,255,0.03) 0%,
+    #242833 30%);
   --bg-hover: #2d3240;
   --bg-input: #2a2f3b;
   --border: rgba(255, 255, 255, 0.08);
@@ -18,8 +16,7 @@
   --border-top: rgba(255, 255, 255, 0.1);
   --border-gold: rgba(168, 144, 104, 0.12);
   --glass-highlight: 0 1px 0 rgba(255,255,255,0.04) inset;
-  --glass-shadow: 0 1px 0 rgba(255,255,255,0.03) inset,
-                  0 -1px 0 rgba(0,0,0,0.08) inset,
+  --glass-shadow: 0 1px 0 rgba(255,255,255,0.04) inset,
                   0 2px 8px rgba(0,0,0,0.15);
   --text: #e0e3ea;
   --text-secondary: #b0b4be;
@@ -433,7 +430,6 @@
     border-color: rgba(184, 152, 96, 0.12);
     border-top-color: rgba(255,255,255,0.1);
     box-shadow: 0 1px 0 rgba(255,255,255,0.05) inset,
-                0 -1px 0 rgba(0,0,0,0.08) inset,
                 0 4px 16px rgba(0,0,0,0.2);
   }
 
@@ -445,7 +441,6 @@
     border-color: rgba(184, 152, 96, 0.18);
     border-top-color: rgba(255,255,255,0.1);
     box-shadow: var(--glass-highlight),
-                0 -1px 0 rgba(0,0,0,0.08) inset,
                 0 4px 16px rgba(0,0,0,0.2);
   }
 
