@@ -3,10 +3,21 @@ import { prisma } from "@/lib/db";
 import { hashPassword } from "@/lib/auth";
 import { getSession } from "@/lib/session";
 
-export async function POST(req: NextRequest) {
-  const { username, email, password, code } = await req.json();
+const PRESET_QUESTIONS = [
+  "你的出生城市是？",
+  "你母亲的名字是？",
+  "你父亲的名字是？",
+  "你第一只宠物的名字是？",
+  "你最喜欢的电影角色是？",
+  "你的小学名称是？",
+  "你最好的朋友的名字是？",
+  "你的座右铭是？",
+];
 
-  if (!username || !password || !email || !code) {
+export async function POST(req: NextRequest) {
+  const { username, securityQuestion, customQuestion, securityAnswer, password, confirmPassword } = await req.json();
+
+  if (!username || !securityQuestion || !securityAnswer || !password || !confirmPassword) {
     return NextResponse.json({ error: "请填写所有字段" }, { status: 400 });
   }
 
@@ -14,68 +25,43 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "用户名至少2位，密码至少11位" }, { status: 400 });
   }
 
-  if (!email.endsWith("@qq.com")) {
-    return NextResponse.json({ error: "请输入有效的QQ邮箱地址" }, { status: 400 });
+  if (password !== confirmPassword) {
+    return NextResponse.json({ error: "两次密码不一致" }, { status: 400 });
   }
 
-  // 检查用户名
+  // Validate security question
+  let finalQuestion: string;
+  if (securityQuestion === "__custom__") {
+    if (!customQuestion || customQuestion.trim().length < 2) {
+      return NextResponse.json({ error: "请填写自定义安全问题" }, { status: 400 });
+    }
+    finalQuestion = customQuestion.trim();
+  } else if (!PRESET_QUESTIONS.includes(securityQuestion)) {
+    return NextResponse.json({ error: "无效的安全问题" }, { status: 400 });
+  } else {
+    finalQuestion = securityQuestion;
+  }
+
+  // Check username uniqueness
   const existingUser = await prisma.user.findUnique({ where: { username } });
   if (existingUser) {
     return NextResponse.json({ error: "用户名已被占用" }, { status: 409 });
   }
 
-  // 检查邮箱
-  const existingEmail = await prisma.user.findUnique({ where: { email } });
-  if (existingEmail) {
-    return NextResponse.json({ error: "该邮箱已被其他账号使用" }, { status: 409 });
-  }
-
-  // 校验验证码（从 kv_cache 查）
-  const cacheRow = await prisma.$queryRawUnsafe(
-    "SELECT `value` FROM kv_cache WHERE `key` = ?",
-    `verify_${email}`
-  ) as { value: string }[];
-
-  if (!cacheRow.length) {
-    return NextResponse.json({ error: "请先发送验证码" }, { status: 400 });
-  }
-
-  const cached = JSON.parse(cacheRow[0].value);
-  if (cached.code !== code) {
-    const attempts = (cached.attempts || 0) + 1;
-    cached.attempts = attempts;
-    await prisma.$executeRawUnsafe(
-      "UPDATE kv_cache SET `value` = ? WHERE `key` = ?",
-      JSON.stringify(cached), `verify_${email}`
-    );
-    if (attempts >= 5) {
-      return NextResponse.json({ error: "验证码错误次数过多，请15分钟后再试" }, { status: 429 });
-    }
-    return NextResponse.json({ error: "验证码错误" }, { status: 400 });
-  }
-
-  if (Date.now() > cached.expires) {
-    return NextResponse.json({ error: "验证码已过期，请重新发送" }, { status: 400 });
-  }
-
-  // 创建用户
+  // Create user
   const passwordHash = await hashPassword(password);
+  const securityAnswerHash = await hashPassword(securityAnswer.trim());
+
   const user = await prisma.user.create({
     data: {
       username,
       passwordHash,
-      email,
-      emailVerified: true,
+      securityQuestion: finalQuestion,
+      securityAnswerHash,
     },
   });
 
-  // 清除验证码缓存
-  await prisma.$executeRawUnsafe(
-    "DELETE FROM kv_cache WHERE `key` = ?",
-    `verify_${email}`
-  );
-
-  // 登录
+  // Auto login
   const session = await getSession();
   session.userId = user.id;
   session.username = user.username;
