@@ -60,6 +60,7 @@ export function HeroSelect({ roleType, value, onChange }: Props) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [heroes, setHeroes] = useState<Hero[]>([]);
+  const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -77,6 +78,28 @@ export function HeroSelect({ roleType, value, onChange }: Props) {
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
   }, []);
+
+  useEffect(() => {
+    if (!open || !ref.current) return;
+    function update() {
+      if (!ref.current) return;
+      const rect = ref.current.getBoundingClientRect();
+      setDropdownStyle({
+        position: "fixed",
+        top: rect.bottom + 4,
+        left: rect.left,
+        width: rect.width,
+        zIndex: 9999,
+      });
+    }
+    update();
+    window.addEventListener("scroll", update, true);
+    window.addEventListener("resize", update);
+    return () => {
+      window.removeEventListener("scroll", update, true);
+      window.removeEventListener("resize", update);
+    };
+  }, [open]);
 
   const selectedHero = heroes.find((h) => String(h.heroId) === value);
 
@@ -172,12 +195,7 @@ export function HeroSelect({ roleType, value, onChange }: Props) {
       {open && (
         <div
           style={{
-            position: "absolute",
-            top: "100%",
-            left: 0,
-            right: 0,
-            zIndex: 200,
-            marginTop: 4,
+            ...dropdownStyle,
             background: "var(--bg-card)",
             border: "1px solid var(--border)",
             borderRadius: "var(--radius)",

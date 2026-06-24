@@ -3,27 +3,27 @@
 @tailwind utilities;
 
 :root {
-  --bg-root: #10131c;
-  --bg-nav: #161922;
-  --bg-card: #1e2230;
+  --bg-root: #161920;
+  --bg-nav: #1b1e27;
+  --bg-card: #242833;
   --bg-card-glass: linear-gradient(180deg,
-    rgba(255,255,255,0.05) 0%,
-    #1e2230 30%);
-  --bg-hover: #282e3a;
-  --bg-input: #242836;
-  --border: rgba(255, 255, 255, 0.1);
-  --border-light: rgba(255, 255, 255, 0.06);
-  --border-top: rgba(255, 255, 255, 0.12);
-  --border-gold: rgba(200, 170, 120, 0.15);
-  --glass-highlight: 0 1px 0 rgba(255,255,255,0.05) inset;
-  --glass-shadow: 0 1px 0 rgba(255,255,255,0.05) inset,
-                  0 2px 10px rgba(0,0,0,0.2);
-  --text: #e4e6f0;
-  --text-secondary: #b8bcc8;
-  --text-muted: #808598;
-  --gold: #b89868;
-  --gold-light: #ccb890;
-  --gold-dim: #907848;
+    rgba(255,255,255,0.04) 0%,
+    #242833 30%);
+  --bg-hover: #2d3240;
+  --bg-input: #2a2f3b;
+  --border: rgba(255, 255, 255, 0.08);
+  --border-light: rgba(255, 255, 255, 0.05);
+  --border-top: rgba(255, 255, 255, 0.1);
+  --border-gold: rgba(168, 144, 104, 0.12);
+  --glass-highlight: 0 1px 0 rgba(255,255,255,0.04) inset;
+  --glass-shadow: 0 1px 0 rgba(255,255,255,0.04) inset,
+                  0 2px 8px rgba(0,0,0,0.15);
+  --text: #e0e3ea;
+  --text-secondary: #b0b4be;
+  --text-muted: #777b88;
+  --gold: #a89068;
+  --gold-light: #c0b090;
+  --gold-dim: #807050;
   --red: #cc6666;
   --red-dim: #994444;
   --blue: #6898cc;
