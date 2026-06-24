@@ -107,7 +107,7 @@ export function HeroSelect({ roleType, value, onChange }: Props) {
   }, [heroes, search]);
 
   return (
-    <div ref={ref} style={{ position: "relative", flex: 1 }}>
+    <div ref={ref} style={{ position: "relative", flex: 1, zIndex: open ? 9999 : "auto" }}>
       {/* Trigger */}
       <button
         type="button"
@@ -182,7 +182,7 @@ export function HeroSelect({ roleType, value, onChange }: Props) {
             top: "100%",
             left: 0,
             right: 0,
-            zIndex: 200,
+            zIndex: 9999,
             marginTop: 4,
             minWidth: 280,
             background: "var(--bg-card)",
