@@ -8,27 +8,41 @@ export async function GET() {
   if (!session.userId) {
     return NextResponse.json({ user: null });
   }
-  return NextResponse.json({ user: { userId: session.userId, username: session.username } });
+  const user = await prisma.user.findUnique({
+    where: { id: session.userId },
+    select: { username: true, securityQuestion: true },
+  });
+  return NextResponse.json({
+    user: {
+      userId: session.userId,
+      username: session.username,
+      securityQuestion: user?.securityQuestion || null,
+      hasSecurityQuestion: !!user?.securityQuestion,
+    },
+  });
 }
 
 export async function DELETE(req: NextRequest) {
   const { userId } = await requireAuth().catch(() => ({ userId: 0 }));
   if (!userId) return NextResponse.json({ error: "请先登录" }, { status: 401 });
 
-  const { password } = await req.json();
-  if (!password) {
-    return NextResponse.json({ error: "请输入密码确认身份" }, { status: 400 });
+  const { answer } = await req.json();
+  if (!answer) {
+    return NextResponse.json({ error: "请输入安全答案确认身份" }, { status: 400 });
   }
 
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) return NextResponse.json({ error: "用户不存在" }, { status: 404 });
 
-  const valid = await verifyPassword(password, user.passwordHash);
-  if (!valid) {
-    return NextResponse.json({ error: "密码错误" }, { status: 403 });
+  if (!user.securityAnswerHash) {
+    return NextResponse.json({ error: "请先设置安全问题" }, { status: 400 });
   }
 
-  // 级联删除所有用户数据
+  const valid = await verifyPassword(answer.trim(), user.securityAnswerHash);
+  if (!valid) {
+    return NextResponse.json({ error: "安全答案错误" }, { status: 403 });
+  }
+
   await prisma.$transaction([
     prisma.tournamentPlayer.deleteMany({ where: { userId } }),
     prisma.tournamentAdmin.deleteMany({ where: { userId } }),
