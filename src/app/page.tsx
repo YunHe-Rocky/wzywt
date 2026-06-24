@@ -97,7 +97,7 @@ export default function Home() {
     Promise.all([
       fetch("/api/changelog?type=features").then(r => r.json()).then(d => { if (d.content) setMd(d.content); }).catch(() => {}),
       fetch("/api/official-news").then(r => r.json()).then(d => { if (Array.isArray(d)) setNews(d); }).catch(() => {}),
-      fetch("/api/tournaments/public").then(r => r.json()).then(d => { if (d.tournaments) setRooms(d.tournaments.filter((t: PublicTournament) => t.announcement)); }).catch(() => {}),
+      fetch("/api/tournaments/public").then(r => r.json()).then(d => { if (d.tournaments) setRooms(d.tournaments); }).catch(() => {}),
     ]).finally(() => setLoaded(true));
   }, []);
 
@@ -214,7 +214,9 @@ export default function Home() {
                     <span className="badge badge-gold" style={{ fontSize: 10, fontFamily: "monospace" }}>#{room.code}</span>
                   </div>
                   <p style={{ fontSize: 12, color: "var(--text-muted)", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {room.announcement && room.announcement.length > 60 ? room.announcement.slice(0, 60) + "..." : room.announcement}
+                    {room.announcement
+                      ? (room.announcement.length > 60 ? room.announcement.slice(0, 60) + "..." : room.announcement)
+                      : "暂无公告"}
                   </p>
                 </Link>
               </li>
