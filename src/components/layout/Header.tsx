@@ -8,9 +8,8 @@ interface User { userId: number; username: string; }
 
 const NAV = [
   { href: "/", label: "首页" },
-  { href: "/tournaments", label: "赛事" },
-  { href: "/heroes", label: "英雄" },
-  { href: "/me", label: "我的" },
+  { href: "/tournaments", label: "赛事大厅" },
+  { href: "/heroes", label: "英雄图鉴" },
 ];
 
 export function Header() {
