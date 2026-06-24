@@ -5,14 +5,14 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        root: "#161920",
-        nav: "#1b1e27",
-        card: "#242833",
-        hover: "#2d3240",
-        input: "#2a2f3b",
-        border: { DEFAULT: "rgba(255,255,255,0.08)", light: "rgba(255,255,255,0.05)", gold: "rgba(168,144,104,0.12)" },
-        text: { DEFAULT: "#e0e3ea", secondary: "#b0b4be", muted: "#777b88" },
-        gold: { DEFAULT: "#a89068", light: "#c0b090", dim: "#807050" },
+        root: "#10131c",
+        nav: "#161922",
+        card: "#1e2230",
+        hover: "#282e3a",
+        input: "#242836",
+        border: { DEFAULT: "rgba(255,255,255,0.1)", light: "rgba(255,255,255,0.06)", gold: "rgba(200,170,120,0.15)" },
+        text: { DEFAULT: "#e4e6f0", secondary: "#b8bcc8", muted: "#808598" },
+        gold: { DEFAULT: "#b89868", light: "#ccb890", dim: "#907848" },
         red: { DEFAULT: "#cc6666", dim: "#994444" },
         blue: { DEFAULT: "#6898cc", dim: "#4a7099" },
         green: { DEFAULT: "#78b878", dim: "#508a50" },

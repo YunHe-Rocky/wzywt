@@ -162,7 +162,7 @@ export default function Home() {
         {/* Main column */}
         <div className="lg:col-span-2 flex flex-col gap-4">
           {/* Announcements */}
-          <div className="bg-card border border-border rounded-md overflow-hidden">
+          <div className="bg-card border border-border rounded-md overflow-hidden" style={{ borderLeft: "3px solid var(--gold)" }}>
             <div className="px-5 py-3 border-b border-border-light">
               <div className="text-sm font-semibold text-gold-light">📢 系统公告</div>
             </div>
@@ -188,7 +188,7 @@ export default function Home() {
           </div>
 
           {/* Public Rooms */}
-          <div className="bg-card border border-border rounded-md overflow-hidden">
+          <div className="bg-card border border-border rounded-md overflow-hidden" style={{ borderLeft: "3px solid var(--blue)" }}>
             <div className="px-5 py-3 border-b border-border-light">
               <div className="text-sm font-semibold text-gold-light">🏠 公开房间</div>
             </div>
