@@ -50,10 +50,39 @@ async function scrapeWithPlaywright(): Promise<{ title: string; date: string; ur
       waitUntil: "domcontentloaded",
       timeout: 20000,
     });
-    await page.waitForTimeout(5000);
-    const html = await page.content();
+    // Wait for SPA to render
+    await page.waitForTimeout(6000);
+
+    // Use evaluate to extract news items from the rendered DOM
+    const items = await page.evaluate(() => {
+      const results: { title: string; date: string; url: string }[] = [];
+      const seen = new Set<string>();
+
+      // Try to find all links with meaningful text
+      const links = Array.from(document.querySelectorAll("a"));
+      for (let i = 0; i < links.length; i++) {
+        const link = links[i];
+        const text = (link as HTMLElement).innerText?.trim();
+        const href = (link as HTMLAnchorElement).href;
+        if (!text || text.length < 4 || text.length > 80) continue;
+        if (!href || href === "#" || href.startsWith("javascript:")) continue;
+        if (seen.has(text)) continue;
+        seen.add(text);
+
+        // Extract date from nearby context
+        const parent = (link as HTMLElement).parentElement;
+        const context = parent?.innerText || text;
+        const dateMatch = context.match(/(\d{4}[-/.]\d{1,2}[-/.]\d{1,2})/);
+        const date = dateMatch ? dateMatch[1].replace(/[./]/g, "-") : new Date().toISOString().slice(0, 10);
+
+        results.push({ title: text, date, url: href });
+        if (results.length >= 10) break;
+      }
+      return results;
+    });
+
     await browser.close();
-    return extractNewsFromHtml(html);
+    return items;
   } catch {
     return null;
   }

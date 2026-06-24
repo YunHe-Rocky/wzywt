@@ -21,11 +21,16 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   if (!tournament) return NextResponse.json({ error: "赛事不存在" }, { status: 404 });
 
   const isPlayer = tournament.players.some((p) => p.userId === userId);
-  if (!isPlayer) return NextResponse.json({ error: "你不在该赛事中" }, { status: 403 });
+
+  // 公开且招募中的赛事允许任何人查看
+  if (!isPlayer && !(tournament.isPublic && tournament.status === "recruiting")) {
+    return NextResponse.json({ error: "你不在该赛事中" }, { status: 403 });
+  }
 
   return NextResponse.json({
     tournament,
     splitResult: tournament.splitResult,
+    isVisitor: !isPlayer,
   });
 }
 
