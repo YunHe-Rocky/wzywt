@@ -84,11 +84,15 @@ export function HeroSelect({ roleType, value, onChange }: Props) {
     function update() {
       if (!ref.current) return;
       const rect = ref.current.getBoundingClientRect();
+      const w = Math.max(rect.width, 280);
+      let left = rect.left;
+      if (left + w > window.innerWidth - 8) left = window.innerWidth - w - 8;
+      if (left < 8) left = 8;
       setDropdownStyle({
         position: "fixed",
         top: rect.bottom + 4,
-        left: rect.left,
-        width: Math.max(rect.width, 280),
+        left,
+        width: w,
         zIndex: 9999,
       });
     }
