@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
 interface OfficialNews { title: string; date: string; url: string; }
@@ -83,17 +83,6 @@ function useMD(md: string) {
   }, [md]);
 }
 
-function useAnnouncementMD(announcements: Announcement[]) {
-  return useMemo(() => {
-    // Concatenate all announcement content with separators for md rendering
-    const parts = announcements.map((a) => {
-      // Reconstruct with heading so useMD can find ## sections
-      return `## ${a.title}\n\n*${a.date}*\n\n${a.content || ""}`;
-    });
-    return parts.join("\n\n---\n\n");
-  }, [announcements]);
-}
-
 export default function Home() {
   const [user, setUser] = useState<User | null>(null);
   const [authLoaded, setAuthLoaded] = useState(false);
@@ -101,9 +90,45 @@ export default function Home() {
   const [rooms, setRooms] = useState<PublicTournament[]>([]);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [loaded, setLoaded] = useState(false);
-  const [open, setOpen] = useState(false);
-  const [activeId, setActiveId] = useState("");
-  const tocRef = useRef<HTMLDivElement>(null);
+  const [activeSlug, setActiveSlug] = useState<string | null>(null);
+
+  function AnnouncementItem({ a, isActive, onToggle }: { a: Announcement; isActive: boolean; onToggle: () => void }) {
+    const mdContent = `## ${a.title}\n\n*${a.date}*\n\n${a.content || ""}`;
+    const { nodes: itemNodes } = useMD(mdContent);
+    return (
+      <div key={a.slug} style={{ borderBottom: "1px solid var(--border-light)" }}>
+        <button
+          onClick={onToggle}
+          style={{
+            width: "100%", background: isActive ? "var(--bg-hover)" : "transparent",
+            border: "none", cursor: "pointer", padding: "12px 24px",
+            textAlign: "left", display: "flex", alignItems: "center",
+            justifyContent: "space-between", gap: 12,
+            transition: "background 0.15s",
+          }}
+          onMouseEnter={e => { if (!isActive) (e.currentTarget as HTMLElement).style.background = "var(--bg-hover)"; }}
+          onMouseLeave={e => { if (!isActive) (e.currentTarget as HTMLElement).style.background = "transparent"; }}
+        >
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: isActive ? "var(--gold)" : "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {a.title}
+            </div>
+            <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>{a.date}</div>
+          </div>
+          <span style={{
+            color: "var(--text-muted)", fontSize: 12, flexShrink: 0,
+            transition: "transform 0.2s",
+            transform: isActive ? "rotate(90deg)" : "rotate(0deg)",
+          }}>▶</span>
+        </button>
+        {isActive && (
+          <div style={{ padding: "0 24px 20px", animation: "slide-up 0.15s ease-out" }}>
+            {itemNodes}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   useEffect(() => {
     fetch("/api/auth/me").then(r => r.json()).then(d => { setUser(d.user); setAuthLoaded(true); });
@@ -113,19 +138,6 @@ export default function Home() {
       fetch("/api/tournaments/public").then(r => r.json()).then(d => { if (d.tournaments) setRooms(d.tournaments); }).catch(() => {}),
     ]).finally(() => setLoaded(true));
   }, []);
-
-  const combinedMD = useAnnouncementMD(announcements);
-  const { nodes, toc } = useMD(combinedMD);
-
-  useEffect(() => {
-    if (!open || !toc.length) return;
-    const io = new IntersectionObserver(
-      (es) => { for (const e of es) if (e.isIntersecting) setActiveId(e.target.id); },
-      { rootMargin: "0px 0px -70% 0px" }
-    );
-    toc.forEach(({ id }) => { const el = document.getElementById(id); if (el) io.observe(el); });
-    return () => io.disconnect();
-  }, [open, toc, combinedMD]);
 
   return (
     <div style={{ maxWidth: 960, margin: "0 auto", padding: "32px 20px 48px" }}>
@@ -137,84 +149,20 @@ export default function Home() {
 
       {/* ── System Announcements ── */}
       <div className="card announcement-card" style={{ padding: 0, marginBottom: 20, overflow: "hidden" }}>
-        <button
-          onClick={() => setOpen(!open)}
-          className="announcement-toggle"
-          style={{
-            width: "100%", background: "none", border: "none", cursor: "pointer",
-            padding: "18px 24px", textAlign: "left",
-            display: "flex", alignItems: "flex-start", justifyContent: "space-between",
-            gap: 12,
-          }}
-          onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = "var(--bg-hover)"}
-          onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = "transparent"}
-        >
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 15, fontWeight: 700, color: "var(--gold)", marginBottom: announcements.length > 0 ? 6 : 0 }}>📣 系统公告</div>
-            {announcements.map((a, i) => (
-              <div key={a.slug} style={{
-                fontSize: 12, color: i === 0 ? "var(--text-secondary)" : "var(--text-muted)",
-                fontWeight: i === 0 ? 600 : 400,
-                marginTop: i > 0 ? 2 : 0,
-                overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-              }}>
-                <span style={{ color: "var(--text-muted)", fontWeight: 400, marginRight: 4 }}>{a.date}</span>
-                {a.title}
-              </div>
-            ))}
-            {announcements.length === 0 && loaded && (
-              <div style={{ fontSize: 12, color: "var(--text-muted)" }}>暂无公告</div>
-            )}
-          </div>
-          <span style={{
-            color: "var(--text-muted)",
-            fontSize: 14,
-            flexShrink: 0,
-            transition: "transform 0.2s",
-            transform: open ? "rotate(90deg)" : "rotate(0deg)",
-          }}>▶</span>
-        </button>
+        {/* Header */}
+        <div style={{ padding: "16px 24px", borderBottom: "1px solid var(--border-light)" }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: "var(--gold)" }}>📣 系统公告</div>
+        </div>
 
-        {open && !loaded ? (
-          <div style={{ padding: "0 24px 24px" }}><SkeletonLines count={8} /></div>
-        ) : open && announcements.length > 0 && (
-          <div className="announcement-body" style={{ display: "flex" }}>
-            {/* TOC — desktop only */}
-            {toc.length > 0 && (
-              <div className="announcement-toc" ref={tocRef}>
-                <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", marginBottom: 8, letterSpacing: 2 }}>快速定位</div>
-                <div className="announcement-toc-list">
-                  {toc.map((item) => (
-                    <a
-                      key={item.id}
-                      href={`#${item.id}`}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        document.getElementById(item.id)?.scrollIntoView({ behavior: "smooth" });
-                      }}
-                      className="announcement-toc-item"
-                      style={{
-                        display: "block",
-                        padding: "3px 0",
-                        paddingLeft: item.level === 3 ? 10 : 0,
-                        fontSize: 11,
-                        color: activeId === item.id ? "var(--gold)" : "var(--text-muted)",
-                        fontWeight: activeId === item.id ? 600 : 400,
-                        textDecoration: "none",
-                      }}
-                    >{item.text}</a>
-                  ))}
-                </div>
-              </div>
-            )}
-            <div className="announcement-content" style={{ flex: 1, minWidth: 0 }}>
-              {nodes}
-            </div>
-          </div>
-        )}
-        {open && announcements.length === 0 && loaded && (
-          <div style={{ padding: "0 24px 24px" }}>
-            <EmptyPlaceholder text="暂无系统公告" />
+        {!loaded ? (
+          <div style={{ padding: "0 24px 24px" }}><SkeletonLines count={3} /></div>
+        ) : announcements.length === 0 ? (
+          <div style={{ padding: "20px 24px" }}><EmptyPlaceholder text="暂无系统公告" /></div>
+        ) : (
+          <div>
+            {announcements.map((a) => (
+              <AnnouncementItem key={a.slug} a={a} isActive={activeSlug === a.slug} onToggle={() => setActiveSlug(activeSlug === a.slug ? null : a.slug)} />
+            ))}
           </div>
         )}
       </div>
@@ -284,28 +232,8 @@ export default function Home() {
 
       <style jsx>{`
         .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-
-        .announcement-body {
-          padding: 0 24px 24px;
-        }
-
-        .announcement-toc {
-          width: 150px;
-          flex-shrink: 0;
-          padding-right: 20px;
-          border-right: 1px solid var(--border);
-        }
-
-        .announcement-content {
-          padding-left: 24px;
-        }
-
         @media (max-width: 768px) {
           .info-grid { grid-template-columns: 1fr; }
-          .announcement-toggle { padding: 14px 18px !important; }
-          .announcement-body { padding: 0 18px 18px; flex-direction: column; }
-          .announcement-toc { display: none; }
-          .announcement-content { padding-left: 0; }
         }
       `}</style>
     </div>
