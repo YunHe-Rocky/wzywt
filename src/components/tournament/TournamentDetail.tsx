@@ -836,20 +836,13 @@ export function TournamentDetail() {
       </div>
 
       {/* ================================================================== */}
-      {/*  JOIN / LEAVE (non-admin actions)                                    */}
+      {/*  LEAVE (non-admin players)                                            */}
       {/* ================================================================== */}
-      {!isAdmin && (
+      {!isAdmin && isPlayer && tournament.status === "recruiting" && (
         <div style={{ display: "flex", gap: 12, marginBottom: 24 }}>
-          {tournament.status === "recruiting" && !isPlayer && (
-            <button onClick={join} className="btn-primary" style={{ fontSize: 14, padding: "12px 28px" }}>
-              加入赛事
-            </button>
-          )}
-          {tournament.status === "recruiting" && isPlayer && (
-            <button onClick={leave} className="btn-danger" style={{ fontSize: 14, padding: "12px 28px" }}>
-              退出赛事
-            </button>
-          )}
+          <button onClick={leave} className="btn-danger" style={{ fontSize: 14, padding: "12px 28px" }}>
+            退出赛事
+          </button>
         </div>
       )}
 
