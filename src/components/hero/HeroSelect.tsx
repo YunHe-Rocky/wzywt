@@ -88,7 +88,7 @@ export function HeroSelect({ roleType, value, onChange }: Props) {
         position: "fixed",
         top: rect.bottom + 4,
         left: rect.left,
-        width: rect.width,
+        width: Math.max(rect.width, 280),
         zIndex: 9999,
       });
     }
