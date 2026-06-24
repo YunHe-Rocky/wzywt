@@ -125,42 +125,8 @@ export default function Home() {
         <p className="text-sm text-text-secondary">5V5 内战分队 · 公平竞技</p>
       </div>
 
-      {/* Dashboard Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Sidebar — shows first on mobile, last on desktop */}
-        <div className="flex flex-col gap-4 lg:order-last">
-          {/* User card */}
-          <div className="bg-card border border-border rounded-md p-5 text-center">
-            {!authLoaded ? <SkeletonLines count={3} />
-              : user ? (
-                <>
-                  <span className="w-12 h-12 rounded-full bg-gradient-to-br from-gold/20 to-gold/5 border border-gold/15 inline-flex items-center justify-center text-lg font-bold text-gold-light mb-2">
-                    {user.username[0]}
-                  </span>
-                  <div className="text-sm font-bold text-text">{user.username}</div>
-                  <div className="text-xs text-text-muted mt-0.5 mb-3">召唤师</div>
-                  <div className="h-px bg-gradient-to-r from-transparent via-gold/15 to-transparent mb-3" />
-                  <Link href="/me"
-                    className="inline-block w-full py-2 text-[13px] font-semibold rounded-md bg-gradient-to-b from-gold-light via-gold to-gold-dim text-root hover:brightness-110 transition-all no-underline">
-                    个人空间
-                  </Link>
-                </>
-              ) : (
-                <>
-                  <p className="text-sm text-text-secondary mb-3">登录后查看个人数据</p>
-                  <div className="h-px bg-gradient-to-r from-transparent via-gold/15 to-transparent mb-3" />
-                  <Link href="/login"
-                    className="inline-block w-full py-2 text-[13px] font-semibold rounded-md bg-gradient-to-b from-gold-light via-gold to-gold-dim text-root hover:brightness-110 transition-all no-underline">
-                    登录
-                  </Link>
-                </>
-              )}
-          </div>
-
-        </div>
-
-        {/* Main column */}
-        <div className="lg:col-span-2 flex flex-col gap-4">
+      {/* Main content */}
+      <div className="flex flex-col gap-4">
           {/* Announcements */}
           <div className="bg-card border border-border rounded-md overflow-hidden">
             <div className="px-5 py-3 border-b border-border-light">
@@ -230,7 +196,6 @@ export default function Home() {
                   </a>
                 ))}
           </div>
-        </div>
       </div>
     </div>
   );
