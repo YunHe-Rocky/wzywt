@@ -157,21 +157,6 @@ export default function Home() {
               )}
           </div>
 
-          {/* Quick Nav */}
-          <div className="bg-card border border-border rounded-md p-4">
-            <div className="text-xs font-semibold text-text-muted mb-3 tracking-wider uppercase">快捷导航</div>
-            <div className="flex flex-col gap-0.5">
-              {[{ href: "/tournaments", label: "赛事大厅" },
-                { href: "/heroes", label: "英雄图鉴" },
-                { href: "/me", label: "个人空间" },
-              ].map(n => (
-                <Link key={n.href} href={n.href}
-                  className="px-2 py-1.5 text-sm text-text-secondary hover:text-text hover:bg-hover/50 rounded transition-colors no-underline">
-                  {n.label}
-                </Link>
-              ))}
-            </div>
-          </div>
         </div>
 
         {/* Main column */}
