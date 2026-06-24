@@ -41,7 +41,7 @@ src/app/                    # App Router 页面 + API
 src/components/
   ├── layout/Header.tsx     # 顶部导航栏 (项目名 + 用户下拉菜单)
   ├── auth/AuthForm.tsx     # 登录/注册
-  ├── me/                   # 分路偏好 (段位) + 英雄战力 (模糊搜索)
+  ├── me/                   # 分路偏好排序 + 段位 + 巅峰分 + 历史最高段位 + 模糊搜索英雄战力
   ├── tournament/           # 赛事列表 + 详情 (分队结果 + 管理)
   ├── hero/                 # 英雄网格 + 详情 (皮肤) + 选择器 (拼音)
   └── ui/Toast.tsx          # Toast 通知
@@ -78,7 +78,15 @@ docs/yanwutang.conf         # Nginx 反代配置
 
 ### 分队算法
 `split.ts` — 取前 10 人 5v5，多余静默排除。
-权重: 段位覆盖(×100) > 段位均衡(×50) > 偏好满足(×10) > 战力均衡(×1)
+
+每人按分配分路计算综合战力（满分约 1000）：
+- 英雄战力：该分路 Top3 均值 ÷ 30（满分 400）
+- 巅峰赛分：`peak_score` ÷ 7（满分 ~357，巅峰赛 2500 封顶）
+- 当前段位：`role_rank` × 15（满分 135）
+- 历史最高段位：`peak_rank` × 10（满分 90）
+
+评分权重: 偏好满足(×350) > 段位覆盖(×50) > 段位均衡(×30) > 战力均衡(×20)
+
 结果持久化到 `tournaments.split_result`，刷新不丢失。
 
 ### 英雄系统
@@ -98,3 +106,12 @@ docs/yanwutang.conf         # Nginx 反代配置
 
 ### 响应式
 同一份布局，手机字号间距缩小，不做重排显隐。表格横向滚动。
+
+### 部署
+参考 `docs/deploy.md`，关键步骤：
+```bash
+git pull && npm install && npx prisma db push && npm run build && pm2 restart all
+```
+
+### 密码可见性
+`AuthForm.tsx` 所有密码输入框右侧眼睛图标，点击切换 `type="password"` ↔ `type="text"`。登录页、注册页、忘记密码弹窗均覆盖。
