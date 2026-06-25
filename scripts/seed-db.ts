@@ -38,22 +38,37 @@ async function main() {
     support: [{id:108,name:"墨子",power:6000},{id:118,name:"孙膑",power:5500}],
   };
 
+  // 每人数据不同，制造实力偏差
+  const data = [
+    { name:"剑仙小李", topRole:"top", rank:7, peak:1800, mainPower:8500, offPower:4000 },
+    { name:"打野王者", topRole:"jungle", rank:8, peak:2200, mainPower:9500, offPower:3000 },
+    { name:"中路法王", topRole:"mid", rank:9, peak:2500, mainPower:10000, offPower:2000 },
+    { name:"射手大神", topRole:"adc", rank:8, peak:2000, mainPower:9200, offPower:3500 },
+    { name:"辅助之光", topRole:"support", rank:7, peak:1600, mainPower:7200, offPower:5000 },
+    { name:"边路战神", topRole:"top", rank:8, peak:2100, mainPower:9000, offPower:3800 },
+    { name:"野区之王", topRole:"jungle", rank:6, peak:1400, mainPower:7800, offPower:5500 },
+    { name:"中单教父", topRole:"mid", rank:5, peak:1200, mainPower:6500, offPower:6000 },
+    { name:"百里穿杨", topRole:"adc", rank:9, peak:2400, mainPower:9800, offPower:2500 },
+    { name:"游走大师", topRole:"support", rank:4, peak:1000, mainPower:5500, offPower:7000 },
+  ];
+
   for (let i = 0; i < userIds.length; i++) {
     const uid = userIds[i];
-    const topRole = ["top","jungle","mid","adc","support","top","jungle","mid","adc","support"][i];
-    const ordered = [topRole, ...roles.filter(r => r !== topRole)];
-    const rank = [7,8,9,8,7,8,7,7,7,6][i];
-    const peak = [1800,2100,2400,1900,1600,2000,2200,1700,2300,1500][i];
+    const d = data[i];
+    const ordered = [d.topRole, ...roles.filter(r => r !== d.topRole)];
 
     for (let j = 0; j < ordered.length; j++) {
+      const role = ordered[j];
+      const isMain = j === 0;
       await prisma.rolePreference.upsert({
-        where: { userId_roleType: { userId: uid, roleType: ordered[j] } },
-        create: { userId: uid, roleType: ordered[j], preferenceRank: j+1, roleRank: rank, peakScore: peak, peakRank: rank },
-        update: { preferenceRank: j+1, roleRank: rank, peakScore: peak, peakRank: rank },
+        where: { userId_roleType: { userId: uid, roleType: role } },
+        create: { userId: uid, roleType: role, preferenceRank: j+1, roleRank: d.rank, peakScore: d.peak, peakRank: Math.min(9,d.rank+1) },
+        update: { preferenceRank: j+1, roleRank: d.rank, peakScore: d.peak, peakRank: Math.min(9,d.rank+1) },
       });
-      for (const h of heroes[ordered[j]]) {
+      for (const h of heroes[role]) {
         await prisma.heroPower.create({
-          data: { userId: uid, roleType: ordered[j], heroId: h.id, heroName: h.name, powerScore: h.power + Math.floor(Math.random()*3000) },
+          data: { userId: uid, roleType: role, heroId: h.id, heroName: h.name,
+            powerScore: isMain ? d.mainPower + Math.floor(Math.random()*2000) : d.offPower + Math.floor(Math.random()*3000) },
         });
       }
     }
