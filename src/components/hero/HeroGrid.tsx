@@ -11,6 +11,8 @@ interface Hero {
   heroType: number;
   heroType2: number;
   imageUrl: string;
+  mingge: boolean;
+  minggeName?: string | null;
 }
 
 const ROLE_LABELS: Record<string, { label: string; color: string }> = {
@@ -129,6 +131,7 @@ export function HeroGrid() {
   const [heroes, setHeroes] = useState<Hero[]>([]);
   const [roleFilter, setRoleFilter] = useState("");
   const [classFilter, setClassFilter] = useState("");
+  const [minggeFilter, setMinggeFilter] = useState(false);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState(false);
@@ -178,11 +181,9 @@ export function HeroGrid() {
     return () => es.close();
   }, []);
 
-  const filtered = heroes.filter(
-    (h) =>
-      h.name.includes(search) ||
-      h.title.includes(search)
-  );
+  const filtered = heroes
+    .filter((h) => h.name.includes(search) || h.title.includes(search))
+    .filter((h) => (minggeFilter ? h.mingge : true));
 
   return (
     <div style={{ maxWidth: 960, margin: "0 auto", padding: "40px 24px" }}>
@@ -242,6 +243,22 @@ export function HeroGrid() {
                 {c.label}
               </button>
             ))}
+          </div>
+        </div>
+
+        {/* 命格筛选 */}
+        <div style={{ marginTop: 10 }}>
+          <span style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", marginRight: 10, letterSpacing: 1 }}>
+            特性
+          </span>
+          <div style={{ display: "inline-flex", gap: 4, flexWrap: "wrap" }}>
+            <button
+              onClick={() => setMinggeFilter(!minggeFilter)}
+              className={minggeFilter ? "btn-primary" : "btn-subtle"}
+              style={{ padding: "5px 12px", fontSize: 12, fontWeight: minggeFilter ? 600 : 400 }}
+            >
+              命格系统
+            </button>
           </div>
         </div>
       </div>
@@ -318,6 +335,18 @@ export function HeroGrid() {
                       border: "1px solid " + ROLE_LABELS[hero.roleType].color + "25",
                     }}>
                       {ROLE_LABELS[hero.roleType].label}
+                    </span>
+                  )}
+                  {/* 命格标识 */}
+                  {hero.mingge && (
+                    <span style={{
+                      display: "inline-flex", alignItems: "center", padding: "2px 6px", borderRadius: 3,
+                      fontSize: 10, fontWeight: 700,
+                      background: "rgba(232,170,60,0.15)",
+                      color: "#e8aa3c",
+                      border: "1px solid rgba(232,170,60,0.3)",
+                    }}>
+                      命格
                     </span>
                   )}
                 </div>

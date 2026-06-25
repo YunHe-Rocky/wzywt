@@ -21,6 +21,8 @@ interface Hero {
   imageUrl: string;
   skinsJson?: string;
   skills: Skill[];
+  mingge?: boolean;
+  minggeName?: string | null;
 }
 
 const ROLE_LABELS: Record<string, string> = {
@@ -199,12 +201,25 @@ export function HeroDetailView() {
           <p style={{ fontSize: 15, color: "var(--text-secondary)", margin: "0 0 12px" }}>
             {hero.title}
           </p>
-          <span
-            className="badge badge-gold"
-            style={{ fontSize: 13, padding: "4px 12px" }}
-          >
-            {ROLE_LABELS[hero.roleType] || hero.roleType}
-          </span>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <span
+              className="badge badge-gold"
+              style={{ fontSize: 13, padding: "4px 12px" }}
+            >
+              {ROLE_LABELS[hero.roleType] || hero.roleType}
+            </span>
+            {hero.mingge && (
+              <span style={{
+                display: "inline-flex", alignItems: "center", padding: "4px 12px", borderRadius: "var(--radius-sm)",
+                fontSize: 13, fontWeight: 700,
+                background: "linear-gradient(135deg, rgba(232,170,60,0.15), rgba(232,170,60,0.05))",
+                color: "#e8aa3c",
+                border: "1px solid rgba(232,170,60,0.25)",
+              }}>
+                {hero.minggeName ? `命格 · ${hero.minggeName}` : "命格"}
+              </span>
+            )}
+          </div>
         </div>
       </div>
 

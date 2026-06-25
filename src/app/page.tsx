@@ -125,6 +125,19 @@ export default function Home() {
         <p className="text-sm text-text-secondary">5V5 内战分队 · 公平竞技</p>
       </div>
 
+      {/* v1.0.2 Update Notice */}
+      <div className="mb-3 p-4 rounded-md bg-gold/5 border border-gold/10 text-sm leading-relaxed">
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-[10px] font-bold text-gold/80 bg-gold/10 border border-gold/15 rounded px-1.5 leading-4">V1.0.2</span>
+          <span className="text-xs font-semibold text-gold-light">版本更新说明</span>
+        </div>
+        <ul className="text-xs text-text-secondary space-y-1 m-0 pl-4">
+          <li>🎨 <b>双布局适配</b>：桌面端演武主题（暗金琉璃）与移动端厚玻璃主题（浅底蓝调），URL 加 <code className="text-[11px] text-gold bg-gold/5 px-1 rounded">#1</code> 或 <code className="text-[11px] text-gold bg-gold/5 px-1 rounded">#2</code> 手动切换，手机自动跳转 /m 移动版</li>
+          <li>🕷️ <b>爬虫机制升级</b>：每 3 分钟自动对比官方数据，检测新英雄/皮肤/命格变化，5 重 UA 轮换 + 退避重试</li>
+          <li>⚔️ <b>命格系统</b>：支持英雄命格检测与筛选，图鉴页「命格系统」按钮一键过滤</li>
+        </ul>
+      </div>
+
       {/* Main content */}
       <div className="flex flex-col gap-4">
           {/* Announcements */}

@@ -66,7 +66,10 @@ export function HeroSelect({ roleType, value, onChange }: Props) {
   useEffect(() => {
     fetch(`/api/heroes?role_type=${roleType}`)
       .then((r) => r.json())
-      .then(setHeroes);
+      .then((data) => {
+        if (Array.isArray(data)) setHeroes(data);
+      })
+      .catch(() => {});
   }, [roleType]);
 
   const portalRef = useRef<HTMLDivElement>(null);
@@ -153,14 +156,14 @@ export function HeroSelect({ roleType, value, onChange }: Props) {
         }}
         onMouseEnter={(e) => {
           if (!open) {
-            e.currentTarget.style.background = "var(--bg-hover)";
-            e.currentTarget.style.borderColor = "var(--gold-alpha-20)";
+            e.currentTarget.style.background = getComputedStyle(document.documentElement).getPropertyValue("--bg-hover").trim();
+            e.currentTarget.style.borderColor = getComputedStyle(document.documentElement).getPropertyValue("--gold").trim();
           }
         }}
         onMouseLeave={(e) => {
           if (!open) {
-            e.currentTarget.style.background = "var(--bg-input)";
-            e.currentTarget.style.borderColor = "var(--border)";
+            e.currentTarget.style.background = getComputedStyle(document.documentElement).getPropertyValue("--bg-input").trim();
+            e.currentTarget.style.borderColor = getComputedStyle(document.documentElement).getPropertyValue("--border").trim();
           }
         }}
       >
@@ -259,13 +262,15 @@ export function HeroSelect({ roleType, value, onChange }: Props) {
                     transition: "background 0.1s",
                   }}
                   onMouseEnter={(e) => {
+                    const root = document.documentElement;
                     e.currentTarget.style.background = String(hero.heroId) === value
-                      ? "var(--gold-alpha-10)"
-                      : "var(--bg-hover)";
+                      ? getComputedStyle(root).getPropertyValue("--gold-alpha-10").trim()
+                      : getComputedStyle(root).getPropertyValue("--bg-hover").trim();
                   }}
                   onMouseLeave={(e) => {
+                    const root = document.documentElement;
                     e.currentTarget.style.background = String(hero.heroId) === value
-                      ? "var(--gold-alpha-08)"
+                      ? getComputedStyle(root).getPropertyValue("--gold-alpha-08").trim()
                       : "transparent";
                   }}
                 >

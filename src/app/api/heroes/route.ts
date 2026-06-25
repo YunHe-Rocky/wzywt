@@ -20,6 +20,8 @@ export async function GET(req: NextRequest) {
       heroType: true,
       heroType2: true,
       imageUrl: true,
+      mingge: true,
+      minggeName: true,
     },
   });
 

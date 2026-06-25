@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 const PUBLIC_PATHS = ["/login", "/register"];
-const PUBLIC_API = ["/api/auth", "/api/official-news", "/api/announcements", "/api/tournaments/public"];
+const PUBLIC_API = ["/api/auth", "/api/official-news", "/api/announcements", "/api/tournaments/public", "/api/heroes"];
 const STATIC_PREFIXES = ["/_next", "/favicon", "/public"];
 const SESSION_COOKIE = "wzyt_session";
 

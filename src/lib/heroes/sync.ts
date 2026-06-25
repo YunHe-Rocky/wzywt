@@ -104,6 +104,27 @@ function parseSkins(html: string, heroTitle: string): { name: string; index: num
   });
 }
 
+// ── Parse 命格 ─────────────────────────────────────────────────────
+function parseMingGe(html: string): { hasMingGe: boolean; mingGeName: string | null } {
+  // 查找详情页中是否有"命格"相关 tab/section
+  // 常见模式：
+  // 1. 导航 tab 中包含"命格"文字
+  // 2. 页面中有 mingge/fate 相关的 class 或 id
+  // 3. data 属性中包含命格信息
+
+  if (html.includes("命格")) {
+    // 尝试提取命格形态名称
+    // 匹配模式如: "命格：心魔六耳" 或 "命格形态：心魔六耳" 或 data-name="心魔六耳"
+    const nameMatch = html.match(/命格[：:]\s*([^<\s]+)/) ||
+      html.match(/命格形态[：:]\s*([^<\s]+)/) ||
+      html.match(/data-mingge-name="([^"]+)"/) ||
+      html.match(/命格名称[：:]\s*([^<\s]+)/);
+    return { hasMingGe: true, mingGeName: nameMatch ? sanitize(nameMatch[1]) : null };
+  }
+
+  return { hasMingGe: false, mingGeName: null };
+}
+
 // ── Parse skills ────────────────────────────────────────────────────
 function parseSkills(html: string): { name: string; cd: string; cost: string; desc: string }[] {
   const $ = load(html);
@@ -159,12 +180,14 @@ function parseSkills(html: string): { name: string; cd: string; cost: string; de
 // ── Main sync ───────────────────────────────────────────────────────
 export async function syncHeroes(): Promise<{ inserted: number; updated: number }> {
   console.log("[sync] Fetching hero list...");
-  const res = await fetch(HEROLIST_URL, {
-    headers: getHeaders(),
-    cache: "no-store",
+  const { fetchWithRetry } = await import("../anti-bot");
+  const res = await fetchWithRetry(HEROLIST_URL, {
+    timeout: 15000,
+    referer: "https://pvp.qq.com/",
+    isJson: true,
   });
-  if (!res.ok) throw new Error(`Hero list fetch failed: ${res.status}`);
-  const heroes: RawHero[] = await res.json();
+  if (!res.ok || !res.json) throw new Error(`Hero list fetch failed: ${res.status}`);
+  const heroes: RawHero[] = res.json as RawHero[];
   console.log(`[sync] ${heroes.length} heroes in list`);
 
   let inserted = 0;
@@ -189,6 +212,9 @@ export async function syncHeroes(): Promise<{ inserted: number; updated: number 
         const skins = html ? parseSkins(html, h.title) : [{ name: h.title, index: 1 }];
         const skinsJson = JSON.stringify(skins);
 
+        // 命格
+        const mingGe = html ? parseMingGe(html) : { hasMingGe: false, mingGeName: null };
+
         // Image: prefer bigskin-1, fallback to heroimg
         const bigskin = BIGSKIN_BASE.replace(/{id}/g, String(h.ename)).replace("{idx}", "1");
         const heroimg = HEROIMG_URL.replace(/{id}/g, String(h.ename));
@@ -202,22 +228,37 @@ export async function syncHeroes(): Promise<{ inserted: number; updated: number 
 
         if (!html) detail404s++;
 
-        return { h, roleType, skillsJson, skinsJson, imageUrl, hasDetail: !!html };
+        return { h, roleType, skillsJson, skinsJson, imageUrl, hasDetail: !!html, mingGe };
       })
     );
 
-    for (const { h, roleType, skillsJson, skinsJson, imageUrl } of results) {
+    for (const { h, roleType, skillsJson, skinsJson, imageUrl, mingGe } of results) {
       const existing = await prisma.hero.findUnique({ where: { heroId: h.ename } });
       if (!existing) {
         await prisma.hero.create({
-          data: { heroId: h.ename, name: h.cname, title: h.title, roleType, heroType: h.hero_type, heroType2: h.hero_type2 ?? 0, imageUrl, skinsJson, skillsJson },
+          data: { heroId: h.ename, name: h.cname, title: h.title, roleType, heroType: h.hero_type, heroType2: h.hero_type2 ?? 0, imageUrl, skinsJson, skillsJson, mingge: mingGe.hasMingGe, minggeName: mingGe.mingGeName },
         });
+        console.log(`[sync] NEW #${h.ename} ${h.cname}${mingGe.hasMingGe ? ` 命格:${mingGe.mingGeName || '?'}` : ""}`);
         inserted++;
       } else {
+        // Compare for changes
+        const changes: string[] = [];
+        if (existing.name !== h.cname) changes.push(`name:${existing.name}→${h.cname}`);
+        if (existing.title !== h.title) changes.push(`title:${existing.title}→${h.title}`);
+        if (existing.heroType !== h.hero_type) changes.push(`heroType:${existing.heroType}→${h.hero_type}`);
+        if (existing.heroType2 !== (h.hero_type2 ?? 0)) changes.push(`heroType2:${existing.heroType2}→${h.hero_type2 ?? 0}`);
+        if (existing.imageUrl !== imageUrl) changes.push(`imageUrl changed`);
+        if (existing.mingge !== mingGe.hasMingGe) changes.push(`mingge:${existing.mingge}→${mingGe.hasMingGe}`);
+        if ((existing.minggeName || null) !== mingGe.mingGeName) changes.push(`minggeName:${existing.minggeName}→${mingGe.mingGeName}`);
+
+        if (changes.length > 0) {
+          console.log(`[sync] #${h.ename} ${h.cname}: ${changes.join(" | ")}`);
+        }
+
         // Update official data fields, but preserve roleType (may have been manually corrected)
         await prisma.hero.update({
           where: { heroId: h.ename },
-          data: { name: h.cname, title: h.title, heroType: h.hero_type, heroType2: h.hero_type2 ?? 0, imageUrl, skinsJson, skillsJson },
+          data: { name: h.cname, title: h.title, heroType: h.hero_type, heroType2: h.hero_type2 ?? 0, imageUrl, skinsJson, skillsJson, mingge: mingGe.hasMingGe, minggeName: mingGe.mingGeName },
         });
         updated++;
       }

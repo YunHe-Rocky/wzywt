@@ -18,9 +18,35 @@ async function main() {
     }
   }, 5000);
 
-  // Daily hero sync at 06:00
+  // Hourly hero check: lightweight monitor → full sync if changed
+  async function hourlyCheck() {
+    try {
+      const { runAllMonitors, runMonitorAndScrape } = await import("../src/lib/monitor");
+      const results = await runAllMonitors();
+      const changed = results.filter(r => r.changed);
+      if (changed.length > 0) {
+        console.log(`[hero-monitor] Changes detected: ${changed.map(c => `${c.module}:${c.detail}`).join(", ")}`);
+        const events = await runMonitorAndScrape(changed.map(c => c.module));
+        for (const e of events) {
+          console.log(`[hero-monitor] ${e.module} ${e.action}: ${e.detail}`);
+        }
+        // Also download images if heroes/skins changed
+        if (changed.some(c => c.module === "heroes" || c.module === "skins")) {
+          try {
+            const { downloadAllImages } = await import("../src/lib/heroes/download-images");
+            const imgResult = await downloadAllImages();
+            console.log(`[hero-monitor] Images: ${imgResult.heroes} hero + ${imgResult.skins} skins downloaded`);
+          } catch (e) { console.error("[hero-monitor] Image download failed:", e); }
+        }
+      }
+    } catch (err) {
+      console.error("[hero-monitor] Hourly check failed:", err);
+    }
+  }
+
+  // Daily full sync at 06:00 (unconditional, no monitor needed)
   cron.schedule("0 6 * * *", async () => {
-    console.log("[hero-sync] Starting daily sync...");
+    console.log("[hero-sync] Starting daily full sync...");
     try {
       const { syncHeroes: sync } = await import("../src/lib/heroes/sync");
       const result = await sync();
@@ -29,6 +55,10 @@ async function main() {
       console.error("[hero-sync] Failed:", err);
     }
   });
+
+  // Monitor every 3 minutes (lightweight: 1 JSON fetch + DB compare, only syncs if changes detected)
+  hourlyCheck(); // Run on startup
+  cron.schedule("*/3 * * * *", hourlyCheck);
 
   // Deadline checker every minute
   cron.schedule("* * * * *", async () => {

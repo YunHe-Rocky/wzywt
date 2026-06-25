@@ -18,7 +18,7 @@ export function Header() {
   const [loaded, setLoaded] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [version, setVersion] = useState("V1.0.0");
+  const [version, setVersion] = useState("V1.0.2");
   const [mounted, setMounted] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const router = useRouter();

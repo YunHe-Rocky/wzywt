@@ -723,8 +723,6 @@
       background: linear-gradient(90deg, transparent, rgba(68,136,240,0.2), #4488f0, rgba(68,136,240,0.2), transparent);
     }
 
-    & .main-content { padding-bottom: 100px; }
-
     & .hero-add-form {
       background: rgba(255,255,255,0.55);
       border-color: rgba(0,0,0,0.06);
@@ -1021,7 +1019,7 @@
   z-index: 1;
   max-width: 1200px;
   margin: 0 auto;
-  padding: 24px;
+  padding: 24px 24px 100px 24px;
   animation: fade-in 0.3s ease-out;
 }
 

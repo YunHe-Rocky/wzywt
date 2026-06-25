@@ -33,8 +33,8 @@ export async function fetchWithRetry(
 ): Promise<{ ok: boolean; status: number; text?: string; json?: unknown }> {
   const { timeout = 10000, referer, isJson } = options;
 
-  // Tier 1: Regular fetch with rotating browser headers
-  for (let attempt = 0; attempt < 3; attempt++) {
+  // Tier 1: Regular fetch with rotating browser headers (5 retries)
+  for (let attempt = 0; attempt < 5; attempt++) {
     try {
       // Rotate UA on each retry
       const ua = getRandomUA();
@@ -66,7 +66,7 @@ export async function fetchWithRetry(
 
       return { ok: false, status: res.status };
     } catch (e) {
-      if (attempt < 2) {
+      if (attempt < 4) {
         await new Promise((r) => setTimeout(r, 2000));
         continue;
       }
@@ -74,25 +74,7 @@ export async function fetchWithRetry(
     }
   }
 
-  // Tier 2: Playwright headless browser (heavy, only as fallback)
-  try {
-    // eslint-disable-next-line
-    const pw = require("playwright") as any;
-    const browser = await pw.chromium.launch({ headless: true });
-    const page = await browser.newPage();
-    await page.setExtraHTTPHeaders(getHeaders(referer));
-
-    const response = await page.goto(url, {
-      waitUntil: "domcontentloaded",
-      timeout: timeout * 2,
-    });
-
-    const status = response?.status() || 0;
-    const text = await page.content();
-    await browser.close();
-
-    return { ok: status >= 200 && status < 300, status, text };
-  } catch {
-    return { ok: false, status: 0 };
-  }
+  // All retries exhausted
+  console.error(`[anti-bot] All retries failed for ${url}`);
+  return { ok: false, status: 0 };
 }

@@ -128,6 +128,8 @@ model Hero {
   imageUrl   String   @map("image_url") @db.VarChar(255)
   skinsJson  String?  @map("skins_json") @db.Text
   skillsJson String   @map("skills_json") @db.Text
+  mingge     Boolean  @default(false) @map("mingge")
+  minggeName String?  @map("mingge_name") @db.VarChar(64)
   updatedAt  DateTime @default(now()) @updatedAt @map("updated_at")
 
   @@map("heroes")

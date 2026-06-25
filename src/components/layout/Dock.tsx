@@ -52,21 +52,13 @@ export function Dock() {
   const { theme } = useTheme();
   const pathname = usePathname();
   const [mounted, setMounted] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
-  useEffect(() => {
-    setMounted(true);
-    const mq = window.matchMedia("(max-width: 768px)");
-    setIsMobile(mq.matches);
-    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
-    mq.addEventListener("change", handler);
-    return () => mq.removeEventListener("change", handler);
-  }, []);
+  useEffect(() => { setMounted(true); }, []);
 
-  if (!mounted || !isMobile) return null;
+  if (!mounted) return null;
 
   const isYanwu = theme === "yanwu";
-  const accent = isYanwu ? "var(--gold)" : "#5e9eff";
-  const accentBg = isYanwu ? "var(--gold-alpha-08)" : "rgba(94,158,255,0.08)";
+  const accent = isYanwu ? "var(--gold)" : "var(--gold)";
+  const accentBg = isYanwu ? "var(--gold-alpha-08)" : "var(--gold-alpha-08)";
 
   const isActive = (href: string) =>
     href === "/" ? pathname === "/" : pathname.startsWith(href);

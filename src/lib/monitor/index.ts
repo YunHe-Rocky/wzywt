@@ -64,10 +64,19 @@ async function checkHeroes(): Promise<MonitorResult> {
       return { module: "heroes", changed: true, detail: "name mismatch", count: official.length };
     }
 
-    // Check for any title mismatch by sampling more heroes
+    // Check for any mismatch by sampling more heroes (every 20th + 命格 heroes)
     let mismatchCount = 0;
-    for (let i = 0; i < official.length; i += 20) {
-      const db = await prisma.hero.findUnique({ where: { heroId: official[i].ename }, select: { name: true, title: true, heroType: true } });
+    const sampleIndices = new Set<number>();
+    for (let i = 0; i < official.length; i += 20) sampleIndices.add(i);
+    // Also explicitly check heroes that have 命格 in DB
+    const mingGeHeroes = await prisma.hero.findMany({ where: { mingge: true }, select: { heroId: true } });
+    for (const h of mingGeHeroes) {
+      const idx = official.findIndex(o => o.ename === h.heroId);
+      if (idx >= 0) sampleIndices.add(idx);
+    }
+
+    for (const i of Array.from(sampleIndices)) {
+      const db = await prisma.hero.findUnique({ where: { heroId: official[i].ename }, select: { name: true, title: true, heroType: true, mingge: true, minggeName: true } });
       if (db && (db.name !== official[i].cname || db.title !== official[i].title || db.heroType !== official[i].hero_type)) {
         mismatchCount++;
       }

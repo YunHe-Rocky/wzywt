@@ -27,6 +27,8 @@ export async function GET(
     imageUrl: hero.imageUrl,
     skinsJson: hero.skinsJson,
     skills: JSON.parse(hero.skillsJson || "[]"),
+    mingge: hero.mingge,
+    minggeName: hero.minggeName,
   });
 }
 

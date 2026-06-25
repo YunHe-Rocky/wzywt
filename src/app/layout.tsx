@@ -2,6 +2,7 @@ import "./globals.css";
 import type { Metadata } from "next";
 import { Header } from "@/components/layout/Header";
 import { CursorLighting } from "@/components/layout/CursorLighting";
+import { Dock } from "@/components/layout/Dock";
 import { BackgroundOrbs } from "@/components/layout/BackgroundOrbs";
 import { ToastProvider } from "@/components/ui/Toast";
 import { ThemeProvider } from "@/themes/ThemeProvider";
@@ -29,6 +30,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <CursorLighting />
             <Header />
             <main className="main-content">{children}</main>
+            <Dock />
           </ToastProvider>
         </ThemeProvider>
       </body>

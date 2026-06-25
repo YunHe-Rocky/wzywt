@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { Dock } from "@/components/layout/Dock";
 
 export const metadata: Metadata = {
   title: "王者演武堂",
@@ -8,9 +7,6 @@ export const metadata: Metadata = {
 
 export default function MobileLayout({ children }: { children: React.ReactNode }) {
   return (
-    <>
-      <div className="-mx-6 min-h-screen pb-24 px-3 pt-3">{children}</div>
-      <Dock />
-    </>
+    <div className="-mx-6 min-h-screen pb-24 px-3 pt-3">{children}</div>
   );
 }
