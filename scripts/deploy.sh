@@ -19,8 +19,10 @@ echo ">>> npm run build..."
 npm run build
 
 echo ">>> restart pm2..."
-pm2 restart all
+pm2 delete ecosystem.config.js 2>/dev/null
+pm2 start ecosystem.config.js
 
 echo ""
 echo "=== 部署完成 ==="
 pm2 status
+pm2 save
