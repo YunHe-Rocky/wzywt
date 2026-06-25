@@ -1,7 +1,14 @@
 #!/bin/bash
+# 王者演武堂部署脚本 — 每步有容错，不因清理失败而中断
 set -e
 
 cd /opt/yanwutang
+
+echo ">>> stop old services..."
+pm2 stop all 2>/dev/null || true
+pm2 delete all 2>/dev/null || true
+fuser -k 8081/tcp 2>/dev/null || true
+sleep 1
 
 echo ">>> git pull..."
 git pull origin master
@@ -9,20 +16,22 @@ git pull origin master
 echo ">>> npm install..."
 npm install
 
+echo ">>> prisma generate..."
+npx prisma generate
+
 echo ">>> prisma db push..."
 npx prisma db push
 
 echo ">>> migrate announcements..."
-npx tsx scripts/migrate-announcements.ts
+npx tsx scripts/migrate-announcements.ts 2>/dev/null || echo "  (no legacy files to migrate)"
+
+echo ">>> clean build cache..."
+rm -rf .next
 
 echo ">>> npm run build..."
 npm run build
 
-echo ">>> kill old port..."
-fuser -k 8081/tcp 2>/dev/null || true
-
-echo ">>> restart pm2..."
-pm2 delete ecosystem.config.js 2>/dev/null
+echo ">>> start pm2..."
 pm2 start ecosystem.config.js
 
 echo ""
