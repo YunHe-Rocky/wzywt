@@ -163,8 +163,8 @@ export function Header() {
         )}
       </div>
 
-      {/* Mobile nav dropdown — 演武汉堡菜单展开 */}
-      {ui.mobileNav === "hamburger" && mobileOpen && (
+      {/* Mobile nav dropdown — 演武手机汉堡菜单展开 */}
+      {ui.mobileNav === "hamburger" && isMobile && mobileOpen && (
         <div className="border-t border-border bg-card px-4 py-2 flex flex-col gap-1 animate-slide-up">
           {NAV.map(n => (
             <Link key={n.href} href={withHash(n.href)} onClick={() => setMobileOpen(false)}
