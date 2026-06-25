@@ -175,7 +175,47 @@ export { default } from "@/app/me/page";
 
 ---
 
-## 六、关键文件索引
+## 六、Header CSS 类对照
+
+| 类名 | 用途 | 定义位置 |
+|------|------|----------|
+| `.header-bar` | #2 紧凑 Header 容器（半透白 + blur） | `@layer components` + `[data-theme="alternate"]` 覆盖 |
+| `.header-inner` | #1 全高 Header 内部 flex 容器（max-w-1200px） | `@layer components` |
+| `.header-inner-alt` | #2 紧凑 Header 内部 flex 容器（max-w-100%） | `@layer components` |
+| `.header-brand` | 品牌名链接 | `@layer components` |
+| `.header-glow` | #1 底部金线呼吸动画 | `@layer components` |
+| `.nav-link` | 桌面导航链接 | `@layer components` |
+
+> **注意**：`header-inner-alt` 是 v1.0.1 后期补上的，之前遗漏导致 #2 Header 布局塌缩。
+
+---
+
+## 七、常见问题
+
+### #2 Header 导航不可用
+- 检查 `header-inner-alt` 类是否存在于 `globals.css`
+- 检查 `ui.headerNav === "compact"` 是否正常返回
+
+### 桌面 #1 出现汉堡菜单
+- 检查 `isMobile` 是否为 `true`（屏幕宽度检测异常）
+- 检查 `ui.mobileNav` 是否为 `"hamburger"`
+
+### 命格英雄在图鉴消失
+- 同步脚本可能覆盖了 `mingge` 字段 → 已修复：只在爬虫检测到命格时才更新
+- 过滤器按 `minggeName` 隐藏命格形态，不按 ID
+
+---
+
+## 八、版本历史
+
+| 版本 | 日期 | 主要变更 |
+|------|------|----------|
+| V1.0.0 | 2026-06-24 | 初始版本，双主题架构 |
+| V1.0.1 | 2026-06-25 | UI Config 系统、命格系统、爬虫升级、移动端 /m 路由、Dock 常驻 |
+
+---
+
+## 九、关键文件索引
 
 | 文件 | 说明 |
 |------|------|
