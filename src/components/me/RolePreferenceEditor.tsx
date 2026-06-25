@@ -105,7 +105,7 @@ export function RolePreferenceEditor() {
 
       {/* Priority config */}
       <div className="flex flex-col gap-2 mb-5 p-4 rounded-lg bg-input/50 border border-border/50">
-        <div className="text-xs font-semibold text-text-muted tracking-wider mb-0.5">分路优先级排序</div>
+        <div className="text-xs font-semibold text-text tracking-wider mb-0.5">分路优先级排序</div>
         {prefs.map((p, i) => (
           <div key={p.roleType} className="flex items-center gap-2.5">
             <span className="text-gold-light font-bold text-sm w-5 shrink-0">{p.preferenceRank}</span>
@@ -134,10 +134,10 @@ export function RolePreferenceEditor() {
       {/* Active tab content */}
       {activePref && (
         <div className="animate-slide-up">
-          <div className="flex items-center gap-2.5 mb-4">
+          <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-border-light">
             <LaneIcon role={activePref.roleType} size={24} />
             <span className="text-base font-bold text-text">{ROLE_LABELS[activePref.roleType]}</span>
-            <span className="text-xs text-text-muted">优先度 {activePref.preferenceRank}</span>
+            <span className="badge badge-gold text-[11px] px-2 py-0.5">P{activePref.preferenceRank}</span>
           </div>
 
           {activeHeroes.map(h => (
