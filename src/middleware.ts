@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const PUBLIC_PATHS = ["/login", "/register"];
+const PUBLIC_PATHS = ["/login", "/register", "/heroes", "/tournaments", "/changelog", "/monitor"];
+// 首页 "/" 也算公开（basePath 为空时处理）
+function isPublicPath(path: string): boolean {
+  if (path === "/" || path === "") return true;
+  return PUBLIC_PATHS.some((p) => path.startsWith(p));
+}
 const PUBLIC_API = ["/api/auth", "/api/official-news", "/api/announcements", "/api/tournaments/public", "/api/heroes"];
 const STATIC_PREFIXES = ["/_next", "/favicon", "/public"];
 const SESSION_COOKIE = "wzyt_session";
@@ -45,7 +50,7 @@ export function middleware(req: NextRequest) {
   // ── Auth check ──
   const basePath = alreadyMobile ? pathname.replace(/^\/m/, "") || "/" : pathname;
 
-  if (PUBLIC_PATHS.some((p) => basePath.startsWith(p))) {
+  if (isPublicPath(basePath)) {
     return NextResponse.next();
   }
 
