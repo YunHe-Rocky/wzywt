@@ -605,16 +605,18 @@ export function TournamentDetail() {
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "space-between",
+                  flexWrap: "wrap",
+                  rowGap: 4,
                   padding: "10px 0",
                   borderBottom: "1px solid var(--border-light)",
                   background: isMe ? "var(--gold-alpha-04)" : teamBg,
                   borderLeft: teamColor ? `3px solid ${teamColor === "red" ? "var(--red)" : "var(--blue)"}` : "3px solid transparent",
                   paddingLeft: teamColor ? 14 : 17,
-                  gap: 12,
+                  gap: 8,
                 }}
               >
                 {/* Left: info */}
-                <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0, flexWrap: "wrap", rowGap: 3 }}>
                   {/* Team indicator */}
                   {teamColor && (
                     <span style={{
@@ -636,7 +638,7 @@ export function TournamentDetail() {
                       {ROLE_LABELS[splitRole]}
                     </span>
                   )}
-                  <span style={{ fontSize: 14, fontWeight: 600, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  <span style={{ fontSize: 14, fontWeight: 600, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "100%" }}>
                     {p.isTemporary ? (p.tempName || "临时选手") : p.user.username}
                     {isMe && <span style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 400, marginLeft: 4 }}>(我)</span>}
                   </span>
