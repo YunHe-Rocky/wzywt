@@ -245,20 +245,20 @@ export function TournamentList() {
                   return (
                     <button key={t.id} onClick={() => router.push(`/tournaments/${t.id}`)}
                       className="card" style={{
-                        textAlign: "left", padding: "16px 24px", cursor: "pointer",
+                        textAlign: "left", padding: "14px 18px", cursor: "pointer",
                         animation: `fade-in 0.3s ease-out ${i * 0.04}s both`,
                         transition: "border-color 0.15s",
                       }}
                       onMouseEnter={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.12)"; }}
                       onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; }}>
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
-                          <span style={{ fontWeight: 600, fontSize: 16, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 240 }}>{t.name}</span>
-                          <span style={{ fontSize: 12, color: "var(--text-muted)", fontFamily: "monospace", fontWeight: 600, letterSpacing: 1, padding: "2px 8px", background: "var(--bg-input)", borderRadius: "var(--radius-sm)" }}>#{t.code}</span>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap", rowGap: 6 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, flex: "1 1 auto" }}>
+                          <span style={{ fontWeight: 600, fontSize: 16, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.name}</span>
+                          <span style={{ fontSize: 12, color: "var(--text-muted)", fontFamily: "monospace", fontWeight: 600, letterSpacing: 1, padding: "2px 6px", background: "var(--bg-input)", borderRadius: "var(--radius-sm)", flexShrink: 0 }}>#{t.code}</span>
                         </div>
-                        <div style={{ display: "flex", alignItems: "center", gap: 16, flexShrink: 0 }}>
-                          <div style={{ display: "flex", alignItems: "baseline", gap: 3 }}>
-                            <span style={{ fontSize: 18, fontWeight: 700, color: t._count.players >= 10 ? "var(--gold)" : "var(--text)" }}>{t._count.players}</span>
+                        <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
+                          <div style={{ display: "flex", alignItems: "baseline", gap: 2 }}>
+                            <span style={{ fontSize: 16, fontWeight: 700, color: t._count.players >= 10 ? "var(--gold)" : "var(--text)" }}>{t._count.players}</span>
                             <span style={{ fontSize: 11, color: "var(--text-muted)" }}>人</span>
                           </div>
                           <span style={{ fontSize: 12, color: "var(--text-secondary)", fontFamily: "monospace", whiteSpace: "nowrap" }}>
@@ -284,18 +284,18 @@ export function TournamentList() {
                 {publicTournaments.map((t, i) => (
                   <button key={t.id} onClick={() => router.push(`/tournaments/${t.id}`)}
                     className="card" style={{
-                      textAlign: "left", padding: "16px 24px", cursor: "pointer",
+                      textAlign: "left", padding: "14px 18px", cursor: "pointer",
                       animation: `fade-in 0.3s ease-out ${i * 0.04}s both`,
                     }}>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
-                        <span style={{ fontWeight: 600, fontSize: 16, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 240 }}>{t.name}</span>
-                        <span style={{ fontSize: 12, color: "var(--text-muted)", fontFamily: "monospace", fontWeight: 600, letterSpacing: 1, padding: "2px 8px", background: "var(--bg-input)", borderRadius: "var(--radius-sm)" }}>#{t.code}</span>
-                        <span className="badge badge-green" style={{ fontSize: 10 }}>公开</span>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap", rowGap: 6 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, flex: "1 1 auto" }}>
+                        <span style={{ fontWeight: 600, fontSize: 16, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.name}</span>
+                        <span style={{ fontSize: 12, color: "var(--text-muted)", fontFamily: "monospace", fontWeight: 600, letterSpacing: 1, padding: "2px 6px", background: "var(--bg-input)", borderRadius: "var(--radius-sm)", flexShrink: 0 }}>#{t.code}</span>
+                        <span className="badge badge-green" style={{ fontSize: 10, flexShrink: 0 }}>公开</span>
                       </div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 16, flexShrink: 0 }}>
-                        <div style={{ display: "flex", alignItems: "baseline", gap: 3 }}>
-                          <span style={{ fontSize: 18, fontWeight: 700, color: t._count.players >= 10 ? "var(--gold)" : "var(--text)" }}>{t._count.players}</span>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
+                        <div style={{ display: "flex", alignItems: "baseline", gap: 2 }}>
+                          <span style={{ fontSize: 16, fontWeight: 700, color: t._count.players >= 10 ? "var(--gold)" : "var(--text)" }}>{t._count.players}</span>
                           <span style={{ fontSize: 11, color: "var(--text-muted)" }}>/10人</span>
                         </div>
                         <span style={{ fontSize: 12, color: "var(--text-secondary)", fontFamily: "monospace" }}>
