@@ -125,10 +125,10 @@ export default function Home() {
         <p className="text-sm text-text-secondary">5V5 内战分队 · 公平竞技</p>
       </div>
 
-      {/* v1.0.2 Update Notice */}
+      {/* v1.0.1 Update Notice */}
       <div className="mb-3 p-4 rounded-md bg-gold/5 border border-gold/10 text-sm leading-relaxed">
         <div className="flex items-center gap-2 mb-2">
-          <span className="text-[10px] font-bold text-gold/80 bg-gold/10 border border-gold/15 rounded px-1.5 leading-4">V1.0.2</span>
+          <span className="text-[10px] font-bold text-gold/80 bg-gold/10 border border-gold/15 rounded px-1.5 leading-4">V1.0.1</span>
           <span className="text-xs font-semibold text-gold-light">版本更新说明</span>
         </div>
         <ul className="text-xs text-text-secondary space-y-1 m-0 pl-4">
