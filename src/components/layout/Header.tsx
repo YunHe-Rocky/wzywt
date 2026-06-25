@@ -74,8 +74,8 @@ export function Header() {
           </span>
         </Link>
 
-        {/* Desktop nav — hidden on mobile and alternate (nav is in Dock) */}
-        {!isAlt && !isMobile && (
+        {/* Desktop nav — hidden on /m routes (Dock handles mobile nav) */}
+        {!isMobile && (
           <nav className="hidden sm:flex items-center gap-1 ml-4">
             {NAV.map(n => (
               <Link key={n.href} href={withHash(n.href)}
