@@ -60,21 +60,16 @@ export function Header() {
   const active = (href: string) => href === "/" ? pathname === "/" : pathname.startsWith(href);
 
   return (
-    <header className={`sticky top-0 z-50 ${isMobile ? "bg-nav/90 backdrop-blur-md border-b border-border" : (ui.headerNav === "compact") ? "header-bar" : "bg-nav border-b border-border-gold"}`} suppressHydrationWarning>
-      {!(ui.headerNav === "compact") && !isMobile && (
+    <header className={`sticky top-0 z-50 ${(ui.headerNav === "compact") ? "header-bar" : "bg-nav border-b border-border-gold"}`} suppressHydrationWarning>
+      {ui.headerNav === "full" && (
         <div className="h-px bg-gradient-to-r from-transparent via-gold/40 to-transparent animate-pulse" />
       )}
 
-      <div className={`${isMobile ? "max-w-full mx-auto px-4 h-11" : (ui.headerNav === "compact") ? "header-inner-alt" : "max-w-6xl mx-auto px-4 sm:px-6 h-14"} flex items-center gap-4`}
-        style={isMobile ? undefined : (ui.headerNav === "compact") ? { height: 34, padding: "0 20px" } : undefined}>
+      <div className={`${(ui.headerNav === "compact") ? "header-inner-alt" : isMobile ? "max-w-full mx-auto px-4 h-11" : "max-w-6xl mx-auto px-4 sm:px-6 h-14"} flex items-center gap-4`}
+        style={(ui.headerNav === "compact") ? { height: 34, padding: "0 20px" } : undefined}>
         {/* Brand */}
         <Link href={withHash(pathIsM ? "/m" : "/")} className="flex items-center gap-2 shrink-0 no-underline">
-          {(ui.headerNav === "compact") && !isMobile && (
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#5e9eff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5"/>
-            </svg>
-          )}
-          <span className={isMobile ? "text-sm font-extrabold tracking-wider text-gold-light" : (ui.headerNav === "compact") ? "text-[11px] font-bold tracking-wider text-[#777]" : "text-lg font-extrabold tracking-wider text-gold-light"}>
+          <span className={(ui.headerNav === "compact") ? "text-[11px] font-bold tracking-wider text-[#777]" : isMobile ? "text-sm font-extrabold tracking-wider text-gold-light" : "text-lg font-extrabold tracking-wider text-gold-light"}>
             王者演武堂
           </span>
           <span className={`text-[10px] font-semibold tracking-wider rounded px-1.5 leading-4 ${isMobile ? "inline text-gold/70 border border-gold/10" : "inline text-gold/70 border border-gold/15"}`}>
@@ -103,10 +98,10 @@ export function Header() {
           <div ref={menuRef} className="relative">
             <button onClick={() => setMenuOpen(!menuOpen)}
               className={`flex items-center gap-2 rounded-full transition-all ${(ui.headerNav === "compact") ? "px-2 py-0.5 hover:bg-black/5" : "px-2 py-1 hover:bg-hover"}`}>
-              <span className={`rounded-full flex items-center justify-center font-bold transition-shadow ${(ui.headerNav === "compact") ? "w-6 h-6 text-[10px] bg-blue/8 text-[#5e9eff] border border-blue/15 hover:shadow-[0_0_8px_rgba(94,158,255,0.12)]" : "w-7 h-7 text-xs bg-gradient-to-br from-gold to-gold-dim text-white"}`}>
+              <span className={`rounded-full flex items-center justify-center font-bold transition-shadow ${(ui.headerNav === "compact") ? "w-6 h-6 text-[10px] bg-blue/8 text-[#4488f0] border border-blue/15" : "w-7 h-7 text-xs bg-gradient-to-br from-gold to-gold-dim text-white"}`}>
                 {user.username[0]}
               </span>
-              {!(ui.headerNav === "compact") && <span className="text-sm text-text hidden sm:inline">{user.username}</span>}
+              {ui.headerNav === "full" && !isMobile && <span className="text-sm text-text hidden sm:inline">{user.username}</span>}
               <svg className={`w-3 h-3 transition-transform ${menuOpen ? "rotate-180" : ""} ${(ui.headerNav === "compact") ? "text-[#aaa]" : "text-text-muted"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeWidth={2} d="M6 9l6 6 6-6" />
               </svg>
@@ -123,7 +118,7 @@ export function Header() {
                 } : undefined}>
                 <div className="px-4 py-3 border-b border-border-light">
                   <div className="flex items-center gap-2.5">
-                    <span className={`rounded-full flex items-center justify-center font-bold shrink-0 ${(ui.headerNav === "compact") ? "w-8 h-8 text-sm bg-blue/8 text-[#5e9eff]" : "w-8 h-8 text-sm bg-gradient-to-br from-gold to-gold-dim text-white"}`}>
+                    <span className={`rounded-full flex items-center justify-center font-bold shrink-0 ${(ui.headerNav === "compact") ? "w-8 h-8 text-sm bg-blue/8 text-[#4488f0]" : "w-8 h-8 text-sm bg-gradient-to-br from-gold to-gold-dim text-white"}`}>
                       {user.username[0]}
                     </span>
                     <div className="min-w-0">
@@ -148,7 +143,7 @@ export function Header() {
           </div>
         ) : (ui.headerNav === "compact") ? (
           <Link href={withHash("/login")}
-            className="flex items-center justify-center w-5 h-5 rounded-full bg-blue/10 text-[#5e9eff] text-[9px] font-bold no-underline">
+            className="flex items-center justify-center w-5 h-5 rounded-full bg-blue/10 text-[#4488f0] text-[9px] font-bold no-underline">
             ?
           </Link>
         ) : (
