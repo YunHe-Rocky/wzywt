@@ -133,7 +133,6 @@ export function HeroGrid() {
   const [roleFilter, setRoleFilter] = useState("");
   const [classFilter, setClassFilter] = useState("");
   const [search, setSearch] = useState("");
-  const [minggePick, setMinggePick] = useState<{ base: Hero; related: Hero | null } | null>(null);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState(false);
 
@@ -283,24 +282,7 @@ export function HeroGrid() {
           {filtered.map((hero, i) => (
             <button
               key={hero.heroId}
-              onClick={async () => {
-                if (hero.mingge && hero.minggeRelatedId) {
-                  // 有命格 → 获取关联英雄信息，弹出选择
-                  const existing = heroes.find(h => h.heroId === hero.minggeRelatedId);
-                  if (existing) {
-                    setMinggePick({ base: hero, related: existing });
-                  } else {
-                    try {
-                      const res = await fetch(`/api/heroes/${hero.minggeRelatedId}`);
-                      const data = await res.json();
-                      if (data.heroId) setMinggePick({ base: hero, related: data });
-                      else router.push(`/heroes/${hero.heroId}`);
-                    } catch { router.push(`/heroes/${hero.heroId}`); }
-                  }
-                } else {
-                  router.push(`/heroes/${hero.heroId}`);
-                }
-              }}
+              onClick={() => router.push(`/heroes/${hero.heroId}`)}
               className="card"
               style={{
                 padding: 0,
@@ -369,64 +351,6 @@ export function HeroGrid() {
         </p>
       )}
 
-      {/* ── 命格选择弹窗 ── */}
-      {minggePick && (
-        <>
-          <div onClick={() => setMinggePick(null)}
-            style={{ position: "fixed", inset: 0, zIndex: 99998, background: "rgba(0,0,0,0.5)", backdropFilter: "blur(4px)" }} />
-          <div style={{
-            position: "fixed", top: "50%", left: "50%", transform: "translate(-50%,-50%)",
-            zIndex: 99999, background: "var(--bg-card)", border: "1px solid var(--border)",
-            borderRadius: "var(--radius-lg)", padding: 28, minWidth: 300, maxWidth: "90vw",
-            boxShadow: "0 16px 48px rgba(0,0,0,0.3)", textAlign: "center",
-          }}>
-            <p style={{ fontSize: 15, fontWeight: 700, color: "var(--text)", margin: "0 0 4px" }}>
-              选择形态
-            </p>
-            <p style={{ fontSize: 12, color: "var(--text-muted)", margin: "0 0 20px" }}>
-              该英雄拥有命格，请选择查看
-            </p>
-            <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
-              {/* 本命 */}
-              <button onClick={() => { router.push(`/heroes/${minggePick.base.heroId}`); setMinggePick(null); }}
-                style={{
-                  display: "flex", flexDirection: "column", alignItems: "center", gap: 8,
-                  padding: "16px 20px", borderRadius: "var(--radius)", border: "1px solid var(--border)",
-                  background: "var(--bg-input)", cursor: "pointer", minWidth: 120,
-                }}>
-                <img src={minggePick.base.imageUrl} alt="" style={{ width: 56, height: 56, borderRadius: 8, objectFit: "cover" }}
-                  onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} />
-                <div>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text)" }}>{minggePick.base.name}</div>
-                  <div style={{ fontSize: 10, color: "var(--text-muted)", marginTop: 2 }}>本命</div>
-                </div>
-              </button>
-
-              {/* 命格 */}
-              {minggePick.related && (
-                <button onClick={() => { router.push(`/heroes/${minggePick.related!.heroId}`); setMinggePick(null); }}
-                  style={{
-                    display: "flex", flexDirection: "column", alignItems: "center", gap: 8,
-                    padding: "16px 20px", borderRadius: "var(--radius)", border: "1px solid rgba(232,170,60,0.3)",
-                    background: "linear-gradient(135deg, rgba(232,170,60,0.08), rgba(232,170,60,0.02))",
-                    cursor: "pointer", minWidth: 120,
-                  }}>
-                  <img src={minggePick.related.imageUrl} alt="" style={{ width: 56, height: 56, borderRadius: 8, objectFit: "cover" }}
-                    onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} />
-                  <div>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text)" }}>{minggePick.related.name}</div>
-                    <div style={{ fontSize: 10, color: "#e8aa3c", marginTop: 2, fontWeight: 600 }}>命格</div>
-                  </div>
-                </button>
-              )}
-            </div>
-            <button onClick={() => setMinggePick(null)}
-              style={{ marginTop: 16, background: "none", border: "none", color: "var(--text-muted)", fontSize: 12, cursor: "pointer" }}>
-              取消
-            </button>
-          </div>
-        </>
-      )}
     </div>
   );
 }
