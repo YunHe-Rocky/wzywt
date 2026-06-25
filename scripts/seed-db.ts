@@ -119,6 +119,20 @@ async function main() {
   } else {
     console.log(`  ✗ 分队失败(需要正好10人)`);
   }
+  // 同步英雄 + 绑定命格
+  console.log("\n同步英雄数据...");
+  try {
+    const { syncHeroes } = await import("../src/lib/heroes/sync");
+    const r = await syncHeroes();
+    console.log(`  ✓ ${r.inserted} new, ${r.updated} updated`);
+  } catch(e: any) { console.log(`  ⚠ 同步失败: ${e.message}`); }
+
+  console.log("绑定命格关系...");
+  try {
+    const { execSync } = await import("child_process");
+    execSync("npx tsx scripts/migrate-mingge.ts", { cwd: "/opt/yanwutang", stdio: "inherit" });
+  } catch { console.log("  ⚠ 命格绑定失败"); }
+
   console.log(`\n=== 完成 ===`);
   console.log(`赛事: http://ywt.yunhe.ink/tournaments/${t.id}`);
   console.log(`邀请码: ${t.code}`);
