@@ -31,6 +31,7 @@ export async function GET(
     skills: JSON.parse(hero.skillsJson || "[]"),
     mingge: hero.mingge,
     minggeName: hero.minggeName,
+    minggeRelatedId: hero.minggeRelatedId,
   });
 }
 

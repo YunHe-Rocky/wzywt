@@ -24,6 +24,7 @@ export async function GET(req: NextRequest) {
       imageUrl: true,
       mingge: true,
       minggeName: true,
+      minggeRelatedId: true,
     },
   });
 

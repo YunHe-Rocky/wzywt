@@ -23,6 +23,7 @@ interface Hero {
   skills: Skill[];
   mingge?: boolean;
   minggeName?: string | null;
+  minggeRelatedId?: number | null;
 }
 
 const ROLE_LABELS: Record<string, string> = {
@@ -209,15 +210,31 @@ export function HeroDetailView() {
               {ROLE_LABELS[hero.roleType] || hero.roleType}
             </span>
             {hero.mingge && (
-              <span style={{
-                display: "inline-flex", alignItems: "center", padding: "4px 12px", borderRadius: "var(--radius-sm)",
-                fontSize: 13, fontWeight: 700,
-                background: "linear-gradient(135deg, rgba(232,170,60,0.15), rgba(232,170,60,0.05))",
-                color: "#e8aa3c",
-                border: "1px solid rgba(232,170,60,0.25)",
-              }}>
-                {hero.minggeName ? `命格 · ${hero.minggeName}` : "命格"}
-              </span>
+              hero.minggeRelatedId ? (
+                <button onClick={() => {
+                  const isMobile = window.location.pathname.startsWith("/m");
+                  router.push(`${isMobile ? "/m" : ""}/heroes/${hero.minggeRelatedId}${window.location.hash}`);
+                }} style={{
+                  display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 12px", borderRadius: "var(--radius-sm)",
+                  fontSize: 13, fontWeight: 700, cursor: "pointer",
+                  background: "linear-gradient(135deg, rgba(232,170,60,0.15), rgba(232,170,60,0.05))",
+                  color: "#e8aa3c",
+                  border: "1px solid rgba(232,170,60,0.25)",
+                }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M20 12H4M12 4l8 8-8 8"/></svg>
+                  {hero.minggeName ? `切换至 ${hero.minggeName}` : "切换命格"}
+                </button>
+              ) : (
+                <span style={{
+                  display: "inline-flex", alignItems: "center", padding: "4px 12px", borderRadius: "var(--radius-sm)",
+                  fontSize: 13, fontWeight: 700,
+                  background: "linear-gradient(135deg, rgba(232,170,60,0.15), rgba(232,170,60,0.05))",
+                  color: "#e8aa3c",
+                  border: "1px solid rgba(232,170,60,0.25)",
+                }}>
+                  {hero.minggeName ? `命格 · ${hero.minggeName}` : "命格"}
+                </span>
+              )
             )}
           </div>
         </div>
