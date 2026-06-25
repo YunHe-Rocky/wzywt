@@ -63,9 +63,9 @@ export function Dock() {
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
 
-  // 桌面 #1 不显示 Dock，桌面 #2 和移动端显示
+  // Dock: 移动端 #2 + 桌面 #2 显示，移动端 #1 + 桌面 #1 不显示
   if (!mounted) return null;
-  if (!isMobile && theme === "yanwu") return null;
+  if (theme === "yanwu") return null;
 
   const isYanwu = theme === "yanwu";
   const accent = isYanwu ? "var(--gold)" : "var(--gold)";

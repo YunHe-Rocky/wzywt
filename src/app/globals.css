@@ -1029,7 +1029,7 @@
 
 /* ── Mobile ── */
 @media (max-width: 768px) {
-  .main-content { padding: 0 0 100px 0; }
+  .main-content { padding: 0; }
   .card { padding: 16px; border-radius: 5px; border-width: 2px; }
   .card .section-title { font-size: 12px; margin-bottom: 12px; }
   input, select, textarea { font-size: 16px; padding: 10px 12px; border-width: 1.5px; }

@@ -150,8 +150,8 @@ export function Header() {
           </Link>
         )}
 
-        {/* Mobile hamburger — only in yanwu theme, not on /m routes */}
-        {!isAlt && !isMobile && (
+        {/* Mobile hamburger — yanwu theme (desktop hidden by sm:hidden, #2 uses Dock) */}
+        {!isAlt && (
           <button onClick={() => setMobileOpen(!mobileOpen)}
             className="sm:hidden flex items-center justify-center w-8 h-8 rounded text-text-muted hover:text-gold-light transition-colors">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -165,6 +165,7 @@ export function Header() {
 
       {/* Mobile nav — only in yanwu theme */}
       {!isAlt && mobileOpen && (
+        /* Mobile nav dropdown — yanwu theme only */
         <div className="sm:hidden border-t border-border bg-card px-4 py-2 flex flex-col gap-1 animate-slide-up">
           {NAV.map(n => (
             <Link key={n.href} href={withHash(n.href)} onClick={() => setMobileOpen(false)}
