@@ -62,9 +62,9 @@
                   0 8px 24px rgba(0,0,0,0.05),
                   0 16px 48px rgba(0,0,0,0.03);
   /* 文字 */
-  --text: #333333;
-  --text-secondary: #777777;
-  --text-muted: #aaaaaa;
+  --text: #1a1a1a;
+  --text-secondary: #555555;
+  --text-muted: #888888;
   /* 强调色 — 系统蓝替代金 */
   --gold: #4488f0;
   --gold-light: #66a4f8;
@@ -575,9 +575,9 @@
     & .card, & .card-red, & .card-blue, & .card-interactive,
     & [class*="bg-card"],
     & [style*="var(--bg-card)"], & [style*="var(--bg-card-glass)"] {
-      background: rgba(255,255,255,0.45) !important;
-      backdrop-filter: blur(14px) !important;
-      -webkit-backdrop-filter: blur(14px) !important;
+      background: rgba(255,255,255,0.62) !important;
+      backdrop-filter: blur(8px) !important;
+      -webkit-backdrop-filter: blur(8px) !important;
       border: 1px solid rgba(255,255,255,0.6);
       border-bottom: 1px solid rgba(0,0,0,0.08);
       /* 用 !important 覆盖组件内联 boxShadow */
@@ -780,8 +780,8 @@
       & .main-content { padding: 10px 10px 88px; }
 
       & .card, & [class*="bg-card"], & [style*="var(--bg-card)"] {
-        backdrop-filter: blur(28px) !important;
-        -webkit-backdrop-filter: blur(28px) !important;
+        backdrop-filter: blur(16px) !important;
+        -webkit-backdrop-filter: blur(16px) !important;
         border-radius: 12px;
         padding: 14px;
         transform: none !important;
