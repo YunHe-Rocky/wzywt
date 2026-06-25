@@ -329,7 +329,7 @@ export function TournamentDetail() {
           marginBottom: 20,
           padding: "16px 24px",
           borderColor: "var(--gold)",
-          background: "rgba(192,168,74,0.04)",
+          background: "var(--gold-alpha-04)",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
@@ -607,7 +607,7 @@ export function TournamentDetail() {
                   justifyContent: "space-between",
                   padding: "10px 0",
                   borderBottom: "1px solid var(--border-light)",
-                  background: isMe ? "rgba(200, 169, 90, 0.03)" : teamBg,
+                  background: isMe ? "var(--gold-alpha-04)" : teamBg,
                   borderLeft: teamColor ? `3px solid ${teamColor === "red" ? "var(--red)" : "var(--blue)"}` : "3px solid transparent",
                   paddingLeft: teamColor ? 14 : 17,
                   gap: 12,
@@ -630,8 +630,8 @@ export function TournamentDetail() {
                   {splitRole && (
                     <span style={{
                       fontSize: 10, fontWeight: 600, padding: "2px 6px", borderRadius: 3,
-                      background: "rgba(240,192,64,0.08)", color: "var(--gold-light)",
-                      border: "1px solid rgba(240,192,64,0.15)", flexShrink: 0,
+                      background: "var(--gold-alpha-08)", color: "var(--gold-light)",
+                      border: "1px solid var(--gold-alpha-20)", flexShrink: 0,
                     }}>
                       {ROLE_LABELS[splitRole]}
                     </span>
@@ -646,7 +646,7 @@ export function TournamentDetail() {
                   {typeLabel !== "正式" && (
                     <span className={p.isSpectator ? "badge badge-muted" : "badge"} style={{
                       fontSize: 11, padding: "2px 8px", flexShrink: 0,
-                      ...(typeLabel === "临时" ? { background: "rgba(200,169,90,0.08)", color: "var(--gold-light)" } : {}),
+                      ...(typeLabel === "临时" ? { background: "var(--gold-alpha-08)", color: "var(--gold-light)" } : {}),
                     }}>
                       {typeLabel}
                     </span>

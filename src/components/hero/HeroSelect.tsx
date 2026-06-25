@@ -69,9 +69,13 @@ export function HeroSelect({ roleType, value, onChange }: Props) {
       .then(setHeroes);
   }, [roleType]);
 
+  const portalRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     function handleClick(e: MouseEvent) {
       if (ref.current && !ref.current.contains(e.target as Node)) {
+        // 点击 portal 下拉内容时不关闭
+        if (portalRef.current && portalRef.current.contains(e.target as Node)) return;
         setOpen(false);
       }
     }
@@ -150,7 +154,7 @@ export function HeroSelect({ roleType, value, onChange }: Props) {
         onMouseEnter={(e) => {
           if (!open) {
             e.currentTarget.style.background = "var(--bg-hover)";
-            e.currentTarget.style.borderColor = "rgba(184,152,96,0.3)";
+            e.currentTarget.style.borderColor = "var(--gold-alpha-20)";
           }
         }}
         onMouseLeave={(e) => {
@@ -194,6 +198,8 @@ export function HeroSelect({ roleType, value, onChange }: Props) {
       {/* Dropdown — portal to body */}
       {open && createPortal(
         <div
+          ref={portalRef}
+          data-hero-select-dropdown=""
           style={{
             position: "fixed",
             top: pos.top,
@@ -243,7 +249,7 @@ export function HeroSelect({ roleType, value, onChange }: Props) {
                     gap: 10,
                     width: "100%",
                     padding: "8px 10px",
-                    background: String(hero.heroId) === value ? "rgba(200,169,90,0.08)" : "transparent",
+                    background: String(hero.heroId) === value ? "var(--gold-alpha-08)" : "transparent",
                     border: "none",
                     borderRadius: 6,
                     cursor: "pointer",
@@ -254,12 +260,12 @@ export function HeroSelect({ roleType, value, onChange }: Props) {
                   }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.background = String(hero.heroId) === value
-                      ? "rgba(200,169,90,0.12)"
+                      ? "var(--gold-alpha-10)"
                       : "var(--bg-hover)";
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.background = String(hero.heroId) === value
-                      ? "rgba(200,169,90,0.08)"
+                      ? "var(--gold-alpha-08)"
                       : "transparent";
                   }}
                 >

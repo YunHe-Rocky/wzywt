@@ -81,10 +81,10 @@ function HeroImage({ hero }: { hero: Hero }) {
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            background: "linear-gradient(135deg, rgba(200,169,90,0.08), rgba(200,169,90,0.02))",
+            background: "linear-gradient(135deg, var(--gold-alpha-08), var(--gold-alpha-04))",
           }}
         >
-          <span style={{ fontSize: 32, fontWeight: 800, color: "rgba(200,169,90,0.3)" }}>
+          <span style={{ fontSize: 32, fontWeight: 800, color: "var(--gold-alpha-20)" }}>
             {hero.name[0]}
           </span>
         </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useLayoutEffect, useState, type ReactNode } from "react";
 import type { ThemeId } from "./types";
 
 const HASH_THEME_MAP: Record<string, ThemeId> = {
@@ -24,11 +24,16 @@ function getThemeFromHash(): ThemeId {
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setTheme] = useState<ThemeId>("yanwu");
+  const [theme, setTheme] = useState<ThemeId>(getThemeFromHash);
+
+  useLayoutEffect(() => {
+    const t = getThemeFromHash();
+    document.documentElement.setAttribute("data-theme", t);
+    if (t !== theme) setTheme(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
-    setTheme(getThemeFromHash());
-
     function onHashChange() {
       setTheme(getThemeFromHash());
     }

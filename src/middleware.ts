@@ -5,29 +5,53 @@ const PUBLIC_API = ["/api/auth", "/api/official-news", "/api/announcements", "/a
 const STATIC_PREFIXES = ["/_next", "/favicon", "/public"];
 const SESSION_COOKIE = "wzyt_session";
 
+const MOBILE_UA = /Android|iPhone|iPad|iPod|webOS|BlackBerry|Windows Phone|Mobile/i;
+
+function isMobile(req: NextRequest): boolean {
+  const ua = req.headers.get("user-agent") || "";
+  return MOBILE_UA.test(ua);
+}
+
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
-
-  // Allow public pages
-  if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
-    return NextResponse.next();
-  }
-
-  // Allow public API routes
-  if (PUBLIC_API.some((p) => pathname.startsWith(p))) {
-    return NextResponse.next();
-  }
 
   // Allow static files
   if (STATIC_PREFIXES.some((p) => pathname.startsWith(p))) {
     return NextResponse.next();
   }
 
-  // Check session cookie
-  const hasSession = req.cookies.has(SESSION_COOKIE);
+  // Allow API routes (no mobile redirect)
+  if (pathname.startsWith("/api/")) {
+    // Auth check for protected APIs
+    if (!PUBLIC_API.some((p) => pathname.startsWith(p))) {
+      if (!req.cookies.has(SESSION_COOKIE)) {
+        return NextResponse.json({ error: "请先登录" }, { status: 401 });
+      }
+    }
+    return NextResponse.next();
+  }
 
-  if (!hasSession) {
-    const loginUrl = new URL("/login", req.url);
+  // ── Mobile redirect ──
+  const mobile = isMobile(req);
+  const alreadyMobile = pathname.startsWith("/m/") || pathname === "/m";
+
+  if (mobile && !alreadyMobile) {
+    const mobileUrl = new URL("/m" + pathname, req.url);
+    mobileUrl.hash = req.nextUrl.hash;
+    mobileUrl.search = req.nextUrl.search;
+    return NextResponse.redirect(mobileUrl);
+  }
+
+  // ── Auth check ──
+  const basePath = alreadyMobile ? pathname.replace(/^\/m/, "") || "/" : pathname;
+
+  if (PUBLIC_PATHS.some((p) => basePath.startsWith(p))) {
+    return NextResponse.next();
+  }
+
+  if (!req.cookies.has(SESSION_COOKIE)) {
+    const loginPath = alreadyMobile ? "/m/login" : "/login";
+    const loginUrl = new URL(loginPath, req.url);
     loginUrl.searchParams.set("redirect", pathname);
     return NextResponse.redirect(loginUrl);
   }

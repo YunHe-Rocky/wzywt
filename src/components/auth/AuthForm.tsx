@@ -27,9 +27,9 @@ const EyeIcon = ({ open }: { open: boolean }) => (
   </svg>
 );
 
-const inputClass = "w-full px-3.5 py-2.5 rounded-md border border-gold/10 bg-white/[0.02] text-text text-[13px] placeholder:text-text-muted focus:border-gold/20 focus:outline-none transition-colors box-border";
+const inputClass = "auth-input w-full px-3.5 py-2.5 rounded-md border border-gold/10 bg-input text-text text-[13px] placeholder:text-text-muted focus:border-gold/20 focus:outline-none transition-colors box-border";
 const labelClass = "block text-[11px] font-semibold text-text-muted uppercase tracking-wider mb-1.5";
-const btnGold = "w-full py-3.5 rounded-md text-[15px] font-bold tracking-wider bg-gradient-to-b from-gold-light via-gold to-gold-dim text-root hover:brightness-105 transition-all disabled:opacity-50 border border-gold/10 cursor-pointer";
+const btnGold = "w-full py-3.5 rounded-md text-[15px] font-bold tracking-wider bg-gradient-to-b from-gold-light via-gold to-gold-dim text-white hover:brightness-105 transition-all disabled:opacity-50 border border-gold/10 cursor-pointer";
 
 export function AuthForm({ mode }: { mode: "login" | "register" }) {
   const router = useRouter();
@@ -119,10 +119,11 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
       {checking ? (
         <div className="skeleton rounded-lg w-[420px] h-[400px]" />
       ) : (
-        <div className="w-full max-w-[420px] px-9 py-10 rounded-xl relative overflow-hidden animate-slide-up"
+        <div className="auth-card w-full max-w-[420px] px-9 py-10 rounded-xl relative overflow-hidden animate-slide-up"
           style={{ background: "var(--bg-card)", border: "1px solid var(--border)", boxShadow: "0 4px 24px rgba(0,0,0,0.25)" }}>
           {/* Top glow */}
-          <div className="absolute -top-15 left-1/2 -translate-x-1/2 w-[200px] h-20 pointer-events-none" style={{ background: "radial-gradient(ellipse, rgba(184,152,96,0.08), transparent)" }} />
+          <div className="absolute -top-15 left-1/2 -translate-x-1/2 w-[200px] h-20 pointer-events-none"
+            style={{ background: "radial-gradient(ellipse, var(--gold-alpha-08), transparent)" }} />
 
           <h1 className="text-[28px] font-extrabold text-center m-0 mb-1.5 tracking-wider text-gold-light">{title}</h1>
           <p className="text-[13px] text-center text-text-muted mb-7">{subtitle}</p>
@@ -155,7 +156,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
                   <div>
                     <label className={labelClass}>自定义问题</label>
                     <input placeholder="请输入你的安全问题" value={customQuestion}
-                      onChange={e => setCustomQuestion(e.target.value)} className={inputClass} style={{ borderColor: "rgba(184,152,96,0.3)" }} />
+                      onChange={e => setCustomQuestion(e.target.value)} className={inputClass + " border-gold/30"} />
                   </div>
                 )}
                 <div>
@@ -224,9 +225,10 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
       {showForgot && (
         <>
           <div onClick={() => setShowForgot(false)} className="fixed inset-0 bg-black/60 z-[1000]" />
-          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[1001] p-8 rounded-xl w-[380px] max-w-[90vw]"
+          <div className="auth-card fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[1001] p-8 rounded-xl w-[380px] max-w-[90vw]"
             style={{ background: "var(--bg-card)", border: "1px solid var(--border)", boxShadow: "0 4px 24px rgba(0,0,0,0.25)" }}>
-            <div className="absolute -top-10 left-1/2 -translate-x-1/2 w-40 h-15 pointer-events-none" style={{ background: "radial-gradient(ellipse, rgba(184,152,96,0.1), transparent)" }} />
+            <div className="absolute -top-10 left-1/2 -translate-x-1/2 w-40 h-15 pointer-events-none"
+              style={{ background: "radial-gradient(ellipse, var(--gold-alpha-10), transparent)" }} />
 
             {forgotStep === 1 ? (
               <>
@@ -238,9 +240,9 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
                 </div>
                 {forgotError && <p className="text-xs text-red text-center mb-3">{forgotError}</p>}
                 <div className="flex gap-2.5">
-                  <button onClick={() => setShowForgot(false)} className="flex-1 py-2.5 rounded-md border border-white/10 text-[13px] text-text-muted bg-transparent cursor-pointer">取消</button>
+                  <button onClick={() => setShowForgot(false)} className="flex-1 py-2.5 rounded-md border border-border text-[13px] text-text-muted bg-transparent cursor-pointer hover:bg-hover transition-colors">取消</button>
                   <button onClick={lookupQuestion} disabled={forgotLoading}
-                    className="flex-1 py-2.5 rounded-md text-[13px] font-bold bg-gradient-to-b from-amber-200 via-gold to-gold-dim text-root disabled:opacity-60 cursor-pointer">下一步</button>
+                    className="flex-1 py-2.5 rounded-md text-[13px] font-bold bg-gradient-to-b from-gold-light via-gold to-gold-dim text-white disabled:opacity-60 cursor-pointer">下一步</button>
                 </div>
               </>
             ) : forgotStep === 2 ? (

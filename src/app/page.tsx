@@ -128,7 +128,7 @@ export default function Home() {
       {/* Main content */}
       <div className="flex flex-col gap-4">
           {/* Announcements */}
-          <div className="bg-card border border-border rounded-md overflow-hidden">
+          <div className="card p-0 rounded-md overflow-hidden">
             <div className="px-5 py-3 border-b border-border-light">
               <div className="text-sm font-semibold text-gold-light">📢 系统公告</div>
             </div>
@@ -154,7 +154,7 @@ export default function Home() {
           </div>
 
           {/* Public Rooms */}
-          <div className="bg-card border border-border rounded-md overflow-hidden">
+          <div className="card p-0 rounded-md overflow-hidden">
             <div className="px-5 py-3 border-b border-border-light">
               <div className="text-sm font-semibold text-gold-light">🏠 公开房间</div>
             </div>
@@ -182,7 +182,7 @@ export default function Home() {
           </div>
 
           {/* Official News */}
-          <div className="bg-card border border-border rounded-md overflow-hidden">
+          <div className="card p-0 rounded-md overflow-hidden">
             <div className="px-5 py-3 border-b border-border-light">
               <div className="text-sm font-semibold text-text-secondary">王者官方公告</div>
             </div>

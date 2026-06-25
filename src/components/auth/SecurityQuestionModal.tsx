@@ -17,7 +17,7 @@ const modalCard: React.CSSProperties = {
 
 const glowStyle: React.CSSProperties = {
   position: "absolute", top: -40, left: "50%", transform: "translateX(-50%)",
-  width: 160, height: 60, background: "radial-gradient(ellipse, rgba(184,152,96,0.1), transparent)",
+  width: 160, height: 60, background: "radial-gradient(ellipse, var(--gold-alpha-10), transparent)",
   pointerEvents: "none" as const,
 };
 
@@ -25,12 +25,12 @@ const goldBtn: React.CSSProperties = {
   width: "100%", padding: "11px 0", border: "1px solid rgba(255,255,255,0.08)",
   borderRadius: 6, fontSize: 13, fontWeight: 700, cursor: "pointer",
   background: "linear-gradient(135deg, var(--gold-light), var(--gold-dim))",
-  color: "var(--bg-root)", letterSpacing: 0.5,
-  boxShadow: "0 2px 8px rgba(184,152,96,0.12)",
+  color: "#fff", letterSpacing: 0.5,
+  boxShadow: "0 2px 8px var(--gold-alpha-10)",
 };
 
 const inputStyle: React.CSSProperties = {
-  width: "100%", padding: "10px 12px", borderRadius: 6, border: "1px solid rgba(184,152,96,0.08)",
+  width: "100%", padding: "10px 12px", borderRadius: 6, border: "1px solid var(--gold-alpha-08)",
   background: "var(--bg-input)", color: "var(--text)", fontSize: 13, boxSizing: "border-box",
 };
 
@@ -102,12 +102,12 @@ export function SecurityQuestionModal({
             {/* Step badge */}
             <div style={{
               display: "inline-flex", alignItems: "center", gap: 6,
-              background: "rgba(192,168,74,0.08)", border: "1px solid rgba(192,168,74,0.15)",
+              background: "var(--gold-alpha-08)", border: "1px solid var(--gold-alpha-20)",
               borderRadius: 20, padding: "3px 12px", marginBottom: 16,
             }}>
               <span style={{
-                width: 18, height: 18, borderRadius: "50%", background: "#c0a84a",
-                color: "#1a1408", fontSize: 10, fontWeight: 700,
+                width: 18, height: 18, borderRadius: "50%", background: "var(--gold)",
+                color: "#fff", fontSize: 10, fontWeight: 700,
                 display: "inline-flex", alignItems: "center", justifyContent: "center",
               }}>1</span>
               <span style={{ fontSize: 10, fontWeight: 700, color: "#b0a060", letterSpacing: 0.5 }}>
@@ -115,14 +115,14 @@ export function SecurityQuestionModal({
               </span>
             </div>
 
-            <h3 style={{ fontSize: 16, fontWeight: 700, color: "#e0d8c0", margin: "0 0 4px" }}>修改密码</h3>
+            <h3 style={{ fontSize: 16, fontWeight: 700, color: "var(--gold-light)", margin: "0 0 4px" }}>修改密码</h3>
             <p style={{ fontSize: 11, color: "#888", margin: "0 0 18px" }}>请回答以下安全问题确认身份</p>
 
             <div style={{
-              background: "rgba(192,168,74,0.04)", border: "1px solid rgba(184,152,96,0.1)",
+              background: "var(--gold-alpha-04)", border: "1px solid var(--gold-alpha-10)",
               borderRadius: 8, padding: "12px 14px", marginBottom: 14,
             }}>
-              <span style={{ fontSize: 10, fontWeight: 600, color: "#b0a060", display: "block", marginBottom: 4 }}>
+              <span style={{ fontSize: 10, fontWeight: 600, color: "var(--gold-dim)", display: "block", marginBottom: 4 }}>
                 安全问题
               </span>
               <span style={{ fontSize: 13, color: "#e0d8c0", fontWeight: 500 }}>{question}</span>

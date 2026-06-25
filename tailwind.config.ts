@@ -5,17 +5,29 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        root: "#161920",
-        nav: "#1b1e27",
-        card: "#242833",
-        hover: "#2d3240",
-        input: "#2a2f3b",
-        border: { DEFAULT: "rgba(255,255,255,0.08)", light: "rgba(255,255,255,0.05)", gold: "rgba(168,144,104,0.12)" },
-        text: { DEFAULT: "#e0e3ea", secondary: "#b0b4be", muted: "#777b88" },
-        gold: { DEFAULT: "#a89068", light: "#c0b090", dim: "#807050" },
-        red: { DEFAULT: "#cc6666", dim: "#994444" },
-        blue: { DEFAULT: "#6898cc", dim: "#4a7099" },
-        green: { DEFAULT: "#78b878", dim: "#508a50" },
+        root: "var(--bg-root)",
+        nav: "var(--bg-nav)",
+        card: "var(--bg-card)",
+        hover: "var(--bg-hover)",
+        input: "var(--bg-input)",
+        border: {
+          DEFAULT: "var(--border)",
+          light: "var(--border-light)",
+          gold: "var(--border-gold)",
+        },
+        text: {
+          DEFAULT: "var(--text)",
+          secondary: "var(--text-secondary)",
+          muted: "var(--text-muted)",
+        },
+        gold: {
+          DEFAULT: "var(--gold)",
+          light: "var(--gold-light)",
+          dim: "var(--gold-dim)",
+        },
+        red: { DEFAULT: "var(--red)", dim: "var(--red-dim)" },
+        blue: { DEFAULT: "var(--blue)", dim: "var(--blue-dim)" },
+        green: { DEFAULT: "var(--green)", dim: "var(--green-dim)" },
       },
       borderRadius: {
         sm: "6px",
