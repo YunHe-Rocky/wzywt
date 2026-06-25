@@ -598,8 +598,32 @@
     z-index: 1001; width: 400px; max-width: 90vw; padding: 32px 28px;
     border-radius: var(--radius-lg);
     background: var(--bg-card);
-    border: 1px solid var(--border);
-    box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+    border: 1px solid var(--border-gold);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4), 0 0 0 1px var(--gold-alpha-08);
+    color: var(--text);
+  }
+  .modal-glow {
+    position: absolute; top: -40px; left: 50%; transform: translateX(-50%);
+    width: 180px; height: 70px;
+    background: radial-gradient(ellipse, var(--gold-alpha-10), transparent);
+    pointer-events: none;
+  }
+
+  /* #2 弹窗：蓝白玻璃风格 */
+  [data-theme="alternate"] .modal-backdrop {
+    background: rgba(0,0,0,0.25);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+  }
+  [data-theme="alternate"] .modal-card {
+    background: rgba(255,255,255,0.78);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255,255,255,0.7);
+    box-shadow: 0 4px 24px rgba(0,0,0,0.06), 0 8px 40px rgba(0,0,0,0.04);
+  }
+  [data-theme="alternate"] .modal-glow {
+    background: radial-gradient(ellipse, rgba(68,136,240,0.08), transparent);
   }
 
   /* ── Alternate Theme: 厚玻璃 & Dock ── */

@@ -224,11 +224,9 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
       {/* ── Forgot Password Modal ── */}
       {showForgot && (
         <>
-          <div onClick={() => setShowForgot(false)} className="fixed inset-0 bg-black/60 z-[1000]" />
-          <div className="auth-card fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[1001] p-8 rounded-xl w-[380px] max-w-[90vw]"
-            style={{ background: "var(--bg-card)", border: "1px solid var(--border)", boxShadow: "0 4px 24px rgba(0,0,0,0.25)" }}>
-            <div className="absolute -top-10 left-1/2 -translate-x-1/2 w-40 h-15 pointer-events-none"
-              style={{ background: "radial-gradient(ellipse, var(--gold-alpha-10), transparent)" }} />
+          <div onClick={() => setShowForgot(false)} className="modal-backdrop" />
+          <div className="modal-card">
+            <div className="modal-glow" />
 
             {forgotStep === 1 ? (
               <>

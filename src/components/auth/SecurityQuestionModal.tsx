@@ -3,26 +3,9 @@
 import { useState } from "react";
 import { useToast } from "@/components/ui/Toast";
 
-const modalBackdrop: React.CSSProperties = {
-  position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 1000,
-};
-const modalCard: React.CSSProperties = {
-  position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)",
-  zIndex: 1001, padding: "32px 28px", width: 380, maxWidth: "90vw",
-  borderRadius: "var(--radius-lg)", border: "1px solid var(--border)",
-  background: "var(--bg-card)",
-  boxShadow: "0 8px 40px rgba(0,0,0,0.3)",
-  color: "var(--text)",
-};
-
-const glowStyle: React.CSSProperties = {
-  position: "absolute", top: -40, left: "50%", transform: "translateX(-50%)",
-  width: 160, height: 60, background: "radial-gradient(ellipse, var(--gold-alpha-10), transparent)",
-  pointerEvents: "none" as const,
-};
 
 const goldBtn: React.CSSProperties = {
-  width: "100%", padding: "11px 0", border: "1px solid rgba(255,255,255,0.08)",
+  width: "100%", padding: "11px 0", border: "none",
   borderRadius: "var(--radius-sm)", fontSize: 13, fontWeight: 700, cursor: "pointer",
   background: "linear-gradient(135deg, var(--gold-light), var(--gold-dim))",
   color: "#fff", letterSpacing: 0.5,
@@ -93,9 +76,9 @@ export function SecurityQuestionModal({
 
   return (
     <>
-      <div onClick={handleClose} style={modalBackdrop} />
-      <div className="card" style={modalCard}>
-        <div style={glowStyle} />
+      <div onClick={handleClose} className="modal-backdrop" />
+      <div className="modal-card">
+        <div className="modal-glow" />
 
         {step === 1 ? (
           <>

@@ -51,16 +51,8 @@ export function DeleteAccountModal({ open, onClose }: { open: boolean; onClose: 
 
   return (
     <>
-      <div onClick={onClose}
-        style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 1000 }} />
-      <div style={{
-        position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)",
-        zIndex: 1001, padding: "28px", width: 400, maxWidth: "90vw",
-        borderRadius: "var(--radius-lg)", border: "1px solid var(--red-alpha-08)",
-        background: "var(--bg-card)", color: "var(--text)",
-        boxShadow: "0 4px 24px rgba(0,0,0,0.3)",
-      }}>
-        {/* Top glow (red) */}
+      <div onClick={onClose} className="modal-backdrop" />
+      <div className="modal-card" style={{ borderColor: "var(--red-alpha-08)", boxShadow: "0 8px 40px rgba(0,0,0,0.35)" }}>
         <div style={{
           position: "absolute", top: -40, left: "50%", transform: "translateX(-50%)",
           width: 160, height: 60,
