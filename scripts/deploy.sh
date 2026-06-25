@@ -12,6 +12,9 @@ npm install
 echo ">>> prisma db push..."
 npx prisma db push
 
+echo ">>> migrate announcements..."
+npx tsx scripts/migrate-announcements.ts
+
 echo ">>> npm run build..."
 npm run build
 
