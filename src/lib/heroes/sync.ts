@@ -248,18 +248,23 @@ export async function syncHeroes(): Promise<{ inserted: number; updated: number 
         if (existing.heroType !== h.hero_type) changes.push(`heroType:${existing.heroType}→${h.hero_type}`);
         if (existing.heroType2 !== (h.hero_type2 ?? 0)) changes.push(`heroType2:${existing.heroType2}→${h.hero_type2 ?? 0}`);
         if (existing.imageUrl !== imageUrl) changes.push(`imageUrl changed`);
-        if (existing.mingge !== mingGe.hasMingGe) changes.push(`mingge:${existing.mingge}→${mingGe.hasMingGe}`);
-        if ((existing.minggeName || null) !== mingGe.mingGeName) changes.push(`minggeName:${existing.minggeName}→${mingGe.mingGeName}`);
+        if (mingGe.hasMingGe && existing.mingge !== mingGe.hasMingGe) changes.push(`mingge:${existing.mingge}→${mingGe.hasMingGe}`);
+        if (mingGe.hasMingGe && (existing.minggeName || null) !== mingGe.mingGeName) changes.push(`minggeName:${existing.minggeName}→${mingGe.mingGeName}`);
 
         if (changes.length > 0) {
           console.log(`[sync] #${h.ename} ${h.cname}: ${changes.join(" | ")}`);
         }
 
-        // Update official data fields, but preserve roleType (may have been manually corrected)
-        await prisma.hero.update({
-          where: { heroId: h.ename },
-          data: { name: h.cname, title: h.title, heroType: h.hero_type, heroType2: h.hero_type2 ?? 0, imageUrl, skinsJson, skillsJson, mingge: mingGe.hasMingGe, minggeName: mingGe.mingGeName },
-        });
+        // Update official data fields, preserve roleType & mingge (manually maintained)
+        const updateData: Record<string, unknown> = {
+          name: h.cname, title: h.title, heroType: h.hero_type, heroType2: h.hero_type2 ?? 0, imageUrl, skinsJson, skillsJson,
+        };
+        // Only update mingge if crawler detected it OR if existing wasn't set
+        if (mingGe.hasMingGe || !existing.mingge) {
+          updateData.mingge = mingGe.hasMingGe;
+          updateData.minggeName = mingGe.mingGeName;
+        }
+        await prisma.hero.update({ where: { heroId: h.ename }, data: updateData });
         updated++;
       }
     }
