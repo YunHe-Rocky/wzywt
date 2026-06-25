@@ -66,9 +66,11 @@ async function main() {
         update: { preferenceRank: j+1, roleRank: d.rank, peakScore: d.peak, peakRank: Math.min(9,d.rank+1) },
       });
       for (const h of heroes[role]) {
-        await prisma.heroPower.create({
-          data: { userId: uid, roleType: role, heroId: h.id, heroName: h.name,
+        await prisma.heroPower.upsert({
+          where: { userId_heroId_roleType: { userId: uid, heroId: h.id, roleType: role } },
+          create: { userId: uid, roleType: role, heroId: h.id, heroName: h.name,
             powerScore: isMain ? d.mainPower + Math.floor(Math.random()*2000) : d.offPower + Math.floor(Math.random()*3000) },
+          update: { powerScore: isMain ? d.mainPower + Math.floor(Math.random()*2000) : d.offPower + Math.floor(Math.random()*3000) },
         });
       }
     }
