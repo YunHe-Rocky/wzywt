@@ -181,11 +181,11 @@ export function HeroGrid() {
     return () => es.close();
   }, []);
 
-  // 命格形态（被其他英雄引用为命格）不在图鉴中单独展示
-  const minggeRelatedIds = new Set(heroes.filter(h => h.minggeRelatedId).map(h => h.minggeRelatedId!));
+  // 命格形态名称集合（如"心魔六耳"），这些英雄不在图鉴中单独展示
+  const minggeFormNames = new Set(heroes.filter(h => h.mingge && h.minggeName).map(h => h.minggeName!));
 
   const filtered = heroes
-    .filter((h) => !minggeRelatedIds.has(h.heroId)) // 隐藏命格形态
+    .filter((h) => !minggeFormNames.has(h.name)) // 隐藏命格形态
     .filter((h) => h.name.includes(search) || h.title.includes(search));
 
   return (
