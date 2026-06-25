@@ -24,6 +24,14 @@ const RANK_TIERS = [
 
 const ROLES = ["top", "jungle", "mid", "adc", "support"] as const;
 
+// 分路段位：前5英雄战力总和 / 1000
+function calcLaneRank(heroes: { powerScore: number }[]): number {
+  const sorted = [...heroes].sort((a, b) => b.powerScore - a.powerScore);
+  const top5 = sorted.slice(0, 5);
+  const total = top5.reduce((sum, h) => sum + h.powerScore, 0);
+  return Math.floor(total / 1000);
+}
+
 function RankBadge({ value, size = 48 }: { value: number; size?: number }) {
   const tier = RANK_TIERS.find(t => t.value === value) || RANK_TIERS[0];
   const s = size;
@@ -119,8 +127,10 @@ export function RolePreferenceEditor() {
                     : "text-text-secondary border-transparent hover:bg-hover hover:border-border"}`}>
                 <LaneIcon role={p.roleType} size={18} />
                 <span>{ROLE_LABELS[p.roleType]}</span>
-                <span className={`text-xs ml-auto ${activeTab === p.roleType ? "opacity-70" : "opacity-40"}`}>
-                  {heroesByRole[p.roleType]?.length || 0}/3
+                <span className={`text-xs ml-auto flex items-center gap-1.5 ${activeTab === p.roleType ? "opacity-70" : "opacity-40"}`}>
+                  <span>{heroesByRole[p.roleType]?.length || 0}/3</span>
+                  <span style={{ opacity: 0.6 }}>·</span>
+                  <span>{calcLaneRank(heroesByRole[p.roleType] || [])}段</span>
                 </span>
               </button>
               <div className="flex gap-0.5 shrink-0">
@@ -141,6 +151,7 @@ export function RolePreferenceEditor() {
             <LaneIcon role={activePref.roleType} size={24} />
             <span className="text-base font-bold text-text">{ROLE_LABELS[activePref.roleType]}</span>
             <span className="badge badge-gold text-[11px] px-2 py-0.5">P{activePref.preferenceRank}</span>
+            <span className="text-xs text-gold-light font-semibold ml-auto">{calcLaneRank(activeHeroes)}段</span>
           </div>
 
           {/* 英雄战力 — 参考 #2 卡片风格 */}
