@@ -91,7 +91,7 @@ async function main() {
 
   // 分队
   console.log("\n执行分队...");
-  const { splitTeam } = await import("../src/lib/split");
+  const { splitTeams } = await import("../src/lib/split");
   const players = await prisma.tournamentPlayer.findMany({ where: { tournamentId: t.id, isSpectator: false } });
   const prefs = await prisma.rolePreference.findMany({ where: { userId: { in: players.map(p => p.userId) } } });
   const powers = await prisma.heroPower.findMany({ where: { userId: { in: players.map(p => p.userId) } } });
@@ -101,14 +101,24 @@ async function main() {
   const input = players.map(p => ({
     userId: p.userId,
     username: nameMap.get(p.userId) || "?",
-    prefs: prefs.filter(f => f.userId === p.userId).map(f => ({ roleType: f.roleType, preferenceRank: f.preferenceRank, roleRank: f.roleRank, peakScore: f.peakScore, peakRank: f.peakRank })),
-    heroes: powers.filter(h => h.userId === p.userId).map(h => ({ heroId: h.heroId, heroName: h.heroName, powerScore: h.powerScore, roleType: h.roleType })),
+    rolePreferences: prefs.filter(f => f.userId === p.userId).map(f => ({ roleType: f.roleType, preferenceRank: f.preferenceRank, roleRank: f.roleRank, peakScore: f.peakScore, peakRank: f.peakRank })),
+    heroPowers: (() => {
+      const map: Record<string, number[]> = {};
+      powers.filter(h => h.userId === p.userId).forEach(h => {
+        if (!map[h.roleType]) map[h.roleType] = [];
+        map[h.roleType].push(h.powerScore);
+      });
+      return map;
+    })(),
   }));
 
-  const result = splitTeam(input);
-  await prisma.tournament.update({ where: { id: t.id }, data: { splitResult: JSON.stringify(result), status: "locked" } });
-
-  console.log(`  ✓ 分队完成! 战力差: ${result.powerDiff}`);
+  const result = splitTeams(input);
+  if (result) {
+    await prisma.tournament.update({ where: { id: t.id }, data: { splitResult: JSON.stringify(result), status: "locked" } });
+    console.log(`  ✓ 分队完成! 战力差: ${result.strengthDiff}`);
+  } else {
+    console.log(`  ✗ 分队失败(需要正好10人)`);
+  }
   console.log(`\n=== 完成 ===`);
   console.log(`赛事: http://ywt.yunhe.ink/tournaments/${t.id}`);
   console.log(`邀请码: ${t.code}`);
