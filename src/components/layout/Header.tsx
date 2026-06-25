@@ -95,7 +95,7 @@ export function Header() {
           <div ref={menuRef} className="relative">
             <button onClick={() => setMenuOpen(!menuOpen)}
               className={`flex items-center gap-2 rounded-full transition-all ${(ui.headerNav === "compact") ? "px-2 py-0.5 hover:bg-black/5" : "px-2 py-1 hover:bg-hover"}`}>
-              <span className={`rounded-full flex items-center justify-center font-bold transition-shadow ${(ui.headerNav === "compact") ? "w-6 h-6 text-[10px] bg-blue/8 text-[#5e9eff] border border-blue/15 hover:shadow-[0_0_8px_rgba(94,158,255,0.12)]" : "w-7 h-7 text-xs bg-gradient-to-br from-gold to-gold-dim text-root"}`}>
+              <span className={`rounded-full flex items-center justify-center font-bold transition-shadow ${(ui.headerNav === "compact") ? "w-6 h-6 text-[10px] bg-blue/8 text-[#5e9eff] border border-blue/15 hover:shadow-[0_0_8px_rgba(94,158,255,0.12)]" : "w-7 h-7 text-xs bg-gradient-to-br from-gold to-gold-dim text-white"}`}>
                 {user.username[0]}
               </span>
               {!(ui.headerNav === "compact") && <span className="text-sm text-text hidden sm:inline">{user.username}</span>}
@@ -115,7 +115,7 @@ export function Header() {
                 } : undefined}>
                 <div className="px-4 py-3 border-b border-border-light">
                   <div className="flex items-center gap-2.5">
-                    <span className={`rounded-full flex items-center justify-center font-bold shrink-0 ${(ui.headerNav === "compact") ? "w-8 h-8 text-sm bg-blue/8 text-[#5e9eff]" : "w-8 h-8 text-sm bg-gradient-to-br from-gold to-gold-dim text-root"}`}>
+                    <span className={`rounded-full flex items-center justify-center font-bold shrink-0 ${(ui.headerNav === "compact") ? "w-8 h-8 text-sm bg-blue/8 text-[#5e9eff]" : "w-8 h-8 text-sm bg-gradient-to-br from-gold to-gold-dim text-white"}`}>
                       {user.username[0]}
                     </span>
                     <div className="min-w-0">
