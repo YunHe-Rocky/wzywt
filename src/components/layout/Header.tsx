@@ -51,34 +51,33 @@ export function Header() {
   const isAlt = mounted && theme === "alternate";
   const active = (href: string) => href === "/" ? pathname === "/" : pathname.startsWith(href);
 
-  // 移动端路由不渲染桌面 Header
-  if (pathname.startsWith("/m")) return null;
+  const isMobile = pathname.startsWith("/m");
 
   return (
-    <header className={`sticky top-0 z-50 ${isAlt ? "header-bar" : "bg-nav border-b border-border-gold"}`} suppressHydrationWarning>
-      {!isAlt && (
+    <header className={`sticky top-0 z-50 ${isMobile ? "bg-nav/90 backdrop-blur-md border-b border-border" : isAlt ? "header-bar" : "bg-nav border-b border-border-gold"}`} suppressHydrationWarning>
+      {!isAlt && !isMobile && (
         <div className="h-px bg-gradient-to-r from-transparent via-gold/40 to-transparent animate-pulse" />
       )}
 
-      <div className={`${isAlt ? "header-inner-alt" : "max-w-6xl mx-auto px-4 sm:px-6 h-14"} flex items-center gap-4`}
-        style={isAlt ? { height: 34, padding: "0 20px" } : undefined}>
+      <div className={`${isMobile ? "max-w-full mx-auto px-4 h-11" : isAlt ? "header-inner-alt" : "max-w-6xl mx-auto px-4 sm:px-6 h-14"} flex items-center gap-4`}
+        style={isMobile ? undefined : isAlt ? { height: 34, padding: "0 20px" } : undefined}>
         {/* Brand */}
-        <Link href="/" className="flex items-center gap-2 shrink-0 no-underline">
-          {isAlt && (
+        <Link href={isMobile ? "/m" : "/"} className="flex items-center gap-2 shrink-0 no-underline">
+          {isAlt && !isMobile && (
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#5e9eff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5"/>
             </svg>
           )}
-          <span className={`${isAlt ? "text-[11px] font-bold tracking-wider text-[#777]" : "text-lg font-extrabold tracking-wider text-gold-light"}`}>
+          <span className={isMobile ? "text-sm font-extrabold tracking-wider text-gold-light" : isAlt ? "text-[11px] font-bold tracking-wider text-[#777]" : "text-lg font-extrabold tracking-wider text-gold-light"}>
             王者演武堂
           </span>
-          <span className={`text-[10px] font-semibold tracking-wider rounded px-1.5 leading-4 hidden sm:inline ${isAlt ? "text-[#bbb] border border-black/5" : "text-gold/70 border border-gold/15"}`}>
+          <span className={`text-[10px] font-semibold tracking-wider rounded px-1.5 leading-4 ${isMobile ? "inline text-gold/70 border border-gold/10" : isAlt ? "hidden" : "hidden sm:inline text-gold/70 border border-gold/15"}`}>
             {version}
           </span>
         </Link>
 
-        {/* Desktop nav — hidden in alternate (nav is in Dock) */}
-        {!isAlt && (
+        {/* Desktop nav — hidden on mobile and alternate (nav is in Dock) */}
+        {!isAlt && !isMobile && (
           <nav className="hidden sm:flex items-center gap-1 ml-4">
             {NAV.map(n => (
               <Link key={n.href} href={n.href}
@@ -153,8 +152,8 @@ export function Header() {
           </Link>
         )}
 
-        {/* Mobile hamburger — only in yanwu theme */}
-        {!isAlt && (
+        {/* Mobile hamburger — only in yanwu theme, not on /m routes */}
+        {!isAlt && !isMobile && (
           <button onClick={() => setMobileOpen(!mobileOpen)}
             className="sm:hidden flex items-center justify-center w-8 h-8 rounded text-text-muted hover:text-gold-light transition-colors">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
