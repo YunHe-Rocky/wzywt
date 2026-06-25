@@ -1,4 +1,4 @@
-# 王者演武堂 — UI 系统文档
+# 王者演武堂 — UI 系统文档 V1.0.1
 
 ## 架构概览
 
@@ -12,57 +12,49 @@
                     │ ThemeProvider │  → data-theme="yanwu|alternate"
                     └──────┬───────┘
                            │
-              ┌────────────┼────────────┐
-              │            │            │
-         globals.css   ui-config.ts  components
-         (CSS变量)     (行为决策)    (Header/Dock/...)
+                    ┌──────▼───────┐
+                    │ ThemeLayout  │  → 根据 theme 选择组件
+                    └──┬────────┬──┘
+                       │        │
+              ┌────────▼──┐  ┌──▼──────────┐
+              │  yanwu/    │  │  alternate/  │
+              │  Header    │  │  Header      │
+              │  (无Dock)  │  │  Dock        │
+              └───────────┘  └──────────────┘
+                           │
+                      globals.css
+                 (CSS变量 + 主题样式)
 ```
 
-**核心原则**：样式和行为分离。CSS 变量管颜色/圆角/阴影，`ui-config.ts` 管导航方式/Dock/汉堡菜单。
+**核心原则**：两个主题完全独立，各自有自己的组件文件，互不干扰。CSS 变量管颜色/圆角/阴影，组件文件管布局和交互。
 
 ---
 
-## 一、UI 配置文件
+## 一、组件分离架构（V1.0.1 重构）
 
-`src/themes/ui-config.ts` — 整个 UI 系统的唯一决策点。每个主题是一个完整的独立 UI 环境。
-
-```ts
-interface UIConfig {
-  name: string;
-  headerNav: "full" | "compact";    // Header 导航栏样式
-  mobileNav: "hamburger" | "dock";  // 手机端导航方式
-  dock: boolean;                    // 是否显示底部 Dock
-  headerHeight: number;             // Header 高度
-}
-
-const UI_CONFIG = {
-  yanwu: {
-    name: "演武",
-    headerNav: "full",        // 全高 Header + 金线动画
-    mobileNav: "hamburger",   // 手机用汉堡菜单
-    dock: false,              // 无 Dock
-    headerHeight: 56,
-  },
-  alternate: {
-    name: "厚玻璃",
-    headerNav: "compact",     // 紧凑 Header（34px 毛玻璃）
-    mobileNav: "dock",        // 手机用 Dock
-    dock: true,               // 桌面+手机都有 Dock
-    headerHeight: 34,
-  },
-};
+```
+src/components/layout/
+  ThemeLayout.tsx          ← 决策点：根据 theme 选择 #1 或 #2 组件
+  yanwu/
+    Header.tsx             ← #1 专属 Header（全高金线+导航+汉堡，无Dock判断）
+  alternate/
+    Header.tsx             ← #2 专属 Header（紧凑蓝白+导航，无汉堡判断）
+    Dock.tsx               ← #2 专属 Dock（毛玻璃导航，无主题判断）
 ```
 
-### 使用方式
+**关键变化**：旧架构用 `ui-config.ts` 的 `if/else` 在一个 Header 里判断两种主题，导致条件交织、修 A 坏 B。新架构每个主题写死自己的组件，完全隔离。`ThemeLayout` 只做一件事：
 
 ```tsx
-const { theme } = useTheme();
-const ui = getUIConfig(theme);
-
-// 不再写 if (theme === "alternate")，而是：
-if (ui.dock) { /* 显示 Dock */ }
-if (ui.mobileNav === "hamburger") { /* 显示汉堡菜单 */ }
-if (ui.headerNav === "compact") { /* 紧凑 Header 样式 */ }
+export function ThemeLayout({ children }) {
+  const { theme } = useTheme();
+  return (
+    <>
+      {theme === "alternate" ? <AlternateHeader /> : <YanwuHeader />}
+      <main className="main-content">{children}</main>
+      {theme === "alternate" && <Dock />}
+    </>
+  );
+}
 ```
 
 ---
@@ -219,24 +211,31 @@ export { default } from "@/app/me/page";
 
 | 文件 | 说明 |
 |------|------|
-| `src/themes/ui-config.ts` | UI 行为决策（导航/Dock/汉堡） |
+| `src/components/layout/ThemeLayout.tsx` | 主题路由：根据 theme 选 Header + Dock |
+| `src/components/layout/yanwu/Header.tsx` | #1 专属 Header |
+| `src/components/layout/alternate/Header.tsx` | #2 专属 Header |
+| `src/components/layout/alternate/Dock.tsx` | #2 专属 Dock |
 | `src/themes/ThemeProvider.tsx` | Hash 切换 + hashchange 监听 |
 | `src/app/globals.css` | 全部 CSS 变量 + 双主题样式规则 |
 | `src/app/layout.tsx` | 根布局 + 内联脚本防 FOUC |
-| `src/components/layout/Header.tsx` | 顶部导航（三模式：#1桌面/#2桌面/手机） |
-| `src/components/layout/Dock.tsx` | 底部导航栏（#2 专属） |
 | `src/app/m/layout.tsx` | 移动端独立布局 |
 | `tailwind.config.ts` | Tailwind token → CSS 变量映射 |
 | `docs/themes/README.md` | 双主题设计文档（CSS 变量完整表） |
 
 ---
 
-## 七、添加第三套主题
-
-只需三步：
+## 十、添加第三套主题
 
 1. `globals.css` 加 `[data-theme="新主题"]` CSS 变量块
-2. `ui-config.ts` 加 `新主题: { headerNav, mobileNav, dock, headerHeight }`
-3. `ThemeProvider.tsx` 的 `HASH_THEME_MAP` 加 `"#3": "新主题"`
+2. `src/components/layout/新主题/Header.tsx` 创建新 Header
+3. `ThemeLayout.tsx` 加一个 `theme === "新主题"` 分支（可选 Dock）
+4. `ThemeProvider.tsx` 的 `HASH_THEME_MAP` 加 `"#3": "新主题"`
 
-所有组件自动适配，不需要改任何组件代码。
+---
+
+## 十一、版本历史
+
+| 版本 | 日期 | 主要变更 |
+|------|------|----------|
+| V1.0.0 | 2026-06-24 | 初始版本，双主题架构，ui-config 条件决策 |
+| V1.0.1 | 2026-06-25 | **组件分离重构**：YanwuHeader / AlternateHeader 独立文件，ThemeLayout 路由。命格系统、爬虫升级、移动端 /m 路由、Dock 常驻 #2 |
