@@ -59,7 +59,7 @@ export function Header() {
           <span className={isMobile ? "text-sm font-extrabold tracking-wider text-gold-light" : isAlt ? "text-[11px] font-bold tracking-wider text-[#777]" : "text-lg font-extrabold tracking-wider text-gold-light"}>
             王者演武堂
           </span>
-          <span className={`text-[10px] font-semibold tracking-wider rounded px-1.5 leading-4 ${isMobile ? "inline text-gold/70 border border-gold/10" : isAlt ? "hidden" : "hidden sm:inline text-gold/70 border border-gold/15"}`}>
+          <span className={`text-[10px] font-semibold tracking-wider rounded px-1.5 leading-4 ${isMobile ? "inline text-gold/70 border border-gold/10" : "inline text-gold/70 border border-gold/15"}`}>
             {version}
           </span>
         </Link>
