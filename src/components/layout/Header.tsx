@@ -65,8 +65,7 @@ export function Header() {
         <div className="h-px bg-gradient-to-r from-transparent via-gold/40 to-transparent animate-pulse" />
       )}
 
-      <div className={`${(ui.headerNav === "compact") ? "header-inner-alt" : isMobile ? "max-w-full mx-auto px-4 h-11" : "max-w-6xl mx-auto px-4 sm:px-6 h-14"} flex items-center gap-4`}
-        style={(ui.headerNav === "compact") ? { height: 34, padding: "0 20px" } : undefined}>
+      <div className={`${(ui.headerNav === "compact") ? "header-inner-alt" : isMobile ? "max-w-full mx-auto px-4 h-11" : "max-w-6xl mx-auto px-4 sm:px-6 h-14"} flex items-center gap-4`}>
         {/* Brand */}
         <Link href={withHash(pathIsM ? "/m" : "/")} className="flex items-center gap-2 shrink-0 no-underline">
           <span className={(ui.headerNav === "compact") ? "text-[11px] font-bold tracking-wider text-[#777]" : isMobile ? "text-sm font-extrabold tracking-wider text-gold-light" : "text-lg font-extrabold tracking-wider text-gold-light"}>
