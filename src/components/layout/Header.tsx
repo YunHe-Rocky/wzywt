@@ -126,7 +126,7 @@ export function Header() {
                     </div>
                   </div>
                 </div>
-                <Link href="/me" onClick={() => setMenuOpen(false)}
+                <Link href={isMobile ? "/m/me" : "/me"} onClick={() => setMenuOpen(false)}
                   className={`flex items-center gap-2 px-4 py-2.5 text-sm no-underline transition-colors ${isAlt ? "text-[#666] hover:bg-black/3 hover:text-[#333]" : "text-text-secondary hover:text-text hover:bg-hover"}`}>
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
                   个人空间

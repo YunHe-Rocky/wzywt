@@ -60,8 +60,14 @@ export function Dock() {
   const accent = isYanwu ? "var(--gold)" : "var(--gold)";
   const accentBg = isYanwu ? "var(--gold-alpha-08)" : "var(--gold-alpha-08)";
 
-  const isActive = (href: string) =>
-    href === "/" ? pathname === "/" : pathname.startsWith(href);
+  // 检测是否在 /m 路由下，自动适配链接
+  const mPrefix = pathname.startsWith("/m") ? "/m" : "";
+
+  const isActive = (href: string) => {
+    const fullHref = mPrefix + href;
+    if (href === "/") return pathname === mPrefix + "/" || pathname === mPrefix;
+    return pathname.startsWith(fullHref);
+  };
 
   const dockBg = isYanwu
     ? "rgba(30,33,42,0.85)"
@@ -89,7 +95,7 @@ export function Dock() {
         {NAV.map((item) => (
           <div key={item.href} className="flex flex-col items-center gap-0.5 px-1.5">
             <Link
-              href={item.href}
+              href={mPrefix + item.href}
               className="flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-200"
               style={{
                 background: isActive(item.href) ? accentBg : "transparent",
