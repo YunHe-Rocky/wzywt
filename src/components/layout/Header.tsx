@@ -24,9 +24,6 @@ export function Header() {
   const router = useRouter();
   const pathname = usePathname();
 
-  // 移动端路由不渲染桌面 Header
-  if (pathname.startsWith("/m")) return null;
-
   useEffect(() => { setMounted(true); }, []);
 
   useEffect(() => {
@@ -53,6 +50,9 @@ export function Header() {
   const { theme } = useTheme();
   const isAlt = mounted && theme === "alternate";
   const active = (href: string) => href === "/" ? pathname === "/" : pathname.startsWith(href);
+
+  // 移动端路由不渲染桌面 Header
+  if (pathname.startsWith("/m")) return null;
 
   return (
     <header className={`sticky top-0 z-50 ${isAlt ? "header-bar" : "bg-nav border-b border-border-gold"}`} suppressHydrationWarning>
