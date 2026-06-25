@@ -74,9 +74,9 @@ export function Header() {
           </span>
         </Link>
 
-        {/* Desktop nav — hidden on /m routes (Dock handles mobile nav) */}
+        {/* Desktop nav — not on /m routes */}
         {!isMobile && (
-          <nav className="hidden sm:flex items-center gap-1 ml-4">
+          <nav className="flex items-center gap-1 ml-4">
             {NAV.map(n => (
               <Link key={n.href} href={withHash(n.href)}
                 className={`px-3 py-1.5 text-sm font-medium rounded-sm transition-colors no-underline
@@ -153,7 +153,7 @@ export function Header() {
         {/* Mobile hamburger — 演武用汉堡菜单，#2 用 Dock */}
         {ui.mobileNav === "hamburger" && (
           <button onClick={() => setMobileOpen(!mobileOpen)}
-            className="sm:hidden flex items-center justify-center w-8 h-8 rounded text-text-muted hover:text-gold-light transition-colors">
+            className="flex items-center justify-center w-8 h-8 rounded text-text-muted hover:text-gold-light transition-colors">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               {mobileOpen
                 ? <path strokeLinecap="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -165,7 +165,7 @@ export function Header() {
 
       {/* Mobile nav dropdown — 演武汉堡菜单展开 */}
       {ui.mobileNav === "hamburger" && mobileOpen && (
-        <div className="sm:hidden border-t border-border bg-card px-4 py-2 flex flex-col gap-1 animate-slide-up">
+        <div className="border-t border-border bg-card px-4 py-2 flex flex-col gap-1 animate-slide-up">
           {NAV.map(n => (
             <Link key={n.href} href={withHash(n.href)} onClick={() => setMobileOpen(false)}
               className={`px-3 py-2 rounded text-sm no-underline font-medium ${active(n.href) ? "text-gold bg-gold/8" : "text-text-secondary"}`}>
