@@ -150,8 +150,8 @@ export function Header() {
           </Link>
         )}
 
-        {/* Mobile hamburger — 演武用汉堡菜单，#2 用 Dock */}
-        {ui.mobileNav === "hamburger" && (
+        {/* Mobile hamburger — 演武手机用汉堡菜单 */}
+        {ui.mobileNav === "hamburger" && isMobile && (
           <button onClick={() => setMobileOpen(!mobileOpen)}
             className="flex items-center justify-center w-8 h-8 rounded text-text-muted hover:text-gold-light transition-colors">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
