@@ -132,7 +132,6 @@ export function HeroGrid() {
   const [heroes, setHeroes] = useState<Hero[]>([]);
   const [roleFilter, setRoleFilter] = useState("");
   const [classFilter, setClassFilter] = useState("");
-  const [minggeFilter, setMinggeFilter] = useState(false);
   const [search, setSearch] = useState("");
   const [minggePick, setMinggePick] = useState<{ base: Hero; related: Hero | null } | null>(null);
   const [loading, setLoading] = useState(true);
@@ -183,9 +182,12 @@ export function HeroGrid() {
     return () => es.close();
   }, []);
 
+  // 命格形态（被其他英雄引用为命格）不在图鉴中单独展示
+  const minggeRelatedIds = new Set(heroes.filter(h => h.minggeRelatedId).map(h => h.minggeRelatedId!));
+
   const filtered = heroes
-    .filter((h) => h.name.includes(search) || h.title.includes(search))
-    .filter((h) => (minggeFilter ? h.mingge : true));
+    .filter((h) => !minggeRelatedIds.has(h.heroId)) // 隐藏命格形态
+    .filter((h) => h.name.includes(search) || h.title.includes(search));
 
   return (
     <div style={{ maxWidth: 960, margin: "0 auto", padding: "40px 24px" }}>
@@ -248,21 +250,6 @@ export function HeroGrid() {
           </div>
         </div>
 
-        {/* 命格筛选 */}
-        <div style={{ marginTop: 10 }}>
-          <span style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", marginRight: 10, letterSpacing: 1 }}>
-            特性
-          </span>
-          <div style={{ display: "inline-flex", gap: 4, flexWrap: "wrap" }}>
-            <button
-              onClick={() => setMinggeFilter(!minggeFilter)}
-              className={minggeFilter ? "btn-primary" : "btn-subtle"}
-              style={{ padding: "5px 12px", fontSize: 12, fontWeight: minggeFilter ? 600 : 400 }}
-            >
-              命格系统
-            </button>
-          </div>
-        </div>
       </div>
 
       {/* Error state */}
@@ -356,16 +343,17 @@ export function HeroGrid() {
                       {ROLE_LABELS[hero.roleType].label}
                     </span>
                   )}
-                  {/* 命格标识 */}
-                  {hero.mingge && (
+                  {/* 双形态标识 */}
+                  {hero.mingge && hero.minggeRelatedId && (
                     <span style={{
-                      display: "inline-flex", alignItems: "center", padding: "2px 6px", borderRadius: 3,
+                      display: "inline-flex", alignItems: "center", gap: 3, padding: "2px 6px", borderRadius: 3,
                       fontSize: 10, fontWeight: 700,
-                      background: "rgba(232,170,60,0.15)",
-                      color: "#e8aa3c",
-                      border: "1px solid rgba(232,170,60,0.3)",
+                      background: "rgba(232,170,60,0.12)",
+                      color: "#d4992a",
+                      border: "1px solid rgba(232,170,60,0.25)",
                     }}>
-                      命格
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M20 12H4M12 4l8 8-8 8"/></svg>
+                      双形态
                     </span>
                   )}
                 </div>
