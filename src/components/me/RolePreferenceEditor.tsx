@@ -10,15 +10,16 @@ const ROLE_LABELS: Record<string, string> = {
 
 const RANK_TIERS = [
   { label: "未设置", value: 0 },
-  { label: "青铜", value: 1 },
-  { label: "白银", value: 2 },
-  { label: "黄金", value: 3 },
-  { label: "铂金", value: 4 },
-  { label: "钻石", value: 5 },
-  { label: "星耀", value: 6 },
-  { label: "王者", value: 7 },
+  { label: "倔强青铜", value: 1 },
+  { label: "秩序白银", value: 2 },
+  { label: "荣耀黄金", value: 3 },
+  { label: "尊贵铂金", value: 4 },
+  { label: "永恒钻石", value: 5 },
+  { label: "至尊星耀", value: 6 },
+  { label: "最强王者", value: 7 },
   { label: "无双王者", value: 8 },
   { label: "荣耀王者", value: 9 },
+  { label: "传奇王者", value: 10 },
 ];
 
 const ROLES = ["top", "jungle", "mid", "adc", "support"] as const;
@@ -28,7 +29,7 @@ function RankBadge({ value, size = 48 }: { value: number; size?: number }) {
   const s = size;
   const colors: Record<number, string> = {
     1: "#CD853F", 2: "#B0C4DE", 3: "#FFD700", 4: "#34C8E0",
-    5: "#5B8DEE", 6: "#BB5BE0", 7: "#E8453C", 8: "#F0A030", 9: "#FF4444",
+    5: "#5B8DEE", 6: "#BB5BE0", 7: "#E8453C", 8: "#F0A030", 9: "#FF4444", 10: "#FF2222",
   };
   const color = colors[value] || "#666";
   return (
