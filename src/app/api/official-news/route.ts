@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { fetchGicpNews, GICP_CHANNELS } from "@/lib/gicp";
