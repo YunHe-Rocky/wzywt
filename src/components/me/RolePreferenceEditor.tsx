@@ -151,7 +151,9 @@ export function RolePreferenceEditor() {
             <LaneIcon role={activePref.roleType} size={24} />
             <span className="text-base font-bold text-text">{ROLE_LABELS[activePref.roleType]}</span>
             <span className="badge badge-gold text-[11px] px-2 py-0.5">P{activePref.preferenceRank}</span>
-            <span className="text-xs text-gold-light font-semibold ml-auto">{calcLaneRank(activeHeroes)}段</span>
+            <span className="ml-auto text-xs font-bold px-2 py-0.5 rounded" style={{
+              background: "var(--gold-alpha-08)", color: "var(--gold-light)", border: "1px solid var(--gold-alpha-20)",
+            }}>{calcLaneRank(activeHeroes)}段</span>
           </div>
 
           {/* 英雄战力 — 参考 #2 卡片风格 */}
