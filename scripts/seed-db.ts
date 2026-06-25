@@ -8,6 +8,18 @@ const USERS = ["剑仙小李","打野王者","中路法王","射手大神","辅�
 const PWD = "12345678901";
 
 async function main() {
+  // 先清理旧数据
+  console.log("清理旧数据...");
+  await prisma.tempPlayerApplication.deleteMany();
+  await prisma.adminOperation.deleteMany();
+  await prisma.tournamentPlayer.deleteMany();
+  await prisma.tournamentAdmin.deleteMany();
+  await prisma.heroPower.deleteMany();
+  await prisma.rolePreference.deleteMany();
+  await prisma.tournament.deleteMany();
+  // 保留用户：如果已存在则跳过创建
+  console.log("  旧赛事+战力已清理，用户保留\n");
+
   const hash = await bcrypt.hash(PWD, 10);
   const hashAnswer = await bcrypt.hash("北京", 10);
 
@@ -82,7 +94,7 @@ async function main() {
   const deadline = new Date(Date.now() + 86400000);
   const t = await prisma.tournament.create({
     data: {
-      name: "周五内战测试", code: "TEST01", deadline, isPublic: true,
+      name: "周五内战测试", code: "T" + Date.now().toString(36).toUpperCase().slice(-5), deadline, isPublic: true,
       players: { create: userIds.map((uid, i) => ({ userId: uid, isSpectator: false })) },
       admins: { create: { userId: userIds[0], role: "owner" } },
     },
