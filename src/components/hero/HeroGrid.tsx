@@ -127,12 +127,71 @@ function HeroImage({ hero }: { hero: Hero }) {
   );
 }
 
+function CardInfo({ hero, form, minggeHero, onToggle }: { hero: Hero; form: string; minggeHero?: Hero; onToggle: (h: Hero) => void }) {
+  const displayHero = (form === "mingge" && minggeHero) ? minggeHero : hero;
+  return (
+    <>
+      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: "var(--text)" }}>{displayHero.name}</div>
+          <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>{displayHero.title}</div>
+        </div>
+        {hero.mingge && hero.minggeRelatedId && (
+          <button onClick={(e) => { e.stopPropagation(); onToggle(hero); }}
+            title={form === "mingge" ? "切回本命" : "切换命格"}
+            style={{ width: 26, height: 26, borderRadius: "50%", border: "1px solid rgba(232,170,60,0.3)", background: form === "mingge" ? "rgba(232,170,60,0.15)" : "transparent", color: form === "mingge" ? "#d4992a" : "var(--text-muted)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, flexShrink: 0 }}>
+            ⇄
+          </button>
+        )}
+      </div>
+      <div style={{ display: "flex", gap: 4, marginTop: 6, flexWrap: "wrap" }}>
+        {displayHero.heroType > 0 && CLASS_LABELS[displayHero.heroType] && (
+          <span style={{ display: "inline-flex", alignItems: "center", padding: "2px 6px", borderRadius: 3, fontSize: 10, fontWeight: 600, background: CLASS_LABELS[displayHero.heroType].color + "20", color: CLASS_LABELS[displayHero.heroType].color, border: "1px solid " + CLASS_LABELS[displayHero.heroType].color + "30" }}>
+            {CLASS_LABELS[displayHero.heroType].label}
+          </span>
+        )}
+        {ROLE_LABELS[displayHero.roleType] && (
+          <span style={{ display: "inline-flex", alignItems: "center", padding: "2px 6px", borderRadius: 3, fontSize: 10, fontWeight: 600, background: ROLE_LABELS[displayHero.roleType].color + "18", color: ROLE_LABELS[displayHero.roleType].color, border: "1px solid " + ROLE_LABELS[displayHero.roleType].color + "25" }}>
+            {ROLE_LABELS[displayHero.roleType].label}
+          </span>
+        )}
+        {form === "mingge" && (
+          <span style={{ display: "inline-flex", alignItems: "center", padding: "2px 6px", borderRadius: 3, fontSize: 10, fontWeight: 700, background: "rgba(232,170,60,0.12)", color: "#d4992a", border: "1px solid rgba(232,170,60,0.25)" }}>
+            命格
+          </span>
+        )}
+      </div>
+    </>
+  );
+}
+
 export function HeroGrid() {
   const router = useRouter();
   const [heroes, setHeroes] = useState<Hero[]>([]);
   const [roleFilter, setRoleFilter] = useState("");
   const [classFilter, setClassFilter] = useState("");
   const [search, setSearch] = useState("");
+  const [cardForms, setCardForms] = useState<Record<number, "base" | "mingge">>({});
+  const [minggeHeroes, setMinggeHeroes] = useState<Record<number, Hero>>({});
+
+  const toggleCardForm = async (hero: Hero) => {
+    const current = cardForms[hero.heroId] || "base";
+    if (current === "base") {
+      // 切换到命格 — 先检查是否已加载
+      if (!minggeHeroes[hero.heroId] && hero.minggeRelatedId) {
+        try {
+          const res = await fetch(`/api/heroes/${hero.minggeRelatedId}`);
+          const data = await res.json();
+          if (data.heroId) {
+            setMinggeHeroes(prev => ({ ...prev, [hero.heroId]: data }));
+          }
+        } catch {}
+      }
+      setCardForms(prev => ({ ...prev, [hero.heroId]: "mingge" }));
+    } else {
+      setCardForms(prev => ({ ...prev, [hero.heroId]: "base" }));
+    }
+  };
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState(false);
 
@@ -292,53 +351,9 @@ export function HeroGrid() {
                 textAlign: "left",
               }}
             >
-              <HeroImage hero={hero} />
+              <HeroImage hero={(cardForms[hero.heroId] === "mingge" && minggeHeroes[hero.heroId]) || hero} />
               <div style={{ padding: "10px 12px 12px" }}>
-                <div style={{ fontSize: 14, fontWeight: 600, color: "var(--text)" }}>
-                  {hero.name}
-                </div>
-                <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>
-                  {hero.title}
-                </div>
-                <div style={{ display: "flex", gap: 4, marginTop: 6, flexWrap: "wrap" }}>
-                  {/* 职业标签 */}
-                  {hero.heroType > 0 && CLASS_LABELS[hero.heroType] && (
-                    <span style={{
-                      display: "inline-flex", alignItems: "center", padding: "2px 6px", borderRadius: 3,
-                      fontSize: 10, fontWeight: 600,
-                      background: CLASS_LABELS[hero.heroType].color + "20",
-                      color: CLASS_LABELS[hero.heroType].color,
-                      border: "1px solid " + CLASS_LABELS[hero.heroType].color + "30",
-                    }}>
-                      {CLASS_LABELS[hero.heroType].label}
-                    </span>
-                  )}
-                  {/* 分路标签 */}
-                  {ROLE_LABELS[hero.roleType] && (
-                    <span style={{
-                      display: "inline-flex", alignItems: "center", padding: "2px 6px", borderRadius: 3,
-                      fontSize: 10, fontWeight: 600,
-                      background: ROLE_LABELS[hero.roleType].color + "18",
-                      color: ROLE_LABELS[hero.roleType].color,
-                      border: "1px solid " + ROLE_LABELS[hero.roleType].color + "25",
-                    }}>
-                      {ROLE_LABELS[hero.roleType].label}
-                    </span>
-                  )}
-                  {/* 双形态标识 */}
-                  {hero.mingge && hero.minggeRelatedId && (
-                    <span style={{
-                      display: "inline-flex", alignItems: "center", gap: 3, padding: "2px 6px", borderRadius: 3,
-                      fontSize: 10, fontWeight: 700,
-                      background: "rgba(232,170,60,0.12)",
-                      color: "#d4992a",
-                      border: "1px solid rgba(232,170,60,0.25)",
-                    }}>
-                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M20 12H4M12 4l8 8-8 8"/></svg>
-                      双形态
-                    </span>
-                  )}
-                </div>
+                <CardInfo hero={hero} form={cardForms[hero.heroId] || "base"} minggeHero={minggeHeroes[hero.heroId]} onToggle={toggleCardForm} />
               </div>
             </button>
           ))}
