@@ -2,15 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { useAnnouncements } from "@/hooks/useAnnouncements";
-
-const NAV = [
-  { href: "/", label: "首页" },
-  { href: "/tournaments", label: "赛事大厅" },
-  { href: "/heroes", label: "英雄图鉴" },
-];
 
 export function AlternateHeader() {
   const { user, loaded, logout } = useAuth();
@@ -18,7 +11,6 @@ export function AlternateHeader() {
 
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
-  const pathname = usePathname();
 
   useEffect(() => {
     const fn = (e: MouseEvent) => { if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false); };
@@ -39,8 +31,6 @@ export function AlternateHeader() {
 
   function doLogout() { setMenuOpen(false); logout(); }
 
-  const active = (href: string) => href === "/" ? pathname === "/" : pathname.startsWith(href);
-
   return (
     <header className="sticky top-0 z-50 header-bar">
       <div className="header-inner-alt flex items-center gap-4">
@@ -51,16 +41,6 @@ export function AlternateHeader() {
             {version}
           </span>
         </Link>
-
-        {/* Desktop nav */}
-        <nav className="flex items-center gap-1 ml-4">
-          {NAV.map(n => (
-            <Link key={n.href} href={withHash(n.href)}
-              className={`px-3 py-1.5 text-sm font-medium rounded-sm transition-colors no-underline ${active(n.href) ? "text-gold bg-gold/8" : "text-[#777] hover:text-[#555] hover:bg-black/3"}`}>
-              {n.label}
-            </Link>
-          ))}
-        </nav>
 
         <div className="flex-1" />
 
