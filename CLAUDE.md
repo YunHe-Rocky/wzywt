@@ -1,96 +1,150 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
-## 项目
-
-王者演武堂 — 王者荣耀 5v5 内战分队系统。Next.js 14 全栈应用，综合分路段位、偏好与英雄战力自动均衡分队。
+王者演武堂 — 王者荣耀 5v5 内战分队系统。Next.js 14 全栈应用。
 
 ## 命令
 
 ```bash
-npm run dev            # 开发服务器 (默认 localhost:3000)
-npm run dev:all        # 开发 + 定时任务
+npm run dev            # 开发服务器 (localhost:3000)
+npm run dev:all        # 开发 + cron 定时任务
 npm run build          # 生产构建
 npm run db:push        # 同步 Prisma schema
 npm run db:generate    # 重新生成 Prisma 客户端
 npm run sync-heroes    # 手动同步英雄数据
-npm run cron           # 独立定时任务
+npm run cron           # 独立 cron 进程
 npx tsc --noEmit       # 类型检查
 ```
 
-部署脚本在 `scripts/deploy.sh`：
-```bash
-git pull && npm install && npx prisma db push && npm run build && pm2 restart all
-```
+部署：`bash scripts/deploy.sh`（自动 git pull → install → prisma → build → pm2 restart）
 
 ## 技术栈
 
-Next.js 14 (App Router) · TypeScript · Tailwind CSS · Prisma 5 + MySQL · iron-session + bcryptjs · cheerio + iconv-lite · pinyin · node-cron · SSE
+Next.js 14 (App Router) · TypeScript · Tailwind CSS · Prisma 5 + MySQL · iron-session + bcryptjs · cheerio + iconv-lite · pinyin · node-cron · SSE · PM2
 
-## 核心设计
+## 双主题系统
 
-### 认证与中间件
-- `/api/auth/me` → `{ user: { userId, username } | null }`
-- iron-session cookie: `wzyt_session`
-- `src/middleware.ts` — 拦截所有非公开路径，无 session 重定向到 `/login?redirect=原路径`
-- 公开路径白名单：`/login`, `/register`, `/api/auth`, `/api/official-news`, `/api/announcements`, `/api/tournaments/public`
+详见 `docs/themes/README.md`。
 
-### 配色系统
-石板灰基底 + 暖铜金点缀（低对比度、舒适）。所有颜色通过 CSS 变量定义在 `:root, [data-theme="yanwu"]`，组件统一引用 `var(--xxx)` 或 Tailwind 颜色 token。禁止硬编码颜色值。
+| | 演武 #1 | 厚玻璃 #2 |
+|---|---|---|
+| 定位 | 桌面主力 | 移动主力 + 桌面可选 |
+| 基底 | 石板灰 `#161920` | 浅灰 `#efeff2` |
+| 强调色 | 暖铜金 `#a89068` | 系统蓝 `#4488f0` |
+| 卡片 | 暗琉璃（顶部微光） | 厚毛玻璃（blur 28px + 多层阴影） |
+| 圆角 | 6px | 16px |
+| Dock | 仅移动端 | 桌面 + 移动端 |
 
-**核心规则**：金色仅用于强调（标题、激活态、主按钮），正文用灰白系。按钮用 CSS 变量 `var(--gold-light)` 渐变，hover 用 `filter: brightness(1.08)`。
+切换：URL `#1` / `#2`，所有内部链接自动保留 hash。内联脚本防 FOUC。
 
-### 主题系统
-`src/themes/ThemeProvider.tsx` — URL hash 驱动主题切换：
-- `#1` 或无 hash → `yanwu` 主题（当前）
-- `#2` → `alternate` 主题（占位）
-- hash 变化自动切换 `<html data-theme="...">`，CSS 变量全隔离
+## 移动端 /m 路由
 
-两套主题功能完全相同，仅视觉差异。做第二套主题只需编辑 `globals.css` 中 `[data-theme="alternate"]` 的变量。
+- `src/middleware.ts` UA 检测 → 手机自动 307 到 `/m` 路由
+- `/m` 使用独立 layout（`src/app/m/layout.tsx`）
+- `/m` 下所有页面 re-export 主路由的同名页面
+- Header 在 /m 路由显示简洁版（品牌 + 用户），Dock 提供主导航
 
-### 首页
-`src/app/page.tsx` — 全宽三区：系统公告（可展开）+ 公开房间（双列网格）+ 王者官方公告。无侧边栏、无个人空间卡片。数据从 `/api/announcements`、`/api/tournaments/public`、`/api/official-news` 获取。
+## 架构
 
-### 个人空间
-`src/components/me/RolePreferenceEditor.tsx` — 三部分：
-1. **段位信息卡片**：当前段位 + 分隔线 + 历史最高段位（统一设置所有分路）
-2. **分路优先级排序栏**：5 个分路可拖拽排序（▲▼按钮），每个显示英雄数量 (0/3)
-3. **Tab 内容区**：选中分路的英雄列表 + 添加表单（HeroSelect + 战力输入 + 添加按钮）+ 巅峰赛分数
+### 目录结构
+```
+src/
+  hooks/          # 数据 hooks（与 UI 分离）
+    useAuth.ts        用户登录态
+    useAnnouncements.ts  公告列表 + 版本号
+    useRolePreferences.ts 段位/分路/英雄战力
+  components/
+    layout/        # 布局组件
+      Header.tsx      顶部导航（三模式）
+      Dock.tsx        底部导航栏（双主题）
+      BackgroundOrbs.tsx  三颗动态光晕
+      CursorLighting.tsx  #2 鼠标跟随阴影
+    hero/          # 英雄相关
+      HeroGrid.tsx     图鉴网格 + 筛选
+      HeroDetail.tsx   详情页 + 命格切换
+      HeroSelect.tsx   搜索下拉（拼音 + portal）
+    me/            # 个人空间
+      RolePreferenceEditor.tsx  段位 + 分路 + 英雄战力
+    auth/          # 认证
+      AuthForm.tsx      登录/注册表单
+    tournament/    # 赛事
+    ui/            # 通用 UI
+      Toast.tsx
+  lib/
+    heroes/sync.ts    爬虫核心：全量英雄同步
+    monitor/index.ts   轻量监控（3分钟对比）
+    anti-bot.ts       5 UA 轮换 + 退避重试
+    sse/heroes.ts     SSE 广播
+  themes/
+    ThemeProvider.tsx  hash 驱动主题切换
+  app/
+    api/            # 全部 API（28 个路由均已 force-dynamic）
+    m/              # 移动端路由
+```
 
-### 分队算法
-`split.ts` — 取前 10 人 5v5。每人按分配分路计算综合战力（满分约 1000），评分权重: 偏好满足(×350) > 段位覆盖(×50) > 段位均衡(×30) > 战力均衡(×20)。结果持久化到 `tournaments.split_result`。
-
-### 权限
-| 操作 | 房主 | 管理 | 选手 |
-|------|:--:|:--:|:--:|
-| 加入/退出 | ✓ | ✓ | ✓ |
-| 分队/踢人/延长 | ✓ | ✓ (5分冷却) | |
-| 公告/公开切换 | ✓ | ✓ | |
-| 任命/撤销管理 | ✓ | | |
-
-### HeroSelect 组件
-`src/components/hero/HeroSelect.tsx` — 英雄搜索下拉。通过 `createPortal` 渲染到 `<body>`，`position: fixed` 定位，自动跟随滚动和窗口缩放。支持拼音模糊搜索（动态加载 pinyin 库）。下拉项格式：`[头像] 花木兰 #123 / 传说之刃`。z-index: 99999。
-
-### 布局规范
-- **桌面优先**，无复杂响应式。移动端仅基础适配（padding、字号）。
-- Header 导航：`首页 | 赛事大厅 | 英雄图鉴`。桌面 nav 常显，手机端汉堡菜单。
-- 卡片用 `.card` class（琉璃质感：顶部微亮反光 + 内阴影）
-- 输入框背景 `var(--bg-input)` 比卡片亮，边框 `rgba(255,255,255,0.1)`
-
-### 英雄系统
-- `hero_type` / `hero_type2`: 官方职业 (1战士 2法师 3坦克 4刺客 5射手 6辅助)
-- `role_type`: 分路 (top/jungle/mid/adc/support)
-- `hero_lane_overrides`: 手动修正表，外部同步不覆盖
-
-### 实时监控
-SSE: `/api/heroes/watch` 每 60s 检查官方数据，三模块独立（news/heroes/skins），变化时触发爬虫并广播。
-
-### 反爬
-`anti-bot.ts` — 5 UA 轮换 + 指数退避重试 + Playwright 降级
+### 核心 hooks（业务逻辑与 UI 分离）
+- `useAuth()` → `{ user, loaded, logout }`
+- `useAnnouncements(full?)` → `{ announcements, loaded, latestVersion }`
+- `useRolePreferences()` → 所有段位/分路/英雄的 state + API 方法
 
 ### API 缓存
-所有 GET API 路由必须加 `export const dynamic = "force-dynamic"` + `Cache-Control: no-cache` 响应头，防止 Next.js 缓存数据。
+**所有 28 个 API 路由**均以 `export const dynamic = "force-dynamic"` 开头，禁止 Next.js 缓存。
 
-### 数据库
-远程 MySQL `38.22.234.148:3306`，数据库名 `yanwutang`。`.env` 中 `DATABASE_URL` 配置。表名前缀映射见 `prisma/schema.prisma`。
+## 认证与中间件
+
+- iron-session cookie: `wzyt_session`
+- 公开路径：`/login`, `/register`
+- 公开 API：`/api/auth`, `/api/official-news`, `/api/announcements`, `/api/tournaments/public`, `/api/heroes`
+- 移动 UA 检测 → `/m` 重定向（保留 hash）
+
+## 配色系统
+
+所有颜色通过 CSS 变量定义，禁止硬编码。组件统一引用 `var(--xxx)` 或 Tailwind token（`text-gold`, `bg-card` 等）。金色仅用于强调，正文灰白系。
+
+## 爬虫系统
+
+### 触发机制
+- `scripts/cron.ts`：启动后 5s 全量同步 + 每天 06:00 全量同步 + 每 3 分钟轻量监控
+- `/api/heroes/watch` SSE：浏览器连接时每 60s 辅助检查
+
+### 工作流
+```
+监控层 (monitor/index.ts)
+  ├── checkHeroes()   → 拉 herolist.json，对比数量/名称/类型/命格
+  ├── checkSkins()    → 采样对比 skin_name
+  └── checkNews()     → GICP API 对比头条
+  ↓ 检测到变化
+同步层 (heroes/sync.ts)
+  ├── fetchWithRetry(herolist.json)    → 5 重 UA 轮换 + 退避
+  ├── fetchDetail(herodetail/*.shtml)  → 4 URL × 2 重试
+  ├── parseSkills/parseSkins/parseMingGe → cheerio + 正则
+  └── prisma.upsert() → 写入 DB + 变化日志
+  ↓
+广播层 (sse/heroes.ts)
+  └── broadcastHeroUpdate() → 浏览器自动刷新
+```
+
+### 反爬容灾
+- 5 个 UA 轮换 + Accept-Language: zh-CN
+- 403/429/503 → 退避 3s/6s/9s/12s（指数 + 随机抖动）
+- 共 5 次重试，全失败则 log 错误不崩溃
+
+## 数据库
+
+远程 MySQL `38.22.234.148:3306`，数据库名 `yanwutang`。
+
+### 核心模型
+| 表 | 说明 |
+|---|---|
+| heroes | 英雄数据（含 mingge/minggeName/minggeRelatedId） |
+| hero_lane_overrides | 手动分路修正（sync 不覆盖） |
+| hero_powers | 用户英雄战力 |
+| announcements | 系统公告（DB 管理，部署时自动迁移旧 md） |
+| users | 用户 |
+| tournaments | 赛事 |
+
+## 命格系统
+
+- Hero 模型：`mingge`（bool）+ `minggeName`（string）+ `minggeRelatedId`（int?）
+- 爬虫从详情页 HTML 检测命格关键词，提取形态名称
+- 英雄详情页：有 `minggeRelatedId` 时显示切换按钮，点击跳转关联英雄
+- 命格关系需手动绑定（爬虫无法自动检测双向关联）：部署后执行 SQL 设置
