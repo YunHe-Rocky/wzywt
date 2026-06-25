@@ -53,15 +53,19 @@ export function Dock() {
   const pathname = usePathname();
   const [mounted, setMounted] = useState(false);
   const [hash, setHash] = useState("");
+  const [isMobile, setIsMobile] = useState(false);
   useEffect(() => {
     setMounted(true);
     setHash(window.location.hash);
+    setIsMobile(window.innerWidth <= 768);
     const onHash = () => setHash(window.location.hash);
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
 
+  // 桌面 #1 不显示 Dock，桌面 #2 和移动端显示
   if (!mounted) return null;
+  if (!isMobile && theme === "yanwu") return null;
 
   const isYanwu = theme === "yanwu";
   const accent = isYanwu ? "var(--gold)" : "var(--gold)";
