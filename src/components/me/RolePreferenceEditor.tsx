@@ -117,11 +117,11 @@ export function RolePreferenceEditor() {
         <div className="text-xs font-semibold text-text-muted tracking-wider uppercase mb-3">分路优先级排序</div>
         <div className="flex flex-col gap-1.5">
           {prefs.map((p, i) => (
-            <div key={p.roleType} className="flex items-center gap-2">
-              <span className="text-gold-light font-bold text-sm w-5 shrink-0 text-right">{p.preferenceRank}</span>
+            <div key={p.roleType} className="flex items-stretch gap-2">
+              <span className="text-gold-light font-bold text-sm w-5 shrink-0 text-right flex items-center">{p.preferenceRank}</span>
               <button
                 onClick={() => setActiveTab(p.roleType)}
-                className={`flex items-center gap-2 px-3 py-2.5 rounded-md text-sm font-semibold shrink-0 transition-all flex-1 border min-h-[44px]
+                className={`flex items-center gap-2 px-3 py-2.5 rounded-md text-sm font-semibold shrink-0 transition-all flex-1 border
                   ${activeTab === p.roleType
                     ? "bg-card text-gold-light border-gold/20 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
                     : "text-text-secondary border-transparent hover:bg-hover hover:border-border"}`}>
@@ -133,10 +133,10 @@ export function RolePreferenceEditor() {
                   <span>{calcLaneRank(heroesByRole[p.roleType] || [])}段</span>
                 </span>
               </button>
-              <div className="flex gap-0.5 shrink-0">
-                <button className="w-6 h-6 flex items-center justify-center rounded bg-card border border-border/50 text-text-muted hover:text-gold-light hover:border-gold/20 text-xs disabled:opacity-20 disabled:cursor-default transition-colors"
+              <div className="flex flex-col gap-0.5 shrink-0">
+                <button className="w-6 h-[50%] flex items-center justify-center rounded bg-card border border-border/50 text-text-muted hover:text-gold-light hover:border-gold/20 text-[10px] disabled:opacity-20 disabled:cursor-default transition-colors"
                   onClick={() => moveUp(i)} disabled={i === 0}>▲</button>
-                <button className="w-6 h-6 flex items-center justify-center rounded bg-card border border-border/50 text-text-muted hover:text-gold-light hover:border-gold/20 text-xs disabled:opacity-20 disabled:cursor-default transition-colors"
+                <button className="w-6 h-[50%] flex items-center justify-center rounded bg-card border border-border/50 text-text-muted hover:text-gold-light hover:border-gold/20 text-[10px] disabled:opacity-20 disabled:cursor-default transition-colors"
                   onClick={() => moveDown(i)} disabled={i === 4}>▼</button>
               </div>
             </div>
