@@ -7,6 +7,6 @@ export const metadata: Metadata = {
 
 export default function MobileLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="-mx-6 min-h-screen pb-24 px-3 pt-3">{children}</div>
+    <div className="min-h-screen pb-24 px-3 pt-3 max-w-full overflow-x-hidden">{children}</div>
   );
 }
