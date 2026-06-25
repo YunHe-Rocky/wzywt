@@ -1,8 +1,7 @@
 import "./globals.css";
 import type { Metadata } from "next";
-import { Header } from "@/components/layout/Header";
+import { ThemeLayout } from "@/components/layout/ThemeLayout";
 import { CursorLighting } from "@/components/layout/CursorLighting";
-import { Dock } from "@/components/layout/Dock";
 import { BackgroundOrbs } from "@/components/layout/BackgroundOrbs";
 import { ToastProvider } from "@/components/ui/Toast";
 import { ThemeProvider } from "@/themes/ThemeProvider";
@@ -28,9 +27,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <ToastProvider>
             <BackgroundOrbs />
             <CursorLighting />
-            <Header />
-            <main className="main-content">{children}</main>
-            <Dock />
+            <ThemeLayout>{children}</ThemeLayout>
           </ToastProvider>
         </ThemeProvider>
       </body>
