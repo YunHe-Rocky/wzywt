@@ -25,6 +25,9 @@ npx prisma db push
 echo ">>> migrate announcements..."
 npx tsx scripts/migrate-announcements.ts 2>/dev/null || echo "  (no legacy files to migrate)"
 
+echo ">>> bind mingge relationships..."
+npx tsx scripts/migrate-mingge.ts 2>/dev/null || echo "  (heroes not yet synced)"
+
 echo ">>> clean build cache..."
 rm -rf .next
 
