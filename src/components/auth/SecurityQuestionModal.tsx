@@ -4,14 +4,14 @@ import { useState } from "react";
 import { useToast } from "@/components/ui/Toast";
 
 const modalBackdrop: React.CSSProperties = {
-  position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 1000,
+  position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 1000,
 };
 const modalCard: React.CSSProperties = {
   position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)",
   zIndex: 1001, padding: "32px 28px", width: 380, maxWidth: "90vw",
-  borderRadius: 12, border: "1px solid var(--border)",
+  borderRadius: "var(--radius-lg)", border: "1px solid var(--border)",
   background: "var(--bg-card)",
-  boxShadow: "0 4px 24px rgba(0,0,0,0.3)",
+  boxShadow: "0 8px 40px rgba(0,0,0,0.3)",
   color: "var(--text)",
 };
 
@@ -23,14 +23,14 @@ const glowStyle: React.CSSProperties = {
 
 const goldBtn: React.CSSProperties = {
   width: "100%", padding: "11px 0", border: "1px solid rgba(255,255,255,0.08)",
-  borderRadius: 6, fontSize: 13, fontWeight: 700, cursor: "pointer",
+  borderRadius: "var(--radius-sm)", fontSize: 13, fontWeight: 700, cursor: "pointer",
   background: "linear-gradient(135deg, var(--gold-light), var(--gold-dim))",
   color: "#fff", letterSpacing: 0.5,
   boxShadow: "0 2px 8px var(--gold-alpha-10)",
 };
 
 const inputStyle: React.CSSProperties = {
-  width: "100%", padding: "10px 12px", borderRadius: 6, border: "1px solid var(--gold-alpha-08)",
+  width: "100%", padding: "10px 12px", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)",
   background: "var(--bg-input)", color: "var(--text)", fontSize: 13, boxSizing: "border-box",
 };
 
@@ -110,7 +110,7 @@ export function SecurityQuestionModal({
                 color: "#fff", fontSize: 10, fontWeight: 700,
                 display: "inline-flex", alignItems: "center", justifyContent: "center",
               }}>1</span>
-              <span style={{ fontSize: 10, fontWeight: 700, color: "#b0a060", letterSpacing: 0.5 }}>
+              <span style={{ fontSize: 10, fontWeight: 700, color: "var(--gold-dim)", letterSpacing: 0.5 }}>
                 验证身份
               </span>
             </div>
@@ -125,7 +125,7 @@ export function SecurityQuestionModal({
               <span style={{ fontSize: 10, fontWeight: 600, color: "var(--gold-dim)", display: "block", marginBottom: 4 }}>
                 安全问题
               </span>
-              <span style={{ fontSize: 13, color: "#e0d8c0", fontWeight: 500 }}>{question}</span>
+              <span style={{ fontSize: 13, color: "var(--gold-light)", fontWeight: 500 }}>{question}</span>
             </div>
 
             <div style={{ marginBottom: error ? 12 : 18 }}>
@@ -168,7 +168,7 @@ export function SecurityQuestionModal({
               </span>
             </div>
 
-            <h3 style={{ fontSize: 16, fontWeight: 700, color: "#e0d8c0", margin: "0 0 4px" }}>设置新密码</h3>
+            <h3 style={{ fontSize: 16, fontWeight: 700, color: "var(--gold-light)", margin: "0 0 4px" }}>设置新密码</h3>
             <p style={{ fontSize: 11, color: "#888", margin: "0 0 18px" }}>身份验证通过，请输入新密码</p>
 
             <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: error ? 12 : 18 }}>

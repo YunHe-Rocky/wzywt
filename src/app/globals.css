@@ -34,6 +34,10 @@
   --orb-3: #b8a080;
   --red: #cc6666;
   --red-dim: #994444;
+  --red-alpha-04: rgba(204, 102, 102, 0.04);
+  --red-alpha-06: rgba(204, 102, 102, 0.06);
+  --red-alpha-08: rgba(204, 102, 102, 0.08);
+  --red-alpha-15: rgba(204, 102, 102, 0.15);
   --blue: #6898cc;
   --blue-dim: #4a7099;
   --green: #78b878;
@@ -78,6 +82,10 @@
   --orb-3: #3898d8;
   --red: #e05555;
   --red-dim: #b04444;
+  --red-alpha-04: rgba(224, 85, 85, 0.04);
+  --red-alpha-06: rgba(224, 85, 85, 0.06);
+  --red-alpha-08: rgba(224, 85, 85, 0.08);
+  --red-alpha-15: rgba(224, 85, 85, 0.15);
   --blue: #4488f0;
   --blue-dim: #2563d8;
   --green: #55b855;
@@ -568,6 +576,20 @@
     height: 1px;
     background: linear-gradient(90deg, transparent, rgba(184,152,96,0.3), var(--gold), rgba(184,152,96,0.3), transparent);
     animation: energy-flow 2s ease-in-out infinite;
+  }
+
+  /* ── Modal ── */
+  .modal-backdrop {
+    position: fixed; inset: 0; z-index: 1000;
+    background: rgba(0,0,0,0.5);
+  }
+  .modal-card {
+    position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    z-index: 1001; width: 400px; max-width: 90vw; padding: 32px 28px;
+    border-radius: var(--radius-lg);
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.3);
   }
 
   /* ── Alternate Theme: 厚玻璃 & Dock ── */

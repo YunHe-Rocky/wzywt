@@ -121,7 +121,7 @@ export function RolePreferenceEditor() {
               <span className="text-gold-light font-bold text-sm w-5 shrink-0 text-right">{p.preferenceRank}</span>
               <button
                 onClick={() => setActiveTab(p.roleType)}
-                className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-semibold shrink-0 transition-all flex-1 border
+                className={`flex items-center gap-2 px-3 py-2.5 rounded-md text-sm font-semibold shrink-0 transition-all flex-1 border min-h-[44px]
                   ${activeTab === p.roleType
                     ? "bg-card text-gold-light border-gold/20 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
                     : "text-text-secondary border-transparent hover:bg-hover hover:border-border"}`}>

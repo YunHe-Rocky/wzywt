@@ -6,7 +6,7 @@ import { useToast } from "@/components/ui/Toast";
 
 const inputStyle: React.CSSProperties = {
   width: "100%", padding: "10px 12px", borderRadius: 6,
-  border: "1px solid rgba(204,102,102,0.15)", background: "var(--bg-input)",
+  border: "1px solid var(--red-alpha-15)", background: "var(--bg-input)",
   color: "var(--text)", fontSize: 13, boxSizing: "border-box",
 };
 
@@ -52,11 +52,11 @@ export function DeleteAccountModal({ open, onClose }: { open: boolean; onClose: 
   return (
     <>
       <div onClick={onClose}
-        style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 1000 }} />
+        style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 1000 }} />
       <div style={{
         position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)",
         zIndex: 1001, padding: "28px", width: 400, maxWidth: "90vw",
-        borderRadius: 12, border: "1px solid rgba(204,102,102,0.1)",
+        borderRadius: "var(--radius-lg)", border: "1px solid var(--red-alpha-08)",
         background: "var(--bg-card)", color: "var(--text)",
         boxShadow: "0 4px 24px rgba(0,0,0,0.3)",
       }}>
@@ -64,7 +64,7 @@ export function DeleteAccountModal({ open, onClose }: { open: boolean; onClose: 
         <div style={{
           position: "absolute", top: -40, left: "50%", transform: "translateX(-50%)",
           width: 160, height: 60,
-          background: "radial-gradient(ellipse, rgba(204,102,102,0.06), transparent)",
+          background: "radial-gradient(ellipse, var(--red-alpha-06), transparent)",
           pointerEvents: "none",
         }} />
 
@@ -82,7 +82,7 @@ export function DeleteAccountModal({ open, onClose }: { open: boolean; onClose: 
         </p>
 
         <div style={{
-          background: "rgba(204,102,102,0.04)", border: "1px solid rgba(204,102,102,0.08)",
+          background: "var(--red-alpha-04)", border: "1px solid var(--red-alpha-08)",
           borderRadius: 6, padding: "8px 12px", marginBottom: 18,
           fontSize: 10, color: "var(--text-muted)", lineHeight: 1.6,
         }}>
@@ -100,7 +100,7 @@ export function DeleteAccountModal({ open, onClose }: { open: boolean; onClose: 
             }}>1</span>
             <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text)" }}>
               输入 <code style={{
-                background: "rgba(204,102,102,0.08)", padding: "1px 4px",
+                background: "var(--red-alpha-08)", padding: "1px 4px",
                 borderRadius: 3, fontSize: 11, color: "var(--red)",
               }}>DELETE</code> 确认删除
             </span>
@@ -122,7 +122,7 @@ export function DeleteAccountModal({ open, onClose }: { open: boolean; onClose: 
           </div>
           {question ? (
             <div style={{
-              background: "rgba(204,102,102,0.04)", border: "1px solid rgba(204,102,102,0.08)",
+              background: "var(--red-alpha-04)", border: "1px solid var(--red-alpha-08)",
               borderRadius: 6, padding: "10px 12px", marginBottom: 8,
             }}>
               <span style={{ fontSize: 10, color: "var(--text-muted)", display: "block", marginBottom: 2 }}>安全问题</span>
@@ -139,7 +139,7 @@ export function DeleteAccountModal({ open, onClose }: { open: boolean; onClose: 
           <p style={{
             fontSize: 12, color: "var(--red)", textAlign: "center",
             marginBottom: 12, padding: "8px 12px",
-            background: "rgba(204,102,102,0.06)", borderRadius: 6,
+            background: "var(--red-alpha-06)", borderRadius: 6,
           }}>{error}</p>
         )}
 
@@ -155,8 +155,8 @@ export function DeleteAccountModal({ open, onClose }: { open: boolean; onClose: 
             cursor: canDelete ? "pointer" : "not-allowed",
             background: canDelete
               ? "var(--red)"
-              : "rgba(204,102,102,0.3)",
-            boxShadow: canDelete ? "0 3px 12px rgba(204,102,102,0.15)" : "none",
+              : "var(--red-dim)",
+            boxShadow: canDelete ? "0 3px 12px var(--red-alpha-15)" : "none",
             opacity: (!canDelete || loading) ? 0.5 : 1,
           }}>{loading ? "注销中..." : "确认注销"}</button>
         </div>
