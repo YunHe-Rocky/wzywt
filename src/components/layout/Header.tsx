@@ -33,6 +33,16 @@ export function Header() {
 
   const version = latestVersion || "V1.0.1";
 
+  // 保留 hash 避免切主题
+  const [hash, setHash] = useState("");
+  useEffect(() => {
+    setHash(window.location.hash);
+    const onHash = () => setHash(window.location.hash);
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
+  const withHash = (path: string) => path + hash;
+
   function doLogout() { setMenuOpen(false); logout(); }
 
   const { theme } = useTheme();
@@ -50,7 +60,7 @@ export function Header() {
       <div className={`${isMobile ? "max-w-full mx-auto px-4 h-11" : isAlt ? "header-inner-alt" : "max-w-6xl mx-auto px-4 sm:px-6 h-14"} flex items-center gap-4`}
         style={isMobile ? undefined : isAlt ? { height: 34, padding: "0 20px" } : undefined}>
         {/* Brand */}
-        <Link href={isMobile ? "/m" : "/"} className="flex items-center gap-2 shrink-0 no-underline">
+        <Link href={withHash(isMobile ? "/m" : "/")} className="flex items-center gap-2 shrink-0 no-underline">
           {isAlt && !isMobile && (
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#5e9eff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5"/>
@@ -68,7 +78,7 @@ export function Header() {
         {!isAlt && !isMobile && (
           <nav className="hidden sm:flex items-center gap-1 ml-4">
             {NAV.map(n => (
-              <Link key={n.href} href={n.href}
+              <Link key={n.href} href={withHash(n.href)}
                 className={`px-3 py-1.5 text-sm font-medium rounded-sm transition-colors no-underline
                   ${active(n.href) ? "text-gold bg-gold/8" : "text-text-secondary hover:text-text hover:bg-hover"}`}
               >
@@ -114,7 +124,7 @@ export function Header() {
                     </div>
                   </div>
                 </div>
-                <Link href={isMobile ? "/m/me" : "/me"} onClick={() => setMenuOpen(false)}
+                <Link href={withHash(isMobile ? "/m/me" : "/me")} onClick={() => setMenuOpen(false)}
                   className={`flex items-center gap-2 px-4 py-2.5 text-sm no-underline transition-colors ${isAlt ? "text-[#666] hover:bg-black/3 hover:text-[#333]" : "text-text-secondary hover:text-text hover:bg-hover"}`}>
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
                   个人空间
@@ -129,12 +139,12 @@ export function Header() {
             )}
           </div>
         ) : isAlt ? (
-          <Link href="/login"
+          <Link href={withHash("/login")}
             className="flex items-center justify-center w-5 h-5 rounded-full bg-blue/10 text-[#5e9eff] text-[9px] font-bold no-underline">
             ?
           </Link>
         ) : (
-          <Link href="/login"
+          <Link href={withHash("/login")}
             className="px-5 py-1.5 text-sm font-semibold rounded-md bg-gradient-to-b from-gold-light via-gold to-gold-dim text-white hover:brightness-110 transition-all hover:-translate-y-px shadow-[0_2px_6px_var(--gold-alpha-10)] no-underline">
             登录
           </Link>
@@ -157,7 +167,7 @@ export function Header() {
       {!isAlt && mobileOpen && (
         <div className="sm:hidden border-t border-border bg-card px-4 py-2 flex flex-col gap-1 animate-slide-up">
           {NAV.map(n => (
-            <Link key={n.href} href={n.href} onClick={() => setMobileOpen(false)}
+            <Link key={n.href} href={withHash(n.href)} onClick={() => setMobileOpen(false)}
               className={`px-3 py-2 rounded text-sm no-underline font-medium ${active(n.href) ? "text-gold bg-gold/8" : "text-text-secondary"}`}>
               {n.label}
             </Link>

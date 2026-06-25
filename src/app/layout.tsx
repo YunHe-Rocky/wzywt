@@ -23,7 +23,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           }}
         />
       </head>
-      <body className="font-sans" style={{ background: "var(--bg-root)", color: "var(--text)", minHeight: "100vh" }} suppressHydrationWarning>
+      <body className="font-sans overflow-x-hidden" style={{ background: "var(--bg-root)", color: "var(--text)", minHeight: "100vh", maxWidth: "100vw" }} suppressHydrationWarning>
         <ThemeProvider>
           <ToastProvider>
             <BackgroundOrbs />

@@ -52,7 +52,14 @@ export function Dock() {
   const { theme } = useTheme();
   const pathname = usePathname();
   const [mounted, setMounted] = useState(false);
-  useEffect(() => { setMounted(true); }, []);
+  const [hash, setHash] = useState("");
+  useEffect(() => {
+    setMounted(true);
+    setHash(window.location.hash);
+    const onHash = () => setHash(window.location.hash);
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
 
   if (!mounted) return null;
 
@@ -62,6 +69,7 @@ export function Dock() {
 
   // 检测是否在 /m 路由下，自动适配链接
   const mPrefix = pathname.startsWith("/m") ? "/m" : "";
+  const href = (path: string) => mPrefix + path + hash;
 
   const isActive = (href: string) => {
     const fullHref = mPrefix + href;
@@ -95,7 +103,7 @@ export function Dock() {
         {NAV.map((item) => (
           <div key={item.href} className="flex flex-col items-center gap-0.5 px-1.5">
             <Link
-              href={mPrefix + item.href}
+              href={href(item.href)}
               className="flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-200"
               style={{
                 background: isActive(item.href) ? accentBg : "transparent",
