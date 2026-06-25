@@ -149,6 +149,20 @@ model KvCache {
   @@map("kv_cache")
 }
 
+model Announcement {
+  id        Int      @id @default(autoincrement())
+  title     String   @db.VarChar(128)
+  version   String?  @db.VarChar(32)
+  brief     String   @db.VarChar(255)
+  content   String?  @db.Text
+  slug      String   @unique @db.VarChar(64)
+  published Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("announcements")
+}
+
 model AdminOperation {
   id           Int      @id @default(autoincrement())
   tournamentId Int      @map("tournament_id")

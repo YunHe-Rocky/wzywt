@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useAnnouncements } from "@/hooks/useAnnouncements";
 
 interface OfficialNews { title: string; date: string; url: string; }
 interface PublicTournament { id: number; name: string; code: string; announcement: string | null; _count: { players: number }; deadline: string; }
@@ -104,14 +105,13 @@ export default function Home() {
   const [authLoaded, setAuthLoaded] = useState(false);
   const [news, setNews] = useState<OfficialNews[]>([]);
   const [rooms, setRooms] = useState<PublicTournament[]>([]);
-  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [activeSlug, setActiveSlug] = useState<string | null>(null);
+  const { announcements, loaded: announcementsLoaded } = useAnnouncements(true);
 
   useEffect(() => {
     fetch("/api/auth/me").then(r => r.json()).then(d => { setUser(d.user); setAuthLoaded(true); });
     Promise.all([
-      fetch("/api/announcements?full=true").then(r => r.json()).then(d => { if (d.announcements) setAnnouncements(d.announcements); }).catch(() => {}),
       fetch("/api/official-news").then(r => r.json()).then(d => { if (Array.isArray(d)) setNews(d); }).catch(() => {}),
       fetch("/api/tournaments/public").then(r => r.json()).then(d => { if (d.tournaments) setRooms(d.tournaments); }).catch(() => {}),
     ]).finally(() => setLoaded(true));
@@ -145,7 +145,7 @@ export default function Home() {
             <div className="px-5 py-3 border-b border-border-light">
               <div className="text-sm font-semibold text-gold-light">📢 系统公告</div>
             </div>
-            {!loaded ? <div className="px-5 py-6"><SkeletonLines count={3} /></div>
+            {!loaded || !announcementsLoaded ? <div className="px-5 py-6"><SkeletonLines count={3} /></div>
               : announcements.length === 0 ? <p className="text-center text-text-muted text-sm py-6">暂无系统公告</p>
                 : announcements.map(a => (
                   <div key={a.slug} className="border-b border-border-light last:border-b-0">

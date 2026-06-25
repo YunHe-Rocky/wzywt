@@ -1,84 +1,38 @@
 import { NextRequest, NextResponse } from "next/server";
-import { readdirSync, readFileSync, existsSync } from "fs";
-import { join } from "path";
-
-interface Announcement {
-  date: string;
-  title: string;
-  version: string | null;
-  brief: string;
-  slug: string;
-  filename: string;
-  content?: string;
-}
-
-function versionNum(v: string): number[] {
-  return v.replace(/^V/i, "").split(".").map(Number);
-}
-
-function compareVersion(a: string, b: string): number {
-  const pa = versionNum(a), pb = versionNum(b);
-  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
-    const diff = (pb[i] || 0) - (pa[i] || 0);
-    if (diff !== 0) return diff;
-  }
-  return 0;
-}
+import { prisma } from "@/lib/db";
+import { requireAuth } from "@/lib/auth";
 
 export async function GET(req: NextRequest) {
-  const dir = join(process.cwd(), "data", "announcements");
-
-  if (!existsSync(dir)) {
-    return NextResponse.json({ announcements: [] });
-  }
-
-  const files = readdirSync(dir).filter((f) => f.endsWith(".md"));
-
   const { searchParams } = new URL(req.url);
-  const includeContent = searchParams.get("full") === "true";
+  const full = searchParams.get("full") === "true";
 
-  const announcements: Announcement[] = [];
-
-  for (const filename of files) {
-    const dateMatch = filename.match(/^(\d{4}-\d{2}-\d{2})-(.+)\.md$/);
-    if (!dateMatch) continue;
-
-    const date = dateMatch[1];
-    const slug = dateMatch[2];
-    const content = readFileSync(join(dir, filename), "utf-8");
-
-    const titleMatch = content.match(/^#\s+(.+)/m);
-    let rawTitle = titleMatch ? titleMatch[1] : slug.replace(/-/g, " ");
-    let version: string | null = null;
-
-    const versionMatch = rawTitle.match(/^(V\d+\.\d+\.\d+)\s*[—\-—]\s*(.+)/);
-    if (versionMatch) {
-      version = versionMatch[1];
-      rawTitle = versionMatch[2];
-    }
-
-    const bodyWithoutTitle = content.replace(/^#\s+.+\n?/, "").trim();
-    const briefMatch = bodyWithoutTitle.match(/^([\s\S]+?)(?:\n\s*\n|\n##|\n---)/);
-    const brief = briefMatch ? briefMatch[1].trim() : bodyWithoutTitle.split("\n")[0]?.trim() || rawTitle;
-
-    announcements.push({
-      date,
-      title: rawTitle,
-      version,
-      brief,
-      slug,
-      filename,
-      ...(includeContent ? { content: bodyWithoutTitle } : {}),
-    });
-  }
-
-  // Sort: by version descending, then by date descending for unversioned
-  announcements.sort((a, b) => {
-    if (a.version && b.version) return compareVersion(a.version, b.version);
-    if (a.version) return -1;
-    if (b.version) return 1;
-    return b.date.localeCompare(a.date);
+  const announcements = await prisma.announcement.findMany({
+    where: { published: true },
+    orderBy: [{ version: "desc" }, { createdAt: "desc" }],
+    select: full
+      ? { title: true, version: true, brief: true, content: true, slug: true, createdAt: true }
+      : { title: true, version: true, brief: true, slug: true, createdAt: true },
   });
 
-  return NextResponse.json({ announcements });
+  const mapped = announcements.map((a) => ({
+    ...a,
+    date: a.createdAt.toISOString().split("T")[0],
+  }));
+
+  return NextResponse.json({ announcements: mapped });
+}
+
+export async function POST(req: NextRequest) {
+  const { userId } = await requireAuth().catch(() => ({ userId: 0 }));
+  if (!userId) return NextResponse.json({ error: "请先登录" }, { status: 401 });
+
+  const { title, version, brief, content, slug } = await req.json();
+  if (!title || !brief || !slug) {
+    return NextResponse.json({ error: "标题、摘要、slug 为必填" }, { status: 400 });
+  }
+
+  const created = await prisma.announcement.create({
+    data: { title, version: version || null, brief, content: content || null, slug },
+  });
+  return NextResponse.json(created, { status: 201 });
 }

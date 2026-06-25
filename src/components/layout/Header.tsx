@@ -2,10 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter, usePathname } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useTheme } from "@/themes/ThemeProvider";
-
-interface User { userId: number; username: string; }
+import { useAuth } from "@/hooks/useAuth";
+import { useAnnouncements } from "@/hooks/useAnnouncements";
 
 const NAV = [
   { href: "/", label: "首页" },
@@ -14,26 +14,16 @@ const NAV = [
 ];
 
 export function Header() {
-  const [user, setUser] = useState<User | null>(null);
-  const [loaded, setLoaded] = useState(false);
+  const { user, loaded, logout } = useAuth();
+  const { latestVersion } = useAnnouncements(false);
+
   const [menuOpen, setMenuOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [version, setVersion] = useState("V1.0.1");
   const [mounted, setMounted] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
-  const router = useRouter();
   const pathname = usePathname();
 
   useEffect(() => { setMounted(true); }, []);
-
-  useEffect(() => {
-    fetch("/api/auth/me").then(r => r.json()).then(d => {
-      setUser(d.user ?? null); setLoaded(true);
-    }).catch(() => { setUser(null); setLoaded(false); });
-    fetch("/api/announcements").then(r => r.json()).then(d => {
-      if (d.announcements?.[0]?.version) setVersion(d.announcements[0].version);
-    }).catch(() => {});
-  }, [pathname]);
 
   useEffect(() => {
     const fn = (e: MouseEvent) => { if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false); };
@@ -41,11 +31,9 @@ export function Header() {
     return () => document.removeEventListener("mousedown", fn);
   }, []);
 
-  async function logout() {
-    await fetch("/api/auth/logout", { method: "POST" });
-    setUser(null); setMenuOpen(false);
-    router.push("/login"); router.refresh();
-  }
+  const version = latestVersion || "V1.0.1";
+
+  function doLogout() { setMenuOpen(false); logout(); }
 
   const { theme } = useTheme();
   const isAlt = mounted && theme === "alternate";
@@ -132,7 +120,7 @@ export function Header() {
                   个人空间
                 </Link>
                 <div className="border-t border-border-light my-1" />
-                <button onClick={logout}
+                <button onClick={doLogout}
                   className={`w-full text-left flex items-center gap-2 px-4 py-2.5 text-sm transition-colors ${isAlt ? "text-red/70 hover:text-red hover:bg-red/3" : "text-red/80 hover:text-red hover:bg-red/5"}`}>
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
                   退出登录
