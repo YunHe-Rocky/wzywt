@@ -23,10 +23,10 @@ export function useRolePreferences() {
         const s = d.preferences.sort((a: Pref, b: Pref) => a.preferenceRank - b.preferenceRank);
         setPrefs(s); setSharedRank(s[0]?.roleRank || 0);
       } else setPrefs(ROLES.map((r, i) => ({ roleType: r, preferenceRank: i + 1, roleRank: 0, peakScore: 0, peakRank: 0 })));
-    });
+    }).catch(() => { setPrefs(ROLES.map((r, i) => ({ roleType: r, preferenceRank: i + 1, roleRank: 0, peakScore: 0, peakRank: 0 }))); });
     fetch("/api/users/me/heroes").then(r => r.json()).then(d => {
       if (d.heroPowers) { const g: Record<string, HeroEntry[]> = {}; ROLES.forEach(r => g[r] = d.heroPowers[r] || []); setHeroesByRole(g); }
-    });
+    }).catch(() => {});
   }, []);
 
   const moveUp = useCallback((i: number) => {
