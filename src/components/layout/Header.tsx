@@ -48,7 +48,15 @@ export function Header() {
 
   const { theme } = useTheme();
   const ui = getUIConfig(theme);
-  const isMobile = pathname.startsWith("/m");
+  const pathIsM = pathname.startsWith("/m");
+  // 用实际屏幕宽度判断移动端，比 URL 路径更可靠
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth <= 768);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
   const active = (href: string) => href === "/" ? pathname === "/" : pathname.startsWith(href);
 
   return (
@@ -60,7 +68,7 @@ export function Header() {
       <div className={`${isMobile ? "max-w-full mx-auto px-4 h-11" : (ui.headerNav === "compact") ? "header-inner-alt" : "max-w-6xl mx-auto px-4 sm:px-6 h-14"} flex items-center gap-4`}
         style={isMobile ? undefined : (ui.headerNav === "compact") ? { height: 34, padding: "0 20px" } : undefined}>
         {/* Brand */}
-        <Link href={withHash(isMobile ? "/m" : "/")} className="flex items-center gap-2 shrink-0 no-underline">
+        <Link href={withHash(pathIsM ? "/m" : "/")} className="flex items-center gap-2 shrink-0 no-underline">
           {(ui.headerNav === "compact") && !isMobile && (
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#5e9eff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5"/>
@@ -124,7 +132,7 @@ export function Header() {
                     </div>
                   </div>
                 </div>
-                <Link href={withHash(isMobile ? "/m/me" : "/me")} onClick={() => setMenuOpen(false)}
+                <Link href={withHash(pathIsM ? "/m/me" : "/me")} onClick={() => setMenuOpen(false)}
                   className={`flex items-center gap-2 px-4 py-2.5 text-sm no-underline transition-colors ${(ui.headerNav === "compact") ? "text-[#666] hover:bg-black/3 hover:text-[#333]" : "text-text-secondary hover:text-text hover:bg-hover"}`}>
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
                   个人空间
