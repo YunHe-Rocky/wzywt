@@ -17,6 +17,7 @@ export function YanwuHeader() {
   const { latestVersion } = useAnnouncements(false);
 
   const [menuOpen, setMenuOpen] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
   const pathIsM = pathname.startsWith("/m");
@@ -53,7 +54,8 @@ export function YanwuHeader() {
           <span className="text-[10px] font-semibold tracking-wider rounded px-1.5 leading-4 text-gold/70 border border-gold/15">{version}</span>
         </Link>
 
-        {/* Nav links — always show */}
+        {/* Nav links — 桌面显示，手机隐藏（用汉堡） */}
+        {!pathIsM && (
         <nav className="flex items-center gap-1 ml-4">
           {NAV.map(n => (
             <Link key={n.href} href={withHash(n.href)}
@@ -62,6 +64,7 @@ export function YanwuHeader() {
             </Link>
           ))}
         </nav>
+        )}
 
         <div className="flex-1" />
 
@@ -108,7 +111,31 @@ export function YanwuHeader() {
             登录
           </Link>
         ))}
+
+        {/* 手机汉堡菜单 — 仅 /m 路由 */}
+        {pathIsM && (
+          <button onClick={() => setMobileOpen(!mobileOpen)}
+            className="flex items-center justify-center w-8 h-8 rounded text-text-muted hover:text-gold-light transition-colors">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              {mobileOpen
+                ? <path strokeLinecap="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                : <path strokeLinecap="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />}
+            </svg>
+          </button>
+        )}
       </div>
+
+      {/* 手机导航下拉 — 仅 /m 路由 */}
+      {pathIsM && mobileOpen && (
+        <div className="border-t border-border bg-card px-4 py-2 flex flex-col gap-1 animate-slide-up">
+          {NAV.map(n => (
+            <Link key={n.href} href={withHash(n.href)} onClick={() => setMobileOpen(false)}
+              className={`px-3 py-2 rounded text-sm no-underline font-medium ${active(n.href) ? "text-gold bg-gold/8" : "text-text-secondary"}`}>
+              {n.label}
+            </Link>
+          ))}
+        </div>
+      )}
     </header>
   );
 }
