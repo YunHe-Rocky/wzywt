@@ -16,45 +16,47 @@ export function BackgroundOrbs() {
   useEffect(() => {
     let mx = 0.5;
     let my = 0.5;
+    let rafId: number | null = null;
 
     function update() {
       const root = document.documentElement;
       root.style.setProperty("--orb-mx", String(mx));
       root.style.setProperty("--orb-my", String(my));
 
-      // 驱赶：鼠标到光球的方向 → 光球反向逃逸（柔和渐变）
       for (let i = 0; i < ORB_POSITIONS.length; i++) {
         const orb = ORB_POSITIONS[i];
         const dx = mx - orb.x;
         const dy = my - orb.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
-        // 平滑力曲线：距离 0 → 力最大0.5，衰减更慢更敏感
         const force = dist < 0.01 ? 0 : 0.5 / (1 + dist * 4);
         const repelX = dist > 0.001 ? (dx / dist) * force : 0;
         const repelY = dist > 0.001 ? (dy / dist) * force : 0;
         root.style.setProperty(`--orb-repel-x-${i + 1}`, String(repelX));
         root.style.setProperty(`--orb-repel-y-${i + 1}`, String(repelY));
-
-        // 接近度（距离越近值越高，用于 blur/opacity）
         const prox = Math.max(0, 1 - dist / 0.55);
         root.style.setProperty(`--orb-prox-${i + 1}`, String(prox));
       }
 
-      // 陀螺仪抖动强度
       root.style.setProperty("--orb-shake", String(shakeRef.current));
+      rafId = null;
+    }
+
+    // requestAnimationFrame 节流，避免 touchmove 高频重绘闪烁
+    function scheduleUpdate() {
+      if (rafId === null) rafId = requestAnimationFrame(update);
     }
 
     function onMouse(e: MouseEvent) {
       mx = e.clientX / window.innerWidth;
       my = e.clientY / window.innerHeight;
-      update();
+      scheduleUpdate();
     }
 
     function onTouch(e: TouchEvent) {
       if (e.touches.length > 0) {
         mx = e.touches[0].clientX / window.innerWidth;
         my = e.touches[0].clientY / window.innerHeight;
-        update();
+        scheduleUpdate();
       }
     }
 
@@ -81,17 +83,18 @@ export function BackgroundOrbs() {
         const b = Math.max(-45, Math.min(45, e.beta ?? 0));
         mx = (g + 45) / 90;
         my = (b + 45) / 90;
-        update();
+        scheduleUpdate();
       }
     }
 
-    update();
+    scheduleUpdate();
     document.addEventListener("mousemove", onMouse, { passive: true });
     document.addEventListener("touchmove", onTouch, { passive: true });
     if (typeof window !== "undefined" && "ondeviceorientation" in window) {
       window.addEventListener("deviceorientation", onOrientation);
     }
     return () => {
+      if (rafId !== null) cancelAnimationFrame(rafId);
       document.removeEventListener("mousemove", onMouse);
       document.removeEventListener("touchmove", onTouch);
       window.removeEventListener("deviceorientation", onOrientation);
