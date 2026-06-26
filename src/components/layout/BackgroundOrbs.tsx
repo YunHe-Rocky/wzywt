@@ -28,8 +28,8 @@ export function BackgroundOrbs() {
         const dx = mx - orb.x;
         const dy = my - orb.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
-        // 平滑力曲线：距离 0 → 力最大0.35，距离 0.6 → 力趋近0
-        const force = dist < 0.01 ? 0 : 0.35 / (1 + dist * 8);
+        // 平滑力曲线：距离 0 → 力最大0.5，衰减更慢更敏感
+        const force = dist < 0.01 ? 0 : 0.5 / (1 + dist * 4);
         const repelX = dist > 0.001 ? (dx / dist) * force : 0;
         const repelY = dist > 0.001 ? (dy / dist) * force : 0;
         root.style.setProperty(`--orb-repel-x-${i + 1}`, String(repelX));

@@ -1258,12 +1258,27 @@
   50%      { filter: brightness(1.20); }
 }
 
-/* ── 移动端光球适配 ── */
+/* ── 移动端光球适配：灵敏度增强 ── */
 @media (max-width: 768px) {
-  .bg-orb { transition: top 0.6s ease-out, right 0.6s ease-out, bottom 0.6s ease-out, left 0.6s ease-out; }
-  .bg-orb--1 { width: 400px; height: 400px; filter: blur(calc(70px - var(--orb-prox-1) * 40px)); }
-  .bg-orb--2 { width: 320px; height: 320px; filter: blur(calc(70px - var(--orb-prox-2) * 40px)); }
-  .bg-orb--3 { width: 260px; height: 260px; filter: blur(calc(70px - var(--orb-prox-3) * 40px)); }
+  .bg-orb { transition: top 0.3s ease-out, right 0.3s ease-out, bottom 0.3s ease-out, left 0.3s ease-out; }
+  .bg-orb--1 {
+    width: 400px; height: 400px;
+    top: calc(-15% + var(--orb-repel-y-1) * 15vh) !important;
+    right: calc(-10% - var(--orb-repel-x-1) * 15vw) !important;
+    filter: blur(calc(70px - var(--orb-prox-1) * 40px));
+  }
+  .bg-orb--2 {
+    width: 320px; height: 320px;
+    bottom: calc(-12% - var(--orb-repel-y-2) * 12vh) !important;
+    left: calc(-8% + var(--orb-repel-x-2) * 12vw) !important;
+    filter: blur(calc(70px - var(--orb-prox-2) * 40px));
+  }
+  .bg-orb--3 {
+    width: 260px; height: 260px;
+    top: calc(40% - var(--orb-repel-y-3) * 10vh) !important;
+    left: calc(50% + var(--orb-repel-x-3) * 10vw) !important;
+    filter: blur(calc(70px - var(--orb-prox-3) * 40px));
+  }
 }
 
 /* ── Main content ── */
