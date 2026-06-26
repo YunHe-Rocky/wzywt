@@ -14,8 +14,7 @@ export function BackgroundOrbs() {
   const shakeRef = useRef(0);
 
   useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
+    const el = containerRef.current!;
 
     let mx = 0.5;
     let my = 0.5;
