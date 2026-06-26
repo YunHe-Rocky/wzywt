@@ -10,7 +10,11 @@ pm2 delete all 2>/dev/null || true
 fuser -k 8081/tcp 2>/dev/null || true
 sleep 1
 
+echo ">>> setup SSL (one-time)..."
+bash scripts/setup-ssl.sh 2>/dev/null || echo "  (SSL setup skipped)"
+
 echo ">>> git pull..."
+git stash 2>/dev/null || true
 git pull origin master
 
 echo ">>> npm install..."
