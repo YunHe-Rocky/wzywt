@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const PUBLIC_PATHS = ["/login", "/register", "/heroes", "/tournaments", "/changelog", "/monitor"];
+const PUBLIC_PATHS = ["/login", "/register", "/heroes", "/tournaments", "/changelog", "/monitor", "/admin/debug"];
 // 首页 "/" 也算公开（basePath 为空时处理）
 function isPublicPath(path: string): boolean {
   if (path === "/" || path === "") return true;

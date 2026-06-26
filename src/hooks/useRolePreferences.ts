@@ -16,6 +16,7 @@ export function useRolePreferences() {
   const [selHeroName, setSelHeroName] = useState("");
   const [selPower, setSelPower] = useState("");
   const [saving, setSaving] = useState(false);
+  const [animatingIdx, setAnimatingIdx] = useState<number | null>(null);
 
   useEffect(() => {
     fetch("/api/users/me/roles").then(r => r.json()).then(d => {
@@ -30,11 +31,15 @@ export function useRolePreferences() {
   }, []);
 
   const moveUp = useCallback((i: number) => {
-    if (i === 0) return; const n = [...prefs]; [n[i - 1], n[i]] = [n[i], n[i - 1]]; setPrefs(n.map((p, j) => ({ ...p, preferenceRank: j + 1 })));
+    if (i === 0) return; setAnimatingIdx(i);
+    const n = [...prefs]; [n[i - 1], n[i]] = [n[i], n[i - 1]]; setPrefs(n.map((p, j) => ({ ...p, preferenceRank: j + 1 })));
+    setTimeout(() => setAnimatingIdx(null), 300);
   }, [prefs]);
 
   const moveDown = useCallback((i: number) => {
-    if (i === 4) return; const n = [...prefs]; [n[i], n[i + 1]] = [n[i + 1], n[i]]; setPrefs(n.map((p, j) => ({ ...p, preferenceRank: j + 1 })));
+    if (i === 4) return; setAnimatingIdx(i);
+    const n = [...prefs]; [n[i], n[i + 1]] = [n[i + 1], n[i]]; setPrefs(n.map((p, j) => ({ ...p, preferenceRank: j + 1 })));
+    setTimeout(() => setAnimatingIdx(null), 300);
   }, [prefs]);
 
   const setSharedRankAndSync = useCallback((r: number) => { setSharedRank(r); setPrefs(prev => prev.map(p => ({ ...p, roleRank: r }))); }, []);
@@ -77,6 +82,6 @@ export function useRolePreferences() {
   return {
     prefs, heroesByRole, sharedRank, activeTab, selHero, selHeroName, selPower, saving,
     setActiveTab, setSelHero, setSelHeroName, setSelPower,
-    moveUp, moveDown, setSharedRankAndSync, setPeakScore, setPeakRank, savePrefs, addHero, removeHero,
+    moveUp, moveDown, animatingIdx, setSharedRankAndSync, setPeakScore, setPeakRank, savePrefs, addHero, removeHero,
   };
 }

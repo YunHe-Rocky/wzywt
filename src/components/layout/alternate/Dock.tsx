@@ -37,7 +37,7 @@ export function Dock() {
   return (
     <div className="fixed bottom-0 left-0 right-0 z-50 flex justify-center pb-3 pointer-events-none">
       <div className="pointer-events-auto flex items-end gap-0.5 px-3 py-1.5 pb-2 rounded-2xl"
-        style={{ background: "rgba(255,255,255,0.45)", backdropFilter: "blur(40px)", WebkitBackdropFilter: "blur(40px)", border: "1px solid rgba(255,255,255,0.6)", borderBottom: "1px solid rgba(0,0,0,0.1)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.4), 0 4px 20px rgba(0,0,0,0.06), 0 8px 40px rgba(0,0,0,0.04)" }}>
+        style={{ background: "rgba(255,255,255,0.5)", backdropFilter: "blur(40px)", WebkitBackdropFilter: "blur(40px)", border: "1px solid rgba(0,0,0,0.06)", borderTop: "1px solid rgba(0,0,0,0.08)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.5), 0 -1px 3px rgba(0,0,0,0.04), 0 4px 20px rgba(0,0,0,0.06), 0 8px 40px rgba(0,0,0,0.04)" }}>
         {NAV.map((item) => (
           <div key={item.href} className="flex flex-col items-center gap-0.5 px-1.5">
             <Link href={href(item.href)}

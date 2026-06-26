@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useAnnouncements } from "@/hooks/useAnnouncements";
+import { useTheme } from "@/themes/ThemeProvider";
 
 interface OfficialNews { title: string; date: string; url: string; }
 interface PublicTournament { id: number; name: string; code: string; announcement: string | null; _count: { players: number }; deadline: string; }
@@ -101,6 +102,13 @@ function useMD(md: string) {
 }
 
 export default function Home() {
+  const { theme } = useTheme();
+  const isAlt = theme === "alternate";
+  const brandAnim = isAlt ? "entry-brand-alternate 0.6s ease-out 0.1s both" : "entry-brand-yanwu 0.7s ease-out 0.05s both";
+  const cardAnim = (delay: number) => isAlt
+    ? `entry-card-alternate 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) ${delay}s both`
+    : `entry-card-yanwu 0.55s ease-out ${delay}s both`;
+
   const [user, setUser] = useState<User | null>(null);
   const [authLoaded, setAuthLoaded] = useState(false);
   const [news, setNews] = useState<OfficialNews[]>([]);
@@ -120,7 +128,7 @@ export default function Home() {
   return (
     <div className="max-w-5xl mx-auto px-4 px-6 py-6 py-8">
       {/* Brand */}
-      <div className="mb-5 text-center text-left">
+      <div className="mb-5 text-center text-left" style={{ animation: brandAnim }}>
         <h1 className="text-2xl font-extrabold text-gold-light tracking-wider mb-1">王者演武堂</h1>
         <p className="text-sm text-text-secondary">5V5 内战分队 · 公平竞技</p>
       </div>
@@ -128,7 +136,7 @@ export default function Home() {
       {/* Main content */}
       <div className="flex flex-col gap-4">
           {/* Announcements */}
-          <div className="card p-0 rounded-md overflow-hidden">
+          <div className="card p-0 rounded-md overflow-hidden" style={{ animation: cardAnim(0.2) }}>
             <div className="px-5 py-3 border-b border-border-light">
               <div className="text-sm font-semibold text-gold-light">📢 系统公告</div>
             </div>
@@ -154,7 +162,7 @@ export default function Home() {
           </div>
 
           {/* Public Rooms */}
-          <div className="card p-0 rounded-md overflow-hidden">
+          <div className="card p-0 rounded-md overflow-hidden" style={{ animation: cardAnim(0.4) }}>
             <div className="px-5 py-3 border-b border-border-light">
               <div className="text-sm font-semibold text-gold-light">🏠 公开房间</div>
             </div>
@@ -182,18 +190,18 @@ export default function Home() {
           </div>
 
           {/* Official News */}
-          <div className="card p-0 rounded-md overflow-hidden">
+          <div className="card p-0 rounded-md overflow-hidden" style={{ animation: cardAnim(0.6) }}>
             <div className="px-5 py-3 border-b border-border-light">
               <div className="text-sm font-semibold text-text-secondary">王者官方公告</div>
             </div>
             {!loaded ? <div className="px-5 py-4"><SkeletonLines count={2} /></div>
               : news.length === 0 ? <p className="text-center text-text-muted text-sm py-4">暂无公告</p>
                 : news.slice(0, 5).map((item, i) => (
-                  <a key={i} href={item.url} target="_blank" rel="noopener"
-                    className="flex items-center gap-3 px-5 py-2.5 no-underline hover:bg-hover/50 transition-colors border-b border-border-light last:border-b-0">
+                  <div key={i}
+                    className="flex items-center gap-3 px-5 py-2.5 border-b border-border-light last:border-b-0">
                     <span className="text-[10px] text-text-muted shrink-0 w-14">{item.date}</span>
-                    <span className="text-xs text-text-secondary hover:text-text transition-colors truncate">{item.title}</span>
-                  </a>
+                    <span className="text-xs text-text-secondary truncate">{item.title}</span>
+                  </div>
                 ))}
           </div>
       </div>

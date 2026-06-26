@@ -155,17 +155,19 @@ export function HeroPowerEditor() {
                     display: "flex",
                     flexDirection: "column",
                     gap: 12,
-                    animation: "slide-up 0.2s ease-out",
+                    overflow: "hidden",
+                    animation: "role-expand-in 0.3s ease-out",
                   }}
                 >
                   {/* Hero entries */}
-                  {heroes.map((h) => (
+                  {heroes.map((h, idx) => (
                     <div
                       key={h.id}
                       style={{
                         display: "flex",
                         alignItems: "center",
                         gap: 12,
+                        animation: `role-item-in 0.25s ease-out ${idx * 0.05}s both`,
                       }}
                     >
                       <span className="badge badge-gold" style={{

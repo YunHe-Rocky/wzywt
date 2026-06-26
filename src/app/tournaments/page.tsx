@@ -1,2 +1,12 @@
+"use client";
+
 import { TournamentList } from "@/components/tournament/TournamentList";
-export default function TournamentsPage() { return <TournamentList />; }
+import { PageEntrance } from "@/components/layout/PageEntrance";
+
+export default function TournamentsPage() {
+  return (
+    <PageEntrance>
+      <TournamentList />
+    </PageEntrance>
+  );
+}

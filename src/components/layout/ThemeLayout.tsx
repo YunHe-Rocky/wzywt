@@ -1,10 +1,12 @@
 "use client";
 
+import { Suspense } from "react";
 import { usePathname } from "next/navigation";
 import { useTheme } from "@/themes/ThemeProvider";
 import { YanwuHeader } from "./yanwu/Header";
 import { AlternateHeader } from "./alternate/Header";
 import { Dock } from "./alternate/Dock";
+import { LoginReveal } from "@/components/home/LoginReveal";
 
 const FULLSCREEN_PATHS = ["/login", "/register"];
 
@@ -22,6 +24,9 @@ export function ThemeLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <>
+      <Suspense fallback={null}>
+        <LoginReveal />
+      </Suspense>
       {theme === "alternate" ? <AlternateHeader /> : <YanwuHeader />}
       <main className="main-content">{children}</main>
       {theme === "alternate" && <Dock />}

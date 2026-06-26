@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { PageEntrance } from "@/components/layout/PageEntrance";
 
 interface TocItem { id: string; text: string; level: number }
 
@@ -144,6 +145,7 @@ export default function ChangelogPage() {
   }, [toc, content]);
 
   return (
+    <PageEntrance>
     <div style={{ maxWidth: 960, margin: "0 auto", padding: "40px 24px", display: "flex", gap: 32 }}>
       <div style={{ flex: 1, minWidth: 0 }}>
         <Link href="/" style={{ fontSize: 13, color: "var(--text-muted)", textDecoration: "none", marginBottom: 24, display: "inline-block" }}>
@@ -198,5 +200,6 @@ export default function ChangelogPage() {
         </nav>
       )}
     </div>
+    </PageEntrance>
   );
 }

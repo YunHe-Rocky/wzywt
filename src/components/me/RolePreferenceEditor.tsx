@@ -1,5 +1,6 @@
 "use client";
 
+import { useRef, useCallback, useEffect } from "react";
 import { useToast } from "@/components/ui/Toast";
 import { HeroSelect } from "@/components/hero/HeroSelect";
 import { useRolePreferences } from "@/hooks/useRolePreferences";
@@ -73,6 +74,34 @@ export function RolePreferenceEditor() {
   } = useRolePreferences();
   const { success, error } = useToast();
 
+  // ── FLIP 动画：记录旧位置 → 偏移 → 滑到新位置 ──
+  const rowRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const flip = useCallback((cb: () => void) => {
+    // First: 记录旧位置
+    const olds: { key: string; top: number }[] = [];
+    rowRefs.current.forEach((el, key) => { olds.push({ key, top: el.getBoundingClientRect().top }); });
+
+    // 触发重排
+    cb();
+
+    // Last + Invert: 计算偏移并应用反向 transform
+    requestAnimationFrame(() => {
+      rowRefs.current.forEach((el, key) => {
+        const old = olds.find(o => o.key === key);
+        if (!old) return;
+        const delta = old.top - el.getBoundingClientRect().top;
+        if (Math.abs(delta) < 1) return;
+        el.style.transition = "none";
+        el.style.transform = `translateY(${delta}px)`;
+        // Play
+        requestAnimationFrame(() => {
+          el.style.transition = "transform 0.25s ease-out";
+          el.style.transform = "translateY(0)";
+        });
+      });
+    });
+  }, []);
+
   const activePref = prefs.find(p => p.roleType === activeTab);
   const activeHeroes = heroesByRole[activeTab] || [];
   const isFull = activeHeroes.length >= 3;
@@ -84,7 +113,9 @@ export function RolePreferenceEditor() {
       <div className="section-title">段位信息</div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="flex items-center gap-4 p-4 rounded-lg bg-input/50 border border-border/50">
-          <RankBadge value={sharedRank} size={52} />
+          <div key={sharedRank} style={{ animation: "rank-pop 0.35s ease-out" }}>
+            <RankBadge value={sharedRank} size={52} />
+          </div>
           <div className="flex-1 min-w-0">
             <div className="text-xs font-semibold text-text-muted mb-1.5 tracking-wider uppercase">当前段位</div>
             <select value={sharedRank} onChange={e => setSharedRankAndSync(parseInt(e.target.value))}
@@ -94,7 +125,9 @@ export function RolePreferenceEditor() {
           </div>
         </div>
         <div className="flex items-center gap-4 p-4 rounded-lg bg-input/50 border border-border/50">
-          <RankBadge value={prefs[0]?.peakRank || 0} size={52} />
+          <div key={prefs[0]?.peakRank || 0} style={{ animation: "rank-pop 0.35s ease-out" }}>
+            <RankBadge value={prefs[0]?.peakRank || 0} size={52} />
+          </div>
           <div className="flex-1 min-w-0">
             <div className="text-xs font-semibold text-text-muted mb-1.5 tracking-wider uppercase">历史最高段位</div>
             <select value={prefs[0]?.peakRank || 0}
@@ -117,7 +150,8 @@ export function RolePreferenceEditor() {
         <div className="text-xs font-semibold text-text-muted tracking-wider uppercase mb-3">分路优先级排序</div>
         <div className="flex flex-col gap-1.5">
           {prefs.map((p, i) => (
-            <div key={p.roleType} className="flex items-stretch gap-2">
+            <div key={p.roleType} className="flex items-stretch gap-2"
+              ref={el => { if (el) rowRefs.current.set(p.roleType, el); else rowRefs.current.delete(p.roleType); }}>
               <span className="text-gold-light font-bold text-sm w-5 shrink-0 text-right flex items-center">{p.preferenceRank}</span>
               <button
                 onClick={() => setActiveTab(p.roleType)}
@@ -135,9 +169,9 @@ export function RolePreferenceEditor() {
               </button>
               <div className="flex flex-col gap-0.5 shrink-0">
                 <button className="w-6 h-[50%] flex items-center justify-center rounded bg-card border border-border/50 text-text-muted hover:text-gold-light hover:border-gold/20 text-[10px] disabled:opacity-20 disabled:cursor-default transition-colors"
-                  onClick={() => moveUp(i)} disabled={i === 0}>▲</button>
+                  onClick={() => flip(() => moveUp(i))} disabled={i === 0}>▲</button>
                 <button className="w-6 h-[50%] flex items-center justify-center rounded bg-card border border-border/50 text-text-muted hover:text-gold-light hover:border-gold/20 text-[10px] disabled:opacity-20 disabled:cursor-default transition-colors"
-                  onClick={() => moveDown(i)} disabled={i === 4}>▼</button>
+                  onClick={() => flip(() => moveDown(i))} disabled={i === 4}>▼</button>
               </div>
             </div>
           ))}
@@ -146,7 +180,7 @@ export function RolePreferenceEditor() {
 
       {/* Active tab content */}
       {activePref && (
-        <div className="animate-slide-up">
+        <div className="animate-slide-up" style={{ animation: "slide-up 0.25s ease-out" }}>
           <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-border-light">
             <LaneIcon role={activePref.roleType} size={24} />
             <span className="text-base font-bold text-text">{ROLE_LABELS[activePref.roleType]}</span>
@@ -159,8 +193,9 @@ export function RolePreferenceEditor() {
           {/* 英雄战力 — 参考 #2 卡片风格 */}
           {activeHeroes.length > 0 ? (
             <div className="flex flex-col gap-2 mb-4">
-              {activeHeroes.map(h => (
-                <div key={h.id} className="card !p-3 !rounded-lg">
+              {activeHeroes.map((h, idx) => (
+                <div key={h.id} className="card !p-3 !rounded-lg"
+                  style={{ animation: `role-item-in 0.25s ease-out ${idx * 0.05}s both` }}>
                   <div className="flex items-center gap-3">
                     <div className="flex-1 min-w-0">
                       <div className="text-sm font-semibold text-text truncate">{h.heroName}</div>

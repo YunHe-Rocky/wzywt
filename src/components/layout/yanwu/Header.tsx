@@ -18,14 +18,25 @@ export function YanwuHeader() {
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [isNarrow, setIsNarrow] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
   const pathIsM = pathname.startsWith("/m");
+  // 只有 /m 路由 + 窄屏才走移动端布局（汉堡菜单），宽屏即使是 /m 也走桌面布局
+  const isMobileLayout = pathIsM && isNarrow;
 
   useEffect(() => {
     const fn = (e: MouseEvent) => { if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false); };
     document.addEventListener("mousedown", fn);
     return () => document.removeEventListener("mousedown", fn);
+  }, []);
+
+  // 检测屏幕宽度，宽屏不强制汉堡
+  useEffect(() => {
+    function check() { setIsNarrow(window.innerWidth <= 768); }
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
   }, []);
 
   const version = latestVersion || "V1.0.1";
@@ -41,7 +52,10 @@ export function YanwuHeader() {
 
   function doLogout() { setMenuOpen(false); logout(); }
 
-  const active = (href: string) => href === "/" ? pathname === "/" : pathname.startsWith(href);
+  const active = (href: string) => {
+    const p = pathname.replace(/^\/m/, "") || "/";
+    return href === "/" ? p === "/" : p.startsWith(href);
+  };
 
   return (
     <header className="sticky top-0 z-50 bg-nav border-b border-border-gold">
@@ -54,8 +68,8 @@ export function YanwuHeader() {
           <span className="text-[10px] font-semibold tracking-wider rounded px-1.5 leading-4 text-gold/70 border border-gold/15">{version}</span>
         </Link>
 
-        {/* Nav links — 桌面显示，手机隐藏（用汉堡） */}
-        {!pathIsM && (
+        {/* Nav links — 宽屏显示，窄屏隐藏（用汉堡） */}
+        {!isMobileLayout && (
         <nav className="flex items-center gap-1 ml-4">
           {NAV.map(n => (
             <Link key={n.href} href={withHash(n.href)}
@@ -112,8 +126,8 @@ export function YanwuHeader() {
           </Link>
         ))}
 
-        {/* 手机汉堡菜单 — 仅 /m 路由 */}
-        {pathIsM && (
+        {/* 汉堡菜单 — 仅窄屏 */}
+        {isMobileLayout && (
           <button onClick={() => setMobileOpen(!mobileOpen)}
             className="flex items-center justify-center w-8 h-8 rounded text-text-muted hover:text-gold-light transition-colors">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -125,15 +139,18 @@ export function YanwuHeader() {
         )}
       </div>
 
-      {/* 手机导航下拉 — 仅 /m 路由 */}
-      {pathIsM && mobileOpen && (
+      {/* 导航下拉 — 仅窄屏 */}
+      {isMobileLayout && mobileOpen && (
         <div className="border-t border-border bg-card px-4 py-2 flex flex-col gap-1 animate-slide-up">
-          {NAV.map(n => (
-            <Link key={n.href} href={withHash(n.href)} onClick={() => setMobileOpen(false)}
-              className={`px-3 py-2 rounded text-sm no-underline font-medium ${active(n.href) ? "text-gold bg-gold/8" : "text-text-secondary"}`}>
-              {n.label}
-            </Link>
-          ))}
+          {NAV.map(n => {
+            const href = n.href === "/" ? "/m" : `/m${n.href}`;
+            return (
+              <Link key={n.href} href={withHash(href)} onClick={() => setMobileOpen(false)}
+                className={`px-3 py-2 rounded text-sm no-underline font-medium ${active(n.href) ? "text-gold bg-gold/8" : "text-text-secondary"}`}>
+                {n.label}
+              </Link>
+            );
+          })}
         </div>
       )}
     </header>

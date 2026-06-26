@@ -8,18 +8,33 @@ import { requireAuth, verifyPassword } from "@/lib/auth";
 export async function GET() {
   const session = await getSession();
   if (!session.userId) {
-    return NextResponse.json({ user: null });
+    return NextResponse.json({ user: null }, {
+      headers: { "Cache-Control": "no-store, no-cache, must-revalidate", "Pragma": "no-cache", "Expires": "0" },
+    });
   }
   const user = await prisma.user.findUnique({
     where: { id: session.userId },
-    select: { username: true, securityQuestion: true },
+    select: { id: true, username: true, securityQuestion: true },
   });
+  // 用户已被删除 → 清除幽灵 session
+  if (!user) {
+    session.destroy();
+    return NextResponse.json({ user: null }, {
+      headers: { "Cache-Control": "no-store, no-cache, must-revalidate", "Pragma": "no-cache", "Expires": "0" },
+    });
+  }
   return NextResponse.json({
     user: {
       userId: session.userId,
-      username: session.username,
-      securityQuestion: user?.securityQuestion || null,
-      hasSecurityQuestion: !!user?.securityQuestion,
+      username: user.username,
+      securityQuestion: user.securityQuestion || null,
+      hasSecurityQuestion: !!user.securityQuestion,
+    },
+  }, {
+    headers: {
+      "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+      "Pragma": "no-cache",
+      "Expires": "0",
     },
   });
 }

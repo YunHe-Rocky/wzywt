@@ -28,6 +28,9 @@ npx tsx scripts/migrate-announcements.ts 2>/dev/null || echo "  (no legacy files
 echo ">>> bind mingge relationships..."
 npx tsx scripts/migrate-mingge.ts 2>/dev/null || echo "  (heroes not yet synced)"
 
+echo ">>> sync heroes data..."
+npx tsx -e "import('src/lib/heroes/sync').then(m=>m.syncHeroes().then(r=>console.log('synced:',r.inserted,'new,',r.updated,'updated')).catch(e=>console.error(e)))" 2>/dev/null || echo "  (hero sync skipped)"
+
 echo ">>> clean build cache..."
 rm -rf .next
 

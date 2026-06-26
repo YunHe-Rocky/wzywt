@@ -4,6 +4,9 @@ import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useToast } from "@/components/ui/Toast";
+import { useTheme } from "@/themes/ThemeProvider";
+import { GlassShatter } from "./GlassShatter";
+import { CurtainDraw } from "./CurtainDraw";
 
 const PRESET_QUESTIONS = [
   "你的出生城市是？", "你母亲的名字是？", "你父亲的名字是？",
@@ -61,6 +64,9 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
   const [forgotError, setForgotError] = useState("");
   const [forgotLoading, setForgotLoading] = useState(false);
   const [showForgotPw, setShowForgotPw] = useState(false);
+  const [shatter, setShatter] = useState(false);
+  const [shatterRedirect, setShatterRedirect] = useState("");
+  const { theme } = useTheme();
 
   useEffect(() => {
     fetch("/api/auth/me").then(r => r.json()).then(d => {
@@ -81,7 +87,13 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
     const data = await res.json(); setLoading(false);
     if (!res.ok) { setError(data.error || "操作失败"); return; }
     if (mode === "register") success("欢迎加入王者演武堂！");
-    router.push(redirect); router.refresh();
+    if (mode === "login") {
+      setShatter(true);
+      const sep = redirect.includes("?") ? "&" : "?";
+      setShatterRedirect(redirect + sep + "_from=login");
+    } else {
+      router.push(redirect); router.refresh();
+    }
   }
 
   async function lookupQuestion() {
@@ -219,6 +231,14 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
             )}
           </div>
         </div>
+      )}
+
+      {/* ── 登录过渡 ── */}
+      {shatter && theme === "alternate" && (
+        <GlassShatter cardSelector=".auth-card" onComplete={() => { router.push(shatterRedirect); router.refresh(); }} />
+      )}
+      {shatter && theme !== "alternate" && (
+        <CurtainDraw cardSelector=".auth-card" onComplete={() => { router.push(shatterRedirect); router.refresh(); }} />
       )}
 
       {/* ── Forgot Password Modal ── */}

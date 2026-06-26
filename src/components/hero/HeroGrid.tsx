@@ -248,7 +248,7 @@ export function HeroGrid() {
     .filter((h) => h.name.includes(search) || h.title.includes(search));
 
   return (
-    <div style={{ maxWidth: 960, margin: "0 auto", padding: "40px 24px" }}>
+    <div className="stagger-enter" style={{ maxWidth: 960, margin: "0 auto", padding: "40px 24px" }}>
       {/* Header */}
       <div style={{ marginBottom: 32 }}>
         <h1 style={{ fontSize: 28, fontWeight: 700, color: "var(--text)", margin: "0 0 8px" }}>

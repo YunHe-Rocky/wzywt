@@ -9,7 +9,7 @@ import { fetchGicpNews, GICP_CHANNELS } from "@/lib/gicp";
 const HEROLIST_URL = "https://pvp.qq.com/web201605/js/herolist.json";
 
 interface MonitorResult {
-  module: "news" | "heroes" | "skins";
+  module: "news" | "heroes" | "skins" | "skills";
   changed: boolean;
   detail: string;
   count?: number;
@@ -133,6 +133,91 @@ async function checkSkins(): Promise<MonitorResult> {
   }
 }
 
+// ── Skill Monitor (light: samples 3 random heroes' skill names) ──────────
+async function checkSkills(): Promise<MonitorResult> {
+  try {
+    // 随机抽 3 个英雄做技能指纹对比
+    const heroes = await prisma.hero.findMany({
+      select: { heroId: true, name: true, skillsJson: true },
+      take: 100,
+    });
+    if (heroes.length === 0) return { module: "skills", changed: false, detail: "no heroes in db" };
+
+    const samples = [];
+    const used = new Set<number>();
+    while (samples.length < 3 && used.size < heroes.length) {
+      const idx = Math.floor(Math.random() * heroes.length);
+      if (used.has(idx)) continue;
+      used.add(idx);
+      samples.push(heroes[idx]);
+    }
+
+    const { load } = await import("cheerio");
+    const iconv = await import("iconv-lite");
+    const { getHeaders } = await import("@/lib/anti-bot");
+
+    const HERO_URLS = [
+      (id: number) => `https://pvp.qq.com/web201605/herodetail/${id}.shtml`,
+      (id: number) => `https://pvp.qq.com/web201605/herodetail2/${id}.shtml`,
+      (id: number) => `https://apps.game.qq.com/wmp/v3.1/public/search.php?p0=41&p1=searchHero&heroId=${id}&source=web_pc`,
+    ];
+
+    let mismatchCount = 0;
+    for (const h of samples) {
+      if (!h.skillsJson) continue;
+      const dbSkills: { name: string }[] = JSON.parse(h.skillsJson);
+      const dbNames = dbSkills.map(s => s.name).sort().join("|");
+      if (!dbNames) continue;
+
+      // 抓取详情页
+      let html = "";
+      for (const urlFn of HERO_URLS) {
+        const url = urlFn(h.heroId);
+        const res = await fetch(url, { headers: getHeaders(), signal: AbortSignal.timeout(8000) });
+        if (!res.ok) continue;
+        const buf = Buffer.from(await res.arrayBuffer());
+        html = iconv.decode(buf, "gbk");
+        if (html.includes("技能") || html.includes("skill-show") || html.includes("detail-js")) break;
+      }
+
+      if (!html) continue;
+
+      // 解析技能名
+      const $ = load(html);
+      const officialNames: string[] = [];
+      $(".skill-show .show-list").each((_, el: any) => {
+        const name = ($(el).find(".skill-name b").text() || "").trim();
+        if (name) officialNames.push(name);
+      });
+
+      if (officialNames.length < 3) {
+        // 尝试 preview 页面格式
+        const detailHtml = $(".detail-js").html() || "";
+        const bRegex = /<b[^>]*>(?:<font[^>]*>)?([^<]+)(?:<\/font>)?<\/b>/gi;
+        let match: RegExpExecArray | null;
+        while ((match = bRegex.exec(detailHtml)) !== null) {
+          const title = (match[1] || "").trim();
+          if (title && title.length <= 20 && !title.includes("连招") && !title.includes("升级推荐")) {
+            officialNames.push(title);
+          }
+        }
+      }
+
+      const officialFingerprint = [...officialNames].sort().join("|");
+      if (officialFingerprint && officialFingerprint !== dbNames) {
+        mismatchCount++;
+      }
+    }
+
+    if (mismatchCount > 0) {
+      return { module: "skills", changed: true, detail: `${mismatchCount}/${samples.length} heroes have skill changes` };
+    }
+    return { module: "skills", changed: false, detail: "skills unchanged" };
+  } catch (e: unknown) {
+    return { module: "skills", changed: false, detail: (e as Error).message };
+  }
+}
+
 // ── Main Monitor ───────────────────────────────────────────────────────
 export interface MonitorEvent {
   module: string;
@@ -154,7 +239,7 @@ function emit(event: MonitorEvent) {
 }
 
 export async function runAllMonitors(): Promise<MonitorResult[]> {
-  const results = await Promise.all([checkNews(), checkHeroes(), checkSkins()]);
+  const results = await Promise.all([checkNews(), checkHeroes(), checkSkins(), checkSkills()]);
   return results;
 }
 
@@ -174,7 +259,8 @@ export async function runMonitorAndScrape(
     try {
       switch (mod) {
         case "heroes":
-        case "skins": {
+        case "skins":
+        case "skills": {
           const { syncHeroes } = await import("@/lib/heroes/sync");
           const result = await syncHeroes();
           events.push({ module: mod, action: "scrape-done", detail: `inserted=${result.inserted} updated=${result.updated}`, timestamp: Date.now() });
