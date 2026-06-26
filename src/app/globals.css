@@ -1258,26 +1258,26 @@
   50%      { filter: brightness(1.20); }
 }
 
-/* ── 移动端光球适配：灵敏度增强 ── */
+/* ── 移动端光球适配：屏占比 + 即时响应 ── */
 @media (max-width: 768px) {
-  .bg-orb { transition: top 0.3s ease-out, right 0.3s ease-out, bottom 0.3s ease-out, left 0.3s ease-out; }
+  .bg-orb { transition: top 0.12s linear, right 0.12s linear, bottom 0.12s linear, left 0.12s linear; }
   .bg-orb--1 {
-    width: 400px; height: 400px;
-    top: calc(-15% + var(--orb-repel-y-1) * 15vh) !important;
-    right: calc(-10% - var(--orb-repel-x-1) * 15vw) !important;
-    filter: blur(calc(70px - var(--orb-prox-1) * 40px));
+    width: 100vw; height: 100vw;
+    top: calc(-20% + var(--orb-repel-y-1) * 18vh) !important;
+    right: calc(-15% - var(--orb-repel-x-1) * 18vw) !important;
+    filter: blur(calc(60px - var(--orb-prox-1) * 35px));
   }
   .bg-orb--2 {
-    width: 320px; height: 320px;
-    bottom: calc(-12% - var(--orb-repel-y-2) * 12vh) !important;
-    left: calc(-8% + var(--orb-repel-x-2) * 12vw) !important;
-    filter: blur(calc(70px - var(--orb-prox-2) * 40px));
+    width: 75vw; height: 75vw;
+    bottom: calc(-15% - var(--orb-repel-y-2) * 15vh) !important;
+    left: calc(-12% + var(--orb-repel-x-2) * 15vw) !important;
+    filter: blur(calc(55px - var(--orb-prox-2) * 30px));
   }
   .bg-orb--3 {
-    width: 260px; height: 260px;
-    top: calc(40% - var(--orb-repel-y-3) * 10vh) !important;
-    left: calc(50% + var(--orb-repel-x-3) * 10vw) !important;
-    filter: blur(calc(70px - var(--orb-prox-3) * 40px));
+    width: 60vw; height: 60vw;
+    top: calc(35% - var(--orb-repel-y-3) * 12vh) !important;
+    left: calc(45% + var(--orb-repel-x-3) * 12vw) !important;
+    filter: blur(calc(50px - var(--orb-prox-3) * 30px));
   }
 }
 
