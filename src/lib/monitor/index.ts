@@ -9,7 +9,7 @@ import { fetchGicpNews, GICP_CHANNELS } from "@/lib/gicp";
 const HEROLIST_URL = "https://pvp.qq.com/web201605/js/herolist.json";
 
 interface MonitorResult {
-  module: "news" | "heroes" | "skins" | "skills";
+  module: "news" | "heroes" | "skins" | "skills" | "items";
   changed: boolean;
   detail: string;
   count?: number;
@@ -133,88 +133,126 @@ async function checkSkins(): Promise<MonitorResult> {
   }
 }
 
-// ── Skill Monitor (light: samples 3 random heroes' skill names) ──────────
+// ── Skill Monitor (50% sampling, full hash comparison) ─────────────────
 async function checkSkills(): Promise<MonitorResult> {
   try {
-    // 随机抽 3 个英雄做技能指纹对比
     const heroes = await prisma.hero.findMany({
-      select: { heroId: true, name: true, skillsJson: true },
-      take: 100,
+      select: { heroId: true, name: true, dataHash: true, skillsJson: true, skinsJson: true },
     });
     if (heroes.length === 0) return { module: "skills", changed: false, detail: "no heroes in db" };
 
-    const samples = [];
-    const used = new Set<number>();
-    while (samples.length < 3 && used.size < heroes.length) {
-      const idx = Math.floor(Math.random() * heroes.length);
-      if (used.has(idx)) continue;
-      used.add(idx);
-      samples.push(heroes[idx]);
-    }
+    // 50% random sample
+    const sampleSize = Math.max(heroes.length / 2, 1);
+    const shuffled = [...heroes].sort(() => Math.random() - 0.5);
+    const samples = shuffled.slice(0, sampleSize);
 
+    const { createHash } = await import("crypto");
     const { load } = await import("cheerio");
     const iconv = await import("iconv-lite");
     const { getHeaders } = await import("@/lib/anti-bot");
 
-    const HERO_URLS = [
-      (id: number) => `https://pvp.qq.com/web201605/herodetail/${id}.shtml`,
-      (id: number) => `https://pvp.qq.com/web201605/herodetail2/${id}.shtml`,
-      (id: number) => `https://apps.game.qq.com/wmp/v3.1/public/search.php?p0=41&p1=searchHero&heroId=${id}&source=web_pc`,
-    ];
+    const sanitize = (s: string): string =>
+      s.replace(/\0/g, "").replace(/�/g, "").replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "").trim();
 
     let mismatchCount = 0;
-    for (const h of samples) {
-      if (!h.skillsJson) continue;
-      const dbSkills: { name: string }[] = JSON.parse(h.skillsJson);
-      const dbNames = dbSkills.map(s => s.name).sort().join("|");
-      if (!dbNames) continue;
-
-      // 抓取详情页
-      let html = "";
-      for (const urlFn of HERO_URLS) {
-        const url = urlFn(h.heroId);
-        const res = await fetch(url, { headers: getHeaders(), signal: AbortSignal.timeout(8000) });
-        if (!res.ok) continue;
-        const buf = Buffer.from(await res.arrayBuffer());
-        html = iconv.decode(buf, "gbk");
-        if (html.includes("技能") || html.includes("skill-show") || html.includes("detail-js")) break;
-      }
-
-      if (!html) continue;
-
-      // 解析技能名
-      const $ = load(html);
-      const officialNames: string[] = [];
-      $(".skill-show .show-list").each((_, el: any) => {
-        const name = ($(el).find(".skill-name b").text() || "").trim();
-        if (name) officialNames.push(name);
-      });
-
-      if (officialNames.length < 3) {
-        // 尝试 preview 页面格式
-        const detailHtml = $(".detail-js").html() || "";
-        const bRegex = /<b[^>]*>(?:<font[^>]*>)?([^<]+)(?:<\/font>)?<\/b>/gi;
-        let match: RegExpExecArray | null;
-        while ((match = bRegex.exec(detailHtml)) !== null) {
-          const title = (match[1] || "").trim();
-          if (title && title.length <= 20 && !title.includes("连招") && !title.includes("升级推荐")) {
-            officialNames.push(title);
+    const batchSize = 8;
+    for (let b = 0; b < samples.length; b += batchSize) {
+      const batch = samples.slice(b, b + batchSize);
+      const results = await Promise.all(
+        batch.map(async (h) => {
+          // Fetch detail page
+          const urls = [
+            `https://pvp.qq.com/web201605/herodetail/${h.heroId}.shtml`,
+            `https://pvp.qq.com/web201706/herodetail/${h.heroId}.shtml`,
+          ];
+          let html = "";
+          for (const url of urls) {
+            try {
+              const res = await fetch(url, { headers: getHeaders(), signal: AbortSignal.timeout(8000) });
+              if (!res.ok) continue;
+              const buf = Buffer.from(await res.arrayBuffer());
+              html = iconv.decode(buf, "gbk");
+              if (html.includes("技能") || html.includes("skill-show")) break;
+            } catch { continue; }
           }
-        }
-      }
 
-      const officialFingerprint = [...officialNames].sort().join("|");
-      if (officialFingerprint && officialFingerprint !== dbNames) {
-        mismatchCount++;
+          if (!html) return { heroId: h.heroId, hashed: false, newHash: "" };
+
+          // Parse skills
+          const $ = load(html);
+          const skills: { name: string; cd: string; cost: string; desc: string }[] = [];
+          $(".skill-show .show-list").each((_, el: any) => {
+            const name = sanitize($(el).find(".skill-name b").text());
+            if (!name) return;
+            const spans = $(el).find(".skill-name span");
+            skills.push({
+              name,
+              cd: sanitize(spans.eq(0).text().replace(/冷却值[：:]\s*/, "")),
+              cost: sanitize(spans.eq(1).text().replace(/消耗[：:]\s*/, "")),
+              desc: sanitize($(el).find(".skill-desc").text()),
+            });
+          });
+
+          // Parse skins
+          let skinsJson = "[]";
+          const imgMatch = html.match(/data-imgname="([^"]*)"/);
+          if (imgMatch) {
+            const items = imgMatch[1].split("|").filter(Boolean);
+            skinsJson = JSON.stringify(items.map((item, i) => ({
+              name: sanitize(item.split("&")[0]),
+              index: i + 1,
+            })));
+          }
+
+          const skillsJson = JSON.stringify(skills);
+          const newHash = createHash("md5").update(skillsJson).update(skinsJson).digest("hex");
+          return { heroId: h.heroId, hashed: true, newHash, dbHash: h.dataHash };
+        })
+      );
+
+      for (const r of results) {
+        if (r.hashed && r.newHash !== r.dbHash) {
+          mismatchCount++;
+          console.log(`[monitor:skills] hash mismatch for #${r.heroId}`);
+        }
       }
     }
 
     if (mismatchCount > 0) {
-      return { module: "skills", changed: true, detail: `${mismatchCount}/${samples.length} heroes have skill changes` };
+      return { module: "skills", changed: true, detail: `${mismatchCount}/${samples.length} heroes have changes` };
     }
-    return { module: "skills", changed: false, detail: "skills unchanged" };
+    return { module: "skills", changed: false, detail: `${samples.length} heroes OK` };
   } catch (e: unknown) {
     return { module: "skills", changed: false, detail: (e as Error).message };
+  }
+}
+
+// ── Item Monitor ──────────────────────────────────────────────────────
+async function checkItems(): Promise<MonitorResult> {
+  try {
+    const ITEM_URL = "https://pvp.qq.com/web201605/js/item.json";
+    const res = await fetchWithRetry(ITEM_URL, { timeout: 10000, referer: "https://pvp.qq.com/", isJson: true });
+    if (!res.ok || !res.json) return { module: "items", changed: false, detail: "HTTP " + res.status };
+
+    const { createHash } = await import("crypto");
+    const newHash = createHash("md5").update(JSON.stringify(res.json)).digest("hex");
+
+    const cache = await prisma.$queryRawUnsafe(
+      "SELECT value FROM kv_cache WHERE `key` = 'items_hash'"
+    ) as { value: string }[];
+
+    if (cache.length > 0 && cache[0].value === newHash) {
+      return { module: "items", changed: false, detail: "unchanged" };
+    }
+
+    await prisma.$executeRawUnsafe(
+      "INSERT INTO kv_cache (`key`, `value`) VALUES ('items_hash', ?) ON DUPLICATE KEY UPDATE `value` = ?",
+      newHash, newHash
+    );
+
+    return { module: "items", changed: true, detail: "item.json changed" };
+  } catch (e: unknown) {
+    return { module: "items", changed: false, detail: (e as Error).message };
   }
 }
 
@@ -239,7 +277,7 @@ function emit(event: MonitorEvent) {
 }
 
 export async function runAllMonitors(): Promise<MonitorResult[]> {
-  const results = await Promise.all([checkNews(), checkHeroes(), checkSkins(), checkSkills()]);
+  const results = await Promise.all([checkNews(), checkHeroes(), checkSkins(), checkSkills(), checkItems()]);
   return results;
 }
 
@@ -275,6 +313,12 @@ export async function runMonitorAndScrape(
           } catch (e: unknown) {
             events.push({ module: mod, action: "scrape-fail", detail: `image download: ${(e as Error).message}`, timestamp: Date.now() });
           }
+          break;
+        }
+        case "items": {
+          const { syncItems } = await import("@/lib/equipment/sync");
+          const result = await syncItems();
+          events.push({ module: "items", action: "scrape-done", detail: `inserted=${result.inserted} updated=${result.updated}`, timestamp: Date.now() });
           break;
         }
         case "news": {

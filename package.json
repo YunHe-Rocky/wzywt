@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "npx tsx scripts/kill-port.ts && next dev -p 8001",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
@@ -19,6 +19,7 @@
     "bcryptjs": "^3.0.3",
     "cheerio": "^1.2.0",
     "iconv-lite": "^0.7.2",
+    "ioredis": "^5.11.1",
     "iron-session": "^8.0.4",
     "next": "^14.2.35",
     "node-cron": "^4.5.0",

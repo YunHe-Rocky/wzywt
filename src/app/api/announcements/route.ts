@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { requireAuth } from "@/lib/auth";
+import { requireSuperAdmin } from "@/lib/permissions";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -25,8 +25,8 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const { userId } = await requireAuth().catch(() => ({ userId: 0 }));
-  if (!userId) return NextResponse.json({ error: "请先登录" }, { status: 401 });
+  const { userId } = await requireSuperAdmin().catch(() => ({ userId: 0 }));
+  if (!userId) return NextResponse.json({ error: "无权限" }, { status: 403 });
 
   const { title, version, brief, content, slug } = await req.json();
   if (!title || !brief || !slug) {

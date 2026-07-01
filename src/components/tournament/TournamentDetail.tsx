@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useToast } from "@/components/ui/Toast";
+import { ROLE_LABELS } from "@/engine";
+import { TeamBuilder } from "@/components/tournament/TeamBuilder";
 
 interface PlayerInfo {
   userId: number; user: { id: number; username: string };
@@ -23,9 +25,6 @@ interface SplitResult {
   playerDetails: { userId: number; username: string }[];
 }
 
-const ROLE_LABELS: Record<string, string> = {
-  top: "对抗路", jungle: "打野", mid: "中路", adc: "发育路", support: "游走",
-};
 
 type TeamColor = "red" | "blue";
 
@@ -94,6 +93,7 @@ export function TournamentDetail() {
   const [extendHour, setExtendHour] = useState(20);
   const [extendMin, setExtendMin] = useState(0);
   const [addingFiller, setAddingFiller] = useState(false);
+  const [splitTab, setSplitTab] = useState("result");
   const { success, error: showError } = useToast();
 
   useEffect(() => {
@@ -214,20 +214,21 @@ export function TournamentDetail() {
   const tempCount = tournament.players.filter((p) => p.isTemporary && !p.isSpectator).length;
   const realCount = playerCount - tempCount;
   const spectatorCount = tournament.players.filter((p) => p.isSpectator).length;
+  const isOverdue = tournament.deadline ? new Date(tournament.deadline) < new Date() : false;
 
+  const isFull = playerCount >= 10;
+  const isSplit = tournament.status === "completed" && tournament.splitResult;
   const statusLabel =
-    tournament.status === "recruiting"
-      ? "报名中"
-      : tournament.status === "locked"
-        ? "已锁定"
-        : "已结束";
+    isSplit ? "已分队"
+    : tournament.status === "recruiting" && isFull ? "人满待分队"
+    : tournament.status === "recruiting" ? "报名中"
+    : "已结束";
 
   const statusBadgeClass =
-    tournament.status === "recruiting"
-      ? "badge badge-green"
-      : tournament.status === "locked"
-        ? "badge badge-gold"
-        : "badge badge-muted";
+    isSplit ? "badge badge-gold"
+    : tournament.status === "recruiting" && isFull ? "badge badge-blue"
+    : tournament.status === "recruiting" ? "badge badge-green"
+    : "badge badge-muted";
 
   return (
     <div
@@ -261,7 +262,27 @@ export function TournamentDetail() {
             {tournament.name}
           </h1>
 
-          {/* Meta row: code | deadline | player count */}
+          {/* Deadline banner */}
+          <div style={{
+            background: isOverdue ? "var(--red)/8" : "var(--gold-alpha-08)",
+            border: `1px solid ${isOverdue ? "var(--red)/20" : "var(--gold-alpha-10)"}`,
+            borderRadius: 8, padding: "8px 16px", marginBottom: 16,
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            flexWrap: "wrap", gap: 8,
+          }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: isOverdue ? "var(--red)" : "var(--gold)" }}>
+              ⏰ 截止时间：{new Date(tournament.deadline).toLocaleString("zh-CN")}
+              {isOverdue ? "（已过期）" : ""}
+            </span>
+            {isOwner && !splitResult && (
+              <button onClick={() => setShowExtendCalendar(true)}
+                className="btn-subtle" style={{ fontSize: 12, padding: "4px 12px" }}>
+                延长截止
+              </button>
+            )}
+          </div>
+
+          {/* Meta row: code | player count */}
           <div style={{
             display: "flex",
             alignItems: "center",
@@ -279,19 +300,6 @@ export function TournamentDetail() {
               borderRadius: "var(--radius-sm)",
             }}>
               #{tournament.code}
-            </span>
-
-            <span style={{ color: "var(--border)", fontSize: 10 }}>|</span>
-
-            <span style={{
-              fontSize: 13,
-              color: "var(--text-secondary)",
-              display: "flex",
-              alignItems: "center",
-              gap: 4,
-            }}>
-              <span style={{ color: "var(--text-muted)" }}>截止</span>
-              {new Date(tournament.deadline).toLocaleString("zh-CN")}
             </span>
 
             <span style={{ color: "var(--border)", fontSize: 10 }}>|</span>
@@ -405,12 +413,6 @@ export function TournamentDetail() {
                 <span className="badge badge-gold" style={{ fontSize: 13, padding: "8px 18px" }}>
                   已分队
                 </span>
-              )}
-              {/* Extend button */}
-              {(tournament.status === "recruiting" || tournament.status === "locked") && (
-                <button onClick={openExtendCalendar} className="btn-ghost" style={{ fontSize: 13, padding: "8px 18px" }}>
-                  延长截止
-                </button>
               )}
               {/* Add filler player — owner only, recruiting/locked, not yet split */}
               {isOwner && (tournament.status === "recruiting" || tournament.status === "locked") && !splitResult && (
@@ -592,7 +594,7 @@ export function TournamentDetail() {
             else if (p.isTemporary) typeLabel = "补位";
 
             const canKick = isAdmin && p.userId !== me?.userId && adminRole?.role !== "owner";
-            const canPromote = isOwner && !adminRole && !p.isSpectator && p.userId !== me?.userId;
+            const canPromote = isOwner && !adminRole && !p.isSpectator && !p.isTemporary && p.userId !== me?.userId;
             const canDemote = isOwner && adminRole?.role === "co_owner";
 
             const teamBg = teamColor === "red" ? "rgba(224,80,80,0.06)" : teamColor === "blue" ? "rgba(80,144,208,0.06)" : "transparent";
@@ -767,10 +769,17 @@ export function TournamentDetail() {
       )}
 
       {/* ================================================================== */}
-      {/*  SPLIT RESULT                                                       */}
+      {/*  SPLIT RESULT / 英雄选人                                            */}
       {/* ================================================================== */}
       {splitResult && (
-        <div className="animate-slide-up" style={{ marginBottom: 32 }}>
+        <div style={{ marginBottom: 32 }}>
+          <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+            {[{ k: "result", l: "分队结果" }, { k: "builder", l: "英雄阵容" }].map(t => (
+              <button key={t.k} onClick={() => setSplitTab(t.k)}
+                style={{ padding: "6px 20px", borderRadius: 8, fontSize: 14, fontWeight: splitTab === t.k ? 600 : 400, border: splitTab === t.k ? "1px solid var(--gold)" : "1px solid transparent", background: splitTab === t.k ? "var(--gold-alpha-08)" : "transparent", color: splitTab === t.k ? "var(--gold)" : "var(--text-secondary)", cursor: "pointer" }}>{t.l}</button>
+            ))}
+          </div>
+          {splitTab === "result" && <div className="animate-slide-up">
           {/* Section title */}
           <h3 className="section-title" style={{ marginBottom: 16 }}>
             分队结果
@@ -832,7 +841,7 @@ export function TournamentDetail() {
                 color: splitResult.strengthDiff <= 200 ? "var(--green)" : "var(--gold)",
                 lineHeight: 1,
               }}>
-                {splitResult.strengthDiff}
+                {Math.round(splitResult.strengthDiff)}
               </div>
               <div style={{
                 fontSize: 11,
@@ -867,7 +876,7 @@ export function TournamentDetail() {
                 color: splitResult.preferenceScore >= 20 ? "var(--green)" : "var(--text)",
                 lineHeight: 1,
               }}>
-                {splitResult.preferenceScore}
+                {Math.round(splitResult.preferenceScore)}
               </div>
               <div style={{
                 fontSize: 11,
@@ -879,6 +888,22 @@ export function TournamentDetail() {
               </div>
             </div>
           </div>
+        </div>
+        }
+        {splitTab === "builder" && (
+          <TeamBuilder
+            tournamentId={tournament.id}
+            teamRed={splitResult.teamRed}
+            teamBlue={splitResult.teamBlue}
+            players={tournament.players.map(p => ({
+              userId: p.userId,
+              username: p.isTemporary ? (p.tempName || "临时选手") : p.user.username,
+              isTemp: p.isTemporary,
+            }))}
+            currentUserId={me?.userId || 0}
+            isOwner={isOwner}
+          />
+        )}
         </div>
       )}
 

@@ -14,7 +14,7 @@ interface SplitResult {
   rankCoverage: number;
 }
 
-const ROLES = ["top", "jungle", "mid", "adc", "support"];
+import { ROLES } from "@/engine";
 
 // Scoring weights
 const W_PREF = 500;

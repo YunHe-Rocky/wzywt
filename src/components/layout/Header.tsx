@@ -2,29 +2,32 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useTheme } from "@/themes/ThemeProvider";
-import { getUIConfig } from "@/themes/ui-config";
+import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { useAnnouncements } from "@/hooks/useAnnouncements";
-
-const NAV = [
-  { href: "/", label: "首页" },
-  { href: "/tournaments", label: "赛事大厅" },
-  { href: "/heroes", label: "英雄图鉴" },
-];
+import { SecurityQuestionModal } from "@/components/auth/SecurityQuestionModal";
+import { DeleteAccountModal } from "@/components/auth/DeleteAccountModal";
 
 export function Header() {
   const { user, loaded, logout } = useAuth();
   const { latestVersion } = useAnnouncements(false);
 
   const [menuOpen, setMenuOpen] = useState(false);
-  const [mobileOpen, setMobileOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [showPwd, setShowPwd] = useState(false);
+  const [showDel, setShowDel] = useState(false);
+  const [securityQ, setSecurityQ] = useState("");
   const menuRef = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
+  const router = useRouter();
 
   useEffect(() => { setMounted(true); }, []);
+  useEffect(() => {
+    if (!user) return;
+    fetch("/api/auth/me").then(r => r.json()).then(d => {
+      if (d.user?.securityQuestion) setSecurityQ(d.user.securityQuestion);
+    });
+  }, [user]);
 
   useEffect(() => {
     const fn = (e: MouseEvent) => { if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false); };
@@ -33,23 +36,7 @@ export function Header() {
   }, []);
 
   const version = latestVersion || "V1.0.1";
-
-  // 保留 hash 避免切主题
-  const [hash, setHash] = useState("");
-  useEffect(() => {
-    setHash(window.location.hash);
-    const onHash = () => setHash(window.location.hash);
-    window.addEventListener("hashchange", onHash);
-    return () => window.removeEventListener("hashchange", onHash);
-  }, []);
-  const withHash = (path: string) => path + hash;
-
-  function doLogout() { setMenuOpen(false); logout(); }
-
-  const { theme } = useTheme();
-  const ui = getUIConfig(theme);
   const pathIsM = pathname.startsWith("/m");
-  // 用实际屏幕宽度判断移动端，比 URL 路径更可靠
   const [isMobile, setIsMobile] = useState(false);
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth <= 768);
@@ -57,67 +44,68 @@ export function Header() {
     window.addEventListener("resize", check);
     return () => window.removeEventListener("resize", check);
   }, []);
-  const active = (href: string) => href === "/" ? pathname === "/" : pathname.startsWith(href);
 
   return (
-    <header className={`sticky top-0 z-50 ${(ui.headerNav === "compact") ? "header-bar" : "bg-nav border-b border-border-gold"}`} suppressHydrationWarning>
-      {ui.headerNav === "full" && (
-        <div className="h-px bg-gradient-to-r from-transparent via-gold/40 to-transparent animate-pulse" />
-      )}
-
-      <div className={`${(ui.headerNav === "compact") ? "header-inner-alt" : isMobile ? "max-w-full mx-auto px-4 h-11" : "max-w-6xl mx-auto px-4 sm:px-6 h-14"} flex items-center gap-4`}>
+    <>
+    <header className="sticky top-0 z-50 header-bar" suppressHydrationWarning>
+      <div className="header-inner-alt flex items-center gap-4">
         {/* Brand */}
-        <Link href={withHash(pathIsM ? "/m" : "/")} className="flex items-center gap-2 shrink-0 no-underline">
-          <span className={(ui.headerNav === "compact") ? "text-[11px] font-bold tracking-wider text-[#777]" : isMobile ? "text-sm font-extrabold tracking-wider text-gold-light" : "text-lg font-extrabold tracking-wider text-gold-light"}>
+        <Link href={pathIsM ? "/m" : "/"} className="flex items-center gap-2 shrink-0 no-underline">
+          <span className="text-[11px] font-bold tracking-wider text-[#777]">
             王者演武堂
           </span>
-          <span className={`text-[10px] font-semibold tracking-wider rounded px-1.5 leading-4 ${isMobile ? "inline text-gold/70 border border-gold/10" : "inline text-gold/70 border border-gold/15"}`}>
+          <span className="text-[10px] font-semibold tracking-wider rounded px-1.5 leading-4 text-gold/70 border border-gold/10">
             {version}
           </span>
         </Link>
 
-        {/* Desktop nav — not on /m routes */}
-        {!isMobile && (
-          <nav className="flex items-center gap-1 ml-4">
-            {NAV.map(n => (
-              <Link key={n.href} href={withHash(n.href)}
-                className={`px-3 py-1.5 text-sm font-medium rounded-sm transition-colors no-underline
-                  ${active(n.href) ? "text-gold bg-gold/8" : "text-text-secondary hover:text-text hover:bg-hover"}`}
-              >
-                {n.label}
-              </Link>
-            ))}
-          </nav>
-        )}
-
         <div className="flex-1" />
 
         {/* Right side */}
-        {!loaded ? null : user ? (
+        {!mounted ? null : loaded && user ? (
           <div ref={menuRef} className="relative">
             <button onClick={() => setMenuOpen(!menuOpen)}
-              className={`flex items-center gap-2 rounded-full transition-all ${(ui.headerNav === "compact") ? "px-2 py-0.5 hover:bg-black/5" : "px-2 py-1 hover:bg-hover"}`}>
-              <span className={`rounded-full flex items-center justify-center font-bold transition-shadow ${(ui.headerNav === "compact") ? "w-6 h-6 text-[10px] bg-blue/8 text-[#4488f0] border border-blue/15" : "w-7 h-7 text-xs bg-gradient-to-br from-gold to-gold-dim text-white"}`}>
+              className="flex items-center gap-2 rounded-full transition-all px-2 py-0.5 hover:bg-black/5">
+              {user.avatar ? (
+                <img
+                  src={`/api/avatars/${user.avatar}`}
+                  alt={user.username}
+                  className="rounded-full object-cover w-6 h-6 border border-blue/15"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = "none";
+                  }}
+                />
+              ) : null}
+              <span className={`rounded-full flex items-center justify-center font-bold transition-shadow w-6 h-6 text-[10px] bg-blue/8 text-[#4488f0] border border-blue/15 ${user.avatar ? "hidden" : ""}`}>
                 {user.username[0]}
               </span>
-              {ui.headerNav === "full" && !isMobile && <span className="text-sm text-text hidden sm:inline">{user.username}</span>}
-              <svg className={`w-3 h-3 transition-transform ${menuOpen ? "rotate-180" : ""} ${(ui.headerNav === "compact") ? "text-[#aaa]" : "text-text-muted"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className={`w-3 h-3 transition-transform text-[#aaa] ${menuOpen ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeWidth={2} d="M6 9l6 6 6-6" />
               </svg>
             </button>
 
             {menuOpen && (
-              <div className={`absolute right-0 top-full mt-2 w-48 py-1 animate-slide-up ${(ui.headerNav === "compact") ? "rounded-2xl" : "rounded-lg bg-card border border-border shadow-2xl"}`}
-                style={(ui.headerNav === "compact") ? {
+              <div className="absolute right-0 top-full mt-2 w-48 py-1 animate-slide-up rounded-2xl"
+                style={{
                   background: "rgba(255,255,255,0.7)",
                   backdropFilter: "blur(28px)",
                   WebkitBackdropFilter: "blur(28px)",
                   border: "1px solid rgba(255,255,255,0.7)",
                   boxShadow: "0 4px 24px rgba(0,0,0,0.08), 0 8px 48px rgba(0,0,0,0.04)",
-                } : undefined}>
+                }}>
                 <div className="px-4 py-3 border-b border-border-light">
                   <div className="flex items-center gap-2.5">
-                    <span className={`rounded-full flex items-center justify-center font-bold shrink-0 ${(ui.headerNav === "compact") ? "w-8 h-8 text-sm bg-blue/8 text-[#4488f0]" : "w-8 h-8 text-sm bg-gradient-to-br from-gold to-gold-dim text-white"}`}>
+                    {user.avatar ? (
+                      <img
+                        src={`/api/avatars/${user.avatar}`}
+                        alt={user.username}
+                        className="rounded-full object-cover w-8 h-8 shrink-0"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).style.display = "none";
+                        }}
+                      />
+                    ) : null}
+                    <span className={`rounded-full flex items-center justify-center font-bold shrink-0 w-8 h-8 text-sm bg-blue/8 text-[#4488f0] ${user.avatar ? "hidden" : ""}`}>
                       {user.username[0]}
                     </span>
                     <div className="min-w-0">
@@ -126,56 +114,45 @@ export function Header() {
                     </div>
                   </div>
                 </div>
-                <Link href={withHash(pathIsM ? "/m/me" : "/me")} onClick={() => setMenuOpen(false)}
-                  className={`flex items-center gap-2 px-4 py-2.5 text-sm no-underline transition-colors ${(ui.headerNav === "compact") ? "text-[#666] hover:bg-black/3 hover:text-[#333]" : "text-text-secondary hover:text-text hover:bg-hover"}`}>
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-                  个人空间
-                </Link>
+                {user.role === "admin" && (
+                  <button onClick={() => { setMenuOpen(false); router.push("/admin"); }}
+                    className="w-full text-left flex items-center gap-2 px-4 py-2.5 text-sm transition-colors text-gold hover:bg-gold/5">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                    后台管理
+                  </button>
+                )}
+                <button onClick={() => { setMenuOpen(false); setShowPwd(true); }}
+                  className="w-full text-left flex items-center gap-2 px-4 py-2.5 text-sm transition-colors text-[#666] hover:bg-black/3 hover:text-[#333]">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4" strokeLinecap="round" strokeWidth={2}/></svg>
+                  修改密码
+                </button>
+                {user.role !== "admin" && (
+                  <button onClick={() => { setMenuOpen(false); setShowDel(true); }}
+                    className="w-full text-left flex items-center gap-2 px-4 py-2.5 text-sm transition-colors text-red/70 hover:text-red hover:bg-red/3">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                    注销账户
+                  </button>
+                )}
                 <div className="border-t border-border-light my-1" />
-                <button onClick={doLogout}
-                  className={`w-full text-left flex items-center gap-2 px-4 py-2.5 text-sm transition-colors ${(ui.headerNav === "compact") ? "text-red/70 hover:text-red hover:bg-red/3" : "text-red/80 hover:text-red hover:bg-red/5"}`}>
+                <button onClick={() => { setMenuOpen(false); logout(); }}
+                  className="w-full text-left flex items-center gap-2 px-4 py-2.5 text-sm transition-colors text-red/70 hover:text-red hover:bg-red/3">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
                   退出登录
                 </button>
               </div>
             )}
           </div>
-        ) : (ui.headerNav === "compact") ? (
-          <Link href={withHash("/login")}
+        ) : (
+          <Link href="/login"
             className="flex items-center justify-center w-5 h-5 rounded-full bg-blue/10 text-[#4488f0] text-[9px] font-bold no-underline">
             ?
           </Link>
-        ) : (
-          <Link href={withHash("/login")}
-            className="px-5 py-1.5 text-sm font-semibold rounded-md bg-gradient-to-b from-gold-light via-gold to-gold-dim text-white hover:brightness-110 transition-all hover:-translate-y-px shadow-[0_2px_6px_var(--gold-alpha-10)] no-underline">
-            登录
-          </Link>
-        )}
-
-        {/* Mobile hamburger — 演武手机用汉堡菜单 */}
-        {ui.mobileNav === "hamburger" && isMobile && (
-          <button onClick={() => setMobileOpen(!mobileOpen)}
-            className="flex items-center justify-center w-8 h-8 rounded text-text-muted hover:text-gold-light transition-colors">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              {mobileOpen
-                ? <path strokeLinecap="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                : <path strokeLinecap="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />}
-            </svg>
-          </button>
         )}
       </div>
-
-      {/* Mobile nav dropdown — 演武手机汉堡菜单展开 */}
-      {ui.mobileNav === "hamburger" && isMobile && mobileOpen && (
-        <div className="border-t border-border bg-card px-4 py-2 flex flex-col gap-1 animate-slide-up">
-          {NAV.map(n => (
-            <Link key={n.href} href={withHash(n.href)} onClick={() => setMobileOpen(false)}
-              className={`px-3 py-2 rounded text-sm no-underline font-medium ${active(n.href) ? "text-gold bg-gold/8" : "text-text-secondary"}`}>
-              {n.label}
-            </Link>
-          ))}
-        </div>
-      )}
     </header>
+    <SecurityQuestionModal question={securityQ} open={showPwd} onClose={() => setShowPwd(false)} />
+    <DeleteAccountModal open={showDel} onClose={() => setShowDel(false)} />
+    </>
   );
 }
+

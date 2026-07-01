@@ -1,21 +1,18 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useAuth } from "@/hooks/useAuth";
 import { RolePreferenceEditor } from "@/components/me/RolePreferenceEditor";
-import { DeleteAccountModal } from "@/components/auth/DeleteAccountModal";
-import { SecurityQuestionModal } from "@/components/auth/SecurityQuestionModal";
+import { AvatarUpload } from "@/components/me/AvatarUpload";
 import { PageEntrance } from "@/components/layout/PageEntrance";
 
 export default function MePage() {
-  const [showDelete, setShowDelete] = useState(false);
-  const [showChangePassword, setShowChangePassword] = useState(false);
-  const [securityQuestion, setSecurityQuestion] = useState("");
+  const { user } = useAuth();
+  const [avatar, setAvatar] = useState<string | null | undefined>(user?.avatar);
 
   useEffect(() => {
-    fetch("/api/auth/me").then(r => r.json()).then(d => {
-      if (d.user?.securityQuestion) setSecurityQuestion(d.user.securityQuestion);
-    });
-  }, []);
+    if (user?.avatar !== undefined) setAvatar(user.avatar);
+  }, [user?.avatar]);
 
   return (
     <div className="max-w-2xl mx-auto px-4 sm:px-6 py-6 sm:py-10 flex flex-col gap-6">
@@ -24,34 +21,19 @@ export default function MePage() {
       </PageEntrance>
 
       <PageEntrance stagger={0.15}>
-        <RolePreferenceEditor />
-      </PageEntrance>
-
-      <PageEntrance stagger={0.3}>
-        <div className="card">
-          <div className="flex items-center justify-between flex-wrap gap-3 mb-4 pb-4 border-b border-border">
-            <div>
-              <div className="text-base font-semibold text-text mb-1">账户安全</div>
-              <div className="text-sm text-text-muted">修改登录密码</div>
-            </div>
-            <button onClick={() => setShowChangePassword(true)}
-              className="btn-primary text-sm px-6 py-2">修改密码</button>
-          </div>
-          <div className="p-4 border border-red rounded-lg bg-red/5">
-            <div className="flex items-center justify-between flex-wrap gap-3">
-              <div>
-                <div className="text-base font-semibold text-red mb-1">危险区域</div>
-                <div className="text-sm text-text-muted">注销后所有数据将被永久删除，无法恢复</div>
-              </div>
-              <button onClick={() => setShowDelete(true)}
-                className="btn-danger text-sm px-6 py-2">注销账号</button>
-            </div>
-          </div>
+        <div className="flex justify-center py-4">
+          <AvatarUpload
+            avatar={avatar}
+            username={user?.username || "?"}
+            size={96}
+            onUpdated={setAvatar}
+          />
         </div>
       </PageEntrance>
 
-      <SecurityQuestionModal question={securityQuestion} open={showChangePassword} onClose={() => setShowChangePassword(false)} />
-      <DeleteAccountModal open={showDelete} onClose={() => setShowDelete(false)} />
+      <PageEntrance stagger={0.3}>
+        <RolePreferenceEditor />
+      </PageEntrance>
     </div>
   );
 }

@@ -1,7 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useHeroes } from "@/hooks/useHeroes";
+import { cardStagger } from "@/engine";
 
 interface Hero {
   heroId: number;
@@ -16,41 +18,7 @@ interface Hero {
   minggeRelatedId?: number | null;
 }
 
-const ROLE_LABELS: Record<string, { label: string; color: string }> = {
-  top: { label: "对抗路", color: "#e05555" },
-  jungle: { label: "打野", color: "#55b055" },
-  mid: { label: "中路", color: "#5588cc" },
-  adc: { label: "发育路", color: "#ddaa33" },
-  support: { label: "游走", color: "#aa66cc" },
-};
-
-const CLASS_LABELS: Record<number, { label: string; color: string }> = {
-  1: { label: "战士", color: "#dd7744" },
-  2: { label: "法师", color: "#44aaaa" },
-  3: { label: "坦克", color: "#88aa44" },
-  4: { label: "刺客", color: "#cc4466" },
-  5: { label: "射手", color: "#cc8833" },
-  6: { label: "辅助", color: "#66aacc" },
-};
-
-const ROLE_FILTERS = [
-  { value: "", label: "全部分路" },
-  { value: "top", label: "对抗路" },
-  { value: "jungle", label: "打野" },
-  { value: "mid", label: "中路" },
-  { value: "adc", label: "发育路" },
-  { value: "support", label: "游走" },
-];
-
-const CLASS_FILTERS = [
-  { value: "", label: "全部职业" },
-  { value: "1", label: "战士" },
-  { value: "2", label: "法师" },
-  { value: "3", label: "坦克" },
-  { value: "4", label: "刺客" },
-  { value: "5", label: "射手" },
-  { value: "6", label: "辅助" },
-];
+import { ROLE_BADGES, CLASS_BADGES, ROLE_FILTERS, CLASS_FILTERS } from "@/engine";
 
 function HeroImage({ hero }: { hero: Hero }) {
   const [loaded, setLoaded] = useState(false);
@@ -145,14 +113,14 @@ function CardInfo({ hero, form, minggeHero, onToggle }: { hero: Hero; form: stri
         )}
       </div>
       <div style={{ display: "flex", gap: 4, marginTop: 6, flexWrap: "wrap" }}>
-        {displayHero.heroType > 0 && CLASS_LABELS[displayHero.heroType] && (
-          <span style={{ display: "inline-flex", alignItems: "center", padding: "2px 6px", borderRadius: 3, fontSize: 10, fontWeight: 600, background: CLASS_LABELS[displayHero.heroType].color + "20", color: CLASS_LABELS[displayHero.heroType].color, border: "1px solid " + CLASS_LABELS[displayHero.heroType].color + "30" }}>
-            {CLASS_LABELS[displayHero.heroType].label}
+        {displayHero.heroType > 0 && CLASS_BADGES[displayHero.heroType] && (
+          <span style={{ display: "inline-flex", alignItems: "center", padding: "2px 6px", borderRadius: 3, fontSize: 10, fontWeight: 600, background: CLASS_BADGES[displayHero.heroType].color + "20", color: CLASS_BADGES[displayHero.heroType].color, border: "1px solid " + CLASS_BADGES[displayHero.heroType].color + "30" }}>
+            {CLASS_BADGES[displayHero.heroType].label}
           </span>
         )}
-        {ROLE_LABELS[displayHero.roleType] && (
-          <span style={{ display: "inline-flex", alignItems: "center", padding: "2px 6px", borderRadius: 3, fontSize: 10, fontWeight: 600, background: ROLE_LABELS[displayHero.roleType].color + "18", color: ROLE_LABELS[displayHero.roleType].color, border: "1px solid " + ROLE_LABELS[displayHero.roleType].color + "25" }}>
-            {ROLE_LABELS[displayHero.roleType].label}
+        {ROLE_BADGES[displayHero.roleType] && (
+          <span style={{ display: "inline-flex", alignItems: "center", padding: "2px 6px", borderRadius: 3, fontSize: 10, fontWeight: 600, background: ROLE_BADGES[displayHero.roleType].color + "18", color: ROLE_BADGES[displayHero.roleType].color, border: "1px solid " + ROLE_BADGES[displayHero.roleType].color + "25" }}>
+            {ROLE_BADGES[displayHero.roleType].label}
           </span>
         )}
         {form === "mingge" && (
@@ -167,12 +135,12 @@ function CardInfo({ hero, form, minggeHero, onToggle }: { hero: Hero; form: stri
 
 export function HeroGrid() {
   const router = useRouter();
-  const [heroes, setHeroes] = useState<Hero[]>([]);
   const [roleFilter, setRoleFilter] = useState("");
   const [classFilter, setClassFilter] = useState("");
   const [search, setSearch] = useState("");
   const [cardForms, setCardForms] = useState<Record<number, "base" | "mingge">>({});
   const [minggeHeroes, setMinggeHeroes] = useState<Record<number, Hero>>({});
+  const { heroes, loading, error: fetchError, refetch } = useHeroes(roleFilter || undefined, classFilter || undefined);
 
   const toggleCardForm = async (hero: Hero) => {
     const current = cardForms[hero.heroId] || "base";
@@ -192,53 +160,20 @@ export function HeroGrid() {
       setCardForms(prev => ({ ...prev, [hero.heroId]: "base" }));
     }
   };
-  const [loading, setLoading] = useState(true);
-  const [fetchError, setFetchError] = useState(false);
 
-  const fetchRef = useRef<() => void>(() => {});
-
-  const fetchHeroes = useCallback(() => {
-    const params = new URLSearchParams();
-    if (roleFilter) params.set("role_type", roleFilter);
-    if (classFilter) params.set("hero_type", classFilter);
-    fetch(`/api/heroes?${params.toString()}`)
-      .then((r) => {
-        if (!r.ok) throw new Error("HTTP " + r.status);
-        return r.json();
-      })
-      .then((data) => {
-        setHeroes(Array.isArray(data) ? data : []);
-        setLoading(false);
-      })
-      .catch(() => {
-        setFetchError(true);
-        setLoading(false);
-      });
-  }, [roleFilter, classFilter]);
-
-  useEffect(() => {
-    fetchRef.current = fetchHeroes;
-  });
-
-  useEffect(() => {
-    setLoading(true);
-    setFetchError(false);
-    fetchHeroes();
-  }, [roleFilter, classFilter, fetchHeroes]);
-
-  // SSE: auto-refresh when hero data changes (uses latest filters)
+  // SSE: auto-refresh when hero data changes
   useEffect(() => {
     const es = new EventSource("/api/heroes/watch");
     es.onmessage = (e) => {
       try {
         const msg = JSON.parse(e.data);
         if (msg.type === "heroes-updated") {
-          fetchRef.current();
+          refetch();
         }
       } catch {}
     };
     return () => es.close();
-  }, []);
+  }, [refetch]);
 
   // 命格形态名称集合（如"心魔六耳"），这些英雄不在图鉴中单独展示
   const minggeFormNames = new Set(heroes.filter(h => h.mingge && h.minggeName).map(h => h.minggeName!));
@@ -347,7 +282,7 @@ export function HeroGrid() {
                 padding: 0,
                 overflow: "hidden",
                 cursor: "pointer",
-                animation: `fade-in 0.3s ${i * 0.015}s ease-out both`,
+                ...cardStagger(i),
                 textAlign: "left",
               }}
             >

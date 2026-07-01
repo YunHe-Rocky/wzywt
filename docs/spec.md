@@ -98,6 +98,7 @@
 ## 部署
 
 - Rocky Linux + Nginx 反代 + PM2 守护
-- Web 端口 8081，Nginx 代理域名 80/443
+- 开发端口 8001（`npm run dev`），生产端口 8081（`ecosystem.config.js`）
+- Nginx 代理域名 80/443 → 127.0.0.1:8081
 - SSE 长连接: proxy_buffering off + 86400s 超时
 - 详见 `docs/deploy.md` 和 `docs/yanwutang.conf`

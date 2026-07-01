@@ -1,7 +1,10 @@
 // 通过API创建10个测试用户 + 赛事 + 分队
 // 用法: npx tsx scripts/seed-test-data.ts
 
-const BASE = process.env.BASE_URL || "http://127.0.0.1:8081";
+import { prisma } from "../src/lib/db";
+import { hashPassword } from "../src/lib/auth";
+
+const BASE = process.env.BASE_URL || "http://127.0.0.1:8001";
 const PWD = "12345678901";
 
 async function post(path: string, body: any, cookie?: string) {
@@ -50,7 +53,37 @@ const HEROES: Record<string, { id: number; name: string; power: number }[]> = {
   support: [{ id: 108, name: "墨子", power: 6000 }, { id: 118, name: "孙膑", power: 5500 }, { id: 171, name: "张飞", power: 5200 }],
 };
 
+async function seedAdmin() {
+  const existing = await prisma.user.findUnique({ where: { username: "admin" } });
+  if (!existing) {
+    const hash = await hashPassword("admin12345678");
+    const aHash = await hashPassword("admin");
+    await prisma.user.create({
+      data: {
+        username: "admin",
+        passwordHash: hash,
+        role: "admin",
+        securityQuestion: "系统内置管理员",
+        securityAnswerHash: aHash,
+      },
+    });
+    console.log("✓ Admin user created: admin / admin12345678");
+  } else {
+    if (existing.role !== "admin") {
+      await prisma.user.update({ where: { id: existing.id }, data: { role: "admin" } });
+      console.log("✓ Admin user role updated to super_admin");
+    } else {
+      console.log("✓ Admin user already exists");
+    }
+  }
+}
+
 async function main() {
+  // 0. 创建管理员
+  console.log("=== 创建管理员 ===");
+  await seedAdmin();
+  console.log();
+
   // 1. 注册
   console.log("=== 注册10个用户 ===");
   const sessions: { name: string; cookie: string }[] = [];

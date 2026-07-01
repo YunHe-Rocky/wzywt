@@ -4,9 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useToast } from "@/components/ui/Toast";
-import { useTheme } from "@/themes/ThemeProvider";
 import { GlassShatter } from "./GlassShatter";
-import { CurtainDraw } from "./CurtainDraw";
 
 const PRESET_QUESTIONS = [
   "你的出生城市是？", "你母亲的名字是？", "你父亲的名字是？",
@@ -66,7 +64,6 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
   const [showForgotPw, setShowForgotPw] = useState(false);
   const [shatter, setShatter] = useState(false);
   const [shatterRedirect, setShatterRedirect] = useState("");
-  const { theme } = useTheme();
 
   useEffect(() => {
     fetch("/api/auth/me").then(r => r.json()).then(d => {
@@ -89,8 +86,9 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
     if (mode === "register") success("欢迎加入王者演武堂！");
     if (mode === "login") {
       setShatter(true);
-      const sep = redirect.includes("?") ? "&" : "?";
-      setShatterRedirect(redirect + sep + "_from=login");
+      const dest = data.username === "admin" ? "/admin" : redirect;
+      const sep = dest.includes("?") ? "&" : "?";
+      setShatterRedirect(dest + sep + "_from=login");
     } else {
       router.push(redirect); router.refresh();
     }
@@ -234,11 +232,8 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
       )}
 
       {/* ── 登录过渡 ── */}
-      {shatter && theme === "alternate" && (
+      {shatter && (
         <GlassShatter cardSelector=".auth-card" onComplete={() => { router.push(shatterRedirect); router.refresh(); }} />
-      )}
-      {shatter && theme !== "alternate" && (
-        <CurtainDraw cardSelector=".auth-card" onComplete={() => { router.push(shatterRedirect); router.refresh(); }} />
       )}
 
       {/* ── Forgot Password Modal ── */}
@@ -276,7 +271,17 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
                   <input placeholder="请输入答案" value={forgotAnswer} onChange={e => setForgotAnswer(e.target.value)} className={inputClass} />
                 </div>
                 {forgotError && <p className="text-xs text-red text-center mb-3">{forgotError}</p>}
-                <button onClick={() => { setForgotStep(3); setForgotError(""); }}
+                <button onClick={async () => {
+                    if (!forgotAnswer) { setForgotError("请输入安全答案"); return; }
+                    setForgotLoading(true); setForgotError("");
+                    const res = await fetch("/api/auth/reset-password", {
+                      method: "POST", headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ username: forgotUsername, answer: forgotAnswer }),
+                    });
+                    setForgotLoading(false);
+                    if (!res.ok) { setForgotError("安全答案错误"); return; }
+                    setForgotStep(3); setForgotError("");
+                  }}
                   className={`${btnGold} text-[13px] py-2.5 mb-2.5`}>继续设置新密码</button>
                 <div className="text-center">
                   <button onClick={() => setShowForgot(false)} className="bg-transparent border-none text-text-muted text-[11px] cursor-pointer">取消</button>

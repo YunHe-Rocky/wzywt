@@ -83,9 +83,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     })),
   };
 
-  // Persist split result via raw SQL (Prisma Json field can be finicky)
+  // Persist split result + mark as completed
   await prisma.$executeRawUnsafe(
-    "UPDATE tournaments SET split_result = ? WHERE id = ?",
+    "UPDATE tournaments SET split_result = ?, status = 'completed' WHERE id = ?",
     JSON.stringify(splitData), tournamentId
   );
 

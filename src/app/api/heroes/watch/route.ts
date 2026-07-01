@@ -5,6 +5,9 @@ import { addClient, removeClient, broadcastHeroUpdate } from "@/lib/sse/heroes";
 import { runAllMonitors, runMonitorAndScrape } from "@/lib/monitor";
 
 let cycleCount = 0;
+let lastScrapeTime = 0;
+const SCRAPE_COOLDOWN = 2 * 60 * 60 * 1000; // 2 hours between auto-scrapes
+const CHECK_INTERVAL = 5 * 60 * 1000; // 5 min between checks
 
 export async function GET(req: NextRequest) {
   const stream = new ReadableStream({
@@ -12,43 +15,48 @@ export async function GET(req: NextRequest) {
       addClient(controller);
 
       const send = (data: object) => {
-        controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(data)}\n\n`));
+        try {
+          controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(data)}\n\n`));
+        } catch {}
       };
 
-      send({ type: "connected", modules: ["news", "heroes", "skins"] });
+      send({ type: "connected" });
 
-      // Run full cycle: check → detect changes → scrape → broadcast
       const runCycle = async () => {
         cycleCount++;
-        // 1. Check all modules (lightweight, no scraping)
-        const checks = await runAllMonitors();
-        send({ type: "monitor-check", cycle: cycleCount, results: checks });
+        try {
+          // 轻量检查（外部 API 对比，不做 DB 全量查询）
+          const checks = await runAllMonitors();
+          send({ type: "check", cycle: cycleCount, results: checks });
 
-        // 2. For any changed module, trigger ONLY that scraper
-        const changed = checks.filter((c) => c.changed);
-        if (changed.length > 0) {
-          const changedModules = changed.map((c) => c.module);
-          send({ type: "scrape-triggered", modules: changedModules });
+          const changed = checks.filter((c) => c.changed);
+          if (changed.length > 0) {
+            const now = Date.now();
+            const canScrape = now - lastScrapeTime > SCRAPE_COOLDOWN;
 
-          const events = await runMonitorAndScrape(changedModules);
-          send({ type: "scrape-result", events });
+            if (canScrape) {
+              lastScrapeTime = now;
+              const modules = changed.map((c) => c.module);
+              send({ type: "scrape-triggered", modules });
 
-          // Broadcast hero updates if heroes changed
-          const heroUpdates = events.filter((e) => e.module === "heroes" && e.action === "scrape-done");
-          if (heroUpdates.length > 0) {
-            const changes = heroUpdates.map((e) => ({ heroId: 0, name: e.detail }));
-            broadcastHeroUpdate(changes);
+              const events = await runMonitorAndScrape(modules);
+              send({ type: "scrape-result", events });
+
+              const heroUpdates = events.filter((e) => e.module === "heroes" && e.action === "scrape-done");
+              if (heroUpdates.length > 0) {
+                broadcastHeroUpdate(heroUpdates.map((e) => ({ heroId: 0, name: e.detail })));
+              }
+            } else {
+              send({ type: "scrape-deferred", reason: "cooldown", modules: changed.map((c) => c.module) });
+            }
           }
-        } else {
-          send({ type: "monitor-idle", cycle: cycleCount });
+        } catch (e: any) {
+          send({ type: "error", message: e.message });
         }
       };
 
-      // Initial cycle after 5s
       setTimeout(runCycle, 5000);
-
-      // Periodic check every 60s
-      const interval = setInterval(runCycle, 60000);
+      const interval = setInterval(runCycle, CHECK_INTERVAL);
 
       req.signal.addEventListener("abort", () => {
         clearInterval(interval);

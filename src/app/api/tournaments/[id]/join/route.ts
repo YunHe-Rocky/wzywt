@@ -15,6 +15,14 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     return NextResponse.json({ error: "赛事已截止报名" }, { status: 400 });
   }
 
+  // 满员检查
+  const playerCount = await prisma.tournamentPlayer.count({
+    where: { tournamentId, isSpectator: false },
+  });
+  if (playerCount >= 10) {
+    return NextResponse.json({ error: "赛事已满员，等待分队" }, { status: 400 });
+  }
+
   const existing = await prisma.tournamentPlayer.findUnique({
     where: { tournamentId_userId: { tournamentId, userId } },
   });

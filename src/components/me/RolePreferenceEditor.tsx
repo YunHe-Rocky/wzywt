@@ -4,10 +4,7 @@ import { useRef, useCallback, useEffect } from "react";
 import { useToast } from "@/components/ui/Toast";
 import { HeroSelect } from "@/components/hero/HeroSelect";
 import { useRolePreferences } from "@/hooks/useRolePreferences";
-
-const ROLE_LABELS: Record<string, string> = {
-  top: "对抗路", jungle: "打野", mid: "中路", adc: "发育路", support: "游走",
-};
+import { ROLE_LABELS, ROLES } from "@/engine";
 
 const RANK_TIERS = [
   { label: "未设置", value: 0 },
@@ -23,14 +20,12 @@ const RANK_TIERS = [
   { label: "传奇王者", value: 10 },
 ];
 
-const ROLES = ["top", "jungle", "mid", "adc", "support"] as const;
-
 // 分路段位：前5英雄战力总和 / 1000
 function calcLaneRank(heroes: { powerScore: number }[]): number {
   const sorted = [...heroes].sort((a, b) => b.powerScore - a.powerScore);
   const top5 = sorted.slice(0, 5);
-  const total = top5.reduce((sum, h) => sum + h.powerScore, 0);
-  return Math.floor(total / 1000);
+  const total = top5.reduce((sum, h) => sum + Math.round(h.powerScore / 100) * 100, 0);
+  return Math.round(total / 1000);
 }
 
 function RankBadge({ value, size = 48 }: { value: number; size?: number }) {
@@ -201,7 +196,7 @@ export function RolePreferenceEditor() {
                       <div className="text-sm font-semibold text-text truncate">{h.heroName}</div>
                     </div>
                     <div className="flex items-center gap-3">
-                      <span className="text-base font-bold text-gold-light tabular-nums">{h.powerScore}</span>
+                      <span className="text-base font-bold text-gold-light tabular-nums">{Math.round(h.powerScore / 100) * 100}</span>
                       <button onClick={() => removeHero(h.id, activeTab, () => success("已删除"))}
                         className="w-6 h-6 flex items-center justify-center rounded-full bg-transparent border-none text-text-muted hover:text-red hover:bg-red/5 cursor-pointer text-sm shrink-0 transition-colors">✕</button>
                     </div>
@@ -239,8 +234,8 @@ export function RolePreferenceEditor() {
       <div className="mt-6 pt-5 border-t border-border-light flex items-end gap-4">
         <div className="flex-1">
           <label className="text-xs font-semibold text-text-muted tracking-wider uppercase block mb-1.5">巅峰分数</label>
-          <input type="number" placeholder="未设置" value={activePref?.peakScore || ""}
-            onChange={e => setPeakScore(activeTab, parseInt(e.target.value) || 0)}
+          <input type="number" placeholder="未设置" value={activePref?.peakScore ? Math.round(activePref.peakScore) : ""}
+            onChange={e => setPeakScore(activeTab, Math.round(parseInt(e.target.value) || 0))}
             className="w-full text-base font-bold px-4 py-2.5 rounded-md bg-input border border-border text-text" />
         </div>
         <button className="btn-primary shrink-0 text-base font-semibold py-3 px-10" onClick={() => savePrefs(() => success("已保存"), (msg) => error(msg))} disabled={saving}>

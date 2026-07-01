@@ -2,11 +2,11 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { requireAuth } from "@/lib/auth";
+import { requireSuperAdmin } from "@/lib/permissions";
 
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
-  const { userId } = await requireAuth().catch(() => ({ userId: 0 }));
-  if (!userId) return NextResponse.json({ error: "请先登录" }, { status: 401 });
+  const { userId } = await requireSuperAdmin().catch(() => ({ userId: 0 }));
+  if (!userId) return NextResponse.json({ error: "无权限" }, { status: 403 });
 
   const id = parseInt(params.id);
   const { title, version, brief, content, slug, published } = await req.json();
@@ -26,8 +26,8 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 }
 
 export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
-  const { userId } = await requireAuth().catch(() => ({ userId: 0 }));
-  if (!userId) return NextResponse.json({ error: "请先登录" }, { status: 401 });
+  const { userId } = await requireSuperAdmin().catch(() => ({ userId: 0 }));
+  if (!userId) return NextResponse.json({ error: "无权限" }, { status: 403 });
 
   const id = parseInt(params.id);
   await prisma.announcement.delete({ where: { id } });

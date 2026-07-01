@@ -7,6 +7,7 @@ interface Tournament {
   id: number; name: string; code: string; deadline: string; status: string;
   _count: { players: number };
   admins: { userId: number; role: string }[];
+  splitResult?: unknown;
 }
 
 export function TournamentList() {
@@ -240,8 +241,10 @@ export function TournamentList() {
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 24 }}>
                 {tournaments.map((t, i) => {
-                  const statusText = t.status === "recruiting" ? "报名中" : t.status === "locked" ? "已锁定" : "已结束";
-                  const statusClass = t.status === "recruiting" ? "badge badge-green" : t.status === "locked" ? "badge badge-gold" : "badge badge-muted";
+                  const isSplit2 = t.status === "completed" && t.splitResult;
+                  const isFull2 = t._count.players >= 10 && t.status === "recruiting";
+                  const statusText = isSplit2 ? "已分队" : isFull2 ? "人满待分队" : t.status === "recruiting" ? "报名中" : "已结束";
+                  const statusClass = isSplit2 ? "badge badge-gold" : isFull2 ? "badge badge-blue" : t.status === "recruiting" ? "badge badge-green" : "badge badge-muted";
                   return (
                     <button key={t.id} onClick={() => router.push(`/tournaments/${t.id}`)}
                       className="card" style={{

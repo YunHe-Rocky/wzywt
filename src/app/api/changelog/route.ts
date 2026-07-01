@@ -1,42 +1,49 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/db";
 import fs from "fs";
 import path from "path";
 
-interface ChangelogEntry {
-  slug: string;
-  date: string;
-  title: string;
-  desc: string;
-}
-
-const CHANGELOG_DIR = path.join(process.cwd(), "data", "changelog");
-const FEATURE_DOC = path.join(process.cwd(), "docs", "superpowers", "specs", "2026-06-23-王者演武堂-功能说明.md");
-const TECH_DOC = path.join(process.cwd(), "docs", "superpowers", "specs", "2026-06-23-王者演武堂-技术设计.md");
-
 export async function GET(req: NextRequest) {
   const slug = new URL(req.url).searchParams.get("slug");
-  const type = new URL(req.url).searchParams.get("type") || "features";
 
-  // Single entry detail
+  // Single entry: try DB first, fallback to files
   if (slug) {
-    const filePath = path.join(CHANGELOG_DIR, `${slug}.md`);
-    if (!fs.existsSync(filePath)) {
-      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    const db = await prisma.announcement.findUnique({ where: { slug } });
+    if (db && db.published) {
+      const md = [
+        `# ${db.title}`,
+        "",
+        `**日期**：${db.createdAt.toISOString().split("T")[0]}`,
+        `**概述**：${db.brief}`,
+        "",
+        db.content || "",
+      ].join("\n");
+      return NextResponse.json({ content: md });
     }
-    return NextResponse.json({ content: fs.readFileSync(filePath, "utf-8") });
+    // Fallback: local file
+    const fp = path.join(process.cwd(), "data", "changelog", `${slug}.md`);
+    if (fs.existsSync(fp)) {
+      return NextResponse.json({ content: fs.readFileSync(fp, "utf-8") });
+    }
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  // Return full doc content for rendering
-  if (type === "features") {
-    if (!fs.existsSync(FEATURE_DOC)) return NextResponse.json({ content: "" });
-    return NextResponse.json({ content: fs.readFileSync(FEATURE_DOC, "utf-8") });
-  }
-  if (type === "tech") {
-    if (!fs.existsSync(TECH_DOC)) return NextResponse.json({ content: "" });
-    return NextResponse.json({ content: fs.readFileSync(TECH_DOC, "utf-8") });
-  }
+  // List: return all published announcements
+  const list = await prisma.announcement.findMany({
+    where: { published: true },
+    orderBy: { createdAt: "desc" },
+    select: { title: true, version: true, brief: true, slug: true, createdAt: true },
+  });
 
-  return NextResponse.json({ content: "" });
+  return NextResponse.json({
+    entries: list.map((a) => ({
+      slug: a.slug,
+      date: a.createdAt.toISOString().split("T")[0],
+      title: a.title,
+      version: a.version,
+      desc: a.brief,
+    })),
+  });
 }

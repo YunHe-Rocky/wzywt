@@ -3,11 +3,7 @@
 import { useEffect, useState } from "react";
 import { useToast } from "@/components/ui/Toast";
 import { HeroSelect } from "@/components/hero/HeroSelect";
-
-const ROLE_LABELS: Record<string, string> = {
-  top: "对抗路", jungle: "打野", mid: "中路", adc: "发育路", support: "游走",
-};
-const ROLES = ["top", "jungle", "mid", "adc", "support"];
+import { ROLE_LABELS, ROLES } from "@/engine";
 
 interface HeroEntry { id: number; heroId: number; heroName: string; powerScore: number }
 interface HeroOption { heroId: number; name: string; title: string }
@@ -137,7 +133,7 @@ export function HeroPowerEditor() {
                   textAlign: "right",
                 }}>
                   {heroes.length > 0
-                    ? heroes.map((h) => `${h.heroName}(${h.powerScore})`).join(", ")
+                    ? heroes.map((h) => `${h.heroName}(${Math.round(h.powerScore / 100) * 100})`).join(", ")
                     : "未选择"}
                 </span>
               </button>
@@ -182,7 +178,7 @@ export function HeroPowerEditor() {
                         fontSize: 13,
                         flex: 1,
                       }}>
-                        {h.powerScore} 战力
+                        {Math.round(h.powerScore / 100) * 100} 战力
                       </span>
                       <button
                         onClick={() => removeHero(h.id, role)}

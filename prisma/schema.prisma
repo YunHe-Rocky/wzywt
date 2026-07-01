@@ -13,6 +13,9 @@ model User {
   passwordHash        String    @map("password_hash") @db.VarChar(255)
   securityQuestion    String?   @map("security_question") @db.VarChar(255)
   securityAnswerHash  String?   @map("security_answer_hash") @db.VarChar(255)
+  role          String    @default("user") @db.VarChar(16)  // user | admin
+  avatar        String?   @db.VarChar(255)                   // 头像文件名
+  banned        Boolean   @default(false)                    // 封禁标记
   createdAt           DateTime  @default(now()) @map("created_at")
 
   rolePreferences RolePreference[]
@@ -40,6 +43,7 @@ model Tournament {
   admins       TournamentAdmin[]
   applications TempPlayerApplication[]
   operations   AdminOperation[]
+  picks        TournamentPick[]
 
   @@map("tournaments")
 }
@@ -127,13 +131,64 @@ model Hero {
   heroType2  Int      @default(0) @map("hero_type2")
   imageUrl   String   @map("image_url") @db.VarChar(255)
   skinsJson  String?  @map("skins_json") @db.Text
-  skillsJson String   @map("skills_json") @db.Text
+  skillsJson String   @map("skills_json") @db.Text  // TODO: remove after data migration to hero_skills
+  dataHash   String?  @map("data_hash") @db.VarChar(64)
   mingge          Boolean  @default(false) @map("mingge")
   minggeName      String?  @map("mingge_name") @db.VarChar(64)
   minggeRelatedId Int?     @map("mingge_related_id")
+  baseJson        Json?    @map("base_json")    // {hp,mp,atk,ap,def,mdef,atkSpeed,moveSpeed,hpPerLv,...}
   updatedAt       DateTime @default(now()) @updatedAt @map("updated_at")
 
+  heroSkills HeroSkill[]
+
   @@map("heroes")
+}
+
+model HeroSkill {
+  id         Int     @id @default(autoincrement())
+  heroId     Int     @map("hero_id")
+  skillIndex Int     @map("skill_index") // 0=passive, 1-4=skills
+  name       String  @db.VarChar(64)
+  cd         String  @db.VarChar(32)
+  cost       String  @db.VarChar(32)
+  desc       String  @db.Text
+  damageType String? @map("damage_type") @db.VarChar(8) // physical/magic/true
+  dataHash   String  @map("data_hash") @db.VarChar(64)
+  extraJson  Json?   @map("extra_json") // future: {base_damage, ad_bonus, ap_bonus, ...}
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @default(now()) @updatedAt @map("updated_at")
+
+  hero Hero @relation(fields: [heroId], references: [heroId], onDelete: Cascade)
+
+  @@unique([heroId, skillIndex])
+  @@map("hero_skills")
+}
+
+model Equipment {
+  id          Int      @id @default(autoincrement())
+  itemId      Int      @unique @map("item_id")
+  name        String   @db.VarChar(64)
+  price       Int      @default(0)
+  imageUrl    String?  @map("image_url") @db.VarChar(255)
+  atk         Int      @default(0) // 物理攻击
+  ap          Int      @default(0) // 法术攻击
+  def         Int      @default(0) // 物理防御
+  mdef        Int      @default(0) // 法术防御
+  hp          Int      @default(0) // 生命值
+  mp          Int      @default(0) // 法力值
+  cdReduce    Int      @default(0) @map("cd_reduce") // 冷却缩减(%)
+  atkSpeed    Int      @default(0) @map("atk_speed") // 攻速(%)
+  moveSpeed   Int      @default(0) @map("move_speed") // 移速
+  critRate    Int      @default(0) @map("crit_rate") // 暴击率(%)
+  lifesteal   Int      @default(0) // 物理吸血(%)
+  passiveJson Json?    @map("passive_json") // [{name, desc, unique}]
+  components  Json?    // 合成路径: [itemId, itemId]
+  dataHash    String?  @map("data_hash") @db.VarChar(64)
+  extraJson   Json?    @map("extra_json") // future: tags, tier, etc.
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@map("equipment")
 }
 
 model HeroLaneOverride {
@@ -175,4 +230,19 @@ model AdminOperation {
   tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
   admin      User       @relation(fields: [adminId], references: [id], onDelete: Restrict)
   @@map("admin_operations")
+}
+
+model TournamentPick {
+  id           Int    @id @default(autoincrement())
+  tournamentId Int    @map("tournament_id")
+  userId       Int    @map("user_id")
+  team         String @db.VarChar(4) // "red" or "blue"
+  roleType     String @map("role_type") @db.VarChar(16)
+  heroId       Int    @map("hero_id")
+  equipJson    Json?  @map("equip_json") // [itemId, itemId, ...]
+
+  tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+
+  @@unique([tournamentId, userId])
+  @@map("tournament_picks")
 }

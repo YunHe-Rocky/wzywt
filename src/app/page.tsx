@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useAnnouncements } from "@/hooks/useAnnouncements";
-import { useTheme } from "@/themes/ThemeProvider";
 
 interface OfficialNews { title: string; date: string; url: string; }
 interface PublicTournament { id: number; name: string; code: string; announcement: string | null; _count: { players: number }; deadline: string; }
@@ -102,12 +101,9 @@ function useMD(md: string) {
 }
 
 export default function Home() {
-  const { theme } = useTheme();
-  const isAlt = theme === "alternate";
-  const brandAnim = isAlt ? "entry-brand-alternate 0.6s ease-out 0.1s both" : "entry-brand-yanwu 0.7s ease-out 0.05s both";
-  const cardAnim = (delay: number) => isAlt
-    ? `entry-card-alternate 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) ${delay}s both`
-    : `entry-card-yanwu 0.55s ease-out ${delay}s both`;
+  const brandAnim = "entry-brand-alternate 0.6s ease-out 0.1s both";
+  const cardAnim = (delay: number) =>
+    `entry-card-alternate 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) ${delay}s both`;
 
   const [user, setUser] = useState<User | null>(null);
   const [authLoaded, setAuthLoaded] = useState(false);

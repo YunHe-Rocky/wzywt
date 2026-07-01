@@ -28,7 +28,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const addToast = useCallback((message: string, type: ToastType = "success") => {
     const id = nextId++;
     setToasts((prev) => [...prev, { id, type, message, exiting: false }]);
-    const duration = type === "loading" ? 8000 : 2500;
+    const duration = type === "error" ? 5000 : type === "loading" ? 8000 : 2500;
     setTimeout(() => {
       setToasts((prev) => prev.map((t) => (t.id === id ? { ...t, exiting: true } : t)));
       setTimeout(() => {
@@ -51,9 +51,9 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   };
 
   const typeStyles: Record<ToastType, React.CSSProperties> = {
-    success: { background: "#1a2a1a", borderColor: "#2a4a2a" },
-    error: { background: "#2a1a1a", borderColor: "#4a2a2a" },
-    loading: { background: "#1a1a24", borderColor: "#3a3a4a" },
+    success: { background: "rgba(46,125,50,0.15)", borderColor: "rgba(46,125,50,0.4)" },
+    error: { background: "rgba(198,40,40,0.18)", borderColor: "rgba(198,40,40,0.5)" },
+    loading: { background: "rgba(168,144,104,0.12)", borderColor: "rgba(168,144,104,0.35)" },
   };
 
   const typeIconColors: Record<ToastType, string> = {

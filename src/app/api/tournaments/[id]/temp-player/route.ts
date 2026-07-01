@@ -14,8 +14,19 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const admin = await prisma.tournamentAdmin.findFirst({ where: { tournamentId, userId } });
   if (!admin) return NextResponse.json({ error: "仅管理员操作" }, { status: 403 });
 
-  const tempUser = await prisma.user.create({
-    data: { username: tempName || `临时_${Date.now()}`, passwordHash: "" },
+  const playerCount = await prisma.tournamentPlayer.count({
+    where: { tournamentId, isSpectator: false },
+  });
+  if (playerCount >= 10) {
+    return NextResponse.json({ error: "赛事已满员" }, { status: 400 });
+  }
+
+  const username = tempName || `临时_${Date.now()}`;
+  // 避免用户名冲突
+  const tempUser = await prisma.user.upsert({
+    where: { username },
+    create: { username, passwordHash: "" },
+    update: {},
   });
 
   const player = await prisma.tournamentPlayer.create({

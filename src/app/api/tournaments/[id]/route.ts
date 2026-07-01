@@ -37,18 +37,19 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 }
 
 export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
-  const { userId } = await requireAuth().catch(() => ({ userId: 0 }));
-  if (!userId) return NextResponse.json({ error: "请先登录" }, { status: 401 });
+  const user = await requireAuth().catch(() => ({ userId: 0, username: "", role: "" }));
+  if (!user.userId) return NextResponse.json({ error: "请先登录" }, { status: 401 });
 
-  const tournament = await prisma.tournament.findUnique({ where: { id: parseInt(params.id) } });
-  if (!tournament) return NextResponse.json({ error: "赛事不存在" }, { status: 404 });
+  const tournamentId = parseInt(params.id);
 
-  const admin = await prisma.tournamentAdmin.findFirst({
-    where: { tournamentId: tournament.id, userId, role: "owner" },
-  });
-  if (!admin) return NextResponse.json({ error: "仅房主可取消赛事" }, { status: 403 });
+  if (user.role !== "admin") {
+    const admin = await prisma.tournamentAdmin.findFirst({
+      where: { tournamentId, userId: user.userId, role: "owner" },
+    });
+    if (!admin) return NextResponse.json({ error: "无权限" }, { status: 403 });
+  }
 
-  await prisma.tournament.update({ where: { id: tournament.id }, data: { status: "finished" } });
+  await prisma.tournament.delete({ where: { id: tournamentId } });
   return NextResponse.json({ ok: true });
 }
 

@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 
-interface User { userId: number; username: string; }
+interface User { userId: number; username: string; role?: string; avatar?: string | null; }
 
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null);

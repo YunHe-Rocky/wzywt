@@ -1,0 +1,46 @@
+export const dynamic = "force-dynamic";
+
+import { NextRequest, NextResponse } from "next/server";
+import { requireSuperAdmin } from "@/lib/permissions";
+import { prisma } from "@/lib/db";
+
+export async function GET(req: NextRequest) {
+  const { userId } = await requireSuperAdmin().catch(() => ({ userId: 0 }));
+  if (!userId) return NextResponse.json({ error: "无权限" }, { status: 403 });
+
+  const { searchParams } = new URL(req.url);
+  const page = parseInt(searchParams.get("page") || "1");
+  const pageSize = 20;
+  const search = searchParams.get("search") || "";
+
+  const where = search
+    ? { username: { contains: search } }
+    : {};
+
+  const [users, total] = await Promise.all([
+    prisma.user.findMany({
+      where,
+      select: {
+        id: true,
+        username: true,
+        role: true,
+        banned: true,
+        avatar: true,
+        createdAt: true,
+        _count: { select: { tournamentPlayers: true } },
+      },
+      orderBy: { createdAt: "desc" },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+    }),
+    prisma.user.count({ where }),
+  ]);
+
+  return NextResponse.json({
+    users,
+    total,
+    page,
+    pageSize,
+    totalPages: Math.ceil(total / pageSize),
+  });
+}

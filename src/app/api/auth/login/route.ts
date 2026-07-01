@@ -7,9 +7,16 @@ import { getSession } from "@/lib/session";
 
 export async function POST(req: NextRequest) {
   const { username, password } = await req.json();
-  const user = await prisma.user.findUnique({ where: { username } });
+  const user = await prisma.user.findUnique({
+    where: { username },
+    select: { id: true, username: true, passwordHash: true, role: true, banned: true },
+  });
   if (!user) {
     return NextResponse.json({ error: "用户名或密码错误" }, { status: 401 });
+  }
+
+  if (user.banned) {
+    return NextResponse.json({ error: "账户已被封禁" }, { status: 403 });
   }
 
   const valid = await verifyPassword(password, user.passwordHash);
@@ -20,7 +27,8 @@ export async function POST(req: NextRequest) {
   const session = await getSession();
   session.userId = user.id;
   session.username = user.username;
+  session.role = user.role;
   await session.save();
 
-  return NextResponse.json({ id: user.id, username: user.username });
+  return NextResponse.json({ id: user.id, username: user.username, role: user.role });
 }
