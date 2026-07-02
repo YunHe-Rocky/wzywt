@@ -1,5 +1,5 @@
 #!/bin/bash
-# 王者演武堂部署脚本 — 每步有容错，不因清理失败而中断
+# 王者演武堂部署脚本
 set -e
 
 cd /opt/yanwutang
@@ -23,8 +23,8 @@ npm install
 echo ">>> prisma generate..."
 npx prisma generate
 
-echo ">>> prisma db push..."
-npx prisma db push
+echo ">>> prisma db push (安全模式: 不强制重建)..."
+npx prisma db push --skip-generate
 
 echo ">>> migrate announcements..."
 npx tsx scripts/migrate-announcements.ts 2>/dev/null || echo "  (no legacy files to migrate)"

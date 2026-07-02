@@ -62,7 +62,7 @@ npm install 2>&1 | Select-Object -Last 2
 
 log "prisma generate + db push..."
 npx prisma generate 2>&1 | Select-Object -Last 1
-npx prisma db push --accept-data-loss 2>&1 | Select-Object -Last 2
+npx prisma db push 2>&1 | Select-Object -Last 2
 
 log "数据迁移..."
 npx tsx scripts/migrate-announcements.ts 2>$null
