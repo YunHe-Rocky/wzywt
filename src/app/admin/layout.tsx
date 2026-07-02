@@ -9,17 +9,15 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     redirect("/");
   }
 
-  // Always verify against DB so role changes take effect immediately
-  const user = await prisma.user.findUnique({
-    where: { id: session.userId },
-    select: { role: true, banned: true },
-  });
-  if (!user || user.role !== "admin" || user.banned) {
-    redirect("/");
-  }
-  if (session.role !== user.role) {
-    session.role = user.role;
-    await session.save();
+  // Always verify against DB — Server Components can read but not write cookies
+  if (session.role !== "admin") {
+    const user = await prisma.user.findUnique({
+      where: { id: session.userId },
+      select: { role: true, banned: true },
+    });
+    if (!user || user.role !== "admin" || user.banned) {
+      redirect("/");
+    }
   }
 
   return (

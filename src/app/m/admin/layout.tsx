@@ -7,12 +7,13 @@ export default async function AdminMLayout({ children }: { children: React.React
   const session = await getSession();
   if (!session.userId) { redirect("/"); }
 
-  const user = await prisma.user.findUnique({
-    where: { id: session.userId },
-    select: { role: true, banned: true },
-  });
-  if (!user || user.role !== "admin" || user.banned) { redirect("/"); }
-  if (session.role !== user.role) { session.role = user.role; await session.save(); }
+  if (session.role !== "admin") {
+    const user = await prisma.user.findUnique({
+      where: { id: session.userId },
+      select: { role: true, banned: true },
+    });
+    if (!user || user.role !== "admin" || user.banned) { redirect("/"); }
+  }
 
   return <MobileAdminLayout username={session.username!}>{children}</MobileAdminLayout>;
 }
