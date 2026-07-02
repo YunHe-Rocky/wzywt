@@ -39,6 +39,7 @@ export async function GET(
         desc: String(s.desc || ""),
         damageType: null as string | null,
         skillIndex: i,
+        extraJson: null as any,
       }));
     } catch { /* ignore */ }
   }
