@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useAnnouncements } from "@/hooks/useAnnouncements";
+import { useToast } from "@/components/ui/Toast";
 
 interface OfficialNews { title: string; date: string; url: string; }
 interface PublicTournament { id: number; name: string; code: string; announcement: string | null; _count: { players: number }; deadline: string; }
@@ -112,6 +113,13 @@ export default function Home() {
   const [loaded, setLoaded] = useState(false);
   const [activeSlug, setActiveSlug] = useState<string | null>(null);
   const { announcements, loaded: announcementsLoaded } = useAnnouncements(true);
+  const { success } = useToast();
+
+  function copyCode(e: React.MouseEvent, code: string) {
+    e.preventDefault();
+    e.stopPropagation();
+    navigator.clipboard.writeText(code).then(() => success("房间号已复制: " + code));
+  }
 
   useEffect(() => {
     fetch("/api/auth/me").then(r => r.json()).then(d => { setUser(d.user); setAuthLoaded(true); });
@@ -170,7 +178,7 @@ export default function Home() {
                       className="flex flex-col gap-1.5 px-5 py-3.5 no-underline hover:bg-hover/50 transition-colors border-b border-border-light border-r-0 last:border-b-0">
                       <div className="flex items-center justify-between gap-2">
                         <span className="text-sm font-semibold text-text truncate hover:text-gold-light transition-colors">{room.name}</span>
-                        <span className="text-[10px] font-mono font-semibold text-gold/80 shrink-0">#{room.code}</span>
+                        <button onClick={(e) => copyCode(e, room.code)} title="点击复制房间号" className="text-[10px] font-mono font-semibold text-gold/80 shrink-0 bg-none border-0 cursor-pointer hover:text-gold hover:underline px-0 py-0 rounded-none">#{room.code}</button>
                       </div>
                       <div className="flex items-center justify-between gap-2">
                         <span className="text-xs text-text-muted truncate">
