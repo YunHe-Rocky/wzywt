@@ -51,5 +51,8 @@ next-env.d.ts
 /public/heroes/images/
 /public/heroes/skins/
 
+# database backups
+/data/bak/
+
 # development scripts & cache
 /verify_screenshots.py
