@@ -28,7 +28,7 @@ async function main() {
     try {
       await prisma.heroSkill.update({
         where: { heroId_skillIndex: { heroId: skill.heroId, skillIndex: skill.skillIndex } },
-        data: { extraJson: newExtra },
+        data: { extraJson: newExtra as any },
       });
 
       if (hasData) {
