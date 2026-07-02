@@ -237,7 +237,7 @@ async function fetchHeroList(cfg: CrawlConfig): Promise<{ ename: number; cname: 
 
   // 3. Merge: prefer HTML IDs, supplement with JSON data
   const heroes: { ename: number; cname: string; title: string; hero_type: number; hero_type2: number; id_name?: string }[] = [];
-  for (const [ename, cname] of idMap) {
+  for (const [ename, cname] of Array.from(idMap)) {
     const json = jsonMap.get(ename);
     heroes.push({
       ename,
@@ -289,7 +289,7 @@ export async function syncHeroes(onProgress?: (p: SyncProgress) => void): Promis
     const results = await Promise.all(
       batch.map(async (h) => {
         const roleType = resolveRoleType(h);
-        const html = await fetchDetail(cfg, h.ename, h.id_name);
+        const html = await fetchDetail(cfg, h.ename, (h as any).id_name);
 
         // Skills
         const skills = html ? parseSkills(html) : [{ name: "数据暂缺", cd: "", cost: "", desc: "" }];

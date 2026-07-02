@@ -14,6 +14,7 @@ interface PlayerInfo {
 interface Tournament {
   id: number; name: string; code: string; deadline: string; status: string; isPublic: boolean;
   announcement?: string;
+  splitResult?: unknown;
   players: PlayerInfo[];
   admins: { userId: number; role: string; user: { id: number; username: string } }[];
   applications: { id: number; tempName: string | null; applicant: { id: number; username: string } }[];

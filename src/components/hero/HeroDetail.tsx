@@ -48,11 +48,11 @@ export function HeroDetailView() {
   const [selectedIndex, setSelectedIndex] = useState<number>(1);
   // 命格：当前展示的英雄
   const displayHero = activeForm === "mingge" && minggeHero ? minggeHero : hero;
-  const displayStorageKey = displayHero ? `hero_skin_${displayHero.heroId}` : storageKey;
+  const displayStorageKey = displayHero ? `hero_skin_${(displayHero as Hero).heroId}` : storageKey;
 
   // Use DB imageUrl as default
   const currentImageUrl = displayHero
-    ? (selectedIndex === 1 ? displayHero.imageUrl : getSkinUrl(displayHero.heroId, selectedIndex))
+    ? (selectedIndex === 1 ? (displayHero as Hero).imageUrl : getSkinUrl((displayHero as Hero).heroId, selectedIndex))
     : "";
   const [imgFailed, setImgFailed] = useState(false);
 
@@ -171,7 +171,7 @@ export function HeroDetailView() {
         {/* Skin selector */}
         {(() => {
           try {
-            const skins: HeroSkin[] = JSON.parse(displayHero?.skinsJson || hero?.skinsJson || "[]");
+            const skins: HeroSkin[] = JSON.parse((displayHero as any)?.skinsJson || (hero as any)?.skinsJson || "[]");
             if (skins.length <= 1) return null;
             return (
               <div style={{ marginTop: 10 }}>
@@ -189,7 +189,7 @@ export function HeroDetailView() {
                       }}
                     >
                       <img
-                        src={getSkinUrl(displayHero?.heroId || parseInt(heroId), s.index)}
+                        src={getSkinUrl((displayHero as any)?.heroId || parseInt(heroId), s.index)}
                         alt={s.name}
                         style={{ width: "100%", height: "100%", objectFit: "cover" }}
                         onError={(e) => { (e.target as HTMLImageElement).style.opacity = "0"; }}
@@ -206,7 +206,7 @@ export function HeroDetailView() {
         {/* Info */}
         <div style={{ flex: 1, paddingTop: 4 }}>
           {/* 命格切换标签 */}
-          {hero?.mingge && hero.minggeRelatedId && (
+          {(hero as any)?.mingge && (hero as any).minggeRelatedId && (
             <div style={{ display: "flex", gap: 0, marginBottom: 12 }}>
               <button onClick={() => setActiveForm("base")} style={{
                 padding: "6px 16px", fontSize: 13, fontWeight: activeForm === "base" ? 700 : 500,
@@ -223,23 +223,23 @@ export function HeroDetailView() {
                 background: activeForm === "mingge" ? "var(--gold-alpha-08)" : "var(--bg-input)",
                 color: activeForm === "mingge" ? "var(--gold)" : "var(--text-muted)",
                 cursor: "pointer", transition: "all 0.15s",
-              }}>命格 · {minggeHero?.name || hero.minggeName || "?"}</button>
+              }}>命格 · {minggeHero?.name || (hero as any).minggeName || "?"}</button>
             </div>
           )}
           <h1 style={{ fontSize: 28, fontWeight: 700, color: "var(--text)", margin: "0 0 4px" }}>
             {displayHero?.name}
           </h1>
           <p style={{ fontSize: 15, color: "var(--text-secondary)", margin: "0 0 12px" }}>
-            {displayHero?.title}
+            {(displayHero as any)?.title}
           </p>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <span
               className="badge badge-gold"
               style={{ fontSize: 13, padding: "4px 12px" }}
             >
-              {ROLE_LABELS[displayHero?.roleType || ""] || displayHero?.roleType}
+              {ROLE_LABELS[(displayHero as any)?.roleType || ""] || (displayHero as any)?.roleType}
             </span>
-            {hero?.mingge && (
+            {(hero as any)?.mingge && (
               <span style={{
                 display: "inline-flex", alignItems: "center", gap: 4, padding: "4px 12px", borderRadius: "var(--radius-sm)",
                 fontSize: 13, fontWeight: 700,
@@ -259,7 +259,7 @@ export function HeroDetailView() {
         const baseJson = (displayHero || hero as any)?.baseJson;
         const profile = baseJson
           ? { base: baseJson, growth: { hpPerLv: baseJson.hpPerLv || 0, mpPerLv: baseJson.mpPerLv || 0, atkPerLv: baseJson.atkPerLv || 0, apPerLv: baseJson.apPerLv || 0, defPerLv: baseJson.defPerLv || 0, mdefPerLv: baseJson.mdefPerLv || 0, atkSpeedPerLv: baseJson.atkSpeedPerLv || 0 } }
-          : HERO_STAT_PROFILES[displayHero?.heroType || hero?.heroType || 1];
+          : HERO_STAT_PROFILES[(displayHero as any)?.heroType || (hero as any)?.heroType || 1];
         if (!profile) return null;
         const lv1 = calcFinalStats(profile.base, profile.growth, 1, []);
         const lv15 = calcFinalStats(profile.base, profile.growth, 15, []);

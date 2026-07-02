@@ -11,7 +11,7 @@ export * from "./animation";
 // 伤害公式
 export {
   type HeroBaseStats, type HeroGrowth, type EquipBonus, type FinalStats,
-  type CombatSkillEffect, type EquipPassive, type TargetDefense, type DamageResult,
+  type SkillEffect as CombatSkillEffect, type EquipPassive, type TargetDefense, type DamageResult,
   HERO_STAT_PROFILES,
   calcFinalStats,
   calcSkillDamage, calcSkillDamageMulti, calcComboDamage,

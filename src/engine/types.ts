@@ -8,6 +8,10 @@ export interface HeroMeta {
 
 export interface HeroListItem {
   id: number; name: string; meta: HeroMeta; tags: string[];
+  // backwards compat (also returned by /api/heroes)
+  heroId?: number; title?: string; roleType?: string;
+  heroType?: number; heroType2?: number; imageUrl?: string;
+  mingge?: boolean; minggeName?: string | null; minggeRelatedId?: number | null;
 }
 
 export interface SkillEffect {

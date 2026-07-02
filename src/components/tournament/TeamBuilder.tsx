@@ -92,7 +92,7 @@ export function TeamBuilder({
               const S = calcFinalStats(profile.base, profile.growth, 15, equips);
               const S0 = calcFinalStats(profile.base, profile.growth, 15, []);
               const T = { ...getTarget(p.userId), hp: 6000 };
-              const sumDmg = (list: SkillEffect[]) => { const m = new Map<string, number>(); for (const e of list) { const d = calcSkillDamage({ skill: { ...e, skillName: e.skillName }, stats: S, target: T }); m.set(e.skillName, (m.get(e.skillName) || 0) + d.afterReduction); } return [...m.entries()]; };
+              const sumDmg = (list: SkillEffect[]) => { const m = new Map<string, number>(); for (const e of list) { const d = calcSkillDamage({ skill: { ...e, skillName: e.skillName } as any, stats: S, target: T }); m.set(e.skillName, (m.get(e.skillName) || 0) + d.afterReduction); } return Array.from(m.entries()); };
               const phys = (detail.effects || []).filter(e => e.type === "physical");
               const mag = (detail.effects || []).filter(e => e.type === "magic");
 
@@ -121,11 +121,11 @@ export function TeamBuilder({
 
                   {pick?.heroId > 0 && (
                     <div style={{ display: "flex", gap: 8, marginTop: 6, fontSize: 10 }}>
-                      {[["物", "#e05555", getTarget(p.userId).def, (v: number) => setTarget(p.userId, v, getTarget(p.userId).mdef)], ["法", "#5588cc", getTarget(p.userId).mdef, (v: number) => setTarget(p.userId, getTarget(p.userId).def, v)] as const].map(([l, c, val, fn]) => (
-                        <span key={l as string}>
-                          <span style={{ color: c as string, fontWeight: 600 }}>{l}防</span>
+                      {([["物", "#e05555", getTarget(p.userId).def, (v: number) => setTarget(p.userId, v, getTarget(p.userId).mdef)], ["法", "#5588cc", getTarget(p.userId).mdef, (v: number) => setTarget(p.userId, getTarget(p.userId).def, v)]] as [string, string, number, (v: number) => void][]).map(([l, c, val, fn]) => (
+                        <span key={l}>
+                          <span style={{ color: c, fontWeight: 600 }}>{l}防</span>
                           {[{ n: 100 }, { n: 200 }, { n: 400 }, { n: 600 }, { n: 800 }].map(({ n }) => (
-                            <button key={n} onClick={() => (fn as any)(n)}
+                            <button key={n} onClick={() => fn(n)}
                               style={{ padding: "0 3px", borderRadius: 2, fontSize: 9, cursor: "pointer", marginLeft: 2, border: val === n ? `1px solid ${c}` : "1px solid var(--border)", background: val === n ? `${c}18` : "transparent", color: val === n ? c : "var(--text-muted)" }}>{n}</button>
                           ))}
                         </span>

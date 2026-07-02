@@ -39,7 +39,7 @@ export function HeroPickPanel({
 
   // Load heroes by role
   useEffect(() => {
-    const roles = [...new Set([...splitResult.teamRed, ...splitResult.teamBlue].map(p => p.roleType))];
+    const roles = Array.from(new Set([...splitResult.teamRed, ...splitResult.teamBlue].map(p => p.roleType)));
     const toLoad = roles.filter(r => !ROLE_HEROES_CACHE[r]);
     if (toLoad.length === 0) return;
     Promise.all(toLoad.map(r =>

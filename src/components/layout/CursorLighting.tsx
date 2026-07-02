@@ -32,7 +32,7 @@ export function CursorLighting() {
 
     // 重建位置缓存（仅在滚动/resize/DOM变化时调用）
     function rebuildCache() {
-      const els = document.querySelectorAll<HTMLElement>(SELECTOR);
+      const els = Array.from(document.querySelectorAll<HTMLElement>(SELECTOR));
       cacheRef.current = [];
       for (const el of els) {
         const r = el.getBoundingClientRect();

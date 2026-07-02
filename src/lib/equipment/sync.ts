@@ -101,8 +101,8 @@ export async function syncItems(): Promise<{ inserted: number; updated: number }
       .digest("hex");
     const imageUrl = `${ITEM_IMG_BASE}/${itemId}.png`;
     const tier = computeTier(item.total_price ?? item.price ?? 0, item.item_name, item.item_type);
-    const tags = computeTags(item.item_type ?? 0, stats);
-    const equipStats = buildEquipmentStats(stats);
+    const tags = computeTags(item.item_type ?? 0, stats as any);
+    const equipStats = buildEquipmentStats(stats as any);
     const extraJson = { itemType: item.item_type ?? 0, tier, tags, stats: equipStats };
     const passiveJson = item.des2 ? parsePassives(item.des2) : [];
 
@@ -127,8 +127,8 @@ export async function syncItems(): Promise<{ inserted: number; updated: number }
           critRate: stats.critRate,
           lifesteal: stats.lifesteal,
           dataHash,
-          extraJson,
-          passiveJson,
+          extraJson: extraJson as any,
+          passiveJson: passiveJson as any,
         },
       });
       console.log(`[sync:items] NEW #${itemId} ${item.item_name}`);

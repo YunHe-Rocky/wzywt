@@ -15,7 +15,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   });
 
   // Fetch hero names
-  const heroIds = [...new Set(picks.map((p) => p.heroId))];
+  const heroIds = Array.from(new Set(picks.map((p) => p.heroId)));
   const heroes = await prisma.hero.findMany({
     where: { heroId: { in: heroIds } },
     select: { heroId: true, name: true, roleType: true },

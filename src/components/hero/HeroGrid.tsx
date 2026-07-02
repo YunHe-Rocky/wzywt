@@ -6,7 +6,7 @@ import { useHeroes } from "@/hooks/useHeroes";
 import { cardStagger } from "@/engine";
 
 interface Hero {
-  heroId: number;
+  id: number;
   name: string;
   title: string;
   roleType: string;
@@ -26,12 +26,12 @@ function HeroImage({ hero }: { hero: Hero }) {
 
   // Use user's preferred skin if stored in localStorage, otherwise DB default
   const skinIndex = (() => {
-    try { return parseInt(localStorage.getItem(`hero_skin_${hero.heroId}`) || "") || 1; }
+    try { return parseInt(localStorage.getItem(`hero_skin_${hero.id}`) || "") || 1; }
     catch { return 1; }
   })();
   const imageUrl = skinIndex === 1
     ? hero.imageUrl  // DB default (works for all heroes including 大禹)
-    : `https://game.gtimg.cn/images/yxzj/img201606/skin/hero-info/${hero.heroId}/${hero.heroId}-bigskin-${skinIndex}.jpg`;
+    : `https://game.gtimg.cn/images/yxzj/img201606/skin/hero-info/${hero.id}/${hero.id}-bigskin-${skinIndex}.jpg`;
 
   return (
     <div
@@ -104,7 +104,7 @@ function CardInfo({ hero, form, minggeHero, onToggle }: { hero: Hero; form: stri
           <div style={{ fontSize: 14, fontWeight: 600, color: "var(--text)" }}>{displayHero.name}</div>
           <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>{displayHero.title}</div>
         </div>
-        {hero.mingge && hero.minggeRelatedId && (
+        {(hero as any).mingge && (hero as any).minggeRelatedId && (
           <button onClick={(e) => { e.stopPropagation(); onToggle(hero); }}
             title={form === "mingge" ? "切回本命" : "切换命格"}
             style={{ width: 26, height: 26, borderRadius: "50%", border: "1px solid rgba(232,170,60,0.3)", background: form === "mingge" ? "rgba(232,170,60,0.15)" : "transparent", color: form === "mingge" ? "#d4992a" : "var(--text-muted)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, flexShrink: 0 }}>
@@ -143,21 +143,21 @@ export function HeroGrid() {
   const { heroes, loading, error: fetchError, refetch } = useHeroes(roleFilter || undefined, classFilter || undefined);
 
   const toggleCardForm = async (hero: Hero) => {
-    const current = cardForms[hero.heroId] || "base";
+    const current = cardForms[hero.id] || "base";
     if (current === "base") {
       // 切换到命格 — 先检查是否已加载
-      if (!minggeHeroes[hero.heroId] && hero.minggeRelatedId) {
+      if (!minggeHeroes[hero.id] && (hero as any).minggeRelatedId) {
         try {
-          const res = await fetch(`/api/heroes/${hero.minggeRelatedId}`);
+          const res = await fetch(`/api/heroes/${(hero as any).minggeRelatedId}`);
           const data = await res.json();
           if (data.heroId) {
-            setMinggeHeroes(prev => ({ ...prev, [hero.heroId]: data }));
+            setMinggeHeroes(prev => ({ ...prev, [hero.id]: data }));
           }
         } catch {}
       }
-      setCardForms(prev => ({ ...prev, [hero.heroId]: "mingge" }));
+      setCardForms(prev => ({ ...prev, [hero.id]: "mingge" }));
     } else {
-      setCardForms(prev => ({ ...prev, [hero.heroId]: "base" }));
+      setCardForms(prev => ({ ...prev, [hero.id]: "base" }));
     }
   };
 
@@ -176,11 +176,11 @@ export function HeroGrid() {
   }, [refetch]);
 
   // 命格形态名称集合（如"心魔六耳"），这些英雄不在图鉴中单独展示
-  const minggeFormNames = new Set(heroes.filter(h => h.mingge && h.minggeName).map(h => h.minggeName!));
+  const minggeFormNames = new Set(heroes.filter(h => (h as any).mingge && (h as any).minggeName).map(h => (h as any).minggeName!));
 
   const filtered = heroes
     .filter((h) => !minggeFormNames.has(h.name)) // 隐藏命格形态
-    .filter((h) => h.name.includes(search) || h.title.includes(search));
+    .filter((h) => h.name.includes(search) || (h as any).title.includes(search));
 
   return (
     <div className="stagger-enter" style={{ maxWidth: 960, margin: "0 auto", padding: "40px 24px" }}>
@@ -275,8 +275,8 @@ export function HeroGrid() {
         >
           {filtered.map((hero, i) => (
             <button
-              key={hero.heroId}
-              onClick={() => router.push(`/heroes/${hero.heroId}`)}
+              key={hero.id}
+              onClick={() => router.push(`/heroes/${hero.id}`)}
               className="card"
               style={{
                 padding: 0,
@@ -286,9 +286,9 @@ export function HeroGrid() {
                 textAlign: "left",
               }}
             >
-              <HeroImage hero={(cardForms[hero.heroId] === "mingge" && minggeHeroes[hero.heroId]) || hero} />
+              <HeroImage hero={((cardForms[hero.id] === "mingge" && minggeHeroes[hero.id]) || hero) as Hero} />
               <div style={{ padding: "10px 12px 12px" }}>
-                <CardInfo hero={hero} form={cardForms[hero.heroId] || "base"} minggeHero={minggeHeroes[hero.heroId]} onToggle={toggleCardForm} />
+                <CardInfo hero={hero as Hero} form={cardForms[hero.id] || "base"} minggeHero={minggeHeroes[hero.id]} onToggle={toggleCardForm} />
               </div>
             </button>
           ))}
