@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 interface CalendarModalProps {
   open: boolean;
@@ -16,6 +17,17 @@ export function CalendarModal({ open, onClose, onSelect, defaultHour = 20, defau
   const [month, setMonth] = useState(today.getMonth());
   const [hour, setHour] = useState(defaultHour);
   const [minute, setMinute] = useState(defaultMinute);
+  const [pickOpen, setPickOpen] = useState<"hour" | "min" | null>(null);
+  const [pickPos, setPickPos] = useState<{ top: number; left: number; width: number } | null>(null);
+  const hourBtnRef = useRef<HTMLButtonElement>(null);
+  const minBtnRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!open) { setPickOpen(null); return; }
+    // Reset state on each open
+    setYear(today.getFullYear());
+    setMonth(today.getMonth());
+  }, [open]);
 
   if (!open) return null;
 
@@ -37,6 +49,27 @@ export function CalendarModal({ open, onClose, onSelect, defaultHour = 20, defau
     onSelect(`${year}-${m}-${dd}T${hh}:${mm}`);
     onClose();
   };
+
+  const openPick = (type: "hour" | "min") => {
+    const ref = type === "hour" ? hourBtnRef : minBtnRef;
+    const r = ref.current?.getBoundingClientRect();
+    if (r) setPickPos({ top: r.bottom + 4, left: r.left, width: Math.max(r.width, 180) });
+    setPickOpen(pickOpen === type ? null : type);
+  };
+
+  // Close Portal picker on outside click
+  useEffect(() => {
+    if (!pickOpen) return;
+    const close = (e: MouseEvent | TouchEvent) => {
+      if (!(e.target as Element).closest(".time-dropdown")) setPickOpen(null);
+    };
+    document.addEventListener("mousedown", close);
+    document.addEventListener("touchstart", close);
+    return () => {
+      document.removeEventListener("mousedown", close);
+      document.removeEventListener("touchstart", close);
+    };
+  }, [pickOpen]);
 
   const rows: (number | null)[][] = [];
   const cells: (number | null)[] = [];
@@ -94,23 +127,66 @@ export function CalendarModal({ open, onClose, onSelect, defaultHour = 20, defau
           </div>
         ))}
 
-        {/* Time pickers */}
+        {/* Time pickers — Portal-based, no native select */}
         <div style={{ display: "flex", gap: 10, marginTop: 16, justifyContent: "center", alignItems: "center" }}>
-          <select value={hour} onChange={e => setHour(Number(e.target.value))}
-            style={selectStyle}>
-            {Array.from({ length: 24 }, (_, i) => (
-              <option key={i} value={i}>{String(i).padStart(2, "0")}</option>
-            ))}
-          </select>
+          <button ref={hourBtnRef} onClick={() => openPick("hour")}
+            style={{
+              ...timeBtnStyle,
+              background: pickOpen === "hour" ? "var(--gold-alpha-08)" : "var(--bg-input)",
+              borderColor: pickOpen === "hour" ? "var(--gold)" : "var(--border)",
+              color: pickOpen === "hour" ? "var(--gold)" : "var(--text)",
+            }}>
+            {String(hour).padStart(2, "0")} 时
+          </button>
           <span style={{ color: "var(--text)", fontWeight: 600 }}>:</span>
-          <select value={minute} onChange={e => setMinute(Number(e.target.value))}
-            style={selectStyle}>
-            {[0,5,10,15,20,25,30,35,40,45,50,55].map(m => (
-              <option key={m} value={m}>{String(m).padStart(2, "0")}</option>
-            ))}
-          </select>
+          <button ref={minBtnRef} onClick={() => openPick("min")}
+            style={{
+              ...timeBtnStyle,
+              background: pickOpen === "min" ? "var(--gold-alpha-08)" : "var(--bg-input)",
+              borderColor: pickOpen === "min" ? "var(--gold)" : "var(--border)",
+              color: pickOpen === "min" ? "var(--gold)" : "var(--text)",
+            }}>
+            {String(minute).padStart(2, "0")} 分
+          </button>
         </div>
       </div>
+
+      {/* Portal time dropdown */}
+      {pickOpen && pickPos && createPortal(
+        <div className="time-dropdown" style={{
+          position: "fixed", zIndex: 10000,
+          top: pickPos.top, left: pickPos.left,
+          width: pickPos.width,
+          background: "var(--bg-card-glass)", border: "1px solid var(--border)",
+          borderRadius: 8, padding: 8,
+          boxShadow: "0 8px 32px rgba(0,0,0,0.2)",
+          display: "grid",
+          gridTemplateColumns: pickOpen === "hour" ? "repeat(4, 1fr)" : "repeat(3, 1fr)",
+          gap: 4, maxHeight: 240, overflowY: "auto",
+        }}>
+          {(pickOpen === "hour"
+            ? Array.from({ length: 24 }, (_, i) => i)
+            : [0,5,10,15,20,25,30,35,40,45,50,55]
+          ).map(v => {
+            const isSel = pickOpen === "hour" ? hour === v : minute === v;
+            return (
+              <button key={v} onClick={() => {
+                if (pickOpen === "hour") setHour(v);
+                else setMinute(v);
+                setPickOpen(null);
+              }} style={{
+                padding: "8px 4px", textAlign: "center", fontSize: 14,
+                fontWeight: isSel ? 700 : 400,
+                background: isSel ? "var(--gold)" : "transparent",
+                color: isSel ? "var(--bg-root)" : "var(--text)",
+                border: "none", borderRadius: 6, cursor: "pointer",
+              }}>{String(v).padStart(2, "0")}</button>
+            );
+          })}
+        </div>,
+        document.body
+      )}
+
     </div>
   );
 }
@@ -120,9 +196,8 @@ const btnStyle: React.CSSProperties = {
   cursor: "pointer", borderRadius: 6,
 };
 
-const selectStyle: React.CSSProperties = {
-  background: "var(--bg-input)", border: "1px solid var(--border)",
-  borderRadius: 6, color: "var(--text)", fontSize: 14,
-  padding: "8px 14px", outline: "none", cursor: "pointer",
-  minWidth: 64, textAlign: "center" as const,
+const timeBtnStyle: React.CSSProperties = {
+  flex: 1, padding: "9px 14px", fontSize: 14, fontWeight: 600,
+  border: "1px solid var(--border)", borderRadius: 6, cursor: "pointer",
+  display: "flex", justifyContent: "space-between", alignItems: "center",
 };
