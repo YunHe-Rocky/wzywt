@@ -60,25 +60,20 @@ async function main() {
   hourlyCheck(); // Run on startup
   cron.schedule("*/3 * * * *", hourlyCheck);
 
-  // Memory cleanup every 10 minutes — only triggers when free memory < 200MB
-  cron.schedule("*/10 * * * *", async () => {
+  // Memory check every 30min — gently drop page cache when low, never restart app
+  cron.schedule("*/30 * * * *", async () => {
     try {
       const os = await import("node:os");
-      const { execSync } = await import("node:child_process");
-      const totalMem = os.totalmem();
-      const freeMem = os.freemem();
-      const freeMB = Math.floor(freeMem / 1024 / 1024);
-      const usedPercent = Math.floor((1 - freeMem / totalMem) * 100);
-      if (freeMB < 200) {
-        console.log(`[memory] Low memory: ${freeMB}MB free (${usedPercent}% used), cleaning...`);
+      const freeMB = Math.floor(os.freemem() / 1024 / 1024);
+      if (freeMB < 150) {
+        console.log(`[memory] Low memory: ${freeMB}MB free, dropping page cache...`);
+        const { execSync } = await import("node:child_process");
         execSync("sync && echo 1 > /proc/sys/vm/drop_caches 2>/dev/null || true", { timeout: 5000 });
-        const { execSync: es2 } = await import("node:child_process");
-        es2("pm2 reload yanwutang-web 2>/dev/null || true", { timeout: 30000 });
         const afterMB = Math.floor(os.freemem() / 1024 / 1024);
-        console.log(`[memory] Cleaned: ${freeMB}MB → ${afterMB}MB free`);
+        console.log(`[memory] ${freeMB}MB → ${afterMB}MB free`);
       }
     } catch {
-      // Silently skip on failure
+      // Silently skip
     }
   });
 
