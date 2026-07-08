@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { CalendarModal } from "@/components/ui/CalendarModal";
 
 interface Tournament {
   id: number; name: string; code: string; deadline: string; status: string;
@@ -21,28 +22,7 @@ export function TournamentList() {
   const [error, setError] = useState("");
   const [showCalendar, setShowCalendar] = useState(false);
   const [showMore, setShowMore] = useState(false);
-  const [calendarYear, setCalendarYear] = useState(new Date().getFullYear());
-  const [calendarMonth, setCalendarMonth] = useState(new Date().getMonth());
-  const [selectedDay, setSelectedDay] = useState<number | null>(null);
-  const [selectedHour, setSelectedHour] = useState(20);
-  const [selectedMinute, setSelectedMinute] = useState(0);
   const router = useRouter();
-  const calendarRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!showCalendar) return;
-    const close = (e: MouseEvent | TouchEvent) => {
-      if (calendarRef.current && !calendarRef.current.contains(e.target as Node)) {
-        setShowCalendar(false);
-      }
-    };
-    document.addEventListener("mousedown", close);
-    document.addEventListener("touchstart", close);
-    return () => {
-      document.removeEventListener("mousedown", close);
-      document.removeEventListener("touchstart", close);
-    };
-  }, [showCalendar]);
 
   useEffect(() => { refresh(); }, []);
 
@@ -83,15 +63,6 @@ export function TournamentList() {
     if (!res.ok) { setError(data.error); return; }
     router.push(`/tournaments/${data.tournamentId}`);
   }
-
-  // Calendar helpers
-  const daysInMonth = new Date(calendarYear, calendarMonth + 1, 0).getDate();
-  const firstDay = new Date(calendarYear, calendarMonth, 1).getDay();
-  const today = new Date();
-  const calendarCells: (number | null)[] = [];
-  const blanks = firstDay;
-  for (let i = 0; i < blanks; i++) calendarCells.push(null);
-  for (let d = 1; d <= daysInMonth; d++) calendarCells.push(d);
 
   return (
     <div className="stagger-enter tournament-list max-w-3xl mx-auto px-4 py-12 py-16">
@@ -165,77 +136,11 @@ export function TournamentList() {
           </div>
 
           {/* Calendar modal */}
-          {showCalendar && (
-            <>
-              <div onClick={() => setShowCalendar(false)} style={{
-                position: "fixed", inset: 0, zIndex: 999, background: "rgba(0,0,0,0.3)",
-              }} />
-              <div ref={calendarRef} style={{
-                position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
-                display: "flex", alignItems: "center", justifyContent: "center",
-                zIndex: 1000, pointerEvents: "none",
-              }}>
-                <div style={{
-                  padding: 16, pointerEvents: "auto",
-                  width: "calc(100vw - 32px)", maxWidth: 340,
-                  background: "var(--bg-card-glass)", border: "1px solid var(--border)",
-                  borderRadius: "var(--radius)", boxShadow: "var(--glass-shadow), 0 8px 32px rgba(0,0,0,0.18)",
-                }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-                <button type="button" onClick={() => { if (calendarMonth === 0) { setCalendarMonth(11); setCalendarYear(y => y - 1); } else setCalendarMonth(m => m - 1); }}
-                  style={{ background: "none", border: "none", color: "var(--text-secondary)", cursor: "pointer", fontSize: 18, padding: "8px 12px", minWidth: 44 }}>‹</button>
-                <span style={{ fontSize: 14, fontWeight: 600, color: "var(--text)" }}>{calendarYear}年{calendarMonth + 1}月</span>
-                <button type="button" onClick={() => { if (calendarMonth === 11) { setCalendarMonth(0); setCalendarYear(y => y + 1); } else setCalendarMonth(m => m + 1); }}
-                  style={{ background: "none", border: "none", color: "var(--text-secondary)", cursor: "pointer", fontSize: 18, padding: "8px 12px", minWidth: 44 }}>›</button>
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2, marginBottom: 4, textAlign: "center" }}>
-                {["日","一","二","三","四","五","六"].map(d => <span key={d} style={{ fontSize: 11, color: "var(--text-muted)", padding: "4px 0" }}>{d}</span>)}
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2 }}>
-                {calendarCells.map((day, i) => {
-                  const isPast = day !== null && (
-                    calendarYear < today.getFullYear() ||
-                    (calendarYear === today.getFullYear() && calendarMonth < today.getMonth()) ||
-                    (calendarYear === today.getFullYear() && calendarMonth === today.getMonth() && day < today.getDate())
-                  );
-                  if (day === null) return <div key={`e${i}`} />;
-                  return (
-                  <button key={day} type="button" disabled={isPast} onClick={() => {
-                    if (isPast) return;
-                    const m = String(calendarMonth + 1).padStart(2, "0");
-                    const d = String(day).padStart(2, "0");
-                    const h = String(selectedHour).padStart(2, "0");
-                    const min = String(selectedMinute).padStart(2, "0");
-                    setDeadline(`${calendarYear}-${m}-${d}T${h}:${min}`);
-                    setSelectedDay(day);
-                    setShowCalendar(false);
-                  }}
-                  style={{
-                    padding: "7px 0", textAlign: "center", fontSize: 13,
-                    fontWeight: day === selectedDay ? 700 : (calendarYear === today.getFullYear() && calendarMonth === today.getMonth() && day === today.getDate() ? 600 : 400),
-                    color: isPast ? "var(--text-muted)" : (day === selectedDay ? "var(--bg-root)" : (calendarYear === today.getFullYear() && calendarMonth === today.getMonth() && day === today.getDate() ? "var(--gold)" : "var(--text-secondary)")),
-                    background: day === selectedDay ? "var(--gold)" : "transparent",
-                    border: "none", borderRadius: "var(--radius-sm)", cursor: isPast ? "default" : "pointer",
-                    opacity: isPast ? 0.35 : 1,
-                  }}>{day}</button>
-                  );
-                })}
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12, justifyContent: "center" }}>
-                <select value={selectedHour} onChange={e => setSelectedHour(Number(e.target.value))}
-                  style={{ background: "var(--bg-input)", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", color: "var(--text)", fontSize: 13, padding: "6px 10px", outline: "none", cursor: "pointer" }}>
-                  {Array.from({ length: 24 }, (_, i) => <option key={i} value={i}>{String(i).padStart(2, "0")}</option>)}
-                </select>
-                <span style={{ color: "var(--text-secondary)", fontSize: 14, fontWeight: 600 }}>:</span>
-                <select value={selectedMinute} onChange={e => setSelectedMinute(Number(e.target.value))}
-                  style={{ background: "var(--bg-input)", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", color: "var(--text)", fontSize: 13, padding: "6px 10px", outline: "none", cursor: "pointer" }}>
-                  {[0,5,10,15,20,25,30,35,40,45,50,55].map(m => <option key={m} value={m}>{String(m).padStart(2, "0")}</option>)}
-                </select>
-              </div>
-              </div>
-            </div>
-            </>
-          )}
+          <CalendarModal
+            open={showCalendar}
+            onClose={() => setShowCalendar(false)}
+            onSelect={setDeadline}
+          />
 
           {/* Expanded options */}
           {showMore && (
