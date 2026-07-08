@@ -35,7 +35,7 @@ export function Header() {
     return () => document.removeEventListener("mousedown", fn);
   }, []);
 
-  const version = latestVersion || "V1.0.1";
+  const version = latestVersion || "V2.0.1";
   const pathIsM = pathname.startsWith("/m");
   const [isMobile, setIsMobile] = useState(false);
   useEffect(() => {
