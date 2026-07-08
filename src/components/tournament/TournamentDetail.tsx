@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { useEffect, useState } from "react";
+import { CalendarModal } from "@/components/ui/CalendarModal";
 import { useParams, useRouter } from "next/navigation";
 import { useToast } from "@/components/ui/Toast";
 import { ROLE_LABELS } from "@/engine";
@@ -89,15 +89,6 @@ export function TournamentDetail() {
   const [promotingId, setPromotingId] = useState<number | null>(null);
   const [demotingId, setDemotingId] = useState<number | null>(null);
   const [showExtendCalendar, setShowExtendCalendar] = useState(false);
-  const [extendYear, setExtendYear] = useState(new Date().getFullYear());
-  const [extendMonth, setExtendMonth] = useState(new Date().getMonth());
-  const [extendDay, setExtendDay] = useState<number | null>(null);
-  const [extendHour, setExtendHour] = useState(20);
-  const [extendMin, setExtendMin] = useState(0);
-  const [pickOpen, setPickOpen] = useState<"hour" | "min" | null>(null);
-  const hourBtnRef = useRef<HTMLButtonElement>(null);
-  const minBtnRef = useRef<HTMLButtonElement>(null);
-  const [pickPos, setPickPos] = useState<{ top: number; left: number; width: number } | null>(null);
   const [addingFiller, setAddingFiller] = useState(false);
   const [splitTab, setSplitTab] = useState("result");
   const { success, error: showError } = useToast();
@@ -129,33 +120,6 @@ export function TournamentDetail() {
       router.replace("/login");
     }
   }
-
-  function openPick(type: "hour" | "min") {
-    const ref = type === "hour" ? hourBtnRef : minBtnRef;
-    const r = ref.current?.getBoundingClientRect();
-    if (r) setPickPos({ top: r.bottom + 4, left: r.left, width: Math.max(r.width, 180) });
-    setPickOpen(pickOpen === type ? null : type);
-  }
-
-  useEffect(() => {
-    if (!pickOpen) return;
-    function onDown(e: MouseEvent) {
-      if (!(e.target as Element).closest(".time-dropdown")) setPickOpen(null);
-    }
-    function updatePos() {
-      const ref = pickOpen === "hour" ? hourBtnRef : minBtnRef;
-      const r = ref.current?.getBoundingClientRect();
-      if (r) setPickPos({ top: r.bottom + 4, left: r.left, width: Math.max(r.width, 180) });
-    }
-    document.addEventListener("mousedown", onDown);
-    window.addEventListener("scroll", updatePos, true);
-    window.addEventListener("resize", updatePos);
-    return () => {
-      document.removeEventListener("mousedown", onDown);
-      window.removeEventListener("scroll", updatePos, true);
-      window.removeEventListener("resize", updatePos);
-    };
-  }, [pickOpen]);
 
   async function join() {
     const res = await fetch(`/api/tournaments/${id}/join`, { method: "POST" });
@@ -190,25 +154,15 @@ export function TournamentDetail() {
     }
   }
 
-  function openExtendCalendar() {
-    const d = tournament?.deadline ? new Date(tournament.deadline) : new Date();
-    setExtendYear(d.getFullYear());
-    setExtendMonth(d.getMonth());
-    setExtendDay(d.getDate());
-    setExtendHour(d.getHours());
-    setExtendMin(d.getMinutes());
-    setShowExtendCalendar(true);
-  }
+  const extendDeadline = tournament?.deadline ? new Date(tournament.deadline) : new Date();
 
-  async function doExtend() {
-    if (!extendDay) return;
-    const newDeadline = new Date(extendYear, extendMonth, extendDay, extendHour, extendMin);
+  async function doExtend(datetime: string) {
     setShowExtendCalendar(false);
     setAdminMsg("");
     const res = await fetch(`/api/tournaments/${id}/extend`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ newDeadline: newDeadline.toISOString() }),
+      body: JSON.stringify({ newDeadline: new Date(datetime).toISOString() }),
     });
     if (res.ok) { refreshTournament(); success("截止时间已延长"); }
     else { const d = await res.json(); showError(d.error); }
@@ -308,108 +262,20 @@ export function TournamentDetail() {
               {isOverdue ? "（已过期）" : ""}
             </span>
             {isOwner && !splitResult && (
-              <button onClick={() => setShowExtendCalendar(!showExtendCalendar)}
+              <button onClick={() => setShowExtendCalendar(true)}
                 className="btn-subtle" style={{ fontSize: 12, padding: "4px 12px" }}>
-                {showExtendCalendar ? "收起" : "延长截止"}
+                延长截止
               </button>
             )}
           </div>
 
-          {/* Inline calendar */}
-          {showExtendCalendar && isOwner && (
-            <div className="card animate-slide-up" style={{
-              marginBottom: 16, padding: 20, borderRadius: "0 0 8px 8px",
-              borderTop: "none",
-              background: "var(--gold-alpha-04)", borderColor: "var(--gold-alpha-10)",
-            }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-                <button
-                  type="button"
-                  onClick={() => { if (extendMonth === 0) { setExtendMonth(11); setExtendYear(y => y - 1); } else setExtendMonth(m => m - 1); }}
-                  className="btn-ghost" style={{ padding: "4px 10px", fontSize: 16 }}
-                >‹</button>
-                <span style={{ fontSize: 14, fontWeight: 600, color: "var(--text)" }}>
-                  {extendYear}年{extendMonth + 1}月
-                </span>
-                <button
-                  type="button"
-                  onClick={() => { if (extendMonth === 11) { setExtendMonth(0); setExtendYear(y => y + 1); } else setExtendMonth(m => m + 1); }}
-                  className="btn-ghost" style={{ padding: "4px 10px", fontSize: 16 }}
-                >›</button>
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4, marginBottom: 14 }}>
-                {["一","二","三","四","五","六","日"].map(d => (
-                  <div key={d} style={{ textAlign: "center", fontSize: 11, color: "var(--text-muted)", padding: "4px 0" }}>{d}</div>
-                ))}
-                {(() => {
-                  const firstDay = new Date(extendYear, extendMonth, 1).getDay();
-                  const daysInMonth = new Date(extendYear, extendMonth + 1, 0).getDate();
-                  const blanks = firstDay === 0 ? 6 : firstDay - 1;
-                  const cells: React.ReactNode[] = [];
-                  for (let i = 0; i < blanks; i++) cells.push(<div key={"be" + i} />);
-                  const todayForExtend = new Date();
-                  for (let d = 1; d <= daysInMonth; d++) {
-                    const isSel = extendDay === d;
-                    const isToday = d === todayForExtend.getDate() && extendMonth === todayForExtend.getMonth() && extendYear === todayForExtend.getFullYear();
-                    const isPast = extendYear < todayForExtend.getFullYear() ||
-                      (extendYear === todayForExtend.getFullYear() && extendMonth < todayForExtend.getMonth()) ||
-                      (extendYear === todayForExtend.getFullYear() && extendMonth === todayForExtend.getMonth() && d < todayForExtend.getDate());
-                    cells.push(
-                      <button
-                        key={d} type="button" disabled={isPast}
-                        onClick={() => { if (!isPast) setExtendDay(d); }}
-                        style={{
-                          textAlign: "center", padding: "6px 0", fontSize: 13, fontWeight: isSel ? 600 : 400,
-                          background: isSel ? "var(--gold)" : "transparent",
-                          color: isPast ? "var(--text-muted)" : (isSel ? "#1a1408" : isToday ? "var(--gold)" : "var(--text)"),
-                          border: isToday && !isSel ? "1px solid var(--gold)" : "1px solid transparent",
-                          borderRadius: "var(--radius-sm)", cursor: isPast ? "default" : "pointer",
-                          opacity: isPast ? 0.35 : 1,
-                        }}
-                      >{d}</button>
-                    );
-                  }
-                  return cells;
-                })()}
-              </div>
-              <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 14 }}>
-                <button
-                  ref={hourBtnRef}
-                  onClick={() => openPick("hour")}
-                  style={{
-                    flex: 1, padding: "9px 14px", fontSize: 14, fontWeight: 600,
-                    background: pickOpen === "hour" ? "var(--gold-alpha-08)" : "var(--bg-input)",
-                    color: pickOpen === "hour" ? "var(--gold)" : "var(--text)",
-                    border: pickOpen === "hour" ? "1px solid var(--gold)" : "1px solid var(--border)",
-                    borderRadius: "var(--radius-sm)", cursor: "pointer",
-                    display: "flex", justifyContent: "space-between", alignItems: "center",
-                  }}
-                >
-                  <span>{String(extendHour).padStart(2, "0")} 时</span>
-                  <span style={{ fontSize: 10, color: "var(--text-muted)" }}>▼</span>
-                </button>
-                <button
-                  ref={minBtnRef}
-                  onClick={() => openPick("min")}
-                  style={{
-                    flex: 1, padding: "9px 14px", fontSize: 14, fontWeight: 600,
-                    background: pickOpen === "min" ? "var(--gold-alpha-08)" : "var(--bg-input)",
-                    color: pickOpen === "min" ? "var(--gold)" : "var(--text)",
-                    border: pickOpen === "min" ? "1px solid var(--gold)" : "1px solid var(--border)",
-                    borderRadius: "var(--radius-sm)", cursor: "pointer",
-                    display: "flex", justifyContent: "space-between", alignItems: "center",
-                  }}
-                >
-                  <span>{String(extendMin).padStart(2, "0")} 分</span>
-                  <span style={{ fontSize: 10, color: "var(--text-muted)" }}>▼</span>
-                </button>
-              </div>
-              <div style={{ display: "flex", gap: 10 }}>
-                <button onClick={() => setShowExtendCalendar(false)} className="btn-ghost" style={{ flex: 1, fontSize: 13 }}>取消</button>
-                <button onClick={doExtend} disabled={!extendDay} className="btn-primary" style={{ flex: 1, fontSize: 13 }}>确认延长</button>
-              </div>
-            </div>
-          )}
+          <CalendarModal
+            open={showExtendCalendar}
+            onClose={() => setShowExtendCalendar(false)}
+            onSelect={doExtend}
+            defaultHour={extendDeadline.getHours()}
+            defaultMinute={extendDeadline.getMinutes()}
+          />
 
           {/* Meta row: code | player count */}
           <div style={{
@@ -1059,43 +925,6 @@ export function TournamentDetail() {
         }
       `}</style>
 
-      {/* Portal time picker dropdown */}
-      {pickOpen && pickPos && createPortal(
-        <div className="time-dropdown" style={{
-          position: "fixed", top: pickPos.top, left: pickPos.left, width: pickPos.width,
-          zIndex: 9999, background: "#fff", border: "1px solid #e0e0e0",
-          borderRadius: 8, boxShadow: "0 4px 20px rgba(0,0,0,0.15)",
-          maxHeight: 200, overflowY: "auto",
-          display: "grid",
-          gridTemplateColumns: pickOpen === "hour" ? "repeat(4, 1fr)" : "repeat(3, 1fr)",
-          gap: 2, padding: 6,
-        }}>
-          {(pickOpen === "hour"
-            ? Array.from({ length: 24 }, (_, i) => i)
-            : [0,5,10,15,20,25,30,35,40,45,50,55]
-          ).map(v => {
-            const isSel = pickOpen === "hour" ? extendHour === v : extendMin === v;
-            return (
-              <button
-                key={v}
-                onClick={() => {
-                  if (pickOpen === "hour") setExtendHour(v);
-                  else setExtendMin(v);
-                  setPickOpen(null);
-                }}
-                style={{
-                  padding: "8px 4px", fontSize: 13, fontWeight: isSel ? 600 : 400,
-                  background: isSel ? "var(--gold)" : "transparent",
-                  color: isSel ? "#fff" : "#333",
-                  border: "none", borderRadius: 6, cursor: "pointer",
-                  textAlign: "center", transition: "background 0.15s",
-                }}
-              >{String(v).padStart(2, "0")}</button>
-            );
-          })}
-        </div>,
-        document.body
-      )}
     </div>
   );
 }
