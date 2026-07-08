@@ -164,14 +164,20 @@ export function TournamentList() {
             </div>
           </div>
 
-          {/* Calendar dropdown */}
+          {/* Calendar modal */}
           {showCalendar && (
-            <div ref={calendarRef} style={{
-              position: "absolute", top: "100%", left: 0, marginTop: 4, padding: 16,
-              zIndex: 100, minWidth: 260, maxWidth: "calc(100vw - 32px)",
-              background: "var(--bg-card-glass)", border: "1px solid var(--border)",
-              borderRadius: "var(--radius)", boxShadow: "var(--glass-shadow), 0 8px 32px rgba(0,0,0,0.18)",
-            }}>
+            <>
+              <div onClick={() => setShowCalendar(false)} style={{
+                position: "fixed", inset: 0, zIndex: 999, background: "rgba(0,0,0,0.3)",
+              }} />
+              <div ref={calendarRef} style={{
+                position: "fixed", top: "50%", left: "50%",
+                transform: "translate(-50%, -50%)",
+                padding: 16, zIndex: 1000,
+                width: "calc(100vw - 32px)", maxWidth: 340,
+                background: "var(--bg-card-glass)", border: "1px solid var(--border)",
+                borderRadius: "var(--radius)", boxShadow: "var(--glass-shadow), 0 8px 32px rgba(0,0,0,0.18)",
+              }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
                 <button type="button" onClick={() => { if (calendarMonth === 0) { setCalendarMonth(11); setCalendarYear(y => y - 1); } else setCalendarMonth(m => m - 1); }}
                   style={{ background: "none", border: "none", color: "var(--text-secondary)", cursor: "pointer", fontSize: 18, padding: "8px 12px", minWidth: 44 }}>‹</button>
@@ -224,6 +230,7 @@ export function TournamentList() {
                 </select>
               </div>
             </div>
+            </>
           )}
 
           {/* Expanded options */}
