@@ -45,12 +45,12 @@ export function CalendarModal({ open, onClose, onSelect, defaultHour = 20, defau
   while (cells.length) rows.push(cells.splice(0, 7));
 
   return (
-    <div onClick={onClose} style={{
+    <div onClick={e => { if (e.target === e.currentTarget) onClose(); }} style={{
       position: "fixed", inset: 0, zIndex: 9999,
       background: "rgba(0,0,0,0.35)", display: "flex",
       alignItems: "center", justifyContent: "center",
     }}>
-      <div onClick={e => e.stopPropagation()} style={{
+      <div style={{
         background: "var(--bg-card-glass)", border: "1px solid var(--border)",
         borderRadius: 12, padding: 20, width: 320, maxWidth: "calc(100vw - 40px)",
         boxShadow: "0 16px 48px rgba(0,0,0,0.25)",
