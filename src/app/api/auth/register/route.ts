@@ -31,6 +31,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "两次密码不一致" }, { status: 400 });
   }
 
+  // Normalize fullwidth characters in security question (e.g. ？ → ?)
+  const normalizeQuestion = (q: string) =>
+    q.replace(/[！-～]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+
   // Validate security question
   let finalQuestion: string;
   if (securityQuestion === "__custom__") {
@@ -38,7 +42,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "请填写自定义安全问题" }, { status: 400 });
     }
     finalQuestion = customQuestion.trim();
-  } else if (!PRESET_QUESTIONS.includes(securityQuestion)) {
+  } else if (!PRESET_QUESTIONS.map(normalizeQuestion).includes(normalizeQuestion(securityQuestion))) {
     return NextResponse.json({ error: "无效的安全问题" }, { status: 400 });
   } else {
     finalQuestion = securityQuestion;

@@ -347,17 +347,24 @@ export function TournamentDetail() {
                   const blanks = firstDay === 0 ? 6 : firstDay - 1;
                   const cells: React.ReactNode[] = [];
                   for (let i = 0; i < blanks; i++) cells.push(<div key={"be" + i} />);
+                  const todayForExtend = new Date();
                   for (let d = 1; d <= daysInMonth; d++) {
                     const isSel = extendDay === d;
-                    const today = new Date();
-                    const isToday = d === today.getDate() && extendMonth === today.getMonth() && extendYear === today.getFullYear();
+                    const isToday = d === todayForExtend.getDate() && extendMonth === todayForExtend.getMonth() && extendYear === todayForExtend.getFullYear();
+                    const isPast = extendYear < todayForExtend.getFullYear() ||
+                      (extendYear === todayForExtend.getFullYear() && extendMonth < todayForExtend.getMonth()) ||
+                      (extendYear === todayForExtend.getFullYear() && extendMonth === todayForExtend.getMonth() && d < todayForExtend.getDate());
                     cells.push(
                       <button
-                        key={d} type="button" onClick={() => setExtendDay(d)}
+                        key={d} type="button" disabled={isPast}
+                        onClick={() => { if (!isPast) setExtendDay(d); }}
                         style={{
                           textAlign: "center", padding: "6px 0", fontSize: 13, fontWeight: isSel ? 600 : 400,
-                          background: isSel ? "var(--gold)" : "transparent", color: isSel ? "#1a1408" : isToday ? "var(--gold)" : "var(--text)",
-                          border: isToday && !isSel ? "1px solid var(--gold)" : "1px solid transparent", borderRadius: "var(--radius-sm)", cursor: "pointer",
+                          background: isSel ? "var(--gold)" : "transparent",
+                          color: isPast ? "var(--text-muted)" : (isSel ? "#1a1408" : isToday ? "var(--gold)" : "var(--text)"),
+                          border: isToday && !isSel ? "1px solid var(--gold)" : "1px solid transparent",
+                          borderRadius: "var(--radius-sm)", cursor: isPast ? "default" : "pointer",
+                          opacity: isPast ? 0.35 : 1,
                         }}
                       >{d}</button>
                     );

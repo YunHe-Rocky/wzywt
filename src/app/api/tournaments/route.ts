@@ -58,6 +58,9 @@ export async function POST(req: NextRequest) {
   if (!name || !deadline) {
     return NextResponse.json({ error: "赛事名称和截止时间必填" }, { status: 400 });
   }
+  if (new Date(deadline) < new Date()) {
+    return NextResponse.json({ error: "截止时间不能是过去" }, { status: 400 });
+  }
 
   const code = generateCode();
 

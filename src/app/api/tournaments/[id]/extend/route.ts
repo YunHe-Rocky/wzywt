@@ -11,6 +11,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const tournamentId = parseInt(params.id);
   const { newDeadline } = await req.json();
   if (!newDeadline) return NextResponse.json({ error: "请提供新的截止时间" }, { status: 400 });
+  if (new Date(newDeadline) < new Date()) {
+    return NextResponse.json({ error: "新的截止时间不能是过去" }, { status: 400 });
+  }
 
   const admin = await prisma.tournamentAdmin.findFirst({ where: { tournamentId, userId } });
   if (!admin) return NextResponse.json({ error: "仅管理员操作" }, { status: 403 });

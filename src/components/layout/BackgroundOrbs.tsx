@@ -71,9 +71,13 @@ export function BackgroundOrbs() {
       gyroRef.current = now;
 
       if (e.gamma !== null && e.beta !== null) {
-        mx = (Math.max(-45, Math.min(45, e.gamma)) + 45) / 90;
-        my = (Math.max(-45, Math.min(45, e.beta)) + 45) / 90;
-        scheduleUpdate();
+        const nx = (Math.max(-45, Math.min(45, e.gamma)) + 45) / 90;
+        const ny = (Math.max(-45, Math.min(45, e.beta)) + 45) / 90;
+        if (Math.abs(nx - mx) > 0.003 || Math.abs(ny - my) > 0.003) {
+          mx = nx;
+          my = ny;
+          scheduleUpdate();
+        }
       }
     }
 

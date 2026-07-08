@@ -73,7 +73,7 @@ export function TournamentList() {
   const firstDay = new Date(calendarYear, calendarMonth, 1).getDay();
   const today = new Date();
   const calendarCells: (number | null)[] = [];
-  const blanks = firstDay === 0 ? 6 : firstDay - 1;
+  const blanks = firstDay;
   for (let i = 0; i < blanks; i++) calendarCells.push(null);
   for (let d = 1; d <= daysInMonth; d++) calendarCells.push(d);
 
@@ -162,8 +162,16 @@ export function TournamentList() {
                 {["日","一","二","三","四","五","六"].map(d => <span key={d} style={{ fontSize: 11, color: "var(--text-muted)", padding: "4px 0" }}>{d}</span>)}
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2 }}>
-                {calendarCells.map((day, i) => day === null ? <div key={`e${i}`} /> : (
-                  <button key={day} type="button" onClick={() => {
+                {calendarCells.map((day, i) => {
+                  const isPast = day !== null && (
+                    calendarYear < today.getFullYear() ||
+                    (calendarYear === today.getFullYear() && calendarMonth < today.getMonth()) ||
+                    (calendarYear === today.getFullYear() && calendarMonth === today.getMonth() && day < today.getDate())
+                  );
+                  if (day === null) return <div key={`e${i}`} />;
+                  return (
+                  <button key={day} type="button" disabled={isPast} onClick={() => {
+                    if (isPast) return;
                     const m = String(calendarMonth + 1).padStart(2, "0");
                     const d = String(day).padStart(2, "0");
                     const h = String(selectedHour).padStart(2, "0");
@@ -175,11 +183,13 @@ export function TournamentList() {
                   style={{
                     padding: "7px 0", textAlign: "center", fontSize: 13,
                     fontWeight: day === selectedDay ? 700 : (calendarYear === today.getFullYear() && calendarMonth === today.getMonth() && day === today.getDate() ? 600 : 400),
-                    color: day === selectedDay ? "var(--bg-root)" : (calendarYear === today.getFullYear() && calendarMonth === today.getMonth() && day === today.getDate() ? "var(--gold)" : "var(--text-secondary)"),
+                    color: isPast ? "var(--text-muted)" : (day === selectedDay ? "var(--bg-root)" : (calendarYear === today.getFullYear() && calendarMonth === today.getMonth() && day === today.getDate() ? "var(--gold)" : "var(--text-secondary)")),
                     background: day === selectedDay ? "var(--gold)" : "transparent",
-                    border: "none", borderRadius: "var(--radius-sm)", cursor: "pointer",
+                    border: "none", borderRadius: "var(--radius-sm)", cursor: isPast ? "default" : "pointer",
+                    opacity: isPast ? 0.35 : 1,
                   }}>{day}</button>
-                ))}
+                  );
+                })}
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12, justifyContent: "center" }}>
                 <select value={selectedHour} onChange={e => setSelectedHour(Number(e.target.value))}
