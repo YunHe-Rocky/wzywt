@@ -171,13 +171,16 @@ export function TournamentList() {
                 position: "fixed", inset: 0, zIndex: 999, background: "rgba(0,0,0,0.3)",
               }} />
               <div ref={calendarRef} style={{
-                position: "fixed", top: "50%", left: "50%",
-                transform: "translate(-50%, -50%)",
-                padding: 16, zIndex: 1000,
-                width: "calc(100vw - 32px)", maxWidth: 340,
-                background: "var(--bg-card-glass)", border: "1px solid var(--border)",
-                borderRadius: "var(--radius)", boxShadow: "var(--glass-shadow), 0 8px 32px rgba(0,0,0,0.18)",
+                position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                zIndex: 1000, pointerEvents: "none",
               }}>
+                <div style={{
+                  padding: 16, pointerEvents: "auto",
+                  width: "calc(100vw - 32px)", maxWidth: 340,
+                  background: "var(--bg-card-glass)", border: "1px solid var(--border)",
+                  borderRadius: "var(--radius)", boxShadow: "var(--glass-shadow), 0 8px 32px rgba(0,0,0,0.18)",
+                }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
                 <button type="button" onClick={() => { if (calendarMonth === 0) { setCalendarMonth(11); setCalendarYear(y => y - 1); } else setCalendarMonth(m => m - 1); }}
                   style={{ background: "none", border: "none", color: "var(--text-secondary)", cursor: "pointer", fontSize: 18, padding: "8px 12px", minWidth: 44 }}>‹</button>
@@ -228,6 +231,7 @@ export function TournamentList() {
                   style={{ background: "var(--bg-input)", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", color: "var(--text)", fontSize: 13, padding: "6px 10px", outline: "none", cursor: "pointer" }}>
                   {[0,5,10,15,20,25,30,35,40,45,50,55].map(m => <option key={m} value={m}>{String(m).padStart(2, "0")}</option>)}
                 </select>
+              </div>
               </div>
             </div>
             </>
