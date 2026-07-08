@@ -24,10 +24,24 @@ export function CalendarModal({ open, onClose, onSelect, defaultHour = 20, defau
 
   useEffect(() => {
     if (!open) { setPickOpen(null); return; }
-    // Reset state on each open
     setYear(today.getFullYear());
     setMonth(today.getMonth());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
+
+  // Close Portal picker on outside click
+  useEffect(() => {
+    if (!pickOpen) return;
+    const close = (e: MouseEvent | TouchEvent) => {
+      if (!(e.target as Element).closest(".time-dropdown")) setPickOpen(null);
+    };
+    document.addEventListener("mousedown", close);
+    document.addEventListener("touchstart", close);
+    return () => {
+      document.removeEventListener("mousedown", close);
+      document.removeEventListener("touchstart", close);
+    };
+  }, [pickOpen]);
 
   if (!open) return null;
 
@@ -56,20 +70,6 @@ export function CalendarModal({ open, onClose, onSelect, defaultHour = 20, defau
     if (r) setPickPos({ top: r.bottom + 4, left: r.left, width: Math.max(r.width, 180) });
     setPickOpen(pickOpen === type ? null : type);
   };
-
-  // Close Portal picker on outside click
-  useEffect(() => {
-    if (!pickOpen) return;
-    const close = (e: MouseEvent | TouchEvent) => {
-      if (!(e.target as Element).closest(".time-dropdown")) setPickOpen(null);
-    };
-    document.addEventListener("mousedown", close);
-    document.addEventListener("touchstart", close);
-    return () => {
-      document.removeEventListener("mousedown", close);
-      document.removeEventListener("touchstart", close);
-    };
-  }, [pickOpen]);
 
   const rows: (number | null)[][] = [];
   const cells: (number | null)[] = [];
