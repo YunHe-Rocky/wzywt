@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { TEMPORARY_CLEANUP_STATUSES } from "@/features/tournaments/model";
+import { deleteOrphanedTournaments } from "./lifecycle";
 
 export interface LockedTournament {
   id: number;
@@ -9,6 +10,7 @@ export interface LockedTournament {
 }
 
 export async function lockExpiredTournaments(now: Date = new Date()): Promise<LockedTournament[]> {
+  await deleteOrphanedTournaments();
   const expired = await prisma.tournament.findMany({
     where: {
       deadline: { lte: now },

@@ -10,6 +10,10 @@ import {
   ROLE_LABELS,
   ROLES,
 } from "@/core/game";
+import {
+  hasPeakTournamentAccess,
+  PEAK_TOURNAMENT_MIN_SCORE,
+} from "@/features/profile/model";
 
 const RANK_TIERS = [
   { label: "未设置", value: 0 },
@@ -97,6 +101,8 @@ export function RolePreferenceEditor() {
   const activePref = prefs.find(p => p.roleType === activeTab);
   const activeHeroes = heroesByRole[activeTab] || [];
   const isFull = activeHeroes.length >= 3;
+  const peakRank = prefs[0]?.peakRank || 0;
+  const canSetPeakScore = hasPeakTournamentAccess(peakRank);
 
   return (
     <div className="card animate-slide-up">
@@ -235,9 +241,26 @@ export function RolePreferenceEditor() {
       <div className="profile-footer mt-6 pt-5 border-t border-border-light">
         <div className="flex-1">
           <label className="text-xs font-semibold text-text-muted tracking-wider uppercase block mb-1.5">巅峰分数</label>
-          <input type="number" placeholder="未设置" value={activePref?.peakScore ? Math.round(activePref.peakScore) : ""}
+          <input
+            type="number"
+            placeholder={canSetPeakScore ? `${PEAK_TOURNAMENT_MIN_SCORE} 起` : "达到最强王者后解锁"}
+            value={canSetPeakScore && activePref?.peakScore ? Math.round(activePref.peakScore) : ""}
+            min={PEAK_TOURNAMENT_MIN_SCORE}
+            step={1}
+            inputMode="numeric"
+            disabled={!canSetPeakScore}
+            aria-describedby="peak-score-hint"
             onChange={e => setPeakScore(activeTab, Math.round(parseInt(e.target.value) || 0))}
-            className="w-full text-base font-bold px-4 py-2.5 rounded-md bg-input border border-border text-text" />
+            className="w-full text-base font-bold px-4 py-2.5 rounded-md bg-input border border-border text-text disabled:cursor-not-allowed disabled:opacity-55" />
+          <p
+            id="peak-score-hint"
+            className={`mt-1.5 mb-0 text-[11px] leading-5 ${canSetPeakScore ? "text-text-muted" : "text-gold-dim"}`}
+            aria-live="polite"
+          >
+            {canSetPeakScore
+              ? `已解锁巅峰赛，分数最低从 ${PEAK_TOURNAMENT_MIN_SCORE} 起。`
+              : "🔒 历史最高段位尚未达到“最强王者”，当前实力暂未满足巅峰赛准入要求。"}
+          </p>
         </div>
         <button className="btn-primary shrink-0 text-base font-semibold py-3 px-10" onClick={() => savePrefs(() => success("已保存"), (msg) => error(msg))} disabled={saving}>
           {saving ? "保存中..." : "保存配置"}

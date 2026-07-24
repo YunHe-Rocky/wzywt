@@ -2,6 +2,10 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { normalizeHeroPowerScore } from "@/core/game";
+import {
+  normalizePeakScore,
+  normalizeRolePreferenceSettings,
+} from "@/features/profile/model";
 
 const ROLES = ["top", "jungle", "mid", "adc", "support"] as const;
 
@@ -22,7 +26,8 @@ export function useRolePreferences() {
   useEffect(() => {
     fetch("/api/users/me/roles").then(r => r.json()).then(d => {
       if (d.preferences?.length) {
-        const s = d.preferences.sort((a: Pref, b: Pref) => a.preferenceRank - b.preferenceRank);
+        const s = normalizeRolePreferenceSettings(d.preferences)
+          .sort((a, b) => a.preferenceRank - b.preferenceRank);
         setPrefs(s); setSharedRank(s[0]?.roleRank || 0);
       } else setPrefs(ROLES.map((r, i) => ({ roleType: r, preferenceRank: i + 1, roleRank: 0, peakScore: 0, peakRank: 0 })));
     }).catch(() => { setPrefs(ROLES.map((r, i) => ({ roleType: r, preferenceRank: i + 1, roleRank: 0, peakScore: 0, peakRank: 0 }))); });
@@ -44,14 +49,34 @@ export function useRolePreferences() {
   }, [prefs]);
 
   const setSharedRankAndSync = useCallback((r: number) => { setSharedRank(r); setPrefs(prev => prev.map(p => ({ ...p, roleRank: r }))); }, []);
-  const setPeakScore = useCallback((role: string, s: number) => { setPrefs(prev => prev.map(p => (p.roleType === role ? { ...p, peakScore: s } : p))); }, []);
-  const setPeakRank = useCallback((role: string, r: number) => { setPrefs(prev => prev.map(p => (role === "all" || p.roleType === role ? { ...p, peakRank: r } : p))); }, []);
+  const setPeakScore = useCallback((role: string, score: number) => {
+    setPrefs(prev => prev.map(p => (
+      p.roleType === role
+        ? { ...p, peakScore: normalizePeakScore(p.peakRank, score) }
+        : p
+    )));
+  }, []);
+  const setPeakRank = useCallback((role: string, rank: number) => {
+    setPrefs(prev => prev.map(p => (
+      role === "all" || p.roleType === role
+        ? { ...p, peakRank: rank, peakScore: normalizePeakScore(rank, p.peakScore) }
+        : p
+    )));
+  }, []);
 
   const savePrefs = useCallback(async (onSuccess: () => void, onError: (msg: string) => void) => {
     setSaving(true);
     const res = await fetch("/api/users/me/roles", {
       method: "PUT", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ preferences: prefs.map(p => ({ role_type: p.roleType, preference_rank: p.preferenceRank, role_rank: p.roleRank, peak_score: p.peakScore, peak_rank: p.peakRank })) })
+      body: JSON.stringify({
+        preferences: normalizeRolePreferenceSettings(prefs).map(p => ({
+          role_type: p.roleType,
+          preference_rank: p.preferenceRank,
+          role_rank: p.roleRank,
+          peak_score: p.peakScore,
+          peak_rank: p.peakRank,
+        })),
+      })
     });
     setSaving(false);
     res.ok ? onSuccess() : onError("保存失败");

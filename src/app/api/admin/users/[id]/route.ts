@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { requireSuperAdmin } from "@/lib/permissions";
 import { prisma } from "@/lib/db";
+import { deleteUserAndOwnedTournaments } from "@/features/users/server/deleteUser";
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   const { userId } = await requireSuperAdmin().catch(() => ({ userId: 0 }));
@@ -44,6 +45,6 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
   if (!target) return NextResponse.json({ error: "用户不存在" }, { status: 404 });
   if (target.role === "admin") return NextResponse.json({ error: "不能删除管理员" }, { status: 403 });
 
-  await prisma.user.delete({ where: { id: targetId } });
+  await deleteUserAndOwnedTournaments(targetId);
   return NextResponse.json({ ok: true });
 }

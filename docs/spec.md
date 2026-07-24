@@ -190,7 +190,7 @@ POST /api/auth/delete-account
 |------|------|
 | 当前段位 | 11级：青铜 → 白银 → 黄金 → 铂金 → 钻石 → 星耀 → 王者 → 无双王者 → 荣耀王者 → 传奇王者 |
 | 历史最高 | 同上 11 级 |
-| 巅峰分 (peakScore) | 0-2500 滑动条输入 |
+| 巅峰分 (peakScore) | 历史最高 ≥ 最强王者时启用，最低 1200；否则禁用并保存为 0 |
 | 巅峰段位 (peakRank) | 同上 11 级 |
 
 ### 4.4 分路偏好
@@ -201,6 +201,8 @@ POST /api/auth/delete-account
 - `role_rank` — 该分路的当前段位 (0-10，0 表示无段位)
 - `peak_score` — 该分路巅峰分
 - `peak_rank` — 该分路巅峰段位
+
+`peak_rank >= 7`（最强王者）才具备巅峰赛资格。客户端加载、段位切换和保存时均执行归一化，PUT API 再次校验：有资格时 `peak_score >= 1200`，无资格时强制为 0。五路 `peak_rank` 统一为历史最高段位。
 
 5 路：对抗路 (top)、打野 (jungle)、中路 (mid)、发育路 (adc)、游走 (support)
 
@@ -279,7 +281,7 @@ recruiting → locked → completed → finished
 | 延长截止 | `POST /api/tournaments/[id]/extend` | owner/co_owner | 延长截止时间 |
 | 公开切换 | `PUT /api/tournaments/[id]` | owner/co_owner | 切换 isPublic |
 | 任命管理 | `POST /api/tournaments/[id]/admin` | owner | 任命/撤销 co_owner |
-| 退出 | `POST /api/tournaments/[id]/leave` | 玩家本人 | owner 不可退出，需先转让 |
+| 退出 | `POST /api/tournaments/[id]/leave` | 玩家本人 | owner 不可退出；退出后无有效成员则删除房间 |
 | 观战切换 | `POST /api/tournaments/[id]/join` | 玩家本人 | 更新 isSpectator 状态 |
 | 临时玩家 | `POST /api/tournaments/[id]/temp-player` | owner/co_owner | 添加非注册临时玩家 (仅名称) |
 | 处理申请 | `POST /api/tournaments/[id]/temp-application/[appId]` | owner/co_owner | 审批临时玩家加入申请 |
@@ -295,6 +297,8 @@ owner > co_owner > player
 只有 owner 可以任命/撤销 co_owner 和取消赛事。co_owner 拥有除任命管理和取消赛事外的所有管理权限。
 
 补位账号标记为 `users.is_temporary=true`，不进入后台用户管理和用户统计。截止任务处理 recruiting/locked 过期房间时删除补位账号，由外键级联清理成员与战力记录。
+
+房间生命周期保证至少存在一名非观战成员和一名 owner。成员退出/被踢后若有效成员归零，事务内直接删除房间；房主注销或被后台删除时，其拥有的房间同步删除。公开列表过滤历史空房间，cron 定期物理清理零成员或无 owner 的遗留记录。
 
 ### 5.7 临时玩家系统
 

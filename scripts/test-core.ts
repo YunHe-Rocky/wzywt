@@ -16,7 +16,13 @@ import {
   resolveRecruitmentStatus,
   TEMPORARY_CLEANUP_STATUSES,
 } from "@/features/tournaments/model";
-import { normalizeGameProfile } from "@/features/profile/model";
+import { shouldDeleteTournament } from "@/features/tournaments/server/lifecycle";
+import {
+  hasPeakTournamentAccess,
+  normalizeGameProfile,
+  normalizePeakScore,
+  normalizeRolePreferenceSettings,
+} from "@/features/profile/model";
 import { detectAvatarImageType } from "@/features/profile/server/avatar";
 import { selectHeroesForLane } from "@/core/game";
 import {
@@ -84,6 +90,9 @@ assert.equal(resolveRecruitmentStatus({
 assert.equal(canViewTournamentMemberIdentity("owner"), true);
 assert.equal(canViewTournamentMemberIdentity("co_owner"), true);
 assert.equal(canViewTournamentMemberIdentity("player"), false);
+assert.equal(shouldDeleteTournament({ activePlayerCount: 0, ownerCount: 1 }), true);
+assert.equal(shouldDeleteTournament({ activePlayerCount: 1, ownerCount: 0 }), true);
+assert.equal(shouldDeleteTournament({ activePlayerCount: 1, ownerCount: 1 }), false);
 assert.deepEqual(
   normalizeGameProfile({ gameNickname: "  演武堂主 ", gameId: " 123 456 " }),
   { gameNickname: "演武堂主", gameId: "123 456" },
@@ -91,6 +100,23 @@ assert.deepEqual(
 assert.throws(
   () => normalizeGameProfile({ gameNickname: "a".repeat(33), gameId: "" }),
   RangeError,
+);
+assert.equal(hasPeakTournamentAccess(6), false);
+assert.equal(hasPeakTournamentAccess(7), true);
+assert.equal(hasPeakTournamentAccess(10), true);
+assert.equal(normalizePeakScore(6, 2_000), 0);
+assert.equal(normalizePeakScore(7, 0), 1_200);
+assert.equal(normalizePeakScore(8, 1_199), 1_200);
+assert.equal(normalizePeakScore(10, 1_876.9), 1_876);
+assert.deepEqual(
+  normalizeRolePreferenceSettings([
+    { roleType: "top", preferenceRank: 1, roleRank: 5, peakScore: 0, peakRank: 6 },
+    { roleType: "mid", preferenceRank: 2, roleRank: 5, peakScore: 1_850, peakRank: 7 },
+  ]).map(({ peakRank, peakScore }) => ({ peakRank, peakScore })),
+  [
+    { peakRank: 7, peakScore: 1_200 },
+    { peakRank: 7, peakScore: 1_850 },
+  ],
 );
 assert.deepEqual(
   detectAvatarImageType(Buffer.from([0xff, 0xd8, 0xff, 0xe0])),

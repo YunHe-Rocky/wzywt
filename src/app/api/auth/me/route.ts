@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/db";
 import { requireAuth, verifyPassword } from "@/lib/auth";
+import { deleteUserAndOwnedTournaments } from "@/features/users/server/deleteUser";
 
 export async function GET() {
   const session = await getSession();
@@ -81,15 +82,7 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: "安全答案错误" }, { status: 403 });
   }
 
-  await prisma.$transaction([
-    prisma.tournamentPlayer.deleteMany({ where: { userId } }),
-    prisma.tournamentAdmin.deleteMany({ where: { userId } }),
-    prisma.rolePreference.deleteMany({ where: { userId } }),
-    prisma.heroPower.deleteMany({ where: { userId } }),
-    prisma.tempPlayerApplication.deleteMany({ where: { applicantId: userId } }),
-    prisma.adminOperation.deleteMany({ where: { adminId: userId } }),
-    prisma.user.delete({ where: { id: userId } }),
-  ]);
+  await deleteUserAndOwnedTournaments(userId);
 
   // 清除 session
   const session = await getSession();

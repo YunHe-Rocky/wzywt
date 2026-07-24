@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireAuth } from "@/lib/auth";
+import { normalizeRolePreferenceSettings } from "@/features/profile/model";
 
 export async function GET() {
   const { userId } = await requireAuth().catch(() => ({ userId: 0 }));
@@ -13,7 +14,9 @@ export async function GET() {
     orderBy: { preferenceRank: "asc" },
   });
 
-  return NextResponse.json({ preferences: prefs });
+  return NextResponse.json({
+    preferences: normalizeRolePreferenceSettings(prefs),
+  });
 }
 
 export async function PUT(req: NextRequest) {
@@ -21,16 +24,38 @@ export async function PUT(req: NextRequest) {
   if (!userId) return NextResponse.json({ error: "请先登录" }, { status: 401 });
 
   const { preferences } = await req.json();
-  if (!preferences || preferences.length !== 5) {
+  if (!Array.isArray(preferences) || preferences.length !== 5) {
     return NextResponse.json({ error: "必须为全部5个分路设置偏好" }, { status: 400 });
   }
 
+  const normalized = normalizeRolePreferenceSettings(
+    preferences.map((p: { role_type: string; preference_rank: number; role_rank?: number; peak_score?: number; peak_rank?: number }) => ({
+      roleType: p.role_type,
+      preferenceRank: p.preference_rank,
+      roleRank: p.role_rank ?? 0,
+      peakScore: p.peak_score ?? 0,
+      peakRank: p.peak_rank ?? 0,
+    })),
+  );
+
   await prisma.$transaction(
-    preferences.map((p: { role_type: string; preference_rank: number; role_rank?: number; peak_score?: number; peak_rank?: number }) =>
+    normalized.map((p) =>
       prisma.rolePreference.upsert({
-        where: { userId_roleType: { userId, roleType: p.role_type } },
-        update: { preferenceRank: p.preference_rank, roleRank: p.role_rank ?? 0, peakScore: p.peak_score ?? 0, peakRank: p.peak_rank ?? 0 },
-        create: { userId, roleType: p.role_type, preferenceRank: p.preference_rank, roleRank: p.role_rank ?? 0, peakScore: p.peak_score ?? 0, peakRank: p.peak_rank ?? 0 },
+        where: { userId_roleType: { userId, roleType: p.roleType } },
+        update: {
+          preferenceRank: p.preferenceRank,
+          roleRank: p.roleRank,
+          peakScore: p.peakScore,
+          peakRank: p.peakRank,
+        },
+        create: {
+          userId,
+          roleType: p.roleType,
+          preferenceRank: p.preferenceRank,
+          roleRank: p.roleRank,
+          peakScore: p.peakScore,
+          peakRank: p.peakRank,
+        },
       })
     )
   );

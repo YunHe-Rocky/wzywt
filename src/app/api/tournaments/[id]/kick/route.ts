@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireAuth } from "@/lib/auth";
-import { reconcileTournamentCapacity } from "@/features/tournaments/server/capacity";
+import { reconcileOrDeleteTournament } from "@/features/tournaments/server/lifecycle";
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const { userId } = await requireAuth().catch(() => ({ userId: 0 }));
@@ -42,7 +42,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         targetId: targetUserId,
       },
     });
-    await reconcileTournamentCapacity(tx, tournamentId);
+    await reconcileOrDeleteTournament(tx, tournamentId);
   });
 
   return NextResponse.json({ ok: true });

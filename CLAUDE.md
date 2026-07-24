@@ -217,6 +217,7 @@ src/
 - 输入房间号后先返回房间预览，不直接加入；预览优先展示截止时间、报名人数和房间公告。
 - 公开访客详情不返回成员身份，只返回非观战人数统计。
 - 非观战成员达到 10 人时立即将赛事设为 `locked`；减员后若原截止时间未到且尚未分队，自动恢复 `recruiting`。
+- 有效成员归零或 owner 消失时，在同一事务中删除房间；公开列表过滤历史孤儿房间，cron 每分钟清理遗留记录。
 - 加人使用 Serializable 事务和重试，防止并发超过 10 人。
 - 延期必须同时选择日期和时间，且新时间必须晚于当前截止时间；满员房间不能延期。
 
@@ -272,7 +273,7 @@ src/
 | hero_skills | 技能拆表（skillIndex 0=被动 1-4=主动，含 damage_type/extraJson） |
 | hero_lane_overrides | 手动分路修正（sync 不覆盖） |
 | hero_powers | 用户英雄战力 |
-| role_preferences | 用户分路偏好（排序 + 段位 + 巅峰分） |
+| role_preferences | 用户分路偏好（排序 + 段位 + 巅峰分；历史最高 ≥ 最强王者才可设置，最低 1200） |
 | announcements | 系统公告（含 version/brief/slug/published） |
 | tournaments | 赛事（含 deadline/status/split_result JSON） |
 | tournament_players | 参赛者（含 is_temporary/is_spectator） |

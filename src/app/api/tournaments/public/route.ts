@@ -5,7 +5,12 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   const tournaments = await prisma.tournament.findMany({
-    where: { status: "recruiting", isPublic: true },
+    where: {
+      status: "recruiting",
+      isPublic: true,
+      players: { some: { isSpectator: false } },
+      admins: { some: { role: "owner" } },
+    },
     select: {
       id: true,
       name: true,

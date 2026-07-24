@@ -36,6 +36,8 @@ export async function GET() {
       isPublic: true,
       status: "recruiting",
       id: { notIn: myIds },
+      players: { some: { isSpectator: false } },
+      admins: { some: { role: "owner" } },
     },
     include: {
       _count: { select: { players: { where: { isSpectator: false } } } },
