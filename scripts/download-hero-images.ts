@@ -1,4 +1,4 @@
-import { downloadAllImages } from "@/lib/heroes/download-images";
+import { downloadAllImages } from "@/features/heroes/server/download-images";
 
 downloadAllImages()
   .then((r) => {

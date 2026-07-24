@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireAuth } from "@/lib/auth";
+import { normalizeHeroPowerScore, ROLES } from "@/core/game";
 
 export async function GET() {
   const { userId } = await requireAuth().catch(() => ({ userId: 0 }));
@@ -22,8 +23,23 @@ export async function POST(req: NextRequest) {
   if (!userId) return NextResponse.json({ error: "请先登录" }, { status: 401 });
 
   const { roleType, heroId, heroName, powerScore } = await req.json();
-  if (!roleType || !heroId || !heroName || !powerScore) {
+  if (
+    typeof roleType !== "string"
+    || !ROLES.includes(roleType as (typeof ROLES)[number])
+    || !Number.isInteger(heroId)
+    || heroId <= 0
+    || typeof heroName !== "string"
+    || !heroName.trim()
+  ) {
     return NextResponse.json({ error: "参数不完整" }, { status: 400 });
+  }
+  let normalizedPowerScore: number;
+  try {
+    normalizedPowerScore = normalizeHeroPowerScore(powerScore);
+  } catch (error) {
+    return NextResponse.json({
+      error: error instanceof Error ? error.message : "英雄战力无效",
+    }, { status: 400 });
   }
 
   const count = await prisma.heroPower.count({ where: { userId, roleType } });
@@ -32,7 +48,13 @@ export async function POST(req: NextRequest) {
   }
 
   const created = await prisma.heroPower.create({
-    data: { userId, roleType, heroId, heroName, powerScore },
+    data: {
+      userId,
+      roleType,
+      heroId,
+      heroName: heroName.trim(),
+      powerScore: normalizedPowerScore,
+    },
   });
   return NextResponse.json(created);
 }

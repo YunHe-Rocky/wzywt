@@ -3,6 +3,8 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireSuperAdmin } from "@/lib/permissions";
+import { AnnouncementValidationError } from "@/features/announcements/model";
+import { createAnnouncement } from "@/features/announcements/server/service";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -28,13 +30,13 @@ export async function POST(req: NextRequest) {
   const { userId } = await requireSuperAdmin().catch(() => ({ userId: 0 }));
   if (!userId) return NextResponse.json({ error: "无权限" }, { status: 403 });
 
-  const { title, version, brief, content, slug } = await req.json();
-  if (!title || !brief || !slug) {
-    return NextResponse.json({ error: "标题、摘要、slug 为必填" }, { status: 400 });
+  try {
+    const created = await createAnnouncement(await req.json().catch(() => null));
+    return NextResponse.json(created, { status: 201 });
+  } catch (error) {
+    if (error instanceof AnnouncementValidationError) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+    throw error;
   }
-
-  const created = await prisma.announcement.create({
-    data: { title, version: version || null, brief, content: content || null, slug },
-  });
-  return NextResponse.json(created, { status: 201 });
 }

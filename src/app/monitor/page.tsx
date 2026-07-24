@@ -96,8 +96,8 @@ export default function MonitorPage() {
   };
 
   return (
-    <div style={{ maxWidth: 900, margin: "0 auto", padding: "40px 24px" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
+    <div className="page-shell page-shell--medium">
+      <div className="monitor-header">
         <div>
           <h1 style={{ fontSize: 24, fontWeight: 700, color: "var(--text)", margin: "0 0 4px" }}>
             数据监控中心

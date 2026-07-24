@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { PageEntrance } from "@/components/layout/PageEntrance";
+import { PageEntrance } from "@/web/components/layout/PageEntrance";
 
 interface TocItem { id: string; text: string; level: number }
 
@@ -109,10 +109,13 @@ function renderDoc(md: string): { html: React.ReactNode[]; toc: TocItem[] } {
 }
 
 function parseInline(text: string): React.ReactNode {
-  const parts = text.split(/(\*\*.*?\*\*|`.*?`)/g);
+  // Split on **bold**, *italic*, and `code`
+  const parts = text.split(/(\*\*.*?\*\*|\*[^*].*?[^*]\*|`.*?`)/g);
   return parts.map((part, i) => {
     if (part.startsWith("**") && part.endsWith("**"))
       return <strong key={i} style={{ color: "var(--text)" }}>{part.slice(2, -2)}</strong>;
+    if (part.startsWith("*") && part.endsWith("*") && part.length > 2)
+      return <em key={i} style={{ color: "var(--text-secondary)" }}>{part.slice(1, -1)}</em>;
     if (part.startsWith("`") && part.endsWith("`"))
       return <code key={i} style={{ background: "var(--bg-input)", padding: "1px 6px", borderRadius: 4, fontSize: 13, fontFamily: "monospace", color: "var(--gold)" }}>{part.slice(1, -1)}</code>;
     return part;
@@ -146,7 +149,7 @@ export default function ChangelogPage() {
 
   return (
     <PageEntrance>
-    <div style={{ maxWidth: 960, margin: "0 auto", padding: "40px 24px", display: "flex", gap: 32 }}>
+    <div className="page-shell page-shell--medium doc-layout">
       <div style={{ flex: 1, minWidth: 0 }}>
         <Link href="/" style={{ fontSize: 13, color: "var(--text-muted)", textDecoration: "none", marginBottom: 24, display: "inline-block" }}>
           ← 返回首页
@@ -172,7 +175,7 @@ export default function ChangelogPage() {
 
       {/* TOC sidebar */}
       {toc.length > 0 && (
-        <nav style={{ width: 180, flexShrink: 0, position: "sticky", top: 80, alignSelf: "flex-start" }}>
+        <nav className="doc-sidebar">
           <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", marginBottom: 8, letterSpacing: 2, textTransform: "uppercase" }}>
             目录
           </div>

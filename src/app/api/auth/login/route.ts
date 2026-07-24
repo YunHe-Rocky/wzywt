@@ -9,9 +9,16 @@ export async function POST(req: NextRequest) {
   const { username, password } = await req.json();
   const user = await prisma.user.findUnique({
     where: { username },
-    select: { id: true, username: true, passwordHash: true, role: true, banned: true },
+    select: {
+      id: true,
+      username: true,
+      passwordHash: true,
+      role: true,
+      banned: true,
+      isTemporary: true,
+    },
   });
-  if (!user) {
+  if (!user || user.isTemporary) {
     return NextResponse.json({ error: "用户名或密码错误" }, { status: 401 });
   }
 

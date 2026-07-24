@@ -8,30 +8,57 @@ export async function POST(req: NextRequest) {
   const { userId } = await requireAuth().catch(() => ({ userId: 0 }));
   if (!userId) return NextResponse.json({ error: "请先登录" }, { status: 401 });
 
-  const { code } = await req.json();
+  const body = await req.json().catch(() => ({}));
+  const code = typeof body.code === "string" ? body.code.trim() : "";
   if (!code) return NextResponse.json({ error: "请输入赛事号" }, { status: 400 });
 
-  const tournament = await prisma.tournament.findUnique({ where: { code } });
+  const tournament = await prisma.tournament.findUnique({
+    where: { code },
+    select: {
+      id: true,
+      code: true,
+      name: true,
+      deadline: true,
+      status: true,
+      isPublic: true,
+      announcement: true,
+      _count: {
+        select: {
+          players: { where: { isSpectator: false } },
+        },
+      },
+    },
+  });
   if (!tournament) return NextResponse.json({ error: "赛事不存在" }, { status: 404 });
-  if (tournament.status !== "recruiting") {
-    return NextResponse.json({ error: "赛事已截止" }, { status: 400 });
-  }
 
-  const playerCount = await prisma.tournamentPlayer.count({
-    where: { tournamentId: tournament.id, isSpectator: false },
-  });
-  if (playerCount >= 10) {
-    return NextResponse.json({ error: "赛事已满员，等待分队" }, { status: 400 });
-  }
-
-  const existing = await prisma.tournamentPlayer.findUnique({
+  const existingPlayer = await prisma.tournamentPlayer.findUnique({
     where: { tournamentId_userId: { tournamentId: tournament.id, userId } },
+    select: { id: true },
   });
-  if (existing) return NextResponse.json({ error: "你已在赛事中" }, { status: 409 });
+  const playerCount = tournament._count.players;
+  const deadlinePassed = tournament.deadline.getTime() <= Date.now();
+  const canJoin = tournament.status === "recruiting"
+    && !deadlinePassed
+    && playerCount < 10;
+  const unavailableReason = canJoin || existingPlayer
+    ? null
+    : playerCount >= 10
+      ? "房间已满员，报名自动截止"
+      : "房间报名已截止";
 
-  await prisma.tournamentPlayer.create({
-    data: { tournamentId: tournament.id, userId, isSpectator: false },
+  return NextResponse.json({
+    room: {
+      id: tournament.id,
+      code: tournament.code,
+      name: tournament.name,
+      deadline: tournament.deadline.toISOString(),
+      status: tournament.status,
+      isPublic: tournament.isPublic,
+      announcement: tournament.announcement,
+      playerCount,
+    },
+    existing: Boolean(existingPlayer),
+    canJoin,
+    unavailableReason,
   });
-
-  return NextResponse.json({ tournamentId: tournament.id, name: tournament.name });
 }

@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireAuth } from "@/lib/auth";
-import { splitTeams } from "@/lib/split";
+import { splitTeams } from "@/core/team-balancing";
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const { userId } = await requireAuth().catch(() => ({ userId: 0 }));

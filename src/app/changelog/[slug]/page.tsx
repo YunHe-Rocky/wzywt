@@ -94,12 +94,15 @@ function renderMD(md: string): { html: React.ReactNode[]; toc: TocItem[] } {
   return { html: nodes, toc };
 }
 
-// Parse inline markdown: **bold** and `code`
+// Parse inline markdown: **bold**, *italic*, and `code`
 function parseInline(text: string): React.ReactNode {
-  const parts = text.split(/(\*\*.*?\*\*|`.*?`)/g);
+  const parts = text.split(/(\*\*.*?\*\*|\*[^*].*?[^*]\*|`.*?`)/g);
   return parts.map((part, i) => {
     if (part.startsWith("**") && part.endsWith("**")) {
       return <strong key={i} style={{ color: "var(--text)" }}>{part.slice(2, -2)}</strong>;
+    }
+    if (part.startsWith("*") && part.endsWith("*") && part.length > 2) {
+      return <em key={i} style={{ color: "var(--text-secondary)" }}>{part.slice(1, -1)}</em>;
     }
     if (part.startsWith("`") && part.endsWith("`")) {
       return <code key={i} style={{
@@ -162,7 +165,7 @@ export default function ChangelogDetailPage() {
   }, [toc, mdContent]);
 
   return (
-    <div style={{ maxWidth: 960, margin: "0 auto", padding: "40px 24px", display: "flex", gap: 32 }}>
+    <div className="page-shell page-shell--medium doc-layout">
       {/* Main content */}
       <div style={{ flex: 1, minWidth: 0 }}>
         <Link href="/" style={{ fontSize: 13, color: "var(--text-muted)", textDecoration: "none", display: "inline-block", marginBottom: 24 }}>
@@ -188,9 +191,7 @@ export default function ChangelogDetailPage() {
 
       {/* Right TOC */}
       {toc.length > 0 && (
-        <nav style={{
-          width: 200, flexShrink: 0, position: "sticky", top: 80, alignSelf: "flex-start",
-        }}>
+        <nav className="doc-sidebar">
           <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-muted)", marginBottom: 10, letterSpacing: 1 }}>
             目录
           </div>

@@ -48,7 +48,7 @@ export default function EquipmentDetailPage() {
 
   if (loading) {
     return (
-      <div style={{ maxWidth: 640, margin: "0 auto", padding: "40px 24px" }}>
+      <div className="page-shell page-shell--narrow">
         <div className="skeleton" style={{ height: 300 }} />
       </div>
     );
@@ -56,7 +56,7 @@ export default function EquipmentDetailPage() {
 
   if (!item) {
     return (
-      <div style={{ maxWidth: 640, margin: "0 auto", padding: "40px 24px", textAlign: "center" }}>
+      <div className="page-shell page-shell--narrow" style={{ textAlign: "center" }}>
         <p style={{ color: "var(--text-secondary)", fontSize: 16 }}>装备不存在</p>
         <button onClick={() => router.push("/equipment")} className="btn-ghost" style={{ marginTop: 16 }}>
           返回图鉴
@@ -68,7 +68,7 @@ export default function EquipmentDetailPage() {
   const activeStats = STATS.filter((s) => item[s.key] > 0);
 
   return (
-    <div style={{ maxWidth: 640, margin: "0 auto", padding: "40px 24px" }}>
+    <div className="page-shell page-shell--narrow">
       <button
         onClick={() => router.push("/equipment")}
         className="btn-subtle"
@@ -77,7 +77,7 @@ export default function EquipmentDetailPage() {
         ← 返回图鉴
       </button>
 
-      <div style={{ display: "flex", gap: 24, marginBottom: 28, alignItems: "flex-start" }}>
+      <div className="equipment-detail-header">
         <div style={{
           width: 100, height: 100, borderRadius: 16, flexShrink: 0,
           overflow: "hidden", background: "var(--bg-card)",

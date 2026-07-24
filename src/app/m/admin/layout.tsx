@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/db";
-import { MobileAdminLayout } from "@/components/admin/MobileAdminLayout";
+import { MobileAdminLayout } from "@/web/components/admin/MobileAdminLayout";
 
 export default async function AdminMLayout({ children }: { children: React.ReactNode }) {
   const session = await getSession();

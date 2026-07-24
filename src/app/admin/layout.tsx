@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/db";
-import { AdminSidebar } from "@/components/admin/AdminSidebar";
+import { AdminSidebar } from "@/web/components/admin/AdminSidebar";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const session = await getSession();
@@ -21,9 +21,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   }
 
   return (
-    <div className="min-h-screen flex">
+    <div className="admin-shell">
       <AdminSidebar username={session.username!} />
-      <main className="flex-1 min-w-0 rounded-tr-2xl rounded-br-2xl rounded-bl-2xl" style={{ background: "var(--bg-card)" }}>{children}</main>
+      <main className="admin-main" style={{ background: "var(--bg-card)" }}>{children}</main>
     </div>
   );
 }

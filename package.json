@@ -12,7 +12,9 @@
     "db:push": "prisma db push",
     "dev:all": "concurrently \"npm run dev\" \"npm run cron\"",
     "cron": "tsx scripts/cron.ts",
-    "sync-heroes": "tsx src/lib/heroes/sync.ts"
+    "sync-heroes": "tsx scripts/sync-heroes.ts",
+    "check:architecture": "tsx scripts/check-architecture.ts",
+    "test:core": "tsx scripts/test-core.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",

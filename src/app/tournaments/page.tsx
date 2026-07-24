@@ -1,7 +1,7 @@
 "use client";
 
-import { TournamentList } from "@/components/tournament/TournamentList";
-import { PageEntrance } from "@/components/layout/PageEntrance";
+import { TournamentList } from "@/web/components/tournament/TournamentList";
+import { PageEntrance } from "@/web/components/layout/PageEntrance";
 
 export default function TournamentsPage() {
   return (

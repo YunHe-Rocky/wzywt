@@ -3,6 +3,10 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireAuth } from "@/lib/auth";
+import {
+  addTemporaryTournamentPlayer,
+  TournamentCapacityError,
+} from "@/features/tournaments/server/capacity";
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const { userId } = await requireAuth().catch(() => ({ userId: 0 }));
@@ -10,30 +14,22 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   const tournamentId = parseInt(params.id);
   const { tempName } = await req.json();
+  if (tempName !== undefined && (typeof tempName !== "string" || tempName.trim().length > 32)) {
+    return NextResponse.json({ error: "临时选手名称不能超过32个字符" }, { status: 400 });
+  }
 
   const admin = await prisma.tournamentAdmin.findFirst({ where: { tournamentId, userId } });
   if (!admin) return NextResponse.json({ error: "仅管理员操作" }, { status: 403 });
 
-  const playerCount = await prisma.tournamentPlayer.count({
-    where: { tournamentId, isSpectator: false },
-  });
-  if (playerCount >= 10) {
-    return NextResponse.json({ error: "赛事已满员" }, { status: 400 });
+  try {
+    const player = await addTemporaryTournamentPlayer({ tournamentId, tempName });
+    return NextResponse.json({ player });
+  } catch (error) {
+    if (error instanceof TournamentCapacityError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
+    throw error;
   }
-
-  const username = tempName || `临时_${Date.now()}`;
-  // 避免用户名冲突
-  const tempUser = await prisma.user.upsert({
-    where: { username },
-    create: { username, passwordHash: "" },
-    update: {},
-  });
-
-  const player = await prisma.tournamentPlayer.create({
-    data: { tournamentId, userId: tempUser.id, isTemporary: true, tempName, isSpectator: false },
-  });
-
-  return NextResponse.json({ player });
 }
 
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {

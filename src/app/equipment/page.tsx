@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { useEquipment } from "@/hooks/useEquipment";
-import { PageEntrance } from "@/components/layout/PageEntrance";
-import { TIER_LABELS, TIER_FILTERS, CHAR_TAGS, CHAR_COLORS, STAT_PCT_KEYS, STAT_LONG_LABELS } from "@/engine";
+import { useEquipment } from "@/features/equipment/client";
+import { PageEntrance } from "@/web/components/layout/PageEntrance";
+import { TIER_LABELS, TIER_FILTERS, CHAR_TAGS, CHAR_COLORS, STAT_PCT_KEYS, STAT_LONG_LABELS } from "@/core/game";
 
 function matchesFilter(item: any, tier: number, charTag: string): boolean {
   const itemTier = item.meta?.tier ?? (item.extraJson as any)?.tier ?? 0;
@@ -32,7 +32,7 @@ export default function EquipmentPage() {
   if (loading) {
     return (
       <PageEntrance>
-      <div className="stagger-enter" style={{ maxWidth: 960, margin: "0 auto", padding: "40px 24px" }}>
+      <div className="stagger-enter page-shell page-shell--medium">
         <div className="skeleton" style={{ height: 400 }} />
       </div>
       </PageEntrance>
@@ -41,7 +41,7 @@ export default function EquipmentPage() {
 
   return (
     <PageEntrance>
-    <div className="stagger-enter" style={{ maxWidth: 960, margin: "0 auto", padding: "40px 24px" }}>
+    <div className="stagger-enter page-shell page-shell--medium">
       {/* Header */}
       <div style={{ marginBottom: 32 }}>
         <h1 style={{ fontSize: 28, fontWeight: 700, color: "var(--text)", margin: "0 0 8px" }}>
@@ -153,6 +153,9 @@ export default function EquipmentPage() {
                   <img
                     src={imageUrl || `/equipment/images/${item.id}.png`}
                     alt={item.name}
+                    loading="lazy"
+                    width={52}
+                    height={52}
                     style={{ width: "100%", height: "100%", objectFit: "cover" }}
                     onError={(e) => {
                       const t = e.target as HTMLImageElement;

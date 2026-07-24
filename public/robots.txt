@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /api/
+Disallow: /me/
+Disallow: /debug/
+
+Sitemap: https://ywt.yunhe.ink/sitemap.xml

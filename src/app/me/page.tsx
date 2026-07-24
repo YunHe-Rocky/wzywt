@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useAuth } from "@/hooks/useAuth";
-import { RolePreferenceEditor } from "@/components/me/RolePreferenceEditor";
-import { AvatarUpload } from "@/components/me/AvatarUpload";
-import { PageEntrance } from "@/components/layout/PageEntrance";
+import { useAuth } from "@/features/auth/client";
+import { RolePreferenceEditor } from "@/web/components/me/RolePreferenceEditor";
+import { AvatarUpload } from "@/web/components/me/AvatarUpload";
+import { GameProfileEditor } from "@/web/components/me/GameProfileEditor";
+import { PageEntrance } from "@/web/components/layout/PageEntrance";
 
 export default function MePage() {
   const { user } = useAuth();
@@ -15,7 +16,7 @@ export default function MePage() {
   }, [user?.avatar]);
 
   return (
-    <div className="max-w-2xl mx-auto px-4 sm:px-6 py-6 sm:py-10 flex flex-col gap-6">
+    <div className="page-shell page-shell--narrow flex flex-col gap-6">
       <PageEntrance>
         <h1 className="text-[28px] font-extrabold text-gold-light tracking-wider m-0">个人空间</h1>
       </PageEntrance>
@@ -32,6 +33,13 @@ export default function MePage() {
       </PageEntrance>
 
       <PageEntrance stagger={0.3}>
+        <GameProfileEditor
+          gameNickname={user?.gameNickname}
+          gameId={user?.gameId}
+        />
+      </PageEntrance>
+
+      <PageEntrance stagger={0.45}>
         <RolePreferenceEditor />
       </PageEntrance>
     </div>

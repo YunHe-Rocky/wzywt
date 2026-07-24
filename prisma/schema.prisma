@@ -15,6 +15,9 @@ model User {
   securityAnswerHash  String?   @map("security_answer_hash") @db.VarChar(255)
   role          String    @default("user") @db.VarChar(16)  // user | admin
   avatar        String?   @db.VarChar(255)                   // 头像文件名
+  gameNickname  String?   @map("game_nickname") @db.VarChar(32)
+  gameId        String?   @map("game_id") @db.VarChar(64)
+  isTemporary   Boolean   @default(false) @map("is_temporary")
   banned        Boolean   @default(false)                    // 封禁标记
   createdAt           DateTime  @default(now()) @map("created_at")
 
@@ -139,7 +142,8 @@ model Hero {
   baseJson        Json?    @map("base_json")    // {hp,mp,atk,ap,def,mdef,atkSpeed,moveSpeed,hpPerLv,...}
   updatedAt       DateTime @default(now()) @updatedAt @map("updated_at")
 
-  heroSkills HeroSkill[]
+  heroSkills            HeroSkill[]
+  secondaryLaneOverrides HeroSecondaryLane[]
 
   @@map("heroes")
 }
@@ -196,6 +200,18 @@ model HeroLaneOverride {
   roleType String @map("role_type") @db.VarChar(16)
 
   @@map("hero_lane_overrides")
+}
+
+model HeroSecondaryLane {
+  id       Int    @id @default(autoincrement())
+  heroId   Int    @map("hero_id")
+  roleType String @map("role_type") @db.VarChar(16)
+
+  hero Hero @relation(fields: [heroId], references: [heroId], onDelete: Cascade)
+
+  @@unique([heroId, roleType])
+  @@index([roleType])
+  @@map("hero_secondary_lanes")
 }
 
 model KvCache {

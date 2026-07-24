@@ -149,7 +149,8 @@
 | `src/themes/ThemeProvider.tsx` | hash 切换 + hashchange 监听 |
 | `src/app/globals.css` | CSS 变量 + 双主题样式 |
 | `src/app/layout.tsx` | 内联脚本防 FOUC |
-| `src/components/layout/Dock.tsx` | 底部导航（#1 仅移动，#2 常驻） |
-| `src/components/layout/Header.tsx` | 顶部导航（三模式） |
-| `src/components/layout/BackgroundOrbs.tsx` | 动态光晕 |
+| `src/components/layout/Header.tsx` | 顶部导航（双主题单组件） |
+| `src/components/layout/alternate/Dock.tsx` | 底部导航（#2 专属） |
+| `src/components/layout/BackgroundOrbs.tsx` | 动态光晕（支持 prefers-reduced-motion） |
+| `src/components/layout/CursorLighting.tsx` | 鼠标跟随光照 |
 | `tailwind.config.ts` | Tailwind token → CSS 变量 |

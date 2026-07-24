@@ -101,7 +101,7 @@ async function main() {
   // 同步英雄 + 绑定命格
   console.log("\n同步英雄数据...");
   try {
-    const { syncHeroes } = await import("../src/lib/heroes/sync");
+    const { syncHeroes } = await import("../src/features/heroes/server/sync");
     const r = await syncHeroes();
     console.log(`  ✓ ${r.inserted} new, ${r.updated} updated`);
   } catch(e: any) { console.log(`  ⚠ ${e.message}`); }

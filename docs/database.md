@@ -15,6 +15,9 @@ MySQL `yanwutang_test` @ 38.22.234.148:3306
 | security_answer_hash | VARCHAR(255) | 安全问题答案的 bcrypt 哈希 |
 | role | VARCHAR(16) | 角色：`admin` 管理员 / `user` 普通用户（默认） |
 | avatar | VARCHAR(255) | 头像文件名，存储在 `/data/uploads/avatars/` |
+| game_nickname | VARCHAR(32) | 游戏昵称，可为空 |
+| game_id | VARCHAR(64) | 游戏 ID，可为空 |
+| is_temporary | BOOLEAN | 是否为赛事补位占位账号；后台用户统计排除，房间过期后删除 |
 | banned | BOOLEAN | 封禁标记（默认 false），封禁后无法登录 |
 | created_at | DATETIME | 注册时间 |
 
@@ -76,6 +79,18 @@ MySQL `yanwutang_test` @ 38.22.234.148:3306
 | role_type | VARCHAR(16) | 手动指定的分路 |
 
 **说明**：爬虫同步不会覆盖此表。超管通过后台英雄管理页修改分路，写入此表。API 返回英雄时优先使用此表的分路。
+
+---
+
+## hero_secondary_lanes — 英雄附属分路
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | INT | 主键，自增 |
+| hero_id | INT | 关联 `heroes.hero_id`，英雄删除时级联删除 |
+| role_type | VARCHAR(16) | 附属分路：top/jungle/mid/adc/support |
+
+**约束**：`(hero_id, role_type)` 唯一。仅 admin 可通过后台维护；主分路不能重复出现在附属分路中。
 
 ---
 

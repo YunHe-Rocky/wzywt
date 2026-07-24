@@ -1,5 +1,5 @@
 import { prisma } from "../src/lib/db";
-import { HERO_STAT_PROFILES } from "../src/engine/combat";
+import { HERO_STAT_PROFILES } from "../src/core/game/combat";
 
 async function main() {
   const heroes = await prisma.hero.findMany();

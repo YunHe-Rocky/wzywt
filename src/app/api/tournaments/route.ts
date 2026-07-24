@@ -22,7 +22,7 @@ export async function GET() {
       status: { not: "finished" },
     },
     include: {
-      _count: { select: { players: true } },
+      _count: { select: { players: { where: { isSpectator: false } } } },
       admins: { select: { userId: true, role: true } },
     },
     orderBy: { deadline: "asc" },
@@ -38,7 +38,7 @@ export async function GET() {
       id: { notIn: myIds },
     },
     include: {
-      _count: { select: { players: true } },
+      _count: { select: { players: { where: { isSpectator: false } } } },
       admins: { select: { userId: true, role: true } },
     },
     orderBy: { deadline: "asc" },

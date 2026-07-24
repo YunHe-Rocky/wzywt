@@ -3,6 +3,10 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireAuth } from "@/lib/auth";
+import {
+  addTemporaryTournamentPlayer,
+  TournamentCapacityError,
+} from "@/features/tournaments/server/capacity";
 
 export async function PUT(req: NextRequest, { params }: { params: { id: string; appId: string } }) {
   const { userId } = await requireAuth().catch(() => ({ userId: 0 }));
@@ -19,15 +23,24 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string; 
   if (!app) return NextResponse.json({ error: "申请不存在" }, { status: 404 });
 
   if (status === "approved") {
-    // Create a temp User record (empty password = can't login)
-    const tempUser = await prisma.user.create({
-      data: { username: app.tempName || `临时_${Date.now()}`, passwordHash: "" },
-    });
-    await prisma.tournamentPlayer.create({
-      data: { tournamentId, userId: tempUser.id, isTemporary: true, tempName: app.tempName, isSpectator: false },
-    });
+    try {
+      await addTemporaryTournamentPlayer({
+        tournamentId,
+        tempName: app.tempName,
+        applicationId: appId,
+      });
+      return NextResponse.json({ ok: true });
+    } catch (error) {
+      if (error instanceof TournamentCapacityError) {
+        return NextResponse.json({ error: error.message }, { status: error.status });
+      }
+      throw error;
+    }
   }
 
+  if (status !== "rejected") {
+    return NextResponse.json({ error: "无效的审批状态" }, { status: 400 });
+  }
   await prisma.tempPlayerApplication.update({ where: { id: appId }, data: { status } });
   return NextResponse.json({ ok: true });
 }

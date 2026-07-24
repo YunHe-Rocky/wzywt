@@ -14,10 +14,20 @@ export async function GET() {
   }
   const user = await prisma.user.findUnique({
     where: { id: session.userId },
-    select: { id: true, username: true, securityQuestion: true, role: true, avatar: true, banned: true },
+    select: {
+      id: true,
+      username: true,
+      securityQuestion: true,
+      role: true,
+      avatar: true,
+      gameNickname: true,
+      gameId: true,
+      isTemporary: true,
+      banned: true,
+    },
   });
   // 用户已被删除 → 清除幽灵 session
-  if (!user) {
+  if (!user || user.isTemporary) {
     session.destroy();
     return NextResponse.json({ user: null }, {
       headers: { "Cache-Control": "no-store, no-cache, must-revalidate", "Pragma": "no-cache", "Expires": "0" },
@@ -38,6 +48,8 @@ export async function GET() {
       hasSecurityQuestion: !!user.securityQuestion,
       role: user.role,
       avatar: user.avatar,
+      gameNickname: user.gameNickname,
+      gameId: user.gameId,
     },
   }, {
     headers: {

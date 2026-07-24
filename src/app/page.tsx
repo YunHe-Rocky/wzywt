@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useAnnouncements } from "@/hooks/useAnnouncements";
-import { useToast } from "@/components/ui/Toast";
+import { useAnnouncements } from "@/features/announcements/client";
+import { useToast } from "@/web/components/ui/Toast";
 
 interface OfficialNews { title: string; date: string; url: string; }
 interface PublicTournament { id: number; name: string; code: string; announcement: string | null; _count: { players: number }; deadline: string; }
@@ -17,8 +17,11 @@ function AnnouncementContent({ a }: { a: Announcement }) {
 }
 
 function SkeletonLines({ count }: { count: number }) {
+  const widths = [92, 78, 86, 72];
   return <div className="flex flex-col gap-2.5">
-    {Array.from({ length: count }).map((_, i) => <div key={i} className="skeleton rounded h-3.5" style={{ width: `${70 + Math.random() * 30}%` }} />)}
+    {Array.from({ length: count }).map((_, i) => (
+      <div key={i} className="skeleton rounded h-3.5" style={{ width: `${widths[i % widths.length]}%` }} />
+    ))}
   </div>;
 }
 
@@ -130,7 +133,7 @@ export default function Home() {
   }, []);
 
   return (
-    <div className="max-w-5xl mx-auto px-4 px-6 py-6 py-8">
+    <div className="page-shell page-shell--wide">
       {/* Brand */}
       <div className="mb-5 text-center text-left" style={{ animation: brandAnim }}>
         <h1 className="text-2xl font-extrabold text-gold-light tracking-wider mb-1">王者演武堂</h1>

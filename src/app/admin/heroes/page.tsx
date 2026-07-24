@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ROLE_BADGES, CLASS_BADGES, ROLES, CLASS_TO_LANE } from "@/engine";
+import { ROLE_BADGES, CLASS_BADGES, ROLES, CLASS_TO_LANE } from "@/core/game";
 
 interface Hero {
   heroId: number;
   name: string;
   title: string;
   roleType: string;
+  secondaryRoleTypes: string[];
   heroType: number;
   heroType2: number;
 }
@@ -22,26 +23,42 @@ export default function AdminHeroesPage() {
   useEffect(() => {
     fetch("/api/heroes")
       .then((r) => r.json())
-      .then((data) => { setHeroes(data); setLoading(false); });
+      .then((data) => {
+        setHeroes(Array.isArray(data)
+          ? data.map((hero) => ({ ...hero, secondaryRoleTypes: hero.secondaryRoleTypes ?? [] }))
+          : []);
+      })
+      .catch(() => setHeroes([]))
+      .finally(() => setLoading(false));
   }, []);
 
-  async function changeLane(heroId: number, roleType: string) {
+  async function saveLanes(heroId: number, roleType: string, secondaryRoleTypes: string[]) {
     setSaving((prev) => ({ ...prev, [heroId]: true }));
     setErrors((prev) => { const n = { ...prev }; delete n[heroId]; return n; });
 
-    const res = await fetch(`/api/heroes/${heroId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ roleType }),
-    });
+    try {
+      const normalizedSecondary = secondaryRoleTypes.filter((lane) => lane !== roleType);
+      const res = await fetch(`/api/heroes/${heroId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ roleType, secondaryRoleTypes: normalizedSecondary }),
+      });
 
-    if (res.ok) {
-      setHeroes((prev) => prev.map((h) => (h.heroId === heroId ? { ...h, roleType } : h)));
-    } else {
-      const err = await res.json().catch(() => ({ error: "保存失败" }));
-      setErrors((prev) => ({ ...prev, [heroId]: err.error || "保存失败" }));
+      if (res.ok) {
+        setHeroes((prev) => prev.map((hero) => (
+          hero.heroId === heroId
+            ? { ...hero, roleType, secondaryRoleTypes: normalizedSecondary }
+            : hero
+        )));
+      } else {
+        const err = await res.json().catch(() => ({ error: "保存失败" }));
+        setErrors((prev) => ({ ...prev, [heroId]: err.error || "保存失败" }));
+      }
+    } catch {
+      setErrors((prev) => ({ ...prev, [heroId]: "网络异常，请重试" }));
+    } finally {
+      setSaving((prev) => { const n = { ...prev }; delete n[heroId]; return n; });
     }
-    setSaving((prev) => { const n = { ...prev }; delete n[heroId]; return n; });
   }
 
   const filtered = heroes.filter((h) => {
@@ -50,7 +67,7 @@ export default function AdminHeroesPage() {
       const d = CLASS_TO_LANE[h.heroType];
       return d && h.roleType !== d;
     }
-    return h.roleType === filter;
+    return h.roleType === filter || h.secondaryRoleTypes.includes(filter);
   });
 
   if (loading) {
@@ -60,7 +77,7 @@ export default function AdminHeroesPage() {
   return (
     <div className="px-6 py-8">
       <h1 className="text-xl font-bold mb-1">英雄分路管理</h1>
-      <p className="text-[12px] text-text-muted mb-5">修改即保存 · 同步不覆盖 · 共 {heroes.length} 位英雄</p>
+      <p className="text-[12px] text-text-muted mb-5">主分路与附属分路修改即保存 · 同步不覆盖 · 共 {heroes.length} 位英雄</p>
 
       {/* Filter */}
       <div className="flex gap-1.5 mb-5 flex-wrap">
@@ -96,6 +113,7 @@ export default function AdminHeroesPage() {
                 <th className="py-3 px-5 text-left text-[11px] font-semibold text-text-muted uppercase tracking-wider">英雄</th>
                 <th className="py-3 px-5 text-left text-[11px] font-semibold text-text-muted uppercase tracking-wider">职业</th>
                 <th className="py-3 px-5 text-left text-[11px] font-semibold text-text-muted uppercase tracking-wider">分路</th>
+                <th className="py-3 px-5 text-left text-[11px] font-semibold text-text-muted uppercase tracking-wider min-w-[300px]">附属分路</th>
               </tr>
             </thead>
             <tbody>
@@ -148,7 +166,7 @@ export default function AdminHeroesPage() {
                         <select
                           value={hero.roleType}
                           disabled={isSaving}
-                          onChange={(e) => changeLane(hero.heroId, e.target.value)}
+                          onChange={(e) => void saveLanes(hero.heroId, e.target.value, hero.secondaryRoleTypes)}
                           className="text-[12px] w-[120px] px-2.5 py-1 rounded-md border border-border-light bg-input text-text disabled:opacity-50 focus:outline-none focus:border-gold/30"
                         >
                           {ROLES.map((r) => (
@@ -159,6 +177,39 @@ export default function AdminHeroesPage() {
                         </select>
                         {isSaving && <span className="text-[11px] text-gold shrink-0 animate-pulse">保存中...</span>}
                         {err && <span className="text-[11px] text-red shrink-0">{err}</span>}
+                      </div>
+                    </td>
+                    <td className="py-3 px-5">
+                      <div className="flex flex-wrap gap-1.5" aria-label={`${hero.name}附属分路`}>
+                        {ROLES.filter((role) => role !== hero.roleType).map((role) => {
+                          const selected = hero.secondaryRoleTypes.includes(role);
+                          const badge = ROLE_BADGES[role];
+                          return (
+                            <button
+                              key={role}
+                              type="button"
+                              disabled={isSaving}
+                              aria-pressed={selected}
+                              onClick={() => {
+                                const next = selected
+                                  ? hero.secondaryRoleTypes.filter((lane) => lane !== role)
+                                  : [...hero.secondaryRoleTypes, role];
+                                void saveLanes(hero.heroId, hero.roleType, next);
+                              }}
+                              className="min-h-9 px-2.5 rounded-md text-[11px] font-semibold border transition-colors disabled:opacity-50"
+                              style={{
+                                background: selected ? `${badge.color}18` : "var(--bg-input)",
+                                color: selected ? badge.color : "var(--text-muted)",
+                                borderColor: selected ? `${badge.color}45` : "var(--border-light)",
+                              }}
+                            >
+                              {badge.label}
+                            </button>
+                          );
+                        })}
+                        {hero.secondaryRoleTypes.length === 0 && (
+                          <span className="self-center text-[11px] text-text-muted">未设置</span>
+                        )}
                       </div>
                     </td>
                   </tr>

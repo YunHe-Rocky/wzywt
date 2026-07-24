@@ -5,8 +5,8 @@ set -e
 cd /opt/yanwutang
 
 echo ">>> stop old services..."
-pm2 stop all 2>/dev/null || true
-pm2 delete all 2>/dev/null || true
+pm2 stop yanwutang-web yanwutang-cron 2>/dev/null || true
+pm2 delete yanwutang-web yanwutang-cron 2>/dev/null || true
 fuser -k 8081/tcp 2>/dev/null || true
 sleep 1
 
@@ -34,11 +34,11 @@ ls -t "$BACKUP_DIR"/yanwutang-*.sql 2>/dev/null | tail -n +11 | xargs rm -f 2>/d
 echo ">>> npm install..."
 npm install
 
+echo ">>> prisma migrate deploy..."
+npx prisma migrate deploy
+
 echo ">>> prisma generate..."
 npx prisma generate
-
-echo ">>> prisma db push..."
-npx prisma db push --skip-generate
 
 echo ">>> migrate announcements..."
 npx tsx scripts/migrate-announcements.ts 2>/dev/null || echo "  (skipped)"
@@ -47,7 +47,7 @@ echo ">>> bind mingge relationships..."
 npx tsx scripts/migrate-mingge.ts 2>/dev/null || echo "  (skipped)"
 
 echo ">>> sync heroes data..."
-npx tsx -e "import('src/lib/heroes/sync').then(m=>m.syncHeroes().then(r=>console.log('synced:',r.inserted,'new,',r.updated,'updated')).catch(e=>console.error(e)))" 2>/dev/null || echo "  (skipped)"
+npm run sync-heroes 2>/dev/null || echo "  (skipped)"
 
 echo ">>> clean build cache..."
 rm -rf .next

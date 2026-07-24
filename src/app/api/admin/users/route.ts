@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { requireSuperAdmin } from "@/lib/permissions";
 import { prisma } from "@/lib/db";
+import { Prisma } from "@prisma/client";
 
 export async function GET(req: NextRequest) {
   const { userId } = await requireSuperAdmin().catch(() => ({ userId: 0 }));
@@ -13,9 +14,10 @@ export async function GET(req: NextRequest) {
   const pageSize = 20;
   const search = searchParams.get("search") || "";
 
-  const where = search
-    ? { username: { contains: search } }
-    : {};
+  const where: Prisma.UserWhereInput = {
+    isTemporary: false,
+    ...(search ? { username: { contains: search } } : {}),
+  };
 
   const [users, total] = await Promise.all([
     prisma.user.findMany({

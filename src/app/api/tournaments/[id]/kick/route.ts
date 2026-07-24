@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireAuth } from "@/lib/auth";
+import { reconcileTournamentCapacity } from "@/features/tournaments/server/capacity";
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const { userId } = await requireAuth().catch(() => ({ userId: 0 }));
@@ -24,22 +25,25 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     where: { tournamentId, userId: targetUserId, role: "co_owner" },
   });
 
-  await prisma.$transaction([
-    ...(targetIsCoOwner
-      ? [prisma.tournamentAdmin.delete({ where: { tournamentId_userId: { tournamentId, userId: targetUserId } } })]
-      : []),
-    prisma.tournamentPlayer.delete({
+  await prisma.$transaction(async (tx) => {
+    if (targetIsCoOwner) {
+      await tx.tournamentAdmin.delete({
+        where: { tournamentId_userId: { tournamentId, userId: targetUserId } },
+      });
+    }
+    await tx.tournamentPlayer.delete({
       where: { tournamentId_userId: { tournamentId, userId: targetUserId } },
-    }),
-    prisma.adminOperation.create({
+    });
+    await tx.adminOperation.create({
       data: {
         tournamentId,
         adminId: userId,
         action: targetIsCoOwner ? "demote_and_kick" : "kick",
         targetId: targetUserId,
       },
-    }),
-  ]);
+    });
+    await reconcileTournamentCapacity(tx, tournamentId);
+  });
 
   return NextResponse.json({ ok: true });
 }

@@ -3,8 +3,8 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { writeFile, mkdir } from "fs/promises";
-import { join } from "path";
+import { writeFile, mkdir, unlink } from "fs/promises";
+import { basename, join } from "path";
 import { existsSync } from "fs";
 
 const AVATAR_DIR = process.env.AVATAR_DIR || "/data/uploads/avatars";
@@ -25,6 +25,9 @@ export async function POST(req: NextRequest) {
   if (file.size > MAX_SIZE) {
     return NextResponse.json({ error: "图片大小不能超过 2MB" }, { status: 400 });
   }
+  if (file.size === 0) {
+    return NextResponse.json({ error: "图片文件为空" }, { status: 400 });
+  }
 
   if (!existsSync(AVATAR_DIR)) {
     await mkdir(AVATAR_DIR, { recursive: true });
@@ -33,9 +36,24 @@ export async function POST(req: NextRequest) {
   const ext = file.type.split("/")[1].replace("jpeg", "jpg");
   const filename = `${userId}_${Date.now()}.${ext}`;
   const buffer = Buffer.from(await file.arrayBuffer());
-  await writeFile(join(AVATAR_DIR, filename), buffer);
+  const nextPath = join(AVATAR_DIR, filename);
+  const current = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { avatar: true },
+  });
+  await writeFile(nextPath, buffer);
 
-  await prisma.user.update({ where: { id: userId }, data: { avatar: filename } });
+  try {
+    await prisma.user.update({ where: { id: userId }, data: { avatar: filename } });
+  } catch (error) {
+    await unlink(nextPath).catch(() => {});
+    throw error;
+  }
+
+  // 数据库更新成功后再清理旧文件，失败不会影响新头像。
+  if (current?.avatar && basename(current.avatar) === current.avatar) {
+    await unlink(join(AVATAR_DIR, current.avatar)).catch(() => {});
+  }
 
   return NextResponse.json({ avatar: filename });
 }

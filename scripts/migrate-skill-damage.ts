@@ -1,5 +1,5 @@
 import { prisma } from "../src/lib/db";
-import { parseSkillDamage } from "../src/engine/data";
+import { parseSkillDamage } from "../src/core/game/data";
 
 async function main() {
   const skills = await prisma.heroSkill.findMany({

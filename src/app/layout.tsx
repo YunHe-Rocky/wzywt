@@ -1,15 +1,15 @@
 import "./globals.css";
 import type { Metadata } from "next";
-import { ThemeLayout } from "@/components/layout/ThemeLayout";
-import { CursorLighting } from "@/components/layout/CursorLighting";
-import { BackgroundOrbs } from "@/components/layout/BackgroundOrbs";
-import { ToastProvider } from "@/components/ui/Toast";
-import { ThemeProvider } from "@/themes/ThemeProvider";
+import { ThemeLayout } from "@/web/components/layout/ThemeLayout";
+import { CursorLighting } from "@/web/components/layout/CursorLighting";
+import { BackgroundOrbs } from "@/web/components/layout/BackgroundOrbs";
+import { ToastProvider } from "@/web/components/ui/Toast";
+import { ThemeProvider } from "@/web/themes/ThemeProvider";
 
 export const metadata: Metadata = {
   title: "王者演武堂",
   description: "王者荣耀内战分队系统",
-  viewport: { width: "device-width", initialScale: 1 },
+  icons: { icon: "/icon.svg" },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
