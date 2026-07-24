@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { type FormEvent, useEffect, useState } from "react";
+import { type FormEvent, useEffect, useRef, useState } from "react";
 import {
   createAdminAnnouncement,
   deleteAdminAnnouncement,
@@ -10,6 +10,34 @@ import {
   type AdminAnnouncement,
 } from "@/features/announcements/client";
 import { MarkdownContent } from "@/web/components/content/MarkdownContent";
+
+const ANNOUNCEMENT_TEMPLATES = {
+  update: `# 主要更新
+
+-
+
+## 优化内容
+
+-
+
+## 修复内容
+
+- `,
+  maintenance: `# 维护通知
+
+## 维护时间
+
+- 开始时间：
+- 预计结束：
+
+## 维护内容
+
+-
+
+## 注意事项
+
+- `,
+} as const;
 
 export function AnnouncementManager() {
   const [list, setList] = useState<AdminAnnouncement[]>([]);
@@ -23,6 +51,7 @@ export function AnnouncementManager() {
   const [version, setVersion] = useState("");
   const [content, setContent] = useState("");
   const [slug, setSlug] = useState("");
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     void load();
@@ -56,6 +85,29 @@ export function AnnouncementManager() {
     setMessage("");
     setError("");
     setShowForm(true);
+  }
+
+  function insertMarkdown(prefix: string, suffix = "", placeholder = "") {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const selected = content.slice(start, end) || placeholder;
+    const nextContent = `${content.slice(0, start)}${prefix}${selected}${suffix}${content.slice(end)}`;
+    const selectionStart = start + prefix.length;
+
+    setContent(nextContent);
+    requestAnimationFrame(() => {
+      textarea.focus();
+      textarea.setSelectionRange(selectionStart, selectionStart + selected.length);
+    });
+  }
+
+  function applyTemplate(template: keyof typeof ANNOUNCEMENT_TEMPLATES) {
+    if (content.trim() && !confirm("应用模板会覆盖当前正文，是否继续？")) return;
+    setContent(ANNOUNCEMENT_TEMPLATES[template]);
+    requestAnimationFrame(() => textareaRef.current?.focus());
   }
 
   async function save(event: FormEvent) {
@@ -135,7 +187,6 @@ export function AnnouncementManager() {
               </h2>
               <p className="text-xs text-text-muted mt-1">填写公告标题信息和 Markdown 正文，摘要与访问地址由系统生成。</p>
             </div>
-            <button type="button" onClick={() => setShowForm(false)} className="btn-ghost min-w-11 min-h-11" aria-label="关闭公告编辑器">×</button>
           </div>
 
           <form onSubmit={save} className="flex flex-col gap-5">
@@ -169,11 +220,25 @@ export function AnnouncementManager() {
             </fieldset>
 
             <div>
-              <div className="mb-2 text-xs font-semibold text-text">主要内容（Markdown）</div>
+              <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
+                <div className="text-xs font-semibold text-text">主要内容（Markdown）</div>
+                <div className="flex flex-wrap gap-2" aria-label="Markdown 快捷工具">
+                  <button type="button" onClick={() => insertMarkdown("# ", "", "一级标题")} className="btn-subtle min-h-9 px-3 text-xs">H1</button>
+                  <button type="button" onClick={() => insertMarkdown("## ", "", "二级标题")} className="btn-subtle min-h-9 px-3 text-xs">H2</button>
+                  <button type="button" onClick={() => insertMarkdown("### ", "", "三级标题")} className="btn-subtle min-h-9 px-3 text-xs">H3</button>
+                  <button type="button" onClick={() => insertMarkdown("**", "**", "加粗文字")} className="btn-subtle min-h-9 px-3 text-xs">粗体</button>
+                  <button type="button" onClick={() => insertMarkdown("- ", "", "列表项")} className="btn-subtle min-h-9 px-3 text-xs">列表</button>
+                  <button type="button" onClick={() => insertMarkdown("> ", "", "引用内容")} className="btn-subtle min-h-9 px-3 text-xs">引用</button>
+                  <button type="button" onClick={() => insertMarkdown("\n---\n")} className="btn-subtle min-h-9 px-3 text-xs">分隔线</button>
+                  <button type="button" onClick={() => applyTemplate("update")} className="btn-subtle min-h-9 px-3 text-xs">版本更新模板</button>
+                  <button type="button" onClick={() => applyTemplate("maintenance")} className="btn-subtle min-h-9 px-3 text-xs">维护通知模板</button>
+                </div>
+              </div>
               <div className="announcement-editor-grid">
                 <label className="flex flex-col gap-1.5">
                   <span className="text-[11px] text-text-muted">编辑区</span>
                   <textarea
+                    ref={textareaRef}
                     value={content}
                     onChange={(event) => setContent(event.target.value)}
                     required

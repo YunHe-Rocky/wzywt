@@ -42,12 +42,14 @@ export function MarkdownContent({ content }: { content: string }) {
       index++;
       continue;
     }
-    if (/^#{2,3}\s+/.test(line)) {
-      const level = line.startsWith("### ") ? 3 : 2;
-      const text = line.replace(/^#{2,3}\s+/, "");
-      nodes.push(level === 2
-        ? <h2 key={key++} style={{ margin: "22px 0 8px", paddingBottom: 7, borderBottom: "1px solid var(--border-light)", color: "var(--text)", fontSize: 18, fontWeight: 700 }}>{text}</h2>
-        : <h3 key={key++} style={{ margin: "16px 0 6px", color: "var(--text)", fontSize: 15, fontWeight: 700 }}>{text}</h3>);
+    if (/^#{1,3}\s+/.test(line)) {
+      const level = line.startsWith("### ") ? 3 : line.startsWith("## ") ? 2 : 1;
+      const text = line.replace(/^#{1,3}\s+/, "");
+      nodes.push(level === 1
+        ? <h1 key={key++} style={{ margin: "24px 0 10px", color: "var(--text)", fontSize: 22, fontWeight: 750 }}>{renderInline(text)}</h1>
+        : level === 2
+          ? <h2 key={key++} style={{ margin: "22px 0 8px", paddingBottom: 7, borderBottom: "1px solid var(--border-light)", color: "var(--text)", fontSize: 18, fontWeight: 700 }}>{renderInline(text)}</h2>
+          : <h3 key={key++} style={{ margin: "16px 0 6px", color: "var(--text)", fontSize: 15, fontWeight: 700 }}>{renderInline(text)}</h3>);
       index++;
       continue;
     }
@@ -71,14 +73,28 @@ export function MarkdownContent({ content }: { content: string }) {
       index++;
       continue;
     }
+    if (/^>\s?/.test(line)) {
+      const quote: string[] = [];
+      while (index < lines.length && /^>\s?/.test(lines[index].trim())) {
+        quote.push(lines[index].trim().replace(/^>\s?/, ""));
+        index++;
+      }
+      nodes.push(
+        <blockquote key={key++} style={{ margin: "10px 0", padding: "8px 12px", borderLeft: "3px solid var(--gold)", background: "var(--bg-input)", color: "var(--text-secondary)" }}>
+          {renderLineBreaks(quote)}
+        </blockquote>,
+      );
+      continue;
+    }
 
     const paragraph = [line];
     index++;
     while (
       index < lines.length
       && lines[index].trim()
-      && !/^#{2,3}\s+/.test(lines[index].trim())
+      && !/^#{1,3}\s+/.test(lines[index].trim())
       && !/^[-*+]\s+/.test(lines[index].trim())
+      && !/^>\s?/.test(lines[index].trim())
       && !/^(---|\*\*\*)$/.test(lines[index].trim())
     ) {
       paragraph.push(lines[index].trim());
