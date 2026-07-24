@@ -39,7 +39,7 @@ function Inline({ text }: { text: string }) {
 function useMD(md: string) {
   return useMemo(() => {
     const toc: TocItem[] = [];
-    const lines = md.split("\n");
+    const lines = md.replace(/\\n/g, "\n").split(/\r?\n/);
     const nodes: React.ReactNode[] = [];
     let key = 0, i = 0;
     while (i < lines.length && (lines[i].startsWith("# ") || lines[i].startsWith(">") || lines[i].trim() === "" || lines[i].startsWith("---"))) i++;
@@ -47,6 +47,11 @@ function useMD(md: string) {
       const line = lines[i];
       if (!line.trim()) { i++; continue; }
       if (line.trim() === "---") { nodes.push(<div key={key++} className="divider my-2" />); i++; continue; }
+      if (line.startsWith("# ")) {
+        const text = line.replace("# ", "");
+        nodes.push(<h2 key={key++} className="text-base font-bold text-text mt-4 mb-1">{text}</h2>);
+        i++; continue;
+      }
       if (line.startsWith("## ")) {
         const text = line.replace("## ", "");
         toc.push({ id: "s-" + toc.length, text, level: 2 });
@@ -97,8 +102,8 @@ function useMD(md: string) {
         continue;
       }
       let para = line; i++;
-      while (i < lines.length && lines[i].trim() && !lines[i].startsWith("#") && !lines[i].startsWith("|") && !lines[i].startsWith("- ") && !lines[i].startsWith("---")) { para += " " + lines[i]; i++; }
-      nodes.push(<p key={key++} className="text-xs text-text-secondary leading-relaxed my-0.5"><Inline text={para} /></p>);
+      while (i < lines.length && lines[i].trim() && !lines[i].startsWith("#") && !lines[i].startsWith("|") && !lines[i].startsWith("- ") && !lines[i].startsWith("---")) { para += "\n" + lines[i]; i++; }
+      nodes.push(<p key={key++} className="text-xs text-text-secondary leading-relaxed my-0.5 whitespace-pre-line"><Inline text={para} /></p>);
     }
     return { nodes, toc };
   }, [md]);

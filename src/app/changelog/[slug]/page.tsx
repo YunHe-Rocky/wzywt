@@ -9,7 +9,7 @@ interface TocItem { id: string; text: string }
 // Simple MD → JSX renderer
 function renderMD(md: string): { html: React.ReactNode[]; toc: TocItem[] } {
   const toc: TocItem[] = [];
-  const lines = md.split("\n");
+  const lines = md.replace(/\\n/g, "\n").split(/\r?\n/);
 
   // Skip the main title line (first #) and metadata
   let startIdx = 0;
@@ -36,6 +36,15 @@ function renderMD(md: string): { html: React.ReactNode[]; toc: TocItem[] } {
     // HR
     if (line.trim() === "---" || line.trim() === "***") {
       nodes.push(<div key={key++} className="divider" style={{ margin: "16px 0" }} />);
+      i++; continue;
+    }
+
+    // # heading
+    if (line.startsWith("# ")) {
+      const text = line.replace("# ", "");
+      const id = "h-" + key;
+      toc.push({ id, text });
+      nodes.push(<h1 key={key++} id={id} style={{ fontSize: 21, fontWeight: 750, color: "var(--text)", margin: "26px 0 10px", scrollMarginTop: 80 }}>{text}</h1>);
       i++; continue;
     }
 
@@ -85,10 +94,10 @@ function renderMD(md: string): { html: React.ReactNode[]; toc: TocItem[] } {
     let para = line;
     i++;
     while (i < lines.length && lines[i].trim() && !lines[i].startsWith("#") && !lines[i].startsWith("- ") && !lines[i].startsWith("* ") && !lines[i].startsWith("---") && !lines[i].startsWith("**")) {
-      para += " " + lines[i];
+      para += "\n" + lines[i];
       i++;
     }
-    nodes.push(<p key={key++} style={{ fontSize: 14, color: "var(--text-secondary)", lineHeight: 1.8, margin: "4px 0" }}>{parseInline(para)}</p>);
+    nodes.push(<p key={key++} style={{ fontSize: 14, color: "var(--text-secondary)", lineHeight: 1.8, margin: "4px 0", whiteSpace: "pre-line" }}>{parseInline(para)}</p>);
   }
 
   return { html: nodes, toc };
