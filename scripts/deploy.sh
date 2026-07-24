@@ -35,6 +35,9 @@ echo ">>> npm install..."
 npm install
 
 echo ">>> prisma migrate deploy..."
+# 基线已存在的表结构，避免 P3005
+npx prisma migrate resolve --applied 20260623103519_init 2>/dev/null || true
+npx prisma migrate resolve --applied 20260623104500_add_constraints 2>/dev/null || true
 npx prisma migrate deploy
 
 echo ">>> prisma generate..."
