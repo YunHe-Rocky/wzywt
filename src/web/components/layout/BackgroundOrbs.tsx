@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const ORB_POSITIONS = [
   { x: 0.78, y: 0.15 },
@@ -8,19 +8,48 @@ const ORB_POSITIONS = [
   { x: 0.50, y: 0.45 },
 ];
 
+function hasStoredMotionPermission() {
+  try {
+    return localStorage.getItem("motion-permission") === "granted";
+  } catch {
+    return false;
+  }
+}
+
 export function BackgroundOrbs() {
   const containerRef = useRef<HTMLDivElement>(null);
-  const gyroRef = useRef<{ a: number; b: number; g: number; t: number }>({ a: 0, b: 0, g: 0, t: 0 });
+  const gyroRef = useRef<{ a: number; b: number; g: number; t: number } | null>(null);
   const shakeRef = useRef(0);
+  const [needsMotionPermission, setNeedsMotionPermission] = useState(false);
 
   useEffect(() => {
     const el = containerRef.current!;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      setNeedsMotionPermission(false);
+      return;
+    }
 
+    const root = document.documentElement;
+    const orientationApi = typeof DeviceOrientationEvent === "undefined"
+      ? null
+      : DeviceOrientationEvent as typeof DeviceOrientationEvent & {
+        requestPermission?: () => Promise<"granted" | "denied">;
+      };
+    setNeedsMotionPermission(
+      typeof orientationApi?.requestPermission === "function"
+      && !hasStoredMotionPermission(),
+    );
     let mx = 0.5;
     let my = 0.5;
+    let targetX = 0.5;
+    let targetY = 0.5;
     let rafId: number | null = null;
 
     function update() {
+      mx += (targetX - mx) * 0.14;
+      my += (targetY - my) * 0.14;
+      shakeRef.current *= 0.88;
+
       el.style.setProperty("--orb-mx", String(mx));
       el.style.setProperty("--orb-my", String(my));
 
@@ -39,7 +68,22 @@ export function BackgroundOrbs() {
       }
 
       el.style.setProperty("--orb-shake", String(shakeRef.current));
+      const shadowX = (mx - 0.5) * 12;
+      const shadowY = 6 + (my - 0.5) * 8;
+      root.style.setProperty("--glass-shadow-x", `${shadowX.toFixed(2)}px`);
+      root.style.setProperty("--glass-shadow-y", `${shadowY.toFixed(2)}px`);
+      root.style.setProperty("--glass-shadow-far-x", `${(shadowX * 1.6).toFixed(2)}px`);
+      root.style.setProperty("--glass-shadow-far-y", `${(shadowY + 7).toFixed(2)}px`);
+      root.style.setProperty("--glass-highlight-x", `${(-shadowX * 0.12).toFixed(2)}px`);
+
       rafId = null;
+      if (
+        Math.abs(targetX - mx) > 0.001
+        || Math.abs(targetY - my) > 0.001
+        || shakeRef.current > 0.005
+      ) {
+        scheduleUpdate();
+      }
     }
 
     function scheduleUpdate() {
@@ -47,59 +91,93 @@ export function BackgroundOrbs() {
     }
 
     function onMouse(e: MouseEvent) {
-      mx = e.clientX / window.innerWidth;
-      my = e.clientY / window.innerHeight;
+      targetX = e.clientX / window.innerWidth;
+      targetY = e.clientY / window.innerHeight;
       scheduleUpdate();
     }
 
-    function onTouch(e: TouchEvent) {
-      if (e.touches.length > 0) {
-        mx = e.touches[0].clientX / window.innerWidth;
-        my = e.touches[0].clientY / window.innerHeight;
-        scheduleUpdate();
-      }
+    function angularDelta(current: number, previous: number) {
+      const delta = Math.abs(current - previous) % 360;
+      return Math.min(delta, 360 - delta);
     }
 
     function onOrientation(e: DeviceOrientationEvent) {
       const prev = gyroRef.current;
       const now = { a: e.alpha ?? 0, b: e.beta ?? 0, g: e.gamma ?? 0, t: Date.now() };
-      const dt = Math.max((now.t - prev.t) / 1000, 0.016);
-      const da = Math.abs(now.a - prev.a) / dt;
-      const db = Math.abs(now.b - prev.b) / dt;
-      const dg = Math.abs(now.g - prev.g) / dt;
-      shakeRef.current = Math.min(1, (da + db + dg) / 600);
+      if (prev) {
+        const dt = Math.max((now.t - prev.t) / 1000, 0.016);
+        const velocity = (
+          angularDelta(now.a, prev.a)
+          + angularDelta(now.b, prev.b)
+          + angularDelta(now.g, prev.g)
+        ) / dt;
+        shakeRef.current = Math.max(shakeRef.current, Math.min(1, velocity / 600));
+      }
       gyroRef.current = now;
 
       if (e.gamma !== null && e.beta !== null) {
-        const nx = (Math.max(-45, Math.min(45, e.gamma)) + 45) / 90;
-        const ny = (Math.max(-45, Math.min(45, e.beta)) + 45) / 90;
-        if (Math.abs(nx - mx) > 0.003 || Math.abs(ny - my) > 0.003) {
-          mx = nx;
-          my = ny;
-          scheduleUpdate();
-        }
+        targetX = (Math.max(-45, Math.min(45, e.gamma)) + 45) / 90;
+        targetY = (Math.max(-45, Math.min(45, e.beta)) + 45) / 90;
+        scheduleUpdate();
       }
     }
 
     scheduleUpdate();
-    document.addEventListener("mousemove", onMouse, { passive: true });
-    document.addEventListener("touchmove", onTouch, { passive: true });
-    if (typeof window !== "undefined" && "ondeviceorientation" in window) {
-      window.addEventListener("deviceorientation", onOrientation);
+    const finePointer = window.matchMedia("(any-hover: hover) and (pointer: fine)");
+    if (finePointer.matches) {
+      document.addEventListener("mousemove", onMouse, { passive: true });
     }
+    window.addEventListener("deviceorientation", onOrientation, { passive: true });
     return () => {
       if (rafId !== null) cancelAnimationFrame(rafId);
       document.removeEventListener("mousemove", onMouse);
-      document.removeEventListener("touchmove", onTouch);
       window.removeEventListener("deviceorientation", onOrientation);
+      root.style.removeProperty("--glass-shadow-x");
+      root.style.removeProperty("--glass-shadow-y");
+      root.style.removeProperty("--glass-shadow-far-x");
+      root.style.removeProperty("--glass-shadow-far-y");
+      root.style.removeProperty("--glass-highlight-x");
     };
   }, []);
 
+  async function requestMotionPermission() {
+    if (typeof DeviceOrientationEvent === "undefined") return;
+    const orientationApi = DeviceOrientationEvent as typeof DeviceOrientationEvent & {
+      requestPermission?: () => Promise<"granted" | "denied">;
+    };
+    if (!orientationApi.requestPermission) return;
+
+    try {
+      const permission = await orientationApi.requestPermission();
+      if (permission === "granted") {
+        try {
+          localStorage.setItem("motion-permission", "granted");
+        } catch {
+          // 无持久化存储时仅保留当前页面授权。
+        }
+        setNeedsMotionPermission(false);
+      }
+    } catch {
+      // Safari 要求此调用必须来自用户手势，失败时保留按钮供重试。
+    }
+  }
+
   return (
-    <div ref={containerRef} className="bg-orbs-container" aria-hidden="true">
-      <div className="bg-orb bg-orb--1"><div className="bg-orb-inner" /></div>
-      <div className="bg-orb bg-orb--2"><div className="bg-orb-inner" /></div>
-      <div className="bg-orb bg-orb--3"><div className="bg-orb-inner" /></div>
-    </div>
+    <>
+      <div ref={containerRef} className="bg-orbs-container" aria-hidden="true">
+        <div className="bg-orb bg-orb--1"><div className="bg-orb-inner" /></div>
+        <div className="bg-orb bg-orb--2"><div className="bg-orb-inner" /></div>
+        <div className="bg-orb bg-orb--3"><div className="bg-orb-inner" /></div>
+      </div>
+      {needsMotionPermission && (
+        <button
+          type="button"
+          className="motion-permission-button"
+          onClick={requestMotionPermission}
+        >
+          启用动态光影
+        </button>
+      )}
+    </>
   );
 }

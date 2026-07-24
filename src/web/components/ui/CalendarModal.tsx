@@ -28,6 +28,118 @@ const TIME_PRESETS = [
   { label: "黄金档", hour: 20 },
   { label: "夜场", hour: 22 },
 ];
+const WHEEL_ITEM_HEIGHT = 44;
+
+function TimeWheel({
+  label,
+  unit,
+  values,
+  value,
+  onChange,
+}: {
+  label: string;
+  unit: string;
+  values: readonly number[];
+  value: number;
+  onChange: (value: number) => void;
+}) {
+  const wheelRef = useRef<HTMLDivElement>(null);
+  const scrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    const index = Math.max(0, values.indexOf(value));
+    if (wheelRef.current) {
+      wheelRef.current.scrollTop = index * WHEEL_ITEM_HEIGHT;
+    }
+  }, [value, values]);
+
+  useEffect(() => () => {
+    if (scrollTimerRef.current) clearTimeout(scrollTimerRef.current);
+  }, []);
+
+  const selectAtScrollPosition = () => {
+    const wheel = wheelRef.current;
+    if (!wheel) return;
+    const index = Math.max(
+      0,
+      Math.min(values.length - 1, Math.round(wheel.scrollTop / WHEEL_ITEM_HEIGHT)),
+    );
+    const nextValue = values[index];
+    if (nextValue !== value) onChange(nextValue);
+  };
+
+  const scrollToValue = (nextValue: number) => {
+    const index = values.indexOf(nextValue);
+    if (index < 0 || !wheelRef.current) return;
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    wheelRef.current.scrollTo({
+      top: index * WHEEL_ITEM_HEIGHT,
+      behavior: reducedMotion ? "auto" : "smooth",
+    });
+    onChange(nextValue);
+  };
+
+  const moveSelection = (offset: number) => {
+    const currentIndex = Math.max(0, values.indexOf(value));
+    const nextIndex = Math.max(0, Math.min(values.length - 1, currentIndex + offset));
+    scrollToValue(values[nextIndex]);
+  };
+
+  return (
+    <div className="time-wheel-field">
+      <div className="time-wheel-label">{label}</div>
+      <div className="time-wheel-frame">
+        <div className="time-wheel-selection" aria-hidden="true" />
+        <div
+          ref={wheelRef}
+          className="time-wheel"
+          role="listbox"
+          aria-label={label}
+          aria-activedescendant={`time-${unit}-${value}`}
+          tabIndex={0}
+          onScroll={() => {
+            if (scrollTimerRef.current) clearTimeout(scrollTimerRef.current);
+            scrollTimerRef.current = setTimeout(selectAtScrollPosition, 70);
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "ArrowUp") {
+              event.preventDefault();
+              moveSelection(-1);
+            } else if (event.key === "ArrowDown") {
+              event.preventDefault();
+              moveSelection(1);
+            } else if (event.key === "Home") {
+              event.preventDefault();
+              scrollToValue(values[0]);
+            } else if (event.key === "End") {
+              event.preventDefault();
+              scrollToValue(values[values.length - 1]);
+            }
+          }}
+        >
+          {values.map((option) => {
+            const selected = option === value;
+            return (
+              <div
+                id={`time-${unit}-${option}`}
+                key={option}
+                role="option"
+                aria-selected={selected}
+                className="time-wheel-option"
+                data-selected={selected || undefined}
+                onClick={() => scrollToValue(option)}
+              >
+                <span>{String(option).padStart(2, "0")}</span>
+                <small>{unit}</small>
+                {selected && <i aria-hidden="true">已选</i>}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function parseDate(value?: string | Date): Date | null {
   if (!value) return null;
@@ -98,7 +210,11 @@ export function CalendarModal({
     setMonth(initial.getMonth());
     setDay(initial.getDate());
     setHour(initial.getHours());
-    setMinute(initial.getMinutes());
+    setMinute(MINUTES.reduce((closest, option) => (
+      Math.abs(option - initial.getMinutes()) < Math.abs(closest - initial.getMinutes())
+        ? option
+        : closest
+    ), MINUTES[0]));
     setError("");
 
     const frame = requestAnimationFrame(() => {
@@ -266,23 +382,27 @@ export function CalendarModal({
             </div>
 
             <div className="calendar-time-grid">
-              <label>
-                <span className="sr-only">小时</span>
-                <select className="calendar-time-select" value={hour} onChange={(event) => { setHour(Number(event.target.value)); setError(""); }}>
-                  {HOURS.map((value) => (
-                    <option key={value} value={value}>{String(value).padStart(2, "0")} 时</option>
-                  ))}
-                </select>
-              </label>
-              <span aria-hidden="true" style={{ color: "var(--text-secondary)", fontSize: 20, fontWeight: 800 }}>:</span>
-              <label>
-                <span className="sr-only">分钟</span>
-                <select className="calendar-time-select" value={minute} onChange={(event) => { setMinute(Number(event.target.value)); setError(""); }}>
-                  {MINUTES.map((value) => (
-                    <option key={value} value={value}>{String(value).padStart(2, "0")} 分</option>
-                  ))}
-                </select>
-              </label>
+              <TimeWheel
+                label="小时"
+                unit="时"
+                values={HOURS}
+                value={hour}
+                onChange={(value) => {
+                  setHour(value);
+                  setError("");
+                }}
+              />
+              <span className="time-wheel-colon" aria-hidden="true">:</span>
+              <TimeWheel
+                label="分钟"
+                unit="分"
+                values={MINUTES}
+                value={minute}
+                onChange={(value) => {
+                  setMinute(value);
+                  setError("");
+                }}
+              />
             </div>
 
             <div className="responsive-toolbar" style={{ marginTop: 12, gap: 8 }} aria-label="常用时间">

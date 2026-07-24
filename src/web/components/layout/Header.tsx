@@ -25,10 +25,11 @@ export function Header() {
   useEffect(() => { setMounted(true); }, []);
   useEffect(() => {
     if (!user) return;
+    if (user.role === "admin") router.prefetch("/admin");
     getCurrentUser().then(({ data }) => {
       if (data.user?.securityQuestion) setSecurityQ(data.user.securityQuestion);
     });
-  }, [user]);
+  }, [router, user]);
 
   useEffect(() => {
     const fn = (e: MouseEvent) => { if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false); };

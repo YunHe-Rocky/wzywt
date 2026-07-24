@@ -2,6 +2,10 @@
 
 import { useRef, useState } from "react";
 import { uploadAvatar } from "@/features/profile/client/api";
+import {
+  AvatarPreparationError,
+  prepareAvatarFile,
+} from "@/features/profile/client/avatar";
 
 interface Props {
   avatar: string | null | undefined;
@@ -24,15 +28,20 @@ export function AvatarUpload({ avatar, username, size = 80, onUpdated }: Props) 
     setError("");
     setUploading(true);
     try {
-      const { data } = await uploadAvatar(file);
+      const preparedFile = await prepareAvatarFile(file);
+      const { data } = await uploadAvatar(preparedFile);
       if (data.avatar) {
         setImgError(false);
         onUpdated(data.avatar);
       } else {
         setError(data.error || "上传失败");
       }
-    } catch {
-      setError("网络异常，请重试");
+    } catch (uploadError) {
+      setError(
+        uploadError instanceof AvatarPreparationError
+          ? uploadError.message
+          : "网络异常，请重试",
+      );
     } finally {
       // 允许用户再次选择同一个文件。
       e.target.value = "";
@@ -73,14 +82,14 @@ export function AvatarUpload({ avatar, username, size = 80, onUpdated }: Props) 
           </div>
         )}
       </button>
-      <input ref={inputRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={handleFile} hidden />
+      <input ref={inputRef} type="file" accept="image/*" onChange={handleFile} hidden />
       <button
         type="button"
         disabled={uploading}
         className="text-[11px] text-text-muted cursor-pointer bg-transparent border-0 p-1 disabled:opacity-50"
         onClick={() => inputRef.current?.click()}
       >
-        {uploading ? "上传中..." : "更换头像"}
+        {uploading ? "处理中..." : "更换头像"}
       </button>
       {error && <span className="text-[11px] text-red">{error}</span>}
     </div>

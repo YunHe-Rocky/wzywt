@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { GLASS_CARD, GLASS_SHADOW_TOP, GLASS_SHADOW_BOTTOM, dockPanel, childStagger, BTN_PRESS, BTN_RELEASE } from "@/web/animation";
 
 const MAIN_NAV = [
@@ -18,10 +18,27 @@ const SUB_NAV = [
 
 export function Dock() {
   const pathname = usePathname();
+  const router = useRouter();
   const [mounted, setMounted] = useState(false);
   const [subOpen, setSubOpen] = useState(false);
   const [bounce, setBounce] = useState(false);
+  const [pendingPath, setPendingPath] = useState<string | null>(null);
+  const mPrefix = pathname.startsWith("/m") ? "/m" : "";
+  const href = (path: string) => mPrefix + path;
+
   useEffect(() => { setMounted(true); }, []);
+  useEffect(() => {
+    [...MAIN_NAV, ...SUB_NAV].forEach((item) => router.prefetch(`${mPrefix}${item.href}`));
+  }, [mPrefix, router]);
+  useEffect(() => {
+    setPendingPath(null);
+    setSubOpen(false);
+  }, [pathname]);
+  useEffect(() => {
+    if (!pendingPath) return;
+    const timeout = window.setTimeout(() => setPendingPath(null), 6000);
+    return () => window.clearTimeout(timeout);
+  }, [pendingPath]);
 
   useEffect(() => {
     if (!subOpen) return;
@@ -39,19 +56,28 @@ export function Dock() {
 
   if (!mounted) return null;
 
-  const mPrefix = pathname.startsWith("/m") ? "/m" : "";
-  const href = (path: string) => mPrefix + path;
-
   const isActive = (path: string) => {
     const full = mPrefix + path;
     if (path === "/") return pathname === mPrefix + "/" || pathname === mPrefix;
     return pathname.startsWith(full);
   };
+  const isVisualActive = (path: string) => isActive(path) || pendingPath === href(path);
+  const navigationFeedback = (path: string) => ({
+    onPointerDown: () => router.prefetch(href(path)),
+    onClick: () => {
+      if (!isActive(path)) setPendingPath(href(path));
+      setSubOpen(false);
+    },
+  });
 
   const isTujianActive = isActive("/heroes") || isActive("/equipment");
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 flex flex-col items-center pb-3 pointer-events-none">
+    <div
+      className="fixed bottom-0 left-0 right-0 z-50 flex flex-col items-center pb-3 pointer-events-none"
+      aria-busy={Boolean(pendingPath)}
+    >
+      {pendingPath && <div className="dock-route-progress" aria-hidden="true" />}
       {/* 二级 Dock */}
       <div style={{ display: "flex", justifyContent: "center", width: "100%" }}>
       <div
@@ -64,9 +90,10 @@ export function Dock() {
             const stag = childStagger(i, 0.06);
             return (
               <div key={item.key} className="flex flex-col items-center gap-0.5 px-1.5" style={subOpen ? stag.enter : stag.exit}>
-                <Link href={href(item.href)} tabIndex={subOpen ? undefined : -1} aria-hidden={!subOpen}
+                <Link href={href(item.href)} aria-label={item.label} tabIndex={subOpen ? undefined : -1} aria-hidden={!subOpen}
+                  {...navigationFeedback(item.href)}
                   className="flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-200"
-                  style={{ background: active ? "var(--gold-alpha-08)" : "transparent", color: active ? "var(--gold)" : "#aaa", pointerEvents: subOpen ? "auto" : "none" }}>
+                  style={{ background: active || pendingPath === href(item.href) ? "var(--gold-alpha-08)" : "transparent", color: active || pendingPath === href(item.href) ? "var(--gold)" : "#aaa", pointerEvents: subOpen ? "auto" : "none" }}>
                   <span className="scale-[0.82]">{item.icon}</span>
                 </Link>
                 <span className="text-[9px] tracking-wide" style={{ color: active ? "var(--gold)" : "#bbb", fontWeight: active ? 600 : 400 }}>
@@ -82,11 +109,12 @@ export function Dock() {
       <div className="pointer-events-auto flex items-end gap-0.5 px-3 py-1.5 pb-2 rounded-2xl" style={{ ...GLASS_CARD, ...GLASS_SHADOW_BOTTOM }}>
         {MAIN_NAV.slice(0, 2).map((item) => (
           <div key={item.key} className="flex flex-col items-center gap-0.5 px-1.5">
-            <Link href={href(item.href)} className="flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-200"
-              style={{ background: isActive(item.href) ? "var(--gold-alpha-08)" : "transparent", color: isActive(item.href) ? "var(--gold)" : "#aaa" }}>
+            <Link href={href(item.href)} aria-label={item.label} {...navigationFeedback(item.href)}
+              className="flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-150 touch-manipulation"
+              style={{ background: isVisualActive(item.href) ? "var(--gold-alpha-08)" : "transparent", color: isVisualActive(item.href) ? "var(--gold)" : "#aaa" }}>
               <span className="scale-[0.82]">{item.icon}</span>
             </Link>
-            <span className="text-[9px] tracking-wide" style={{ color: isActive(item.href) ? "var(--gold)" : "#bbb", fontWeight: isActive(item.href) ? 600 : 400 }}>
+            <span className="text-[9px] tracking-wide" style={{ color: isVisualActive(item.href) ? "var(--gold)" : "#bbb", fontWeight: isVisualActive(item.href) ? 600 : 400 }}>
               {item.label}
             </span>
           </div>
@@ -112,11 +140,12 @@ export function Dock() {
 
         {MAIN_NAV.slice(2).map((item) => (
           <div key={item.key} className="flex flex-col items-center gap-0.5 px-1.5">
-            <Link href={href(item.href)} className="flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-200"
-              style={{ background: isActive(item.href) ? "var(--gold-alpha-08)" : "transparent", color: isActive(item.href) ? "var(--gold)" : "#aaa" }}>
+            <Link href={href(item.href)} aria-label={item.label} {...navigationFeedback(item.href)}
+              className="flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-150 touch-manipulation"
+              style={{ background: isVisualActive(item.href) ? "var(--gold-alpha-08)" : "transparent", color: isVisualActive(item.href) ? "var(--gold)" : "#aaa" }}>
               <span className="scale-[0.82]">{item.icon}</span>
             </Link>
-            <span className="text-[9px] tracking-wide" style={{ color: isActive(item.href) ? "var(--gold)" : "#bbb", fontWeight: isActive(item.href) ? 600 : 400 }}>
+            <span className="text-[9px] tracking-wide" style={{ color: isVisualActive(item.href) ? "var(--gold)" : "#bbb", fontWeight: isVisualActive(item.href) ? 600 : 400 }}>
               {item.label}
             </span>
           </div>

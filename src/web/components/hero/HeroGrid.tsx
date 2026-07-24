@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useHeroes } from "@/features/heroes/client";
+import { createHeroImageCandidates } from "@/features/heroes/model";
 import { cardStagger } from "@/web/animation";
 
 interface Hero {
@@ -45,11 +46,15 @@ function HeroImage({ hero }: { hero: Hero }) {
     }
   })();
   const generatedHigh = `https://game.gtimg.cn/images/yxzj/img201606/skin/hero-info/${hero.id}/${hero.id}-bigskin-${skinIndex}.jpg`;
-  const candidates = Array.from(new Set([
-    ...(skinIndex === 1 ? [hero.imageUrl] : []),
-    ...(skin?.imageUrls ?? [generatedHigh, generatedHigh.replace("-bigskin-", "-mobileskin-")]),
-    hero.imageUrl,
-  ].filter(Boolean)));
+  const candidates = createHeroImageCandidates({
+    heroId: hero.heroId ?? hero.id,
+    skinIndex,
+    remoteImageUrl: hero.imageUrl,
+    remoteSkinUrls: skin?.imageUrls ?? [
+      generatedHigh,
+      generatedHigh.replace("-bigskin-", "-mobileskin-"),
+    ],
+  });
   const imageUrl = candidates[candidateIndex];
 
   useEffect(() => {

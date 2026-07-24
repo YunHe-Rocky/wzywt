@@ -24,6 +24,28 @@ export interface HeroSkinRecord {
   imageUrls: string[];
 }
 
+export function createHeroImageCandidates({
+  heroId,
+  skinIndex,
+  remoteImageUrl,
+  remoteSkinUrls = [],
+}: {
+  heroId: number;
+  skinIndex: number;
+  remoteImageUrl?: string | null;
+  remoteSkinUrls?: readonly string[];
+}): string[] {
+  const localSkin = `/heroes/skins/${heroId}/${skinIndex}.jpg`;
+  const localHero = `/heroes/images/${heroId}.jpg`;
+  return Array.from(new Set([
+    localSkin,
+    ...(skinIndex === 1 ? [localHero] : []),
+    ...remoteSkinUrls,
+    remoteImageUrl,
+    localHero,
+  ].filter((value): value is string => Boolean(value))));
+}
+
 export const KNOWN_MINGGE_PAIRS = [
   { baseId: 167, baseName: "孙悟空", formId: 549, formName: "心魔六耳" },
 ] as const;

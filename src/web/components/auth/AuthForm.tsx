@@ -140,7 +140,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
     }
     if (mode === "register") success("欢迎加入王者演武堂！");
     if (mode === "login") {
-      const dest = data.role === "admin" ? "/admin" : redirect;
+      const dest = redirect;
       const sep = dest.includes("?") ? "&" : "?";
       setShatterRedirect(dest + sep + "_from=login");
     } else {

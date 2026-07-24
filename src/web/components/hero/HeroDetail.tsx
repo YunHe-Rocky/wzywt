@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useHero } from "@/features/heroes/client";
+import { createHeroImageCandidates } from "@/features/heroes/model";
 
 interface Skill {
   name: string;
@@ -39,11 +40,15 @@ import { getHero } from "@/features/heroes/client/api";
 function getSkinCandidates(hero: Hero, skin: HeroSkin): string[] {
   const heroId = hero.heroId;
   const high = `https://game.gtimg.cn/images/yxzj/img201606/skin/hero-info/${heroId}/${heroId}-bigskin-${skin.index}.jpg`;
-  return Array.from(new Set([
-    ...(skin.index === 1 ? [hero.imageUrl] : []),
-    ...(skin.imageUrls ?? [high, high.replace("-bigskin-", "-mobileskin-")]),
-    hero.imageUrl,
-  ].filter(Boolean)));
+  return createHeroImageCandidates({
+    heroId,
+    skinIndex: skin.index,
+    remoteImageUrl: hero.imageUrl,
+    remoteSkinUrls: skin.imageUrls ?? [
+      high,
+      high.replace("-bigskin-", "-mobileskin-"),
+    ],
+  });
 }
 
 function SkinThumbnail({ hero, skin }: { hero: Hero; skin: HeroSkin }) {

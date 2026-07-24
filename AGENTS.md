@@ -128,7 +128,7 @@ User 表 `avatar` 字段（VARCHAR 255，nullable）。本地文件存储 `/data
 
 ## 登录动画
 
-`GlassShatter` — 卡片裂纹扩散后震碎为三角碎片飞散坠落。登录成功后根据角色跳转：`admin` 账号直接进 `/admin`，普通用户进首页。
+`GlassShatter` — 卡片裂纹扩散后震碎为三角碎片飞散坠落。普通用户和 `admin` 登录成功后统一进入首页；`admin` 通过 Header 菜单进入 `/admin`。
 
 ## 页面动画
 
@@ -204,7 +204,7 @@ src/
 |------|------|------------|
 | `SecurityQuestionModal` | 修改密码 | role="dialog" + aria-modal + 焦点陷阱 + Esc 关闭 |
 | `DeleteAccountModal` | 注销账户 | role="dialog" + aria-modal |
-| `CalendarModal` | 日期时间选择 | 整体 Portal + 焦点陷阱 + Esc 关闭 + 日期/小时/分钟确认 |
+| `CalendarModal` | 日期时间选择 | 整体 Portal + 焦点陷阱 + Esc 关闭 + 日期网格 + 小时/分钟双滚轮 |
 | `AuthForm` 忘记密码 | 找回密码 | role="dialog" + aria-modal + 焦点陷阱 + Esc 关闭 |
 | `Toast` | 消息通知 | role="alert" |
 
@@ -288,9 +288,9 @@ src/
 - 英雄目录取 herolist.shtml 与 herolist.json 并集；同步后固定恢复孙悟空(167) ↔ 心魔六耳(549)
 - 英雄详情页：有 `minggeRelatedId` 时显示切换按钮
 - 图鉴卡片：命格形态英雄不展示，本命英雄显示「双形态」徽章
-- 皮肤以 JSON 最新名称为准，图片按 bigskin → mobileskin → heroimg 回退；daily/initial 同步后刷新本地图片
+- 皮肤以 JSON 最新名称为准，图鉴按本地 skin → 本地 hero → bigskin → mobileskin → heroimg 回退；daily/initial 同步后刷新本地图片
 - 补位 User 使用 `isTemporary=true`，后台不统计；recruiting/locked 房间过期时 cron 自动删除
-- 英雄战力保持原始整数，分路段位为前 5 战力总和 / 1000，最多三位小数
+- 英雄战力保持原始整数，分路段位为前 5 战力总和 / 1000 后向下取整显示
 
 ## 分队算法
 

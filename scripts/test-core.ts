@@ -17,6 +17,7 @@ import {
   TEMPORARY_CLEANUP_STATUSES,
 } from "@/features/tournaments/model";
 import { normalizeGameProfile } from "@/features/profile/model";
+import { detectAvatarImageType } from "@/features/profile/server/avatar";
 import { selectHeroesForLane } from "@/core/game";
 import {
   calculateLanePowerRank,
@@ -24,6 +25,7 @@ import {
   normalizeHeroPowerScore,
 } from "@/core/game";
 import {
+  createHeroImageCandidates,
   createHeroSkins,
   mergeHeroCatalog,
 } from "@/features/heroes/model";
@@ -90,6 +92,15 @@ assert.throws(
   () => normalizeGameProfile({ gameNickname: "a".repeat(33), gameId: "" }),
   RangeError,
 );
+assert.deepEqual(
+  detectAvatarImageType(Buffer.from([0xff, 0xd8, 0xff, 0xe0])),
+  { mime: "image/jpeg", extension: "jpg" },
+);
+assert.deepEqual(
+  detectAvatarImageType(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])),
+  { mime: "image/png", extension: "png" },
+);
+assert.equal(detectAvatarImageType(Buffer.from("not-an-image")), null);
 assert.deepEqual(TEMPORARY_CLEANUP_STATUSES, ["recruiting", "locked"]);
 assert.equal(resolveRecruitmentStatus({
   currentStatus: "locked",
@@ -177,7 +188,18 @@ assert.equal(calculateLanePowerRank([
   { powerScore: 8_765 },
   { powerScore: 1_001 },
 ]), 22.115);
-assert.equal(formatLanePowerRank(22.115), "22.115");
+assert.equal(formatLanePowerRank(22.999), "22");
 assert.equal(formatLanePowerRank(35), "35");
+assert.deepEqual(createHeroImageCandidates({
+  heroId: 167,
+  skinIndex: 2,
+  remoteImageUrl: "https://example.com/hero.jpg",
+  remoteSkinUrls: ["https://example.com/skin.jpg"],
+}), [
+  "/heroes/skins/167/2.jpg",
+  "https://example.com/skin.jpg",
+  "https://example.com/hero.jpg",
+  "/heroes/images/167.jpg",
+]);
 
 console.log("Core, hero lane, calendar, tournament, and announcement tests passed.");

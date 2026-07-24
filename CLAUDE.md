@@ -69,10 +69,10 @@ User 表 `avatar` 字段（VARCHAR 255，nullable）。本地文件存储 `/data
 
 | API | 说明 |
 |-----|------|
-| `POST /api/me/avatar` | 上传（FormData，校验 jpg/png/webp <2MB） |
+| `POST /api/me/avatar` | 上传（FormData，校验 jpg/png/webp 文件签名 <2MB） |
 | `GET /api/avatars/[filename]` | 读取（公开，Cache-Control 24h） |
 
-前端：`/me` 个人空间页顶部有 `AvatarUpload` 组件。Header 导航栏显示头像图片，加载失败回退首字母。
+前端：`/me` 个人空间页顶部有 `AvatarUpload` 组件。手机相册图片会先缩放至最长边 1280px 并归一化为 2MB 内 JPEG，再上传；无法由浏览器解码的 HEIC/HEIF 会提示用户导出为 JPG/PNG。Header 导航栏显示头像图片，加载失败回退首字母。
 
 ## 忘记密码
 
@@ -120,15 +120,17 @@ User 表 `avatar` 字段（VARCHAR 255，nullable）。本地文件存储 `/data
 
 - **鼠标驱赶**：反向逃逸，力曲线 `0.5 / (1 + dist * 4)`
 - **手机陀螺仪**：倾斜驱赶 + 摇晃打散
+- **玻璃阴影**：移动端阴影方向与陀螺仪姿态同步；iOS 通过「启用动态光影」显式授权
+- **触摸隔离**：滚动手势不驱动光球，避免与陀螺仪争用坐标
 - **接近度感应**：贴近变亮变清晰
-- **性能**：rAF 节流 60fps，CSS transition `0.12s linear`（移动端）/ `0.8s ease-out`（桌面）
+- **性能**：rAF 节流 + 低通滤波；移动端固定 blur 并使用独立合成层，避免触摸滚动时滤镜闪烁
 - **尺寸**：桌面固定 px，移动端 vw 比例
 - #2 光球配色：青绿 `#00e5a0` + 亮蓝 `#4488ff` + 紫罗兰 `#7c5cfc`
 - **无障碍**：`prefers-reduced-motion: reduce` 时隐藏光球、禁用所有动画
 
 ## 登录动画
 
-`GlassShatter` — 卡片裂纹扩散后震碎为三角碎片飞散坠落。登录成功后根据角色跳转：`admin` 账号直接进 `/admin`，普通用户进首页。
+`GlassShatter` — 卡片裂纹扩散后震碎为三角碎片飞散坠落。普通用户和 `admin` 登录成功后统一进入首页；`admin` 通过 Header 菜单进入 `/admin`。
 
 ## 页面动画
 
@@ -204,7 +206,7 @@ src/
 |------|------|------------|
 | `SecurityQuestionModal` | 修改密码 | role="dialog" + aria-modal + 焦点陷阱 + Esc 关闭 |
 | `DeleteAccountModal` | 注销账户 | role="dialog" + aria-modal |
-| `CalendarModal` | 日期时间选择 | 整体 Portal + 焦点陷阱 + Esc 关闭 + 日期/小时/分钟确认 |
+| `CalendarModal` | 日期时间选择 | 整体 Portal + 焦点陷阱 + Esc 关闭 + 日期网格 + 小时/分钟双滚轮 |
 | `AuthForm` 忘记密码 | 找回密码 | role="dialog" + aria-modal + 焦点陷阱 + Esc 关闭 |
 | `Toast` | 消息通知 | role="alert" |
 
@@ -288,9 +290,9 @@ src/
 - 英雄目录取 herolist.shtml 与 herolist.json 并集；同步后固定恢复孙悟空(167) ↔ 心魔六耳(549)
 - 英雄详情页：有 `minggeRelatedId` 时显示切换按钮
 - 图鉴卡片：命格形态英雄不展示，本命英雄显示「双形态」徽章
-- 皮肤以 JSON 最新名称为准，图片按 bigskin → mobileskin → heroimg 回退；daily/initial 同步后刷新本地图片
+- 皮肤以 JSON 最新名称为准，图鉴按本地 skin → 本地 hero → bigskin → mobileskin → heroimg 回退；daily/initial 同步后刷新本地图片
 - 补位 User 使用 `isTemporary=true`，后台不统计；recruiting/locked 房间过期时 cron 自动删除
-- 英雄战力保持原始整数，分路段位为前 5 战力总和 / 1000，最多三位小数
+- 英雄战力保持原始整数，分路段位为前 5 战力总和 / 1000 后向下取整显示
 
 ## 分队算法
 

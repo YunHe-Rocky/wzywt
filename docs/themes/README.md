@@ -127,6 +127,14 @@
 - **Dock**: 桌面 + 移动端常驻，毛玻璃 40px 模糊
 - **光晕**: 蓝/紫/青色
 
+### 移动端动态光影约束
+
+- 页面滚动手势不参与背景坐标计算，避免 `touchmove` 与陀螺仪争用状态。
+- `deviceorientation` 数据经过低通滤波后，同时驱动光球位移与玻璃卡片阴影方向。
+- iOS 仅在系统要求时显示「启用动态光影」按钮，由用户手势申请传感器权限。
+- 移动端光球使用固定 `blur`，只更新位置和透明度；背景容器启用独立合成层，避免滚动时滤镜反复重绘。
+- `prefers-reduced-motion: reduce` 仍拥有最高优先级，禁用动态光影。
+
 ---
 
 ## 三、布局对照
@@ -146,11 +154,11 @@
 
 | 文件 | 说明 |
 |------|------|
-| `src/themes/ThemeProvider.tsx` | hash 切换 + hashchange 监听 |
+| `src/web/themes/ThemeProvider.tsx` | 主题上下文 |
 | `src/app/globals.css` | CSS 变量 + 双主题样式 |
 | `src/app/layout.tsx` | 内联脚本防 FOUC |
-| `src/components/layout/Header.tsx` | 顶部导航（双主题单组件） |
-| `src/components/layout/alternate/Dock.tsx` | 底部导航（#2 专属） |
-| `src/components/layout/BackgroundOrbs.tsx` | 动态光晕（支持 prefers-reduced-motion） |
-| `src/components/layout/CursorLighting.tsx` | 鼠标跟随光照 |
+| `src/web/components/layout/Header.tsx` | 顶部导航 |
+| `src/web/components/layout/Dock.tsx` | 底部导航 |
+| `src/web/components/layout/BackgroundOrbs.tsx` | 鼠标/陀螺仪动态光晕与玻璃阴影 |
+| `src/web/components/layout/CursorLighting.tsx` | 桌面鼠标跟随光照 |
 | `tailwind.config.ts` | Tailwind token → CSS 变量 |

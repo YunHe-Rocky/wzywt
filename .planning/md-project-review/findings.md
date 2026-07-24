@@ -131,3 +131,14 @@
 - 心魔六耳的 heroimg 与 bigskin-1 均返回有效 JPEG；恢复时可优先 bigskin，heroimg 为普通图兜底。
 - 自动皮肤监控原先每 5 个英雄只抽查 1 个，会稳定漏掉未落在抽样位置的新皮肤；已改为一次查询全量数据库英雄后与官方 131 条名称指纹逐项比较，查询量反而从多次 N+1 降为 1 次。
 - daily/initial `runHeroSync` 原先同步完数据库不下载图片，随后监控看到数据库已一致也不会再触发下载；已将图片刷新直接接入每次完整英雄同步，关闭这一时序缺口。
+- 个人空间的“分路段位”此前按前五原始战力总和除以 1000 后显示小数；用户要求固定整数，因此保留英雄战力精确存储，只对最终段位使用向下取整，避免显示高于实际完整千分段。
+- 图鉴已有 `/public/heroes/skins/{heroId}/{index}.jpg` 和 `/public/heroes/images/{heroId}.jpg`，但 UI 候选列表把数据库远程 URL 放在前面；现集中由 `createHeroImageCandidates` 生成本地优先、远程回退顺序。
+- 原生小时/分钟 select 在双主题中无法统一外观，也缺少滑动过程的中心选择语义；改为 44px scroll-snap 双滚轮、中心选中带、显式“已选”标注和 listbox 键盘语义。
+- Dock 等待感主要来自路由点击后直到 pathname 改变前没有视觉状态；现挂载后预取五个主目标，pointer down 再预取，点击立即高亮并显示细进度条，pathname 更新后清理。
+- 登录表单原先根据 API role 把 admin 强制送往 `/admin`；现在两类账号统一遵守安全 redirect 或默认首页，后台权限和 Header 入口不变。
+## 2026-07-25 移动头像与背景渲染
+
+- `AvatarUpload` 直接上传原图，仅接受 JPEG/PNG/WebP；手机相册常见的大尺寸图片与 HEIC/HEIF 没有客户端归一化，服务端又限制 2 MB，因此移动端容易失败。
+- `BackgroundOrbs` 同时监听 `touchmove` 与 `deviceorientation`，两者直接修改同一组 `mx/my`；页面滚动会与陀螺仪事件争用坐标并触发高频滤镜重绘。
+- 移动端 `CursorLighting` 对无 hover 设备直接退出，玻璃卡片阴影没有陀螺仪输入；当前主题 Provider 还固定写入 `data-theme="yanwu"`，与文档中的 `#1/#2` 主题约定不一致。
+- 修复方向：头像在客户端解码、缩放并输出 JPEG，服务端校验文件签名；移除触摸滑动对背景的驱动，陀螺仪采用低通滤波和单帧 CSS 变量提交；玻璃阴影通过同一组姿态变量恢复。

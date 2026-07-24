@@ -20,5 +20,5 @@ export function calculateLanePowerRank(
 
 export function formatLanePowerRank(rank: number): string {
   if (!Number.isFinite(rank) || rank < 0) return "0";
-  return rank.toFixed(3).replace(/\.?0+$/, "");
+  return String(Math.floor(rank));
 }
