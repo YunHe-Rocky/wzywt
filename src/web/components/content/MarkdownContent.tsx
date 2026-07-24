@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { Fragment, type ReactNode } from "react";
 
 function renderInline(text: string): ReactNode {
   const parts = text.split(/(\*\*.*?\*\*|`.*?`|\*[^*]+\*)/g);
@@ -20,8 +20,18 @@ function renderInline(text: string): ReactNode {
   });
 }
 
+function renderLineBreaks(lines: string[]): ReactNode {
+  return lines.map((line, index) => (
+    <Fragment key={index}>
+      {index > 0 && <br />}
+      {renderInline(line)}
+    </Fragment>
+  ));
+}
+
 export function MarkdownContent({ content }: { content: string }) {
-  const lines = content.split(/\r?\n/);
+  // 同时支持真实回车和用户输入的字面量 \n。
+  const lines = content.replace(/\\n/g, "\n").split(/\r?\n/);
   const nodes: ReactNode[] = [];
   let index = 0;
   let key = 0;
@@ -76,7 +86,7 @@ export function MarkdownContent({ content }: { content: string }) {
     }
     nodes.push(
       <p key={key++} style={{ margin: "6px 0", color: "var(--text-secondary)", fontSize: 14, lineHeight: 1.75 }}>
-        {renderInline(paragraph.join(" "))}
+        {renderLineBreaks(paragraph)}
       </p>,
     );
   }

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { type FormEvent, useEffect, useRef, useState } from "react";
+import { type FormEvent, useEffect, useState } from "react";
 import {
   createAdminAnnouncement,
   deleteAdminAnnouncement,
@@ -10,18 +10,6 @@ import {
   type AdminAnnouncement,
 } from "@/features/announcements/client";
 import { MarkdownContent } from "@/web/components/content/MarkdownContent";
-
-const CONTENT_TEMPLATE = `## 主要更新
-
-- 
-
-## 优化内容
-
-- 
-
-## 修复内容
-
-- `;
 
 export function AnnouncementManager() {
   const [list, setList] = useState<AdminAnnouncement[]>([]);
@@ -33,9 +21,8 @@ export function AnnouncementManager() {
   const [error, setError] = useState("");
   const [title, setTitle] = useState("");
   const [version, setVersion] = useState("");
-  const [content, setContent] = useState(CONTENT_TEMPLATE);
+  const [content, setContent] = useState("");
   const [slug, setSlug] = useState("");
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     void load();
@@ -53,7 +40,7 @@ export function AnnouncementManager() {
     setEditId(null);
     setTitle("");
     setVersion("");
-    setContent(CONTENT_TEMPLATE);
+    setContent("");
     setSlug("");
     setMessage("");
     setError("");
@@ -64,22 +51,11 @@ export function AnnouncementManager() {
     setEditId(announcement.id);
     setTitle(announcement.title);
     setVersion(announcement.version || "");
-    setContent(announcement.content || CONTENT_TEMPLATE);
+    setContent(announcement.content || "");
     setSlug(announcement.slug);
     setMessage("");
     setError("");
     setShowForm(true);
-  }
-
-  function appendSection(section: string) {
-    const addition = `\n\n## ${section}\n\n- `;
-    setContent((current) => `${current.trimEnd()}${addition}`);
-    requestAnimationFrame(() => {
-      const textarea = textareaRef.current;
-      if (!textarea) return;
-      textarea.focus();
-      textarea.setSelectionRange(textarea.value.length, textarea.value.length);
-    });
   }
 
   async function save(event: FormEvent) {
@@ -157,59 +133,52 @@ export function AnnouncementManager() {
               <h2 id="announcement-form-title" className="text-base font-bold">
                 {editId ? "编辑公告" : "新建公告"}
               </h2>
-              <p className="text-xs text-text-muted mt-1">三个字段完成后即可发布，摘要和访问地址由系统生成。</p>
+              <p className="text-xs text-text-muted mt-1">填写公告标题信息和 Markdown 正文，摘要与访问地址由系统生成。</p>
             </div>
             <button type="button" onClick={() => setShowForm(false)} className="btn-ghost min-w-11 min-h-11" aria-label="关闭公告编辑器">×</button>
           </div>
 
           <form onSubmit={save} className="flex flex-col gap-5">
-            <div className="announcement-meta-grid">
-              <label className="flex flex-col gap-1.5">
-                <span className="text-xs font-semibold text-text"><b className="text-gold mr-1.5">01</b>版本号</span>
-                <input
-                  value={version}
-                  onChange={(event) => setVersion(event.target.value)}
-                  required
-                  maxLength={32}
-                  placeholder="例如 2.1.0"
-                  autoFocus
-                />
-                <span className="text-[11px] text-text-muted">由发布者自行填写，最多 32 个字符。</span>
-              </label>
-              <label className="flex flex-col gap-1.5">
-                <span className="text-xs font-semibold text-text"><b className="text-gold mr-1.5">02</b>公告主题名称</span>
-                <input
-                  value={title}
-                  onChange={(event) => setTitle(event.target.value)}
-                  required
-                  maxLength={128}
-                  placeholder="概括本次公告的主题"
-                />
-                <span className="text-[11px] text-text-muted">用于公告列表和详情页主标题。</span>
-              </label>
-            </div>
+            <fieldset className="border-0 p-0 m-0">
+              <legend className="mb-2 text-xs font-semibold text-text">版本号 + 公告主题名称</legend>
+              <div className="announcement-meta-grid">
+                <label className="flex flex-col gap-1.5">
+                  <span className="text-[11px] text-text-muted">版本号</span>
+                  <input
+                    value={version}
+                    onChange={(event) => setVersion(event.target.value)}
+                    required
+                    maxLength={32}
+                    placeholder="例如 2.1.0"
+                    autoFocus
+                  />
+                  <span className="text-[11px] text-text-muted">由发布者自行填写，最多 32 个字符。</span>
+                </label>
+                <label className="flex flex-col gap-1.5">
+                  <span className="text-[11px] text-text-muted">公告主题名称</span>
+                  <input
+                    value={title}
+                    onChange={(event) => setTitle(event.target.value)}
+                    required
+                    maxLength={128}
+                    placeholder="概括本次公告的主题"
+                  />
+                  <span className="text-[11px] text-text-muted">用于公告列表和详情页主标题。</span>
+                </label>
+              </div>
+            </fieldset>
 
             <div>
-              <div className="flex items-center justify-between gap-3 mb-2">
-                <span className="text-xs font-semibold text-text"><b className="text-gold mr-1.5">03</b>主要内容（Markdown）</span>
-                <div className="flex flex-wrap justify-end gap-2" aria-label="插入内容分区">
-                  {["主要更新", "优化内容", "修复内容", "注意事项"].map((section) => (
-                    <button key={section} type="button" onClick={() => appendSection(section)} className="btn-subtle min-h-9 px-3 text-xs">
-                      + {section}
-                    </button>
-                  ))}
-                </div>
-              </div>
+              <div className="mb-2 text-xs font-semibold text-text">主要内容（Markdown）</div>
               <div className="announcement-editor-grid">
                 <label className="flex flex-col gap-1.5">
                   <span className="text-[11px] text-text-muted">编辑区</span>
                   <textarea
-                    ref={textareaRef}
                     value={content}
                     onChange={(event) => setContent(event.target.value)}
                     required
                     rows={18}
-                    placeholder={"## 主要更新\n\n- 更新内容"}
+                    placeholder={"使用 Markdown 编写公告主要内容"}
                     spellCheck={false}
                     style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", lineHeight: 1.65, resize: "vertical" }}
                   />
@@ -219,8 +188,8 @@ export function AnnouncementManager() {
                   <article className="announcement-preview" aria-label="公告 Markdown 预览">
                     <div className="flex items-center gap-2 mb-2">
                       {version && <span className="badge badge-gold">v{version}</span>}
+                      <h3 className="text-lg font-bold text-text">{title || "公告主题名称"}</h3>
                     </div>
-                    <h3 className="text-lg font-bold text-text mb-3">{title || "公告主题名称"}</h3>
                     <MarkdownContent content={content} />
                   </article>
                 </div>
@@ -244,8 +213,7 @@ export function AnnouncementManager() {
           <table className="w-full text-sm border-collapse">
             <thead>
               <tr className="border-b border-border-light bg-black/[0.015]">
-                <th className="py-3 px-5 text-left text-[11px] font-semibold text-text-muted">公告主题</th>
-                <th className="py-3 px-5 text-left text-[11px] font-semibold text-text-muted">版本</th>
+                <th className="py-3 px-5 text-left text-[11px] font-semibold text-text-muted">版本号 + 公告主题名称</th>
                 <th className="py-3 px-5 text-left text-[11px] font-semibold text-text-muted">状态</th>
                 <th className="py-3 px-5 text-left text-[11px] font-semibold text-text-muted">日期</th>
                 <th className="py-3 px-5 text-left text-[11px] font-semibold text-text-muted">操作</th>
@@ -253,14 +221,16 @@ export function AnnouncementManager() {
             </thead>
             <tbody>
               {list.length === 0 ? (
-                <tr><td colSpan={5} className="py-16 text-center text-text-muted">暂无公告</td></tr>
+                <tr><td colSpan={4} className="py-16 text-center text-text-muted">暂无公告</td></tr>
               ) : list.map((announcement) => (
                 <tr key={announcement.id} className="border-b border-border-light hover:bg-black/[0.02]">
                   <td className="py-3 px-5 min-w-56">
-                    <div className="font-semibold text-text">{announcement.title}</div>
+                    <div className="flex items-center gap-2 font-semibold text-text">
+                      <span className="badge badge-gold">v{announcement.version || "-"}</span>
+                      <span>{announcement.title}</span>
+                    </div>
                     <div className="text-[11px] text-text-muted mt-1 line-clamp-1">{announcement.brief}</div>
                   </td>
-                  <td className="py-3 px-5 text-xs text-text-muted">{announcement.version || "-"}</td>
                   <td className="py-3 px-5">
                     <button type="button" onClick={() => void togglePublish(announcement)} className={`min-h-9 rounded-full px-3 text-[11px] font-semibold ${announcement.published ? "bg-green/10 text-green" : "bg-gold/10 text-gold"}`}>
                       {announcement.published ? "已发布" : "草稿"}
