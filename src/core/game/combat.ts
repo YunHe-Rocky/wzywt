@@ -185,6 +185,7 @@ export function calcSkillDamage(params: {
   critMultiplier?: number; // 暴击效果，默认200%
   dmgAmp?: number;        // 伤害增幅(被动提供)
   dmgReduce?: number;     // 免伤(被动提供)
+  rng?: () => number;     // 可注入随机源，便于确定性测试
 }): DamageResult {
   const {
     skill, stats, target,
@@ -193,6 +194,7 @@ export function calcSkillDamage(params: {
     critMultiplier = 200,
     dmgAmp = 0,
     dmgReduce = 0,
+    rng = Math.random,
   } = params;
 
   const baseDmg = skill.base[Math.min(level, skill.base.length - 1)] || skill.base[0] || 0;
@@ -223,7 +225,7 @@ export function calcSkillDamage(params: {
   if (skill.type === "heal") return { raw: Math.round(raw), afterReduction: Math.round(raw), isCrit: false, reduction: 0, effectiveDef: 0 };
 
   // 暴击判定
-  const isCrit = skill.type === "physical" && Math.random() * 100 < critRate;
+  const isCrit = skill.type === "physical" && rng() * 100 < critRate;
   if (isCrit) raw *= (critMultiplier / 100);
 
   // 真伤无视护甲
@@ -265,12 +267,13 @@ export function calcComboDamage(params: {
   skills: SkillEffect[];
   stats: FinalStats;
   target: TargetDefense;
+  rng?: () => number;
 }): { totalRaw: number; totalDmg: number; skills: { name: string; dmg: DamageResult }[] } {
   let totalRaw = 0;
   let totalDmg = 0;
   const results: { name: string; dmg: DamageResult }[] = [];
   for (const skill of params.skills) {
-    const dmg = calcSkillDamage({ skill, stats: params.stats, target: params.target });
+    const dmg = calcSkillDamage({ skill, stats: params.stats, target: params.target, rng: params.rng });
     totalRaw += dmg.raw;
     totalDmg += dmg.afterReduction;
     results.push({ name: skill.skillName || "?", dmg });

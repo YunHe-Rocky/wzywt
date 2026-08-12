@@ -2,7 +2,8 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { requireAuth, hashPassword } from "@/lib/auth";
+import { authenticate, hashPassword } from "@/lib/auth";
+import { getSession } from "@/lib/session";
 
 const PRESET_QUESTIONS = [
   "你的出生城市是？",
@@ -38,8 +39,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const { userId } = await requireAuth().catch(() => ({ userId: 0 }));
-  if (!userId) return NextResponse.json({ error: "请先登录" }, { status: 401 });
+  const auth = await authenticate();
+  if (!auth.ok) return NextResponse.json({ error: auth.code === "BANNED" ? "账户已被封禁" : "请先登录" }, { status: auth.code === "BANNED" ? 403 : 401 });
+  const { userId } = auth.user;
 
   const { securityQuestion, customQuestion, securityAnswer } = await req.json();
 
@@ -61,10 +63,19 @@ export async function POST(req: NextRequest) {
 
   const securityAnswerHash = await hashPassword(securityAnswer.trim());
 
-  await prisma.user.update({
+  const updated = await prisma.user.update({
     where: { id: userId },
-    data: { securityQuestion: finalQuestion, securityAnswerHash },
+    data: {
+      securityQuestion: finalQuestion,
+      securityAnswerHash,
+      sessionVersion: { increment: 1 },
+    },
+    select: { sessionVersion: true },
   });
+
+  const session = await getSession();
+  session.sessionVersion = updated.sessionVersion;
+  await session.save();
 
   return NextResponse.json({ ok: true, question: finalQuestion });
 }

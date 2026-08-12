@@ -1,4 +1,5 @@
 import { Prisma } from "@prisma/client";
+import { randomBytes } from "node:crypto";
 import { prisma } from "@/lib/db";
 import {
   resolveRecruitmentStatus,
@@ -139,8 +140,7 @@ export async function addTemporaryTournamentPlayer({
     const internalUsername = [
       "temp",
       tournamentId,
-      Date.now().toString(36),
-      Math.random().toString(36).slice(2, 7),
+      randomBytes(8).toString("hex"),
     ].join("_").slice(0, 32);
     const tempUser = await tx.user.create({
       data: { username: internalUsername, passwordHash: "", isTemporary: true },

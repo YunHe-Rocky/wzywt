@@ -13,6 +13,8 @@ import {
 } from "@/features/announcements/model";
 import {
   canViewTournamentMemberIdentity,
+  normalizeTournamentDraft,
+  parsePositiveInteger,
   resolveRecruitmentStatus,
   TEMPORARY_CLEANUP_STATUSES,
 } from "@/features/tournaments/model";
@@ -24,7 +26,9 @@ import {
   normalizeRolePreferenceSettings,
 } from "@/features/profile/model";
 import { detectAvatarImageType } from "@/features/profile/server/avatar";
-import { selectHeroesForLane } from "@/core/game";
+import { calcSkillDamage, selectHeroesForLane } from "@/core/game";
+import { resolveAuthState } from "@/features/auth/model";
+import { validateCrawlUrl } from "@/lib/anti-bot";
 import {
   calculateLanePowerRank,
   formatLanePowerRank,
@@ -35,7 +39,13 @@ import {
   createHeroSkins,
   mergeHeroCatalog,
 } from "@/features/heroes/model";
-import { splitTeams, type Player } from "@/core/team-balancing";
+import {
+  compareCandidate,
+  comparePreferenceSummary,
+  splitTeams,
+  type Player,
+  type TeamCandidate,
+} from "@/core/team-balancing";
 
 const july2026 = getCalendarRows(2026, 6);
 assert.equal(july2026[0][3], 1);
@@ -87,6 +97,76 @@ assert.equal(resolveRecruitmentStatus({
   hasSplitResult: false,
   now,
 }), "locked");
+const persistedIdentity = {
+  id: 1,
+  username: "tester",
+  role: "user",
+  banned: false,
+  isTemporary: false,
+  sessionVersion: 2,
+};
+assert.deepEqual(resolveAuthState({ userId: 1, sessionVersion: 2 }, persistedIdentity), {
+  ok: true,
+  user: { userId: 1, username: "tester", role: "user" },
+});
+assert.deepEqual(resolveAuthState({ userId: 1, sessionVersion: 1 }, persistedIdentity), {
+  ok: false,
+  code: "UNAUTHORIZED",
+});
+assert.deepEqual(resolveAuthState({ userId: 1, sessionVersion: 2 }, { ...persistedIdentity, banned: true }), {
+  ok: false,
+  code: "BANNED",
+});
+assert.deepEqual(resolveAuthState({ userId: 1, sessionVersion: 2 }, { ...persistedIdentity, isTemporary: true }), {
+  ok: false,
+  code: "UNAUTHORIZED",
+});
+assert.deepEqual(resolveAuthState({}, persistedIdentity), { ok: false, code: "UNAUTHORIZED" });
+
+assert.equal(
+  validateCrawlUrl("https://game.gtimg.cn/images/{id}.jpg"),
+  "https://game.gtimg.cn/images/{id}.jpg",
+);
+assert.throws(() => validateCrawlUrl("http://127.0.0.1/admin"), /受信任/);
+assert.throws(() => validateCrawlUrl("https://localhost/admin"), /受信任/);
+assert.throws(() => validateCrawlUrl("file:///etc/passwd"), /受信任/);
+
+const combatStats = {
+  hp: 1_000, mp: 0, atk: 100, ap: 0, extraAtk: 0, extraAp: 0, extraHp: 0,
+  def: 0, mdef: 0, atkSpeed: 0, moveSpeed: 0, critRate: 50, cdReduce: 0,
+  armorPen: 0, armorPenPct: 0, magicPen: 0, magicPenPct: 0, lifesteal: 0,
+};
+const combatInput = {
+  skill: { type: "physical" as const, base: [100], bonuses: [] },
+  stats: combatStats,
+  target: { def: 0, mdef: 0, hp: 1_000 },
+  critRate: 50,
+};
+assert.equal(calcSkillDamage({ ...combatInput, rng: () => 0.49 }).isCrit, true);
+assert.equal(calcSkillDamage({ ...combatInput, rng: () => 0.5 }).isCrit, false);
+assert.equal(parsePositiveInteger("12", "赛事 ID"), 12);
+assert.throws(() => parsePositiveInteger("12x", "赛事 ID"), /无效/);
+assert.deepEqual(normalizeTournamentDraft({
+  name: "  周五内战  ",
+  deadline: "2026-07-25T12:00:00+08:00",
+  isPublic: true,
+  announcement: "  准时参加  ",
+}, { now }), {
+  name: "周五内战",
+  deadline: futureDeadline,
+  isPublic: true,
+  announcement: "准时参加",
+});
+assert.throws(() => normalizeTournamentDraft({
+  name: "赛事",
+  deadline: "not-a-date",
+  isPublic: true,
+}, { now }), /格式无效/);
+assert.throws(() => normalizeTournamentDraft({
+  name: "赛事",
+  deadline: futureDeadline,
+  isPublic: "true",
+}, { now }), /boolean/);
 assert.equal(canViewTournamentMemberIdentity("owner"), true);
 assert.equal(canViewTournamentMemberIdentity("co_owner"), true);
 assert.equal(canViewTournamentMemberIdentity("player"), false);
@@ -143,33 +223,100 @@ assert.equal(resolveRecruitmentStatus({
   now,
 }), "locked");
 
-const roles = ["top", "jungle", "mid", "adc", "support"];
-const players: Player[] = Array.from({ length: 10 }, (_, index) => ({
-  userId: index + 1,
-  rolePreferences: roles.map((roleType, roleIndex) => ({
-    roleType,
-    preferenceRank: ((roleIndex - index + roles.length) % roles.length) + 1,
-    roleRank: 5 + (index % 3),
-    peakScore: 1_500 + index * 10,
-    peakRank: 6,
-  })),
-  heroPowers: Object.fromEntries(
-    roles.map((roleType, roleIndex) => [
+const roles = ["top", "jungle", "mid", "adc", "support"] as const;
+function createPlayer(userId: number, preferenceOrder: readonly string[], strength = 6_000): Player {
+  return {
+    userId,
+    rolePreferences: preferenceOrder.map((roleType, index) => ({
       roleType,
-      [6_000 + index * 100 + roleIndex * 10],
-    ]),
-  ),
-}));
-const powersBefore = JSON.stringify(players.map((player) => player.heroPowers));
+      preferenceRank: index + 1,
+      roleRank: 6,
+      peakScore: 1_800,
+      peakRank: 7,
+    })),
+    heroPowers: Object.fromEntries(roles.map((role) => [role, [role === preferenceOrder[0] ? strength : 3_000]])),
+  };
+}
+
+const players: Player[] = roles.flatMap((role, roleIndex) => [
+  createPlayer(roleIndex * 2 + 1, [role, ...roles.filter((item) => item !== role)], 5_000 + roleIndex * 500),
+  createPlayer(roleIndex * 2 + 2, [role, ...roles.filter((item) => item !== role)], 9_000 - roleIndex * 500),
+]);
+const playersBefore = JSON.stringify(players);
 const result = splitTeams(players);
 assert.ok(result);
+assert.equal(result.version, 2);
 assert.equal(result.teamRed.length, 5);
 assert.equal(result.teamBlue.length, 5);
+const allMembers = [...result.teamRed, ...result.teamBlue];
+assert.equal(new Set(allMembers.map(({ userId }) => userId)).size, 10);
+for (const role of roles) {
+  assert.equal(allMembers.filter(({ roleType }) => roleType === role).length, 2);
+  assert.equal(result.teamRed.filter(({ roleType }) => roleType === role).length, 1);
+  assert.equal(result.teamBlue.filter(({ roleType }) => roleType === role).length, 1);
+}
+assert.equal(result.preferenceSummary.first, 10);
+assert.equal(JSON.stringify(players), playersBefore);
+
+const fourJunglers = [
+  createPlayer(1, ["jungle", "mid", "top", "adc", "support"], 1_000),
+  createPlayer(2, ["jungle", "adc", "mid", "support", "top"], 1_100),
+  createPlayer(3, ["jungle", "top", "support", "mid", "adc"], 20_000),
+  createPlayer(4, ["jungle", "support", "top", "adc", "mid"], 19_000),
+  createPlayer(5, ["mid", "top", "adc", "support", "jungle"]),
+  createPlayer(6, ["mid", "support", "adc", "top", "jungle"]),
+  createPlayer(7, ["adc", "top", "mid", "support", "jungle"]),
+  createPlayer(8, ["adc", "support", "mid", "top", "jungle"]),
+  createPlayer(9, ["top", "support", "mid", "adc", "jungle"]),
+  createPlayer(10, ["support", "top", "mid", "adc", "jungle"]),
+];
+const jungleResult = splitTeams(fourJunglers);
+assert.ok(jungleResult);
 assert.deepEqual(
-  new Set([...result.teamRed, ...result.teamBlue].map((player) => player.roleType)),
-  new Set(roles),
+  [...jungleResult.teamRed, ...jungleResult.teamBlue]
+    .filter(({ roleType }) => roleType === "jungle")
+    .map(({ userId }) => userId)
+    .sort((a, b) => a - b),
+  [1, 2],
 );
-assert.equal(JSON.stringify(players.map((player) => player.heroPowers)), powersBefore);
+assert.deepEqual(jungleResult.preferenceSummary, {
+  first: 8, second: 2, third: 0, fourth: 0, fifth: 0, unranked: 0,
+});
+
+assert.ok(comparePreferenceSummary(
+  { first: 8, second: 0, third: 2, fourth: 0, fifth: 0, unranked: 0 },
+  { first: 7, second: 3, third: 0, fourth: 0, fifth: 0, unranked: 0 },
+) < 0);
+assert.ok(comparePreferenceSummary(
+  { first: 8, second: 2, third: 0, fourth: 0, fifth: 0, unranked: 0 },
+  { first: 8, second: 1, third: 1, fourth: 0, fifth: 0, unranked: 0 },
+) < 0);
+
+function candidate(first: number, totalStrengthDiff: number, signature: string): TeamCandidate {
+  return {
+    assignments: [],
+    preference: { first, second: 10 - first, third: 0, fourth: 0, fifth: 0, unranked: 0 },
+    balance: { totalStrengthDiff, laneStrengthDiffSum: totalStrengthDiff, rankDiff: 0, maxLaneStrengthDiff: totalStrengthDiff },
+    redStrength: 0,
+    blueStrength: 0,
+    rankCoverage: 10,
+    signature,
+  };
+}
+assert.ok(compareCandidate(candidate(8, 200, "b"), candidate(7, 0, "a")) < 0);
+assert.ok(compareCandidate(candidate(8, 10, "b"), candidate(8, 20, "a")) < 0);
+assert.ok(compareCandidate(candidate(8, 10, "a"), candidate(8, 10, "b")) < 0);
+
+const deterministic = JSON.stringify(result);
+for (let attempt = 0; attempt < 100; attempt++) assert.equal(JSON.stringify(splitTeams(players)), deterministic);
+
+const missingData = players.map((player, index) => index < 2
+  ? { userId: player.userId, rolePreferences: [], heroPowers: {} }
+  : player);
+const missingResult = splitTeams(missingData);
+assert.ok(missingResult);
+assert.equal(JSON.stringify(missingResult).includes("null"), false);
+for (const value of Object.values(missingResult.balanceSummary)) assert.equal(Number.isFinite(value), true);
 
 const midHeroes = selectHeroesForLane([
   { heroId: 3, roleType: "top", secondaryRoleTypes: ["mid"] },

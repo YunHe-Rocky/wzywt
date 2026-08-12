@@ -1,5 +1,38 @@
 # 更新日志
 
+## v2.1.0（2026-08-12）
+
+### Security
+
+- Session 权限改为数据库实时校验，密码或安全问题变更后使旧 Session 失效。
+- 密码重置增加持久化限流和一次性短期 Token，移除固定管理员凭据。
+- 爬虫 URL 仅允许受信任 HTTPS 域名，阻断 SSRF 与跨域重定向。
+- Next.js 升级至 15.5.23，并锁定已修复的传递依赖，清零依赖审计漏洞。
+
+### Team Balancing
+
+- 以严格字典序统一比较偏好满足度与完整均衡指标，移除单指标提前淘汰。
+- 使用流式 DFS、指标预计算和红蓝镜像去重，结果可复现且不修改输入。
+- Split 结果升级为 V2，并在 Serializable 事务内完成状态、结果和操作日志提交。
+
+### Deployment
+
+- 改为 release 目录构建、原子 symlink 切换、health check 与自动 rollback。
+- 数据库发布统一使用 `prisma migrate deploy`，切换前执行无 shell eval 的备份。
+- 补齐历史 `db push` schema 的 reconciliation migration，空库可连续执行全部 migration。
+- Hero Sync 与发布解耦，移除主动清理 Linux page cache 的逻辑。
+
+### Reliability
+
+- 赛事输入、人数上限、邀请码、延期和生命周期状态统一校验。
+- Cron 任务增加 Redis 分布式锁与进程内降级锁，Redis 清理改用 SCAN。
+- Markdown 收敛为安全的单一 Renderer，公开赛事接口不再泄露分队身份。
+
+### Testing
+
+- 增加算法、安全、Markdown、数据库并发集成测试和 Playwright 回归入口。
+- 增加 GitHub Actions：migration、架构、类型、lint、测试和生产构建门禁。
+
 ## v2.0.0（2026-07-01）
 
 ### 全新后台管理系统

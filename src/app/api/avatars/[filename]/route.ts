@@ -7,7 +7,8 @@ import { existsSync } from "fs";
 
 const AVATAR_DIR = process.env.AVATAR_DIR || "/data/uploads/avatars";
 
-export async function GET(req: NextRequest, { params }: { params: { filename: string } }) {
+export async function GET(req: NextRequest, props: { params: Promise<{ filename: string }> }) {
+  const params = await props.params;
   const filename = params.filename;
   if (filename.includes("..") || filename.includes("/")) {
     return NextResponse.json({ error: "非法文件名" }, { status: 400 });

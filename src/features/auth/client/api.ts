@@ -18,6 +18,8 @@ interface UserResponse {
 
 interface ErrorResponse {
   error?: string;
+  resetToken?: string;
+  expiresIn?: number;
   [key: string]: unknown;
 }
 

@@ -26,13 +26,9 @@ if [ "$available" -gt "$THRESHOLD_MB" ]; then
   exit 0  # 内存充足，无需清理
 fi
 
-echo "[$(date '+%F %T')] 可用内存 ${available}MB < ${THRESHOLD_MB}MB，执行安全清理..."
+echo "[$(date '+%F %T')] 可用内存 ${available}MB < ${THRESHOLD_MB}MB，重载 web 进程..."
 
-# 1. 清理系统页缓存 (安全操作，不影响进程内存)
-sync
-echo 1 > /proc/sys/vm/drop_caches 2>/dev/null || true
-
-# 2. PM2 优雅重载 web 进程（释放 V8 碎片内存）
+# 仅回收应用自身的 V8 内存；应用不得修改 Linux page cache。
 pm2 reload yanwutang-web 2>/dev/null || true
 
 # 记录时间戳

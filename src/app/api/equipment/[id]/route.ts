@@ -4,10 +4,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { cacheGet, cacheSet, cacheDel } from "@/lib/redis";
 
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function GET(_req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const itemId = parseInt(params.id);
   if (!itemId) return NextResponse.json({ error: "无效ID" }, { status: 400 });
 

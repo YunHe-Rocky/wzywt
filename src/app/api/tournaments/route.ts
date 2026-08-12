@@ -1,16 +1,20 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
+import { randomInt } from "node:crypto";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
-import { requireAuth } from "@/lib/auth";
+import { authenticate } from "@/lib/auth";
+import { normalizeTournamentDraft, TournamentValidationError } from "@/features/tournaments/model";
 
 function generateCode(): string {
-  return String(Math.floor(100000 + Math.random() * 900000));
+  return String(randomInt(100_000, 1_000_000));
 }
 
 export async function GET() {
-  const { userId } = await requireAuth().catch(() => ({ userId: 0 }));
-  if (!userId) return NextResponse.json({ error: "请先登录" }, { status: 401 });
+  const auth = await authenticate();
+  if (!auth.ok) return NextResponse.json({ error: auth.code === "BANNED" ? "账户已被封禁" : "请先登录" }, { status: auth.code === "BANNED" ? 403 : 401 });
+  const { userId } = auth.user;
 
   // 我的赛事（参与的 + 管理的）
   const tournaments = await prisma.tournament.findMany({
@@ -53,31 +57,42 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const { userId } = await requireAuth().catch(() => ({ userId: 0 }));
-  if (!userId) return NextResponse.json({ error: "请先登录" }, { status: 401 });
+  const auth = await authenticate();
+  if (!auth.ok) return NextResponse.json({ error: auth.code === "BANNED" ? "账户已被封禁" : "请先登录" }, { status: auth.code === "BANNED" ? 403 : 401 });
+  const { userId } = auth.user;
 
-  const { name, deadline, isPublic, announcement } = await req.json();
-  if (!name || !deadline) {
-    return NextResponse.json({ error: "赛事名称和截止时间必填" }, { status: 400 });
+  const body = await req.json().catch(() => null) as Record<string, unknown> | null;
+  if (!body) return NextResponse.json({ error: "请求格式错误" }, { status: 400 });
+
+  let draft;
+  try {
+    draft = normalizeTournamentDraft(body);
+  } catch (error) {
+    if (error instanceof TournamentValidationError) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+    throw error;
   }
-  if (new Date(deadline) < new Date()) {
-    return NextResponse.json({ error: "截止时间不能是过去" }, { status: 400 });
+
+  for (let attempt = 0; attempt < 5; attempt++) {
+    try {
+      const tournament = await prisma.tournament.create({
+        data: {
+          name: draft.name!,
+          code: generateCode(),
+          deadline: draft.deadline!,
+          isPublic: draft.isPublic!,
+          announcement: draft.announcement ?? null,
+          admins: { create: { userId, role: "owner" } },
+          players: { create: { userId, isSpectator: false } },
+        },
+        include: { admins: true, _count: { select: { players: true } } },
+      });
+      return NextResponse.json({ tournament });
+    } catch (error) {
+      const codeCollision = error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
+      if (!codeCollision || attempt === 4) throw error;
+    }
   }
-
-  const code = generateCode();
-
-  const tournament = await prisma.tournament.create({
-    data: {
-      name,
-      code,
-      deadline: new Date(deadline),
-      isPublic: isPublic === true,
-      announcement: announcement || null,
-      admins: { create: { userId, role: "owner" } },
-      players: { create: { userId, isSpectator: false } },
-    },
-    include: { admins: true, _count: { select: { players: true } } },
-  });
-
-  return NextResponse.json({ tournament });
+  throw new Error("unreachable");
 }

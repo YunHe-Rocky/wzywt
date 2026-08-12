@@ -9,13 +9,10 @@ const CACHE_TTL = 3600000; // 1 hour
 
 export async function GET() {
   try {
-    const cacheRow = (await prisma.$queryRawUnsafe(
-      "SELECT `value` FROM kv_cache WHERE `key` = ?",
-      CACHE_KEY
-    )) as { value: string }[];
+    const cacheRow = await prisma.kvCache.findUnique({ where: { key: CACHE_KEY } });
 
-    if (cacheRow.length > 0) {
-      const cached = JSON.parse(cacheRow[0].value);
+    if (cacheRow) {
+      const cached = JSON.parse(cacheRow.value);
       if (cached.timestamp && Date.now() - cached.timestamp < CACHE_TTL) {
         return NextResponse.json(cached.items);
       }
@@ -40,12 +37,12 @@ export async function GET() {
 
     if (merged.length > 0) {
       const cacheData = { items: merged, timestamp: Date.now() };
-      await prisma.$executeRawUnsafe(
-        "INSERT INTO kv_cache (`key`, `value`) VALUES (?, ?) ON DUPLICATE KEY UPDATE `value` = ?",
-        CACHE_KEY,
-        JSON.stringify(cacheData),
-        JSON.stringify(cacheData)
-      );
+      const value = JSON.stringify(cacheData);
+      await prisma.kvCache.upsert({
+        where: { key: CACHE_KEY },
+        update: { value },
+        create: { key: CACHE_KEY, value },
+      });
       return NextResponse.json(merged);
     }
   } catch {

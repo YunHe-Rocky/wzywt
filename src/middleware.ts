@@ -10,7 +10,7 @@ function isPublicPath(path: string): boolean {
 function isProtectedPath(path: string): boolean {
   return PROTECTED_PREFIXES.some((p) => path.startsWith(p));
 }
-const PUBLIC_API = ["/api/auth", "/api/official-news", "/api/announcements", "/api/changelog", "/api/tournaments/public", "/api/heroes", "/api/equipment"];
+const PUBLIC_API = ["/api/health", "/api/auth", "/api/official-news", "/api/announcements", "/api/changelog", "/api/tournaments/public", "/api/heroes", "/api/equipment"];
 const STATIC_PREFIXES = ["/_next", "/favicon", "/public", "/robots.txt", "/sitemap.xml"];
 const SESSION_COOKIE = "wzyt_session";
 

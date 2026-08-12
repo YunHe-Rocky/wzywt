@@ -2,14 +2,20 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { requireAuth } from "@/lib/auth";
+import { authenticate } from "@/lib/auth";
 import {
   addTemporaryTournamentPlayer,
   TournamentCapacityError,
 } from "@/features/tournaments/server/capacity";
 
-export async function PUT(req: NextRequest, { params }: { params: { id: string; appId: string } }) {
-  const { userId } = await requireAuth().catch(() => ({ userId: 0 }));
+export async function PUT(
+  req: NextRequest,
+  props: { params: Promise<{ id: string; appId: string }> }
+) {
+  const params = await props.params;
+  const auth = await authenticate();
+  if (!auth.ok) return NextResponse.json({ error: auth.code === "BANNED" ? "账号已被封禁" : "请先登录" }, { status: auth.code === "BANNED" ? 403 : 401 });
+  const { userId } = auth.user;
   if (!userId) return NextResponse.json({ error: "请先登录" }, { status: 401 });
 
   const tournamentId = parseInt(params.id);

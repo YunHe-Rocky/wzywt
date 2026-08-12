@@ -140,7 +140,7 @@ POST /api/auth/delete-account
 
 | role | 说明 |
 |------|------|
-| admin | 超级管理员，登录后访问 `/admin` 后台。内置账号 `admin / admin12345678` |
+| admin | 超级管理员，登录后访问 `/admin` 后台；凭据由部署环境配置，不写入仓库 |
 | user | 普通用户，无后台权限 |
 
 ### 3.2 权限函数
@@ -524,7 +524,7 @@ owner > co_owner > player
 
 ## 九、伤害公式引擎
 
-`src/engine/combat.ts` — 社区验证版伤害计算，用于英雄详情页展示理论伤害。
+`src/core/game/combat.ts` — 社区验证版伤害计算，用于英雄详情页展示理论伤害。
 
 ### 9.1 核心公式
 
@@ -705,8 +705,8 @@ Hero 表三个命格字段：
 | `src/themes/types.ts` | ThemeId / ThemeColors 类型 |
 | `src/themes/ui-config.ts` | UI 布局配置 (headerHeight/dock 开关) |
 | `src/app/globals.css` | 所有 CSS 变量 + 双主题样式 |
-| `src/components/layout/Dock.tsx` | 底部导航 (根据主题控制显示) |
-| `src/components/layout/Header.tsx` | 顶部导航 |
+| `src/web/components/layout/Dock.tsx` | 底部导航 (根据主题控制显示) |
+| `src/web/components/layout/Header.tsx` | 顶部导航 |
 
 ### 12.6 背景光球系统 (`BackgroundOrbs`)
 
@@ -985,7 +985,7 @@ SSL 证书 → git pull → npm install → prisma generate → 英雄同步 →
 | PM2 | `ecosystem.config.js` (生产端口 8081) |
 | 代理 | 80/443 → 127.0.0.1:8081 |
 | SSE | `proxy_buffering off` + `proxy_read_timeout 86400s` |
-| MySQL | 38.22.234.148:3306, 数据库 yanwutang_test |
+| MySQL | `<DB_HOST>:3306`，数据库 `<DB_NAME>` |
 | Redis | 同上服务器，密码认证 |
 
 ### 20.4 环境变量
@@ -993,8 +993,7 @@ SSL 证书 → git pull → npm install → prisma generate → 英雄同步 →
 | 变量 | 说明 |
 |------|------|
 | DATABASE_URL | MySQL 连接字符串 |
-| SESSION_SECRET | iron-session 加密密钥 (≥32 字符) |
-| SESSION_SECURE | 是否启用 secure cookie (生产: "true") |
+| SESSION_SECRET | iron-session 加密密钥（≥32 字符）；生产环境必填且不得写入仓库 |
 | REDIS_URL | Redis 连接字符串 |
 
 ---

@@ -10,6 +10,9 @@
 
 # testing
 /coverage
+/playwright-report/
+/test-results/
+/tests/e2e/*.png
 
 # next.js
 /.next/
@@ -53,6 +56,11 @@ next-env.d.ts
 
 # database backups
 /data/bak/
+/data/mysql-bak/
+/data/**/*.sql
+/data/**/*.dump
+*.sql.gz
 
 # development scripts & cache
 /verify_screenshots.py
+/.cache/

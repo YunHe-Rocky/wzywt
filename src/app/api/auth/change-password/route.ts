@@ -2,11 +2,13 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { requireAuth, hashPassword, verifyPassword } from "@/lib/auth";
+import { authenticate, hashPassword, verifyPassword } from "@/lib/auth";
+import { getSession } from "@/lib/session";
 
 export async function POST(req: NextRequest) {
-  const { userId } = await requireAuth().catch(() => ({ userId: 0 }));
-  if (!userId) return NextResponse.json({ error: "请先登录" }, { status: 401 });
+  const auth = await authenticate();
+  if (!auth.ok) return NextResponse.json({ error: auth.code === "BANNED" ? "账户已被封禁" : "请先登录" }, { status: auth.code === "BANNED" ? 403 : 401 });
+  const { userId } = auth.user;
 
   const { answer, newPassword, confirmPassword, verifyOnly } = await req.json();
 
@@ -44,10 +46,16 @@ export async function POST(req: NextRequest) {
   }
 
   const passwordHash = await hashPassword(newPassword);
-  await prisma.user.update({
+  const updated = await prisma.user.update({
     where: { id: userId },
-    data: { passwordHash },
+    data: { passwordHash, sessionVersion: { increment: 1 } },
+    select: { sessionVersion: true },
   });
+
+  // 当前设备继续登录，其他设备的旧 Session 立即失效。
+  const session = await getSession();
+  session.sessionVersion = updated.sessionVersion;
+  await session.save();
 
   return NextResponse.json({ ok: true });
 }

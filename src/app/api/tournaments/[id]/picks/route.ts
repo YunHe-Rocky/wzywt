@@ -2,12 +2,13 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { requireAuth } from "@/lib/auth";
+import { authenticate } from "@/lib/auth";
 
 const VALID_ROLES = ["top", "jungle", "mid", "adc", "support"];
 
 // GET 获取两队选人数据
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(_req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const tournamentId = parseInt(params.id);
   const picks = await prisma.tournamentPick.findMany({
     where: { tournamentId },
@@ -31,8 +32,11 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 }
 
 // PUT 保存选人
-export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
-  const { userId } = await requireAuth().catch(() => ({ userId: 0 }));
+export async function PUT(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
+  const auth = await authenticate();
+  if (!auth.ok) return NextResponse.json({ error: auth.code === "BANNED" ? "账号已被封禁" : "请先登录" }, { status: auth.code === "BANNED" ? 403 : 401 });
+  const { userId } = auth.user;
   if (!userId) return NextResponse.json({ error: "请先登录" }, { status: 401 });
 
   const tournamentId = parseInt(params.id);

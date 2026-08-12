@@ -3,17 +3,28 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
-import { requireAuth } from "@/lib/auth";
+import { authenticate } from "@/lib/auth";
 import {
   TOURNAMENT_CAPACITY,
   TournamentCapacityError,
 } from "@/features/tournaments/server/capacity";
+import { parsePositiveInteger, TournamentValidationError } from "@/features/tournaments/model";
 
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
-  const { userId } = await requireAuth().catch(() => ({ userId: 0 }));
-  if (!userId) return NextResponse.json({ error: "请先登录" }, { status: 401 });
+export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
+  const auth = await authenticate();
+  if (!auth.ok) return NextResponse.json({ error: auth.code === "BANNED" ? "账户已被封禁" : "请先登录" }, { status: auth.code === "BANNED" ? 403 : 401 });
+  const { userId } = auth.user;
 
-  const tournamentId = parseInt(params.id);
+  let tournamentId: number;
+  try {
+    tournamentId = parsePositiveInteger(params.id, "赛事 ID");
+  } catch (error) {
+    if (error instanceof TournamentValidationError) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+    throw error;
+  }
   const body = await req.json().catch(() => ({}));
   const newDeadline = typeof body.newDeadline === "string"
     ? new Date(body.newDeadline)

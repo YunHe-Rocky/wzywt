@@ -1,20 +1,28 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
-import { requireAuth } from "@/lib/auth";
 import { splitTeams } from "@/core/team-balancing";
+import { authenticate } from "@/lib/auth";
+import { prisma } from "@/lib/db";
+import { commitTournamentSplit, SplitConflictError } from "@/features/tournaments/server/split";
 
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
-  const { userId } = await requireAuth().catch(() => ({ userId: 0 }));
-  if (!userId) return NextResponse.json({ error: "请先登录" }, { status: 401 });
+export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
+  const auth = await authenticate();
+  if (!auth.ok) return NextResponse.json({ error: auth.code === "BANNED" ? "账户已被封禁" : "请先登录" }, { status: auth.code === "BANNED" ? 403 : 401 });
+  const { userId } = auth.user;
 
-  const tournamentId = parseInt(params.id);
+  const tournamentId = Number(params.id);
+  if (!Number.isSafeInteger(tournamentId) || tournamentId <= 0) {
+    return NextResponse.json({ error: "无效的赛事 ID" }, { status: 400 });
+  }
 
-  const admin = await prisma.tournamentAdmin.findFirst({ where: { tournamentId, userId } });
-  if (!admin) return NextResponse.json({ error: "仅管理员可分隊" }, { status: 403 });
+  const admin = await prisma.tournamentAdmin.findUnique({
+    where: { tournamentId_userId: { tournamentId, userId } },
+    select: { role: true },
+  });
+  if (!admin) return NextResponse.json({ error: "仅管理员可分队" }, { status: 403 });
 
-  // Cooldown for co_owner
   if (admin.role === "co_owner") {
     const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000);
     const recentOwnerSplit = await prisma.adminOperation.findFirst({
@@ -30,68 +38,57 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     }
   }
 
-  // Lock tournament
-  const tournament = await prisma.tournament.findUnique({ where: { id: tournamentId } });
+  const tournament = await prisma.tournament.findUnique({
+    where: { id: tournamentId },
+    select: { deadline: true, status: true, splitResult: true },
+  });
   if (!tournament) return NextResponse.json({ error: "赛事不存在" }, { status: 404 });
+  if (tournament.status === "completed" || tournament.splitResult !== null) {
+    return NextResponse.json({ error: "赛事已经完成分队" }, { status: 409 });
+  }
 
-  // Get non-spectator players
   const players = await prisma.tournamentPlayer.findMany({
     where: { tournamentId, isSpectator: false },
-    include: {
-      user: {
-        include: { rolePreferences: true, heroPowers: true },
-      },
-    },
+    include: { user: { include: { rolePreferences: true, heroPowers: true } } },
+    orderBy: { userId: "asc" },
   });
-
-  // Validate exactly 10 players for 5v5
   if (players.length !== 10) {
     return NextResponse.json({ error: `需要正好10人才能分队，当前${players.length}人` }, { status: 400 });
   }
 
-  // Deadline check: warn if before deadline, but allow
-  const now = new Date();
-  const isBeforeDeadline = tournament.deadline > now;
-
-  if (tournament.status === "recruiting") {
-    await prisma.tournament.update({ where: { id: tournamentId }, data: { status: "locked" } });
-  }
-
-  const algoPlayers = players.map((p) => {
+  const algoPlayers = players.map((player) => {
     const heroPowers: Record<string, number[]> = {};
-    for (const hp of p.user.heroPowers) {
-      if (!heroPowers[hp.roleType]) heroPowers[hp.roleType] = [];
-      heroPowers[hp.roleType].push(hp.powerScore);
+    for (const power of player.user.heroPowers) {
+      (heroPowers[power.roleType] ??= []).push(power.powerScore);
     }
     return {
-      userId: p.userId,
-      rolePreferences: p.user.rolePreferences || [],
+      userId: player.userId,
+      rolePreferences: player.user.rolePreferences,
       heroPowers,
     };
   });
-
   const result = splitTeams(algoPlayers);
+  if (!result) {
+    return NextResponse.json({ error: "分队输入无效" }, { status: 422 });
+  }
 
   const splitData = {
-    teamRed: result?.teamRed || [],
-    teamBlue: result?.teamBlue || [],
-    strengthDiff: result?.strengthDiff || 0,
-    preferenceScore: result?.preferenceScore || 0,
-    playerDetails: players.map((p) => ({
-      userId: p.userId,
-      username: p.user.username,
+    ...result,
+    playerDetails: players.map((player) => ({
+      userId: player.userId,
+      username: player.user.username,
     })),
   };
+  const expectedPlayerIds = players.map(({ userId: id }) => id);
 
-  // Persist split result + mark as completed
-  await prisma.$executeRawUnsafe(
-    "UPDATE tournaments SET split_result = ?, status = 'completed' WHERE id = ?",
-    JSON.stringify(splitData), tournamentId
-  );
+  try {
+    await commitTournamentSplit({ tournamentId, adminId: userId, expectedPlayerIds, splitData });
+  } catch (error) {
+    if (error instanceof SplitConflictError) {
+      return NextResponse.json({ error: "赛事状态已变化，请刷新后重试" }, { status: 409 });
+    }
+    throw error;
+  }
 
-  await prisma.adminOperation.create({
-    data: { tournamentId, adminId: userId, action: "split" },
-  });
-
-  return NextResponse.json({ ...splitData, isBeforeDeadline });
+  return NextResponse.json({ ...splitData, isBeforeDeadline: tournament.deadline > new Date() });
 }

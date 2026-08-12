@@ -5,7 +5,11 @@ import { prisma } from "../src/lib/db";
 import { hashPassword } from "../src/lib/auth";
 
 const BASE = process.env.BASE_URL || "http://127.0.0.1:8001";
-const PWD = "12345678901";
+if (process.env.NODE_ENV === "production") {
+  throw new Error("seed-test-data must not run in production");
+}
+
+const PWD = process.env.SEED_USER_PASSWORD || "12345678901";
 
 async function post(path: string, body: any, cookie?: string) {
   const res = await fetch(BASE + path, {
@@ -54,20 +58,29 @@ const HEROES: Record<string, { id: number; name: string; power: number }[]> = {
 };
 
 async function seedAdmin() {
-  const existing = await prisma.user.findUnique({ where: { username: "admin" } });
+  const username = process.env.SEED_ADMIN_USERNAME;
+  const password = process.env.SEED_ADMIN_PASSWORD;
+  const securityAnswer = process.env.SEED_ADMIN_SECURITY_ANSWER;
+  if (!username || !password || !securityAnswer) {
+    console.log("- 未提供 SEED_ADMIN_*，跳过管理员 seed");
+    return;
+  }
+  if (password.length < 11) throw new Error("SEED_ADMIN_PASSWORD must contain at least 11 characters");
+
+  const existing = await prisma.user.findUnique({ where: { username } });
   if (!existing) {
-    const hash = await hashPassword("admin12345678");
-    const aHash = await hashPassword("admin");
+    const hash = await hashPassword(password);
+    const aHash = await hashPassword(securityAnswer);
     await prisma.user.create({
       data: {
-        username: "admin",
+        username,
         passwordHash: hash,
         role: "admin",
-        securityQuestion: "系统内置管理员",
+        securityQuestion: "管理员恢复问题",
         securityAnswerHash: aHash,
       },
     });
-    console.log("✓ Admin user created: admin / admin12345678");
+    console.log(`✓ Admin user created: ${username}`);
   } else {
     if (existing.role !== "admin") {
       await prisma.user.update({ where: { id: existing.id }, data: { role: "admin" } });

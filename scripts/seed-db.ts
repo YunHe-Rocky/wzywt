@@ -4,8 +4,13 @@ import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
 
+if (process.env.NODE_ENV === "production") {
+  throw new Error("seed-db must not run in production");
+}
+
 const USERS = ["剑仙小李","打野王者","中路法王","射手大神","辅助之光","边路战神","野区之王","中单教父","百里穿杨","游走大师"];
-const PWD = "12345678901";
+const PWD = process.env.SEED_USER_PASSWORD || "12345678901";
+const BASE_URL = process.env.BASE_URL || "http://127.0.0.1:8001";
 
 async function main() {
   console.log("清理旧赛事...");
@@ -113,7 +118,7 @@ async function main() {
   } catch { console.log("  ⚠ 命格绑定失败"); }
 
   console.log(`\n=== 完成 ===`);
-  console.log(`赛事: http://ywt.yunhe.ink/tournaments/${t.id}`);
+  console.log(`赛事: ${BASE_URL}/tournaments/${t.id}`);
   console.log(`邀请码: ${t.code}`);
   console.log(`账号: ${USERS[0]}~${USERS[9]} / ${PWD}`);
 }

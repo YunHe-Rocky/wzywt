@@ -2,15 +2,13 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { requireSuperAdmin } from "@/lib/permissions";
+import { authorizeSuperAdmin } from "@/lib/permissions";
 import { broadcastHeroUpdate } from "@/features/heroes/server/events";
 import { cacheDel, cacheGet, cacheSet } from "@/lib/redis";
 import { ROLE_LABELS, CLASS_LABELS, ROLES } from "@/core/game";
 
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function GET(_req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const heroId = parseInt(params.id);
   if (!heroId) return NextResponse.json({ error: "无效ID" }, { status: 400 });
 
@@ -107,11 +105,10 @@ export async function GET(
   return NextResponse.json(result);
 }
 
-export async function PATCH(
-  req: NextRequest,
-  { params }: { params: { id: string } }
-) {
-  const { userId } = await requireSuperAdmin().catch(() => ({ userId: 0 }));
+export async function PATCH(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
+  const authorization = await authorizeSuperAdmin();
+  const userId = authorization.ok ? authorization.user.userId : 0;
   if (!userId) return NextResponse.json({ error: "仅 admin 可修改英雄分路" }, { status: 403 });
 
   const heroId = parseInt(params.id);

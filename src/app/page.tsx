@@ -1,19 +1,22 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAnnouncements } from "@/features/announcements/client";
 import { useToast } from "@/web/components/ui/Toast";
+import { MarkdownContent } from "@/web/components/content/MarkdownContent";
 
 interface OfficialNews { title: string; date: string; url: string; }
 interface PublicTournament { id: number; name: string; code: string; announcement: string | null; _count: { players: number }; deadline: string; }
 interface User { userId: number; username: string; }
-interface TocItem { id: string; text: string; level: number }
 interface Announcement { date: string; title: string; version: string | null; brief: string; slug: string; content?: string; }
 
 function AnnouncementContent({ a }: { a: Announcement }) {
-  const { nodes } = useMD(`## ${a.title}\n\n*${a.date}*\n\n${a.content || ""}`);
-  return <div className="px-5 pb-4 animate-slide-up">{nodes}</div>;
+  return (
+    <div className="px-5 pb-4 animate-slide-up">
+      <MarkdownContent content={`## ${a.title}\n\n*${a.date}*\n\n${a.content || ""}`} compact />
+    </div>
+  );
 }
 
 function SkeletonLines({ count }: { count: number }) {
@@ -23,90 +26,6 @@ function SkeletonLines({ count }: { count: number }) {
       <div key={i} className="skeleton rounded h-3.5" style={{ width: `${widths[i % widths.length]}%` }} />
     ))}
   </div>;
-}
-
-function Inline({ text }: { text: string }) {
-  const parts = text.split(/(\*\*.*?\*\*|`.*?`)/g);
-  return <>{parts.map((part, i) => {
-    if (part.startsWith("**") && part.endsWith("**"))
-      return <strong key={i} className="text-text">{part.slice(2, -2)}</strong>;
-    if (part.startsWith("`") && part.endsWith("`"))
-      return <code key={i} className="bg-input px-1 rounded text-xs font-mono text-gold">{part.slice(1, -1)}</code>;
-    return part;
-  })}</>;
-}
-
-function useMD(md: string) {
-  return useMemo(() => {
-    const toc: TocItem[] = [];
-    const lines = md.replace(/\\n/g, "\n").split(/\r?\n/);
-    const nodes: React.ReactNode[] = [];
-    let key = 0, i = 0;
-    while (i < lines.length && (lines[i].startsWith("# ") || lines[i].startsWith(">") || lines[i].trim() === "" || lines[i].startsWith("---"))) i++;
-    while (i < lines.length) {
-      const line = lines[i];
-      if (!line.trim()) { i++; continue; }
-      if (line.trim() === "---") { nodes.push(<div key={key++} className="divider my-2" />); i++; continue; }
-      if (line.startsWith("# ")) {
-        const text = line.replace("# ", "");
-        nodes.push(<h2 key={key++} className="text-base font-bold text-text mt-4 mb-1">{text}</h2>);
-        i++; continue;
-      }
-      if (line.startsWith("## ")) {
-        const text = line.replace("## ", "");
-        toc.push({ id: "s-" + toc.length, text, level: 2 });
-        nodes.push(<h3 key={key++} className="text-[14px] font-bold text-gold-light mt-3 mb-1 scroll-mt-4">{text}</h3>);
-        i++; continue;
-      }
-      if (line.startsWith("### ")) {
-        const text = line.replace("### ", "");
-        toc.push({ id: "s-" + toc.length, text, level: 3 });
-        nodes.push(<h4 key={key++} className="text-[12px] font-semibold text-text mt-2 mb-0.5 scroll-mt-4">{text}</h4>);
-        i++; continue;
-      }
-      if (line.startsWith("![")) {
-        const imgMatch = line.match(/^!\[(.*?)\]\((.*?)\)/);
-        if (imgMatch) {
-          nodes.push(<div key={key++} className="my-2">{/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={imgMatch[2]} alt={imgMatch[1]} className="max-w-full rounded-md border border-border" />
-            {imgMatch[1] && <p className="text-[10px] text-text-muted text-center mt-1">{imgMatch[1]}</p>}
-          </div>);
-        }
-        i++; continue;
-      }
-      if (line.startsWith("> ")) {
-        const isW = line.includes("⚠️"), isT = line.includes("💡");
-        const bg = isW ? "bg-red/5 border-red/15" : isT ? "bg-green/5 border-green/15" : "bg-gold/5 border-gold/15";
-        nodes.push(<div key={key++} className={`my-1 px-3 py-2 rounded-md border text-xs text-text-secondary leading-relaxed ${bg}`}>
-          <Inline text={line.replace(/^>\s*/, "")} />
-        </div>);
-        i++; continue;
-      }
-      if (line.startsWith("|")) {
-        const rows: string[][] = [];
-        while (i < lines.length && lines[i].startsWith("|")) { rows.push(lines[i].split("|").filter(c => c.trim())); i++; }
-        if (rows.length >= 2) {
-          nodes.push(<div key={key++} className="overflow-x-auto my-1">
-            <table className="w-full border-collapse text-[11px]">
-              <thead><tr className="border-b border-border">{rows[0].map((h, j) => <th key={j} className="px-2 py-1 text-left font-semibold text-text-muted text-[10px]">{h.trim()}</th>)}</tr></thead>
-              <tbody>{rows.slice(2).map((row, ri) => <tr key={ri} className="border-b border-border-light">{row.map((cell, ci) => <td key={ci} className="px-2 py-1 text-text-secondary">{cell.trim()}</td>)}</tr>)}</tbody>
-            </table>
-          </div>);
-        }
-        continue;
-      }
-      if (line.startsWith("- ") || line.startsWith("* ")) {
-        const items: string[] = [];
-        while (i < lines.length && (lines[i].startsWith("- ") || lines[i].startsWith("* "))) { items.push(lines[i].replace(/^[-*]\s+/, "")); i++; }
-        nodes.push(<ul key={key++} className="my-0.5 pl-4">{items.map((item, j) => <li key={j} className="mb-px text-xs text-text-secondary leading-relaxed"><Inline text={item} /></li>)}</ul>);
-        continue;
-      }
-      let para = line; i++;
-      while (i < lines.length && lines[i].trim() && !lines[i].startsWith("#") && !lines[i].startsWith("|") && !lines[i].startsWith("- ") && !lines[i].startsWith("---")) { para += "\n" + lines[i]; i++; }
-      nodes.push(<p key={key++} className="text-xs text-text-secondary leading-relaxed my-0.5 whitespace-pre-line"><Inline text={para} /></p>);
-    }
-    return { nodes, toc };
-  }, [md]);
 }
 
 export default function Home() {

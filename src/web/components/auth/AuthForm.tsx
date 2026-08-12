@@ -67,6 +67,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
   const [forgotUsername, setForgotUsername] = useState("");
   const [forgotQuestion, setForgotQuestion] = useState("");
   const [forgotAnswer, setForgotAnswer] = useState("");
+  const [forgotResetToken, setForgotResetToken] = useState("");
   const [forgotPassword, setForgotPassword] = useState("");
   const [forgotConfirm, setForgotConfirm] = useState("");
   const [forgotError, setForgotError] = useState("");
@@ -163,8 +164,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
     if (forgotPassword !== forgotConfirm) { setForgotError("两次密码不一致"); return; }
     setForgotLoading(true); setForgotError("");
     const { ok, data } = await resetPassword({
-      username: forgotUsername,
-      answer: forgotAnswer,
+      resetToken: forgotResetToken,
       newPassword: forgotPassword,
       confirmPassword: forgotConfirm,
     });
@@ -280,7 +280,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
           <div className="flex justify-between items-center mt-7 text-sm">
             {mode === "login" ? (
               <>
-                <button type="button" onClick={() => { setShowForgot(true); setForgotStep(1); setForgotUsername(""); setForgotQuestion(""); setForgotAnswer(""); setForgotPassword(""); setForgotConfirm(""); setForgotError(""); }}
+                <button type="button" onClick={() => { setShowForgot(true); setForgotStep(1); setForgotUsername(""); setForgotQuestion(""); setForgotAnswer(""); setForgotResetToken(""); setForgotPassword(""); setForgotConfirm(""); setForgotError(""); }}
                   className="bg-transparent border-none text-gold-dim font-semibold cursor-pointer text-sm p-0">忘记密码？</button>
                 <Link href={switchHref} className="text-gold-dim font-semibold no-underline">{switchText}</Link>
               </>
@@ -335,12 +335,13 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
                 <button onClick={async () => {
                     if (!forgotAnswer) { setForgotError("请输入安全答案"); return; }
                     setForgotLoading(true); setForgotError("");
-                    const { ok } = await resetPassword({
+                    const { ok, data } = await resetPassword({
                       username: forgotUsername,
                       answer: forgotAnswer,
                     });
                     setForgotLoading(false);
-                    if (!ok) { setForgotError("安全答案错误"); return; }
+                    if (!ok || typeof data.resetToken !== "string") { setForgotError(data.error || "验证失败"); return; }
+                    setForgotResetToken(data.resetToken);
                     setForgotStep(3); setForgotError("");
                   }}
                   className={`${btnGold} text-[13px] py-2.5 mb-2.5`}>继续设置新密码</button>

@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/db";
-import { requireAuth, verifyPassword } from "@/lib/auth";
+import { authenticate, verifyPassword } from "@/lib/auth";
 import { deleteUserAndOwnedTournaments } from "@/features/users/server/deleteUser";
 
 export async function GET() {
@@ -25,10 +25,11 @@ export async function GET() {
       gameId: true,
       isTemporary: true,
       banned: true,
+      sessionVersion: true,
     },
   });
   // 用户已被删除 → 清除幽灵 session
-  if (!user || user.isTemporary) {
+  if (!user || user.isTemporary || session.sessionVersion !== user.sessionVersion) {
     session.destroy();
     return NextResponse.json({ user: null }, {
       headers: { "Cache-Control": "no-store, no-cache, must-revalidate", "Pragma": "no-cache", "Expires": "0" },
@@ -62,8 +63,9 @@ export async function GET() {
 }
 
 export async function DELETE(req: NextRequest) {
-  const { userId } = await requireAuth().catch(() => ({ userId: 0 }));
-  if (!userId) return NextResponse.json({ error: "请先登录" }, { status: 401 });
+  const auth = await authenticate();
+  if (!auth.ok) return NextResponse.json({ error: auth.code === "BANNED" ? "账户已被封禁" : "请先登录" }, { status: auth.code === "BANNED" ? 403 : 401 });
+  const { userId } = auth.user;
 
   const { answer } = await req.json();
   if (!answer) {

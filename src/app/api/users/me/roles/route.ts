@@ -2,11 +2,13 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { requireAuth } from "@/lib/auth";
+import { authenticate } from "@/lib/auth";
 import { normalizeRolePreferenceSettings } from "@/features/profile/model";
 
 export async function GET() {
-  const { userId } = await requireAuth().catch(() => ({ userId: 0 }));
+  const auth = await authenticate();
+  if (!auth.ok) return NextResponse.json({ error: auth.code === "BANNED" ? "账号已被封禁" : "请先登录" }, { status: auth.code === "BANNED" ? 403 : 401 });
+  const { userId } = auth.user;
   if (!userId) return NextResponse.json({ error: "请先登录" }, { status: 401 });
 
   const prefs = await prisma.rolePreference.findMany({
@@ -20,7 +22,9 @@ export async function GET() {
 }
 
 export async function PUT(req: NextRequest) {
-  const { userId } = await requireAuth().catch(() => ({ userId: 0 }));
+  const auth = await authenticate();
+  if (!auth.ok) return NextResponse.json({ error: auth.code === "BANNED" ? "账号已被封禁" : "请先登录" }, { status: auth.code === "BANNED" ? 403 : 401 });
+  const { userId } = auth.user;
   if (!userId) return NextResponse.json({ error: "请先登录" }, { status: 401 });
 
   const { preferences } = await req.json();

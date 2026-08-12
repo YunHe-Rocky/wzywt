@@ -6,7 +6,7 @@
     "dev": "npx tsx scripts/kill-port.ts && next dev -p 8001",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint . --ext .js,.mjs,.ts,.tsx",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:push": "prisma db push",
@@ -14,7 +14,12 @@
     "cron": "tsx scripts/cron.ts",
     "sync-heroes": "tsx scripts/sync-heroes.ts",
     "check:architecture": "tsx scripts/check-architecture.ts",
-    "test:core": "tsx scripts/test-core.ts"
+    "typecheck": "tsc --noEmit",
+    "test:core": "tsx scripts/test-core.ts",
+    "test:markdown": "tsx scripts/test-markdown.ts",
+    "test:integration": "tsx scripts/test-integration.ts",
+    "test:e2e": "node tests/e2e/ui-regression.mjs",
+    "check": "npm run check:architecture && npm run typecheck && npm run test:core && npm run test:markdown"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",
@@ -23,10 +28,9 @@
     "iconv-lite": "^0.7.2",
     "ioredis": "^5.11.1",
     "iron-session": "^8.0.4",
-    "next": "^14.2.35",
+    "next": "^15.5.21",
     "node-cron": "^4.5.0",
     "pinyin": "^4.0.0",
-    "playwright": "^1.61.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
@@ -40,11 +44,18 @@
     "autoprefixer": "^10.4.20",
     "concurrently": "^10.0.3",
     "eslint": "^8.57.0",
-    "eslint-config-next": "^14.2.35",
-    "postcss": "^8.5.3",
+    "eslint-config-next": "^15.5.21",
+    "postcss": "8.5.23",
+    "playwright": "^1.61.1",
     "prisma": "^5.22.0",
     "tailwindcss": "^3.4.18",
     "tsx": "^4.22.4",
     "typescript": "^5.9.3"
+  },
+  "overrides": {
+    "nanoid": "3.3.18",
+    "postcss": "$postcss",
+    "sharp": "0.35.3",
+    "undici": "7.29.0"
   }
 }

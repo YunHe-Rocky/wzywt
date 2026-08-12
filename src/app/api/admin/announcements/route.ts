@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireSuperAdmin } from "@/lib/permissions";
+import { authorizeSuperAdmin } from "@/lib/permissions";
 import { AnnouncementValidationError } from "@/features/announcements/model";
 import {
   createAnnouncement,
@@ -9,7 +9,8 @@ import {
 } from "@/features/announcements/server/service";
 
 export async function GET() {
-  const { userId } = await requireSuperAdmin().catch(() => ({ userId: 0 }));
+  const authorization = await authorizeSuperAdmin();
+  const userId = authorization.ok ? authorization.user.userId : 0;
   if (!userId) return NextResponse.json({ error: "无权限" }, { status: 403 });
 
   const list = await listAdminAnnouncements();
@@ -23,7 +24,8 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const { userId } = await requireSuperAdmin().catch(() => ({ userId: 0 }));
+  const authorization = await authorizeSuperAdmin();
+  const userId = authorization.ok ? authorization.user.userId : 0;
   if (!userId) return NextResponse.json({ error: "无权限" }, { status: 403 });
 
   try {

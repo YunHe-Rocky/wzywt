@@ -39,10 +39,18 @@ interface Tournament {
   applications: { id: number; tempName: string | null; applicant: { id: number; username: string } }[];
 }
 interface SplitResult {
-  teamRed: { userId: number; roleType: string }[];
-  teamBlue: { userId: number; roleType: string }[];
+  version?: 2;
+  teamRed: { userId: number; roleType: string; assignedRole?: string; preferenceRank?: number }[];
+  teamBlue: { userId: number; roleType: string; assignedRole?: string; preferenceRank?: number }[];
   strengthDiff: number;
   preferenceScore: number;
+  preferenceSummary?: {
+    first: number; second: number; third: number; fourth: number; fifth: number; unranked: number;
+  };
+  balanceSummary?: {
+    redStrength: number; blueStrength: number; totalStrengthDiff: number;
+    laneStrengthDiffSum: number; rankDiff: number; maxLaneStrengthDiff: number;
+  };
   playerDetails: { userId: number; username: string }[];
 }
 
@@ -903,24 +911,30 @@ export function TournamentDetail() {
                 color: "var(--text-muted)",
                 marginBottom: 6,
               }}>
-                偏好分
+                {splitResult.preferenceSummary ? "第一志愿" : "偏好分"}
               </div>
               <div style={{
                 fontSize: 32,
                 fontWeight: 700,
                 fontFamily: "monospace",
-                color: splitResult.preferenceScore >= 20 ? "var(--green)" : "var(--text)",
+                color: (splitResult.preferenceSummary
+                  ? splitResult.preferenceSummary.first >= 8
+                  : splitResult.preferenceScore >= 20) ? "var(--green)" : "var(--text)",
                 lineHeight: 1,
               }}>
-                {Math.round(splitResult.preferenceScore)}
+                {splitResult.preferenceSummary?.first ?? Math.round(splitResult.preferenceScore)}
               </div>
               <div style={{
                 fontSize: 11,
-                color: splitResult.preferenceScore >= 20 ? "var(--green)" : "var(--text-secondary)",
+                color: (splitResult.preferenceSummary
+                  ? splitResult.preferenceSummary.first >= 8
+                  : splitResult.preferenceScore >= 20) ? "var(--green)" : "var(--text-secondary)",
                 fontWeight: 500,
                 marginTop: 4,
               }}>
-                {splitResult.preferenceScore >= 20 ? "高度契合" : splitResult.preferenceScore >= 10 ? "基本满足" : "一般"}
+                {splitResult.preferenceSummary
+                  ? `第二 ${splitResult.preferenceSummary.second} · 第三 ${splitResult.preferenceSummary.third}`
+                  : splitResult.preferenceScore >= 20 ? "高度契合" : splitResult.preferenceScore >= 10 ? "基本满足" : "一般"}
               </div>
             </div>
           </div>

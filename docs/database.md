@@ -1,6 +1,6 @@
 # 数据库文档
 
-MySQL `yanwutang_test` @ 38.22.234.148:3306
+MySQL `<DB_NAME>` @ `<DB_HOST>:3306`
 
 ---
 

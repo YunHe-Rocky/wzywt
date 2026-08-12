@@ -1,4 +1,25 @@
-// Anti-bot bypass with fallback strategies
+// HTTP retry strategy with rotating browser headers; no browser fallback.
+
+const ALLOWED_CRAWL_HOSTS = new Set(["pvp.qq.com", "game.gtimg.cn"]);
+
+export function validateCrawlUrl(value: string): string {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new TypeError("爬取地址格式无效");
+  }
+  if (
+    url.protocol !== "https:"
+    || url.username
+    || url.password
+    || !ALLOWED_CRAWL_HOSTS.has(url.hostname.toLowerCase())
+  ) {
+    throw new TypeError("爬取地址仅允许受信任的 HTTPS 官方域名");
+  }
+  // 保留 `{id}` 等受控路径模板，URL 对象仅用于协议和主机校验。
+  return value.trim();
+}
 
 const USER_AGENTS = [
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
@@ -26,12 +47,12 @@ export function getRandomUA(): string {
   return USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
 }
 
-// Tiered fetch: try regular fetch, fall back to Playwright if blocked
 export async function fetchWithRetry(
   url: string,
   options: { timeout?: number; referer?: string; isJson?: boolean } = {}
 ): Promise<{ ok: boolean; status: number; text?: string; json?: unknown }> {
   const { timeout = 10000, referer, isJson } = options;
+  const safeUrl = validateCrawlUrl(url);
 
   // Tier 1: Regular fetch with rotating browser headers (5 retries)
   for (let attempt = 0; attempt < 5; attempt++) {
@@ -42,9 +63,10 @@ export async function fetchWithRetry(
         ...getHeaders(referer),
         "User-Agent": ua,
       };
-      const res = await fetch(url, {
+      const res = await fetch(safeUrl, {
         headers,
         signal: AbortSignal.timeout(timeout),
+        redirect: "error",
       });
 
       if (res.ok) {
@@ -59,7 +81,7 @@ export async function fetchWithRetry(
       // 403/429/503 → rate limited or blocked, wait and retry
       if (res.status === 403 || res.status === 429 || res.status === 503) {
         const delay = (attempt + 1) * 3000 + Math.random() * 2000;
-        console.log(`[anti-bot] ${res.status} on ${url}, waiting ${Math.round(delay / 1000)}s...`);
+        console.log(`[anti-bot] ${res.status} on ${safeUrl}, waiting ${Math.round(delay / 1000)}s...`);
         await new Promise((r) => setTimeout(r, delay));
         continue;
       }
@@ -75,6 +97,6 @@ export async function fetchWithRetry(
   }
 
   // All retries exhausted
-  console.error(`[anti-bot] All retries failed for ${url}`);
+  console.error(`[anti-bot] All retries failed for ${safeUrl}`);
   return { ok: false, status: 0 };
 }

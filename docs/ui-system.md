@@ -32,7 +32,7 @@
 ## 一、当前组件架构
 
 ```
-src/components/layout/
+src/web/components/layout/
   ThemeLayout.tsx          ← 路由分发：全屏路径 vs 标准布局
   Header.tsx               ← 单 Header 组件（双主题适配）
   BackgroundOrbs.tsx       ← 三颗动态光球（支持 prefers-reduced-motion）

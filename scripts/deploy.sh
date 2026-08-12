@@ -1,97 +1,100 @@
-#!/bin/bash
-# 王者演武堂部署脚本
-set -e
+#!/usr/bin/env bash
+set -Eeuo pipefail
 
-START_TIME=$(date +%s)
-cd /opt/yanwutang
+BASE_DIR="${APP_BASE_DIR:-/opt/yanwutang}"
+SOURCE_DIR="${APP_SOURCE_DIR:-$BASE_DIR}"
+RELEASES_DIR="$BASE_DIR/releases"
+SHARED_DIR="$BASE_DIR/shared"
+CURRENT_LINK="$BASE_DIR/current"
+HEALTH_URL="${HEALTH_URL:-http://127.0.0.1:8081/api/health}"
+RELEASE_ID="$(date -u +%Y%m%d%H%M%S)"
+RELEASE_DIR="$RELEASES_DIR/$RELEASE_ID"
+MIGRATION_LOG="$RELEASE_DIR/.deploy-migrate.log"
+START_TIME="$(date +%s)"
 
-# ---- 解析 .env ----
-DB_URL=$(grep -oP 'DATABASE_URL="\K[^"]+' .env)
+log() { printf '[deploy] %s\n' "$*"; }
+fail() { printf '[deploy] ERROR: %s\n' "$*" >&2; exit 1; }
 
-# ---- 停服 ----
-echo ">>> 停止旧服务..."
-pm2 stop yanwutang-web yanwutang-cron 2>/dev/null || true
-pm2 delete yanwutang-web yanwutang-cron 2>/dev/null || true
-fuser -k 8081/tcp 2>/dev/null || true
-sleep 1
+[[ -d "$SOURCE_DIR/.git" ]] || fail "source repository not found: $SOURCE_DIR"
+[[ -f "$SHARED_DIR/.env" ]] || fail "shared environment file not found: $SHARED_DIR/.env"
+[[ -z "$(git -C "$SOURCE_DIR" status --porcelain)" ]] || fail "production source tree is dirty; resolve it manually"
 
-# ---- 拉代码 ----
-echo ">>> git pull..."
-git stash 2>/dev/null || true
-git pull origin master
+mkdir -p "$RELEASES_DIR" "$SHARED_DIR/mysql-bak"
+git -C "$SOURCE_DIR" fetch --prune origin main
+mkdir "$RELEASE_DIR"
 
-# ---- 备份数据库 ----
-BACKUP_DIR="data/mysql-bak"
-mkdir -p "$BACKUP_DIR"
-BACKUP_FILE="$BACKUP_DIR/yanwutang-$(date +%F-%H%M).sql"
-echo ">>> 备份数据库 → $BACKUP_FILE"
+cleanup_failed_release() {
+  if [[ "$RELEASE_DIR" == "$RELEASES_DIR"/20* ]] \
+    && [[ ! -L "$CURRENT_LINK" || "$(readlink -f "$CURRENT_LINK" 2>/dev/null || true)" != "$RELEASE_DIR" ]]; then
+    rm -rf -- "$RELEASE_DIR"
+  fi
+}
+trap cleanup_failed_release EXIT
 
-# Node.js 解析 URL（处理特殊字符转义）
-export DB_URL
-eval $(node -e "
-  const u = new URL(process.env.DB_URL.replace('mysql://', 'http://'));
-  process.stdout.write('DB_HOST=' + u.hostname + '\n');
-  process.stdout.write('DB_USER=' + u.username + '\n');
-  process.stdout.write('DB_PASS=' + decodeURIComponent(u.password) + '\n');
-  process.stdout.write('DB_NAME=' + u.pathname.replace('/','') + '\n');
-")
-export MYSQL_PWD="$DB_PASS"
+log "prepare release $RELEASE_ID from origin/main"
+git -C "$SOURCE_DIR" archive --format=tar origin/main | tar -xf - -C "$RELEASE_DIR"
+ln -s "$SHARED_DIR/.env" "$RELEASE_DIR/.env"
 
-mysqldump -h"$DB_HOST" -u"$DB_USER" \
-  --single-transaction "$DB_NAME" > "$BACKUP_FILE" 2>/dev/null \
-  && echo "  备份完成 ($(du -h "$BACKUP_FILE" | cut -f1))" \
-  || echo "  备份失败，继续部署..."
+cd "$RELEASE_DIR"
+log "install locked dependencies"
+npm ci
+npx --no-install prisma generate
+npx --no-install prisma validate
 
-unset MYSQL_PWD DB_PASS
-
-# 保留最近 10 个备份
-ls -t "$BACKUP_DIR"/yanwutang-*.sql 2>/dev/null | tail -n +11 | xargs rm -f 2>/dev/null || true
-
-# ---- 安装依赖 ----
-echo ">>> npm install..."
-npm install
-
-# ---- 数据库迁移 ----
-echo ">>> prisma migrate deploy..."
-if npx prisma migrate deploy 2>&1 | tee /tmp/migrate.log; then
-  echo "  迁移完成"
-elif grep -q "P3005" /tmp/migrate.log; then
-  echo "  首次部署，基线已有表结构..."
-  npx prisma migrate resolve --applied 20260623103519_init
-  npx prisma migrate resolve --applied 20260623104500_add_constraints
-  echo "  重新部署迁移..."
-  npx prisma migrate deploy
-else
-  echo "  迁移失败，检查 /tmp/migrate.log"
-  exit 1
-fi
-
-echo ">>> prisma generate..."
-npx prisma generate
-
-# ---- 数据迁移 ----
-echo ">>> 数据脚本..."
-npx tsx scripts/migrate-announcements.ts 2>/dev/null || echo "  公告迁移 (skipped)"
-npx tsx scripts/migrate-mingge.ts 2>/dev/null || echo "  命格绑定 (skipped)"
-
-# ---- 英雄同步 ----
-echo ">>> 同步英雄数据..."
-npm run sync-heroes 2>/dev/null && echo "  英雄同步完成" || echo "  ⚠ 英雄同步失败"
-
-# ---- 构建 ----
-echo ">>> 清理构建缓存..."
-rm -rf .next
-
-echo ">>> npm run build..."
+log "build before touching the running service"
 npm run build
 
-# ---- 启动 ----
-echo ">>> 启动 PM2..."
-pm2 start ecosystem.config.js
+log "create database backup"
+node scripts/db-backup.mjs "$SHARED_DIR/mysql-bak"
 
-# ---- 完成 ----
-ELAPSED=$(($(date +%s) - START_TIME))
-echo ""
-echo "=== 部署完成 (${ELAPSED}s) ==="
-pm2 status
+run_migrations() {
+  npx --no-install prisma migrate deploy 2>&1 | tee "$MIGRATION_LOG"
+}
+
+log "apply database migrations"
+if ! run_migrations; then
+  if grep -q 'P3005' "$MIGRATION_LOG" && [[ "${ALLOW_MIGRATION_BASELINE:-0}" == "1" ]]; then
+    log "explicit baseline enabled; marking legacy migrations as applied"
+    npx --no-install prisma migrate resolve --applied 20260623103519_init
+    npx --no-install prisma migrate resolve --applied 20260623104500_add_constraints
+    npx --no-install prisma migrate resolve --applied 20260725090000_add_player_identity_and_hero_secondary_lanes
+    npx --no-install prisma migrate resolve --applied 20260725140000_mark_temporary_users
+    npx --no-install prisma migrate resolve --applied 20260725150000_reconcile_legacy_schema
+    run_migrations
+  else
+    fail "migration failed; automatic baseline is disabled"
+  fi
+fi
+
+PREVIOUS_TARGET="$(readlink -f "$CURRENT_LINK" 2>/dev/null || true)"
+ln -sfn "$RELEASE_DIR" "$CURRENT_LINK"
+
+reload_release() {
+  local target="$1"
+  APP_DIR="$target" pm2 startOrReload "$target/ecosystem.config.js" --update-env
+}
+
+rollback() {
+  [[ -n "$PREVIOUS_TARGET" && -d "$PREVIOUS_TARGET" ]] || fail "health check failed and no previous release exists"
+  log "health check failed; roll back to $PREVIOUS_TARGET"
+  ln -sfn "$PREVIOUS_TARGET" "$CURRENT_LINK"
+  reload_release "$CURRENT_LINK"
+  fail "release $RELEASE_ID rolled back"
+}
+
+log "switch PM2 to the new release"
+reload_release "$CURRENT_LINK"
+
+healthy=0
+for _ in {1..15}; do
+  if curl --fail --silent --show-error --max-time 3 "$HEALTH_URL" >/dev/null; then
+    healthy=1
+    break
+  fi
+  sleep 2
+done
+[[ "$healthy" == "1" ]] || rollback
+
 pm2 save
+log "release $RELEASE_ID healthy; completed in $(( $(date +%s) - START_TIME ))s"
+log "hero synchronization remains decoupled; cron or an administrator triggers it"

@@ -1,8 +1,9 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireSuperAdmin } from "@/lib/permissions";
+import { authorizeSuperAdmin } from "@/lib/permissions";
 import { prisma } from "@/lib/db";
+import { validateCrawlUrl } from "@/lib/anti-bot";
 
 const DEFAULTS: Record<string, string> = {
   hero_list_page: "https://pvp.qq.com/web201605/herolist.shtml",
@@ -15,7 +16,8 @@ const DEFAULTS: Record<string, string> = {
 const KEY = "config:crawl_urls";
 
 export async function GET() {
-  const { userId } = await requireSuperAdmin().catch(() => ({ userId: 0 }));
+  const authorization = await authorizeSuperAdmin();
+  const userId = authorization.ok ? authorization.user.userId : 0;
   if (!userId) return NextResponse.json({ error: "无权限" }, { status: 403 });
 
   const row = await prisma.kvCache.findUnique({ where: { key: KEY } });
@@ -27,16 +29,23 @@ export async function GET() {
 }
 
 export async function PUT(req: NextRequest) {
-  const { userId } = await requireSuperAdmin().catch(() => ({ userId: 0 }));
+  const authorization = await authorizeSuperAdmin();
+  const userId = authorization.ok ? authorization.user.userId : 0;
   if (!userId) return NextResponse.json({ error: "无权限" }, { status: 403 });
 
-  const body = await req.json();
+  const body = await req.json().catch(() => null) as Record<string, unknown> | null;
+  if (!body) return NextResponse.json({ error: "请求格式错误" }, { status: 400 });
   const updates: Record<string, string> = {};
 
-  for (const k of Object.keys(DEFAULTS)) {
-    if (body[k] && typeof body[k] === "string") {
-      updates[k] = body[k];
+  try {
+    for (const k of Object.keys(DEFAULTS)) {
+      if (body[k] !== undefined) {
+        if (typeof body[k] !== "string" || !body[k]) throw new TypeError("爬取地址不能为空");
+        updates[k] = validateCrawlUrl(body[k]);
+      }
     }
+  } catch (error) {
+    return NextResponse.json({ error: (error as Error).message }, { status: 400 });
   }
 
   await prisma.kvCache.upsert({

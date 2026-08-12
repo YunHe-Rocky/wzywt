@@ -16,6 +16,7 @@ export async function POST(req: NextRequest) {
       role: true,
       banned: true,
       isTemporary: true,
+      sessionVersion: true,
     },
   });
   if (!user || user.isTemporary) {
@@ -35,6 +36,7 @@ export async function POST(req: NextRequest) {
   session.userId = user.id;
   session.username = user.username;
   session.role = user.role;
+  session.sessionVersion = user.sessionVersion;
   await session.save();
 
   return NextResponse.json({ id: user.id, username: user.username, role: user.role });

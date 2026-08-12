@@ -18,7 +18,6 @@ export async function GET() {
       deadline: true,
       status: true,
       announcement: true,
-      splitResult: true,
       _count: { select: { players: { where: { isSpectator: false } } } },
     },
     orderBy: { deadline: "asc" },

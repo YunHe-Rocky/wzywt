@@ -23,18 +23,17 @@ async function checkNews(): Promise<MonitorResult> {
 
     const firstTitle = items[0].title;
 
-    const cache = await prisma.$queryRawUnsafe(
-      "SELECT value FROM kv_cache WHERE `key` = 'news_last_title'"
-    ) as { value: string }[];
+    const cache = await prisma.kvCache.findUnique({ where: { key: "news_last_title" } });
 
-    if (cache.length > 0 && cache[0].value === firstTitle) {
+    if (cache?.value === firstTitle) {
       return { module: "news", changed: false, detail: "unchanged" };
     }
 
-    await prisma.$executeRawUnsafe(
-      "INSERT INTO kv_cache (`key`, `value`) VALUES ('news_last_title', ?) ON DUPLICATE KEY UPDATE `value` = ?",
-      firstTitle, firstTitle
-    );
+    await prisma.kvCache.upsert({
+      where: { key: "news_last_title" },
+      update: { value: firstTitle },
+      create: { key: "news_last_title", value: firstTitle },
+    });
 
     return { module: "news", changed: true, detail: firstTitle };
   } catch (e: unknown) {
@@ -240,18 +239,17 @@ async function checkItems(): Promise<MonitorResult> {
     const { createHash } = await import("crypto");
     const newHash = createHash("md5").update(JSON.stringify(res.json)).digest("hex");
 
-    const cache = await prisma.$queryRawUnsafe(
-      "SELECT value FROM kv_cache WHERE `key` = 'items_hash'"
-    ) as { value: string }[];
+    const cache = await prisma.kvCache.findUnique({ where: { key: "items_hash" } });
 
-    if (cache.length > 0 && cache[0].value === newHash) {
+    if (cache?.value === newHash) {
       return { module: "items", changed: false, detail: "unchanged" };
     }
 
-    await prisma.$executeRawUnsafe(
-      "INSERT INTO kv_cache (`key`, `value`) VALUES ('items_hash', ?) ON DUPLICATE KEY UPDATE `value` = ?",
-      newHash, newHash
-    );
+    await prisma.kvCache.upsert({
+      where: { key: "items_hash" },
+      update: { value: newHash },
+      create: { key: "items_hash", value: newHash },
+    });
 
     return { module: "items", changed: true, detail: "item.json changed" };
   } catch (e: unknown) {
@@ -327,9 +325,7 @@ export async function runMonitorAndScrape(
         case "news": {
           try {
             // Clear cache so next request fetches fresh data
-            await prisma.$executeRawUnsafe(
-              "DELETE FROM kv_cache WHERE `key` = 'official_news'"
-            );
+            await prisma.kvCache.deleteMany({ where: { key: "official_news" } });
             events.push({ module: "news", action: "scrape-done", detail: "cache cleared, fresh data on next request", timestamp: Date.now() });
           } catch (e: unknown) {
             events.push({ module: "news", action: "scrape-fail", detail: (e as Error).message, timestamp: Date.now() });

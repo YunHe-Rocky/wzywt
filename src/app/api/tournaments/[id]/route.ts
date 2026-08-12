@@ -2,17 +2,32 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { requireAuth } from "@/lib/auth";
-import { canViewTournamentMemberIdentity } from "@/features/tournaments/model";
+import { authenticate } from "@/lib/auth";
+import {
+  canViewTournamentMemberIdentity,
+  normalizeTournamentDraft,
+  parsePositiveInteger,
+  TournamentValidationError,
+} from "@/features/tournaments/model";
+import { reconcileTournamentCapacity } from "@/features/tournaments/server/capacity";
 
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
-  const { userId } = await requireAuth().catch(() => ({ userId: 0 }));
-  if (!userId) return NextResponse.json({ error: "请先登录" }, { status: 401 });
-
-  const tournamentId = parseInt(params.id);
-  if (!Number.isInteger(tournamentId) || tournamentId <= 0) {
-    return NextResponse.json({ error: "无效赛事 ID" }, { status: 400 });
+function parseTournamentId(value: string): number | NextResponse {
+  try {
+    return parsePositiveInteger(value, "赛事 ID");
+  } catch (error) {
+    return NextResponse.json({ error: (error as Error).message }, { status: 400 });
   }
+}
+
+export async function GET(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
+  const auth = await authenticate();
+  if (!auth.ok) return NextResponse.json({ error: auth.code === "BANNED" ? "账户已被封禁" : "请先登录" }, { status: auth.code === "BANNED" ? 403 : 401 });
+  const { userId } = auth.user;
+
+  const parsedId = parseTournamentId(params.id);
+  if (parsedId instanceof NextResponse) return parsedId;
+  const tournamentId = parsedId;
   const currentAdmin = await prisma.tournamentAdmin.findUnique({
     where: { tournamentId_userId: { tournamentId, userId } },
     select: { role: true },
@@ -81,11 +96,15 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   });
 }
 
-export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
-  const user = await requireAuth().catch(() => ({ userId: 0, username: "", role: "" }));
-  if (!user.userId) return NextResponse.json({ error: "请先登录" }, { status: 401 });
+export async function DELETE(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
+  const auth = await authenticate();
+  if (!auth.ok) return NextResponse.json({ error: auth.code === "BANNED" ? "账户已被封禁" : "请先登录" }, { status: auth.code === "BANNED" ? 403 : 401 });
+  const user = auth.user;
 
-  const tournamentId = parseInt(params.id);
+  const parsedId = parseTournamentId(params.id);
+  if (parsedId instanceof NextResponse) return parsedId;
+  const tournamentId = parsedId;
 
   if (user.role !== "admin") {
     const admin = await prisma.tournamentAdmin.findFirst({
@@ -98,12 +117,29 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
   return NextResponse.json({ ok: true });
 }
 
-export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
-  const { userId } = await requireAuth().catch(() => ({ userId: 0 }));
-  if (!userId) return NextResponse.json({ error: "请先登录" }, { status: 401 });
+export async function PUT(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
+  const auth = await authenticate();
+  if (!auth.ok) return NextResponse.json({ error: auth.code === "BANNED" ? "账户已被封禁" : "请先登录" }, { status: auth.code === "BANNED" ? 403 : 401 });
+  const { userId } = auth.user;
 
-  const { name, deadline, isPublic, announcement } = await req.json();
-  const tournament = await prisma.tournament.findUnique({ where: { id: parseInt(params.id) } });
+  const parsedId = parseTournamentId(params.id);
+  if (parsedId instanceof NextResponse) return parsedId;
+  const tournamentId = parsedId;
+  const body = await req.json().catch(() => null) as Record<string, unknown> | null;
+  if (!body) return NextResponse.json({ error: "请求格式错误" }, { status: 400 });
+
+  let draft;
+  try {
+    draft = normalizeTournamentDraft(body, { partial: true });
+  } catch (error) {
+    if (error instanceof TournamentValidationError) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+    throw error;
+  }
+
+  const tournament = await prisma.tournament.findUnique({ where: { id: tournamentId } });
   if (!tournament) return NextResponse.json({ error: "赛事不存在" }, { status: 404 });
 
   const admin = await prisma.tournamentAdmin.findFirst({
@@ -111,15 +147,13 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   });
   if (!admin) return NextResponse.json({ error: "仅管理员可修改赛事" }, { status: 403 });
 
-  const data: Record<string, unknown> = {};
-  if (name) data.name = name;
-  if (deadline) data.deadline = new Date(deadline);
-  if (typeof isPublic === "boolean") data.isPublic = isPublic;
-  if (announcement !== undefined) data.announcement = announcement;
-
-  const updated = await prisma.tournament.update({
-    where: { id: tournament.id },
-    data,
+  const updated = await prisma.$transaction(async (tx) => {
+    await tx.tournament.update({
+      where: { id: tournament.id },
+      data: draft,
+    });
+    await reconcileTournamentCapacity(tx, tournament.id);
+    return tx.tournament.findUniqueOrThrow({ where: { id: tournament.id } });
   });
 
   return NextResponse.json({ tournament: updated });

@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireSuperAdmin } from "@/lib/permissions";
+import { authorizeSuperAdmin } from "@/lib/permissions";
 import { AnnouncementValidationError } from "@/features/announcements/model";
 import {
   deleteAnnouncement,
@@ -9,8 +9,10 @@ import {
   updateAnnouncement,
 } from "@/features/announcements/server/service";
 
-export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
-  const { userId } = await requireSuperAdmin().catch(() => ({ userId: 0 }));
+export async function PUT(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
+  const authorization = await authorizeSuperAdmin();
+  const userId = authorization.ok ? authorization.user.userId : 0;
   if (!userId) return NextResponse.json({ error: "无权限" }, { status: 403 });
 
   try {
@@ -30,8 +32,10 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   }
 }
 
-export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
-  const { userId } = await requireSuperAdmin().catch(() => ({ userId: 0 }));
+export async function DELETE(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
+  const authorization = await authorizeSuperAdmin();
+  const userId = authorization.ok ? authorization.user.userId : 0;
   if (!userId) return NextResponse.json({ error: "无权限" }, { status: 403 });
 
   try {

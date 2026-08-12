@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { cacheGet, cacheSet } from "@/lib/redis";
-import { requireSuperAdmin } from "@/lib/permissions";
+import { authorizeSuperAdmin } from "@/lib/permissions";
 import { ROLE_LABELS, CLASS_LABELS } from "@/core/game";
 
 export async function GET(req: NextRequest) {
@@ -103,7 +103,8 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const { userId } = await requireSuperAdmin().catch(() => ({ userId: 0 }));
+  const authorization = await authorizeSuperAdmin();
+  const userId = authorization.ok ? authorization.user.userId : 0;
   if (!userId) return NextResponse.json({ error: "无权限" }, { status: 403 });
 
   const { syncHeroes } = await import("@/features/heroes/server/sync");

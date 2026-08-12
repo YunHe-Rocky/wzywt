@@ -1,12 +1,14 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth";
+import { authenticate } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { normalizeGameProfile } from "@/features/profile/model";
 
 export async function PATCH(req: NextRequest) {
-  const { userId } = await requireAuth().catch(() => ({ userId: 0 }));
+  const auth = await authenticate();
+  if (!auth.ok) return NextResponse.json({ error: auth.code === "BANNED" ? "账号已被封禁" : "请先登录" }, { status: auth.code === "BANNED" ? 403 : 401 });
+  const { userId } = auth.user;
   if (!userId) return NextResponse.json({ error: "请先登录" }, { status: 401 });
 
   const body = await req.json().catch(() => null) as Record<string, unknown> | null;
