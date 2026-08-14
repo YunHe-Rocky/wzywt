@@ -1,5 +1,72 @@
 # Progress
 
+## 2026-08-13 connection-chain audit
+
+- Manual monitor checks now queue in MySQL and are consumed only by cron, eliminating Web/cron heavy-task races when Redis is unavailable.
+- Readiness now covers DB, writable media storage, current-release cron heartbeat, and optionally required Redis; deploy injects the release identity.
+- Follow-up typecheck exposed only test-environment readonly typing; corrected with `Reflect` environment mutation.
+- Started Phase V at user request. Restored existing planning files, preserved the unfinished map Phase U as pending, and recorded full-chain acceptance criteria.
+- Loaded the planning, code-review, and webapp-testing workflows. Recovered prior V2.1 connection/deployment context, but will freshly verify the current worktree.
+- Inventoried connection primitives across tracked and untracked TypeScript/JavaScript. Confirmed high-risk per-SSE-client scheduling/leak behavior and an unbounded shared browser request adapter; deeper Redis/cron/storage inspection is in progress.
+- Confirmed Redis stops reconnecting after three attempts, cron shutdown disconnects Prisma before in-flight tasks settle, OCR response limits are bypassable for chunked bodies and may leak authorization across redirects, and retry responses are not explicitly released.
+- Reproduced by code path the SSE event-name mismatch, the manual monitor button's leaked GET stream, and the unlocked manual hero-sync race. These are now selected for implementation and regression coverage.
+- Implemented bounded browser API requests, continuous-but-fail-fast Redis recovery, bounded/no-redirect OCR parsing, response-body cleanup on retry, bounded request-body readers, persistent monitor snapshots, shared SSE heartbeats/polling, deduplicated monitor sync work, queued manual hero sync, and cron drain-on-shutdown. First typecheck found two narrow compile errors; both were corrected for rerun.
+- `npm run typecheck` PASS after the first corrections. Added `test:connections` to local `check` and CI; the new connection regression suite PASS.
+- Completed the full inbound/outbound connection repair: streamed request limits, multipart video streaming, browser cancellation/timeouts, OCR and upstream response caps, safe retries, SSE fan-out/backpressure, persistent cron queues, renewable DB leases, Redis recovery, current-release heartbeat readiness, and shutdown drain.
+- Retired the unsafe Windows deploy entry, made port preflight non-destructive, aligned non-Next scripts with Next env loading, and documented bounded Prisma pool/connect settings.
+- Final validation PASS: architecture, typecheck, core, Markdown, next-stage and connection tests, Prisma validate, script syntax, diff check, production build, and production Chrome smoke. Lint remains 0 errors and 18 pre-existing warnings.
+- Fresh production build made no Redis connection; lazy Redis import stayed at `wait`, and the first refused command returned fallback in 268 ms.
+- Removed the 280 MB incomplete MySQL download and local smoke artifacts. A locked 398 MB stale `.next` cache remains isolated under `.cache`; no unknown Node process was terminated.
+
+## 2026-08-12 next-stage development
+
+- 2026-08-13: Phase Q started after mobile readability feedback; replace the ten stacked player cards with a compact semantic result table, keep editing and 375px no-overflow acceptance.
+- 2026-08-13: Phase Q complete. Replaced player cards with one semantic table containing red/blue row groups, aligned columns, readable submitted-state text, editable controls, an internal horizontal scroll region, sticky side/slot cells and accessible labels/caption.
+- 2026-08-13: typecheck, next-stage tests and production build PASS; lint remains 0 errors/18 pre-existing warnings. Production browser fixture verified 10 rows, two team groups, sticky column, 375px portrait and 812px landscape without document overflow or console errors; screenshot saved as `.cache/test-artifacts/next-stage/match-mobile-table.png`.
+- 2026-08-13: Phase R complete. Moved the result table ahead of evidence, renamed the screenshot area to `数据依据`, collapsed it by default for complete/submitted matches, and retained automatic expansion when fewer than six images exist. Browser visual acceptance shows `6/6 · COMPLETED`, no document overflow, and no console errors.
+- 2026-08-13: Phase S complete. Replaced the abstract tactic SVG with a project-owned canyon map containing three lanes, cross-river, red/blue bases, 18 lane towers, buff/neutral camps, bushes, jungle walls, Lord and Tyrant pits. Production component screenshots confirm route/marker contrast on 1440px desktop and 375px mobile with no document overflow or console errors; SVG XML and diff checks pass.
+- 2026-08-13: Phase T complete. Used built-in image editing on the user-provided screenshot to remove the left dark panel, top navigation, bottom-right control and all floating overlay icons, reconstruct the hidden terrain, and produce a complete 1254x1254 PNG drawing canvas. Integrated `/images/tactic-map-canyon.png`, removed the superseded abstract SVG, and verified production desktop/mobile route overlays without overflow or console errors.
+
+- Read the complete guide structure and current architecture document.
+- Confirmed `main...origin/main`; the only pre-existing untracked item is the user-provided next-stage guide.
+- Restored the completed prior plan and appended phases J-P instead of replacing earlier work.
+- Phase J architecture inventory is in progress.
+- Initial parallel inspection failed because PowerShell `Get-ChildItem -Filter` does not accept an array; switched to explicit literal paths.
+- Completed the ten-point pre-development repository inventory required by the guide.
+- Phase J complete; started Phase K schema and migration work.
+- Added match/player/stat/screenshot/recognition/dispute, combat post/video/like/comment, and tactic room/layer/route/marker Prisma models.
+- Extended `AdminOperation` with optional `matchId` and structured `details` for correction audit trails.
+- `prisma format` PASS; `prisma validate` PASS.
+- Added forward-only migration `20260812140000_add_match_posts_and_tactics`; isolated database execution remains part of final validation.
+- Creating new subdirectories below the legacy `src/features` tree was denied by its inherited ACL; two escalation reviews did not complete. Continued with domain-named feature files in writable existing directories.
+- Completed the writable part of Phase K/L infrastructure: schema, forward migration, structured API errors, MIME/signature validation, and an opaque-key local media storage adapter.
+- Security review explicitly rejected adding the required domain file under `src/features`; stopped rather than placing business logic in the wrong architectural layer. Awaiting explicit user authorization to repair that directory ACL.
+- User explicitly requested full completion after the ACL risk was explained.
+- Granted the current sandbox account Modify only on the project `src/features` tree. Existing protected files were left unchanged; new domain directories are writable.
+- Phase K complete: Prisma format/validate/generate and baseline typecheck all PASS after the schema and forward-only migration changes.
+- Phase L started.
+- Added pure match constants, split snapshot parsing, OCR payload narrowing, fuzzy nickname comparison, duplicate metric conflict detection, and PASS/WARNING/FAIL consistency classification.
+- Added match manager/viewer authorization, match draft creation from the immutable split snapshot, permanent red/blue tactic-room creation, match list/detail queries, six-slot screenshot upload/replacement, and super-admin original-image retrieval.
+- Added configurable HTTP OCR execution with 90-second timeout, raw/normalized result separation, cross-image validation, non-binding member recommendations, and fail-closed error persistence.
+- Completed match confirmation and submit transactions, required-field checks, exact six-image gate, 10-player/red-blue constraints, duplicate-member protection, dispute throttling, and versioned super-admin corrections with structured `AdminOperation` audit.
+- Completed protected combat posts with local opaque media keys, authenticated Range streaming, idempotent likes, comments/rate limits, moderation, and recoverable media cleanup.
+- Completed private tactic-room services with owner-only layer management, normalized geometry, fixed slot colors, owner-only route/marker mutations, optimistic revisions, and historical persistence.
+- Typecheck PASS after Phases L-M-N.
+- Added all match, OCR, screenshot, submit, dispute/correction, tactic, combat-post, authenticated video, like, and comment API routes plus typed feature client APIs.
+- UI/UX Pro Max recommendations were applied selectively: preserved the repository's existing tokens/fonts while choosing progressive disclosure, 44px controls, visible labels, fixed six-slot status, responsive data tabs, and pointer-plus-keyboard tactic interactions.
+- `src/web` legacy ACL blocks creating the required React feature components. Page route directories are writable, but putting full UI logic in `src/app` would violate the authoritative architecture, so UI implementation is paused pending explicit ACL authorization.
+- Current validation: typecheck PASS; lint PASS with the same 18 existing warnings; architecture command was host-blocked by the known Node 26 `uv_os_get_passwd ENOMEM` issue.
+- 2026-08-13: repaired the writable boundary for `src/web`; implemented the match archive entry/workspace, six fixed screenshot slots, OCR review, ten-player confirmation, final submission, disputes, audited corrections, protected combat feed/detail, and private SVG tactic board for desktop/mobile routes.
+- 2026-08-13: added next-stage domain/media/range/tactic regression coverage, expanded MySQL integration coverage for archive constraints, likes, rooms and route ownership uniqueness, wired CI, and documented persistent media/OCR/Nginx/backup production operations.
+- 2026-08-13: cleared both new tactic-board Hook warnings. Prisma validate, architecture, typecheck, core, Markdown, next-stage tests and diff check pass; lint is back to the 18 pre-existing warnings with zero errors.
+- 2026-08-13: production build PASS. Recreated the official MySQL 8.4.10 Windows ZIP in the isolated temp directory via validated Range chunks (280672277 bytes, SHA-256 `3B950DB31C33FB59252568C012BD9EE5FAC50811E778CA7C8F1A0DC91686CD6F`). `Start-Process` hit the known host `Path`/`PATH` collision after data initialization; switching to the recorded `.NET ProcessStartInfo` path.
+- 2026-08-13: all 8 migrations deployed to isolated MySQL 8.4.10; `migrate status` is current, schema diff is zero, and expanded database integration tests PASS.
+- 2026-08-13: production Chrome regression PASS for login, archive creation, six signature-validated uploads, OCR fail-closed, ten-player confirmation/submission, admin original image, team-private tactics, protected Range video, like/comment, anonymous denial, cross-team denial, and 375px overflow checks. Console/page errors were empty.
+- 2026-08-13: visually inspected desktop tactic and full mobile match screenshots; preserved existing visual tokens, 44px controls and responsive layout. Mobile internal links now retain the `/m` prefix.
+- 2026-08-13: final architecture, typecheck, core, Markdown, next-stage, integration, lint, production build, Prisma status/diff, and diff checks PASS. Lint remains at 18 pre-existing warnings and zero errors.
+- 2026-08-13: E2E fixtures verified at zero; stopped ports 8001/3307 and removed isolated MySQL plus temporary media directories. Real OCR vendor accuracy and production deployment remain explicit environment operations requiring endpoint/target credentials.
+
+
 ## 2026-08-12
 
 - 已以 UTF-8 读取任务书目录与关键要求。
@@ -57,3 +124,9 @@
 - 修正旧部署文档中的 `db push`、旧仓库地址和明文备份示例，使其与 release/migrate/rollback 实现一致。
 - 已停止 E2E Web 与隔离 MySQL，并删除本轮约 540 MB MySQL 下载、解压和数据临时文件；保留测试截图。
 - 无 SSH target、生产凭据及待轮换值，未执行线上管理员凭据/SESSION_SECRET 轮换、Firewall 和正式 release。
+- Phase U 完成：弃用生成式峡谷图，使用用户原图的确定性 viewport 裁切，并把战术板改为 1500×870 横向画布。
+- 新增统一比赛时钟、播放/拖动/关键时间跳转、时间图层自动跟随、图层时间编辑、兵线波次、Buff/普通野怪/暴君/主宰/风暴龙王推演表。
+- 验证 PASS：typecheck、architecture、专项测试、lint（0 error/18 个既有 warning）、production build、Chrome 桌面与 375px 移动视觉回归；浏览器无 console error、移动端无页面横向溢出。
+- Phase V-UX 完成：时间轴压缩为单行控制和六个状态摘要；完整资源表默认折叠；图层切换改为地图上方横向阶段条。
+- 绘制主工具只保留路线、点位、文字、撤销、重做和保存；图层管理、精确坐标及删除操作移入“图层与精确编辑”。
+- Chrome fixture 验收 PASS：桌面与 375px 手机无页面横向溢出，两个高级区域默认折叠，文字模式即时出现输入框，移动工具触控高度不低于 42px，无 console error。

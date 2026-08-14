@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
+import { apiRequest, jsonRequest } from "@/features/shared/client/api";
 
 type Settings = Record<string, string>;
 type Progress = { phase: string; current: number; total: number; message: string } | null;
@@ -29,22 +30,30 @@ export default function AdminSettingsPage() {
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState<Progress>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollRequestRef = useRef<AbortController | null>(null);
 
   // Load settings on mount
   useEffect(() => {
-    fetch("/api/admin/settings")
-      .then((r) => r.json())
-      .then((d) => { setSettings(d.settings || {}); setLoading(false); })
-      .catch(() => setLoading(false));
+    const controller = new AbortController();
+    void apiRequest<{ settings?: Settings }>("/api/admin/settings", { signal: controller.signal })
+      .then(({ data }) => setSettings(data.settings || {}))
+      .catch(() => undefined)
+      .finally(() => setLoading(false));
+    return () => controller.abort();
   }, []);
 
   // Poll sync progress while running
   useEffect(() => {
     if (!running) return;
     pollRef.current = setInterval(async () => {
+      if (pollRequestRef.current) return;
+      const controller = new AbortController();
+      pollRequestRef.current = controller;
       try {
-        const res = await fetch("/api/admin/sync-status");
-        const d = await res.json();
+        const { data: d } = await apiRequest<{ progress?: NonNullable<Progress> }>("/api/admin/sync-status", {
+          signal: controller.signal,
+          timeoutMs: 5_000,
+        });
         if (d.progress) {
           setProgress(d.progress);
           if (d.progress.phase === "done" || d.progress.phase === "error") {
@@ -55,13 +64,23 @@ export default function AdminSettingsPage() {
           }
         }
       } catch { /* poll failed, keep going */ }
+      finally {
+        if (pollRequestRef.current === controller) pollRequestRef.current = null;
+      }
     }, 1000);
-    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+      pollRequestRef.current?.abort();
+      pollRequestRef.current = null;
+    };
   }, [running]);
 
   // Cleanup poll on unmount
   useEffect(() => {
-    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+      pollRequestRef.current?.abort();
+    };
   }, []);
 
   const handleSave = useCallback(async (e: React.FormEvent) => {
@@ -69,13 +88,8 @@ export default function AdminSettingsPage() {
     setSaving(true);
     setSaveMsg(null);
     try {
-      const res = await fetch("/api/admin/settings", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(settings),
-      });
-      const d = await res.json();
-      setSaveMsg({ ok: !!d.ok, text: d.ok ? "配置已保存" : (d.error || "保存失败") });
+      const { data } = await jsonRequest<{ ok?: boolean; error?: string }>("/api/admin/settings", "PUT", settings);
+      setSaveMsg({ ok: !!data.ok, text: data.ok ? "配置已保存" : (data.error || "保存失败") });
     } catch {
       setSaveMsg({ ok: false, text: "网络错误" });
     }
@@ -91,11 +105,14 @@ export default function AdminSettingsPage() {
     setRunning(true);
     setProgress({ phase: "start", current: 0, total: 0, message: "正在启动同步..." });
     setSaveMsg(null);
-    const res = await fetch("/api/heroes", { method: "POST" });
-    const d = await res.json();
-    if (!d.ok) {
+    try {
+      const { data } = await apiRequest<{ ok?: boolean; error?: string }>("/api/heroes", { method: "POST" });
+      if (data.ok) return;
       setRunning(false);
-      setSaveMsg({ ok: false, text: d.error || "触发失败" });
+      setSaveMsg({ ok: false, text: data.error || "触发失败" });
+    } catch (error) {
+      setRunning(false);
+      setSaveMsg({ ok: false, text: error instanceof Error ? error.message : "网络错误" });
     }
   }, []);
 

@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { authenticate } from "@/lib/auth";
+import { tryReadJsonRequest } from "@/lib/request-validation";
 
 export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
@@ -12,7 +13,12 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
   if (!userId) return NextResponse.json({ error: "请先登录" }, { status: 401 });
 
   const tournamentId = parseInt(params.id);
-  const { targetUserId, action } = await req.json();
+  const body = await tryReadJsonRequest<{ targetUserId?: unknown; action?: unknown }>(req);
+  if (!body.ok) return body.response;
+  const { targetUserId, action } = body.value;
+  if (!Number.isSafeInteger(targetUserId) || typeof targetUserId !== "number" || !["promote", "demote"].includes(String(action))) {
+    return NextResponse.json({ error: "管理操作参数无效" }, { status: 400 });
+  }
 
   const isOwner = await prisma.tournamentAdmin.findFirst({
     where: { tournamentId, userId, role: "owner" },

@@ -8,18 +8,23 @@ export function useEquipmentItem(itemId: string | number) {
   const [item, setItem] = useState<EquipDetail | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchItem = useCallback(() => {
+  const fetchItem = useCallback(async (signal?: AbortSignal) => {
     setLoading(true);
-    getEquipmentItem(itemId)
-      .then(({ data }) => {
-        if (data.error) { setItem(null); setLoading(false); return; }
-        setItem(data);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
+    try {
+      const { data } = await getEquipmentItem(itemId, signal);
+      if (!signal?.aborted) setItem(data.error ? null : data);
+    } catch {
+      if (!signal?.aborted) setItem(null);
+    } finally {
+      if (!signal?.aborted) setLoading(false);
+    }
   }, [itemId]);
 
-  useEffect(() => { fetchItem(); }, [fetchItem]);
+  useEffect(() => {
+    const controller = new AbortController();
+    void fetchItem(controller.signal);
+    return () => controller.abort();
+  }, [fetchItem]);
 
-  return { item, loading, refetch: fetchItem };
+  return { item, loading, refetch: () => fetchItem() };
 }

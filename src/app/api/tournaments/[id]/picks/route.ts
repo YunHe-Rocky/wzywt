@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { authenticate } from "@/lib/auth";
+import { tryReadJsonRequest } from "@/lib/request-validation";
 
 const VALID_ROLES = ["top", "jungle", "mid", "adc", "support"];
 
@@ -51,19 +52,35 @@ export async function PUT(req: NextRequest, props: { params: Promise<{ id: strin
     return NextResponse.json({ error: "无权限" }, { status: 403 });
   }
 
-  const body = await req.json();
-  const { heroId, equipIds, team, roleType, targetUserId: bodyTarget } = body;
+  const body = await tryReadJsonRequest<Record<string, unknown>>(req);
+  if (!body.ok) return body.response;
+  const { heroId, equipIds, team, roleType, targetUserId: bodyTarget } = body.value;
+  if (heroId !== undefined && (typeof heroId !== "number" || !Number.isSafeInteger(heroId) || heroId <= 0)) {
+    return NextResponse.json({ error: "英雄参数无效" }, { status: 400 });
+  }
+  if (equipIds !== undefined && (!Array.isArray(equipIds) || equipIds.some((id) => !Number.isSafeInteger(id) || id <= 0))) {
+    return NextResponse.json({ error: "装备参数无效" }, { status: 400 });
+  }
+  if (team !== undefined && team !== "red" && team !== "blue") {
+    return NextResponse.json({ error: "队伍参数无效" }, { status: 400 });
+  }
+  if (roleType !== undefined && (typeof roleType !== "string" || (roleType && !VALID_ROLES.includes(roleType)))) {
+    return NextResponse.json({ error: "无效分路" }, { status: 400 });
+  }
+  if (bodyTarget !== undefined && (typeof bodyTarget !== "number" || !Number.isSafeInteger(bodyTarget) || bodyTarget <= 0)) {
+    return NextResponse.json({ error: "目标用户无效" }, { status: 400 });
+  }
 
   // Only admins can set other players' picks
-  const targetUserId = isAdmin ? (bodyTarget || userId) : userId;
+  const targetUserId = isAdmin && typeof bodyTarget === "number" ? bodyTarget : userId;
 
   // Validate hero belongs to the assigned role
-  if (heroId) {
+  if (typeof heroId === "number") {
     const hero = await prisma.hero.findUnique({ where: { heroId } });
     if (!hero) return NextResponse.json({ error: "英雄不存在" }, { status: 400 });
 
     // Check role restriction
-    if (roleType && !VALID_ROLES.includes(roleType)) {
+    if (typeof roleType === "string" && roleType && !VALID_ROLES.includes(roleType)) {
       return NextResponse.json({ error: "无效分路" }, { status: 400 });
     }
   }
@@ -76,10 +93,10 @@ export async function PUT(req: NextRequest, props: { params: Promise<{ id: strin
   const data = {
     tournamentId,
     userId: targetUserId,
-    team: team || existing?.team || "red",
-    roleType: roleType || existing?.roleType || "",
-    heroId: heroId || existing?.heroId || 0,
-    equipJson: equipIds || existing?.equipJson || [],
+    team: typeof team === "string" ? team : existing?.team || "red",
+    roleType: typeof roleType === "string" ? roleType : existing?.roleType || "",
+    heroId: typeof heroId === "number" ? heroId : existing?.heroId || 0,
+    equipJson: Array.isArray(equipIds) ? equipIds : existing?.equipJson || [],
   };
 
   if (existing) {
@@ -88,7 +105,7 @@ export async function PUT(req: NextRequest, props: { params: Promise<{ id: strin
       data: { heroId: data.heroId, equipJson: data.equipJson, team: data.team, roleType: data.roleType },
     });
   } else {
-    if (!heroId) return NextResponse.json({ error: "请先选择英雄" }, { status: 400 });
+    if (typeof heroId !== "number") return NextResponse.json({ error: "请先选择英雄" }, { status: 400 });
     await prisma.tournamentPick.create({ data });
   }
 

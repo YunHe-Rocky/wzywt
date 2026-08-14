@@ -19,7 +19,7 @@ fail() { printf '[deploy] ERROR: %s\n' "$*" >&2; exit 1; }
 [[ -f "$SHARED_DIR/.env" ]] || fail "shared environment file not found: $SHARED_DIR/.env"
 [[ -z "$(git -C "$SOURCE_DIR" status --porcelain)" ]] || fail "production source tree is dirty; resolve it manually"
 
-mkdir -p "$RELEASES_DIR" "$SHARED_DIR/mysql-bak"
+mkdir -p "$RELEASES_DIR" "$SHARED_DIR/mysql-bak" "$SHARED_DIR/media" "$SHARED_DIR/media/avatars"
 git -C "$SOURCE_DIR" fetch --prune origin main
 mkdir "$RELEASE_DIR"
 
@@ -71,7 +71,10 @@ ln -sfn "$RELEASE_DIR" "$CURRENT_LINK"
 
 reload_release() {
   local target="$1"
-  APP_DIR="$target" pm2 startOrReload "$target/ecosystem.config.js" --update-env
+  local resolved_target release_id
+  resolved_target="$(readlink -f "$target")"
+  release_id="$(basename "$resolved_target")"
+  APP_DIR="$target" APP_RELEASE_ID="$release_id" pm2 startOrReload "$target/ecosystem.config.js" --update-env
 }
 
 rollback() {

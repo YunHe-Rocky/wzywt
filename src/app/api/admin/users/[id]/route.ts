@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { authorizeSuperAdmin } from "@/lib/permissions";
 import { prisma } from "@/lib/db";
 import { deleteUserAndOwnedTournaments } from "@/features/users/server/deleteUser";
+import { tryReadJsonRequest } from "@/lib/request-validation";
 
 export async function PATCH(req: NextRequest, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
@@ -23,7 +24,9 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
   if (!target) return NextResponse.json({ error: "用户不存在" }, { status: 404 });
   if (target.role === "admin") return NextResponse.json({ error: "不能操作管理员" }, { status: 403 });
 
-  const { banned, role } = await req.json();
+  const body = await tryReadJsonRequest<{ banned?: unknown; role?: unknown }>(req);
+  if (!body.ok) return body.response;
+  const { banned, role } = body.value;
   const data: Record<string, unknown> = {};
   if (banned !== undefined) {
     if (typeof banned !== "boolean") {

@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { authorizeSuperAdmin } from "@/lib/permissions";
 import { prisma } from "@/lib/db";
 import { validateCrawlUrl } from "@/lib/anti-bot";
+import { tryReadJsonRequest } from "@/lib/request-validation";
 
 const DEFAULTS: Record<string, string> = {
   hero_list_page: "https://pvp.qq.com/web201605/herolist.shtml",
@@ -33,8 +34,9 @@ export async function PUT(req: NextRequest) {
   const userId = authorization.ok ? authorization.user.userId : 0;
   if (!userId) return NextResponse.json({ error: "无权限" }, { status: 403 });
 
-  const body = await req.json().catch(() => null) as Record<string, unknown> | null;
-  if (!body) return NextResponse.json({ error: "请求格式错误" }, { status: 400 });
+  const parsedBody = await tryReadJsonRequest<Record<string, unknown>>(req);
+  if (!parsedBody.ok) return parsedBody.response;
+  const body = parsedBody.value;
   const updates: Record<string, string> = {};
 
   try {

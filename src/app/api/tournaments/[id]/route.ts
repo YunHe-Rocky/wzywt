@@ -10,6 +10,7 @@ import {
   TournamentValidationError,
 } from "@/features/tournaments/model";
 import { reconcileTournamentCapacity } from "@/features/tournaments/server/capacity";
+import { tryReadJsonRequest } from "@/lib/request-validation";
 
 function parseTournamentId(value: string): number | NextResponse {
   try {
@@ -126,8 +127,9 @@ export async function PUT(req: NextRequest, props: { params: Promise<{ id: strin
   const parsedId = parseTournamentId(params.id);
   if (parsedId instanceof NextResponse) return parsedId;
   const tournamentId = parsedId;
-  const body = await req.json().catch(() => null) as Record<string, unknown> | null;
-  if (!body) return NextResponse.json({ error: "请求格式错误" }, { status: 400 });
+  const parsedBody = await tryReadJsonRequest<Record<string, unknown>>(req);
+  if (!parsedBody.ok) return parsedBody.response;
+  const body = parsedBody.value;
 
   let draft;
   try {

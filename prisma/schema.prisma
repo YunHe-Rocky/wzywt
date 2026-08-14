@@ -22,12 +22,29 @@ model User {
   sessionVersion     Int      @default(1) @map("session_version")
   createdAt          DateTime @default(now()) @map("created_at")
 
-  rolePreferences   RolePreference[]
-  heroPowers        HeroPower[]
-  tournamentPlayers TournamentPlayer[]
-  tournamentAdmins  TournamentAdmin[]
-  adminOperations   AdminOperation[]
-  tempApplications  TempPlayerApplication[]
+  rolePreferences      RolePreference[]
+  heroPowers           HeroPower[]
+  tournamentPlayers    TournamentPlayer[]
+  tournamentAdmins     TournamentAdmin[]
+  adminOperations      AdminOperation[]
+  tempApplications     TempPlayerApplication[]
+  matchesCreated       InternalMatch[]         @relation("InternalMatchCreatedBy")
+  matchesSubmitted     InternalMatch[]         @relation("InternalMatchSubmittedBy")
+  matchPlayers         MatchPlayer[]           @relation("MatchPlayerMember")
+  matchConfirmations   MatchPlayer[]           @relation("MatchPlayerConfirmedBy")
+  matchStatsConfirmed  MatchPlayerStat[]       @relation("MatchStatConfirmedBy")
+  screenshotsUploaded  MatchScreenshot[]
+  recognitionsStarted  MatchRecognition[]
+  disputesCreated      MatchDispute[]          @relation("MatchDisputeCreatedBy")
+  disputesHandled      MatchDispute[]          @relation("MatchDisputeHandledBy")
+  combatPosts          CombatPost[]            @relation("CombatPostAuthor")
+  combatPostsModerated CombatPost[]            @relation("CombatPostModeratedBy")
+  combatPostLikes      CombatPostLike[]
+  combatPostComments   CombatPostComment[]     @relation("CombatPostCommentAuthor")
+  commentsModerated    CombatPostComment[]     @relation("CombatPostCommentModeratedBy")
+  tacticLayersCreated  TacticLayer[]
+  tacticRoutes         TacticRoute[]
+  tacticMarkers        TacticMarker[]
 
   @@map("users")
 }
@@ -72,6 +89,8 @@ model Tournament {
   applications TempPlayerApplication[]
   operations   AdminOperation[]
   picks        TournamentPick[]
+  matches      InternalMatch[]
+  combatPosts  CombatPost[]
 
   @@index([isPublic, status, deadline])
   @@map("tournaments")
@@ -172,6 +191,7 @@ model Hero {
 
   heroSkills             HeroSkill[]
   secondaryLaneOverrides HeroSecondaryLane[]
+  matchPlayers           MatchPlayer[]
 
   @@map("heroes")
 }
@@ -269,12 +289,16 @@ model AdminOperation {
   adminId      Int      @map("admin_id")
   action       String   @db.VarChar(32)
   targetId     Int?     @map("target_id")
+  matchId      Int?     @map("match_id")
+  details      Json?
   createdAt    DateTime @default(now()) @map("created_at")
 
-  tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
-  admin      User       @relation(fields: [adminId], references: [id], onDelete: Restrict)
+  tournament Tournament     @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  admin      User           @relation(fields: [adminId], references: [id], onDelete: Restrict)
+  match      InternalMatch? @relation(fields: [matchId], references: [id], onDelete: Restrict)
 
   @@index([tournamentId, action, createdAt])
+  @@index([matchId, action, createdAt])
   @@map("admin_operations")
 }
 
@@ -291,4 +315,304 @@ model TournamentPick {
 
   @@unique([tournamentId, userId])
   @@map("tournament_picks")
+}
+
+model InternalMatch {
+  id                 Int       @id @default(autoincrement())
+  tournamentId       Int       @unique @map("tournament_id")
+  playedAt           DateTime  @default(now()) @map("played_at")
+  status             String    @default("DRAFT") @db.VarChar(24)
+  winnerSide         String?   @map("winner_side") @db.VarChar(4)
+  redTotalKills      Int?      @map("red_total_kills") @db.UnsignedSmallInt
+  blueTotalKills     Int?      @map("blue_total_kills") @db.UnsignedSmallInt
+  consistencyStatus  String    @default("PENDING") @map("consistency_status") @db.VarChar(16)
+  consistencyDetails Json?     @map("consistency_details")
+  createdById        Int       @map("created_by")
+  submittedById      Int?      @map("submitted_by")
+  submittedAt        DateTime? @map("submitted_at")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  tournament   Tournament         @relation(fields: [tournamentId], references: [id], onDelete: Restrict)
+  createdBy    User               @relation("InternalMatchCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  submittedBy  User?              @relation("InternalMatchSubmittedBy", fields: [submittedById], references: [id], onDelete: Restrict)
+  players      MatchPlayer[]
+  screenshots  MatchScreenshot[]
+  recognitions MatchRecognition[]
+  disputes     MatchDispute[]
+  operations   AdminOperation[]
+  combatPosts  CombatPost[]
+  tacticRooms  TacticRoom[]
+
+  @@index([playedAt])
+  @@index([status])
+  @@map("internal_matches")
+}
+
+model MatchPlayer {
+  id                    Int       @id @default(autoincrement())
+  matchId               Int       @map("match_id")
+  side                  String    @db.VarChar(4)
+  slot                  Int       @db.UnsignedTinyInt
+  memberId              Int?      @map("member_id")
+  isGuest               Boolean   @default(false) @map("is_guest")
+  gameNickname          String    @map("game_nickname") @db.VarChar(32)
+  heroId                Int?      @map("hero_id")
+  heroName              String?   @map("hero_name") @db.VarChar(64)
+  roleType              String?   @map("role_type") @db.VarChar(16)
+  score                 Decimal?  @db.Decimal(6, 2)
+  isWinner              Boolean?  @map("is_winner")
+  identityConfirmedAt   DateTime? @map("identity_confirmed_at")
+  identityConfirmedById Int?      @map("identity_confirmed_by")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+
+  match               InternalMatch    @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  member              User?            @relation("MatchPlayerMember", fields: [memberId], references: [id], onDelete: Restrict)
+  hero                Hero?            @relation(fields: [heroId], references: [heroId], onDelete: Restrict)
+  identityConfirmedBy User?            @relation("MatchPlayerConfirmedBy", fields: [identityConfirmedById], references: [id], onDelete: Restrict)
+  stats               MatchPlayerStat?
+  disputes            MatchDispute[]
+
+  @@unique([matchId, side, slot])
+  @@unique([matchId, memberId])
+  @@index([matchId])
+  @@index([memberId])
+  @@index([heroId])
+  @@map("match_players")
+}
+
+model MatchPlayerStat {
+  id                   Int       @id @default(autoincrement())
+  matchPlayerId        Int       @unique @map("match_player_id")
+  damageDealt          Int?      @map("damage_dealt") @db.UnsignedInt
+  damageTaken          Int?      @map("damage_taken") @db.UnsignedInt
+  gold                 Int?      @db.UnsignedInt
+  participationRate    Decimal?  @map("participation_rate") @db.Decimal(8, 4)
+  damageConversionRate Decimal?  @map("damage_conversion_rate") @db.Decimal(8, 4)
+  damageTakenPerDeath  Int?      @map("damage_taken_per_death") @db.UnsignedInt
+  jungleGold           Int?      @map("jungle_gold") @db.UnsignedInt
+  minionKills          Int?      @map("minion_kills") @db.UnsignedInt
+  kills                Int?      @db.UnsignedSmallInt
+  deaths               Int?      @db.UnsignedSmallInt
+  assists              Int?      @db.UnsignedSmallInt
+  controlScore         Decimal?  @map("control_score") @db.Decimal(10, 2)
+  healing              Int?      @db.UnsignedInt
+  towerDamage          Int?      @map("tower_damage") @db.UnsignedInt
+  confirmedAt          DateTime? @map("confirmed_at")
+  confirmedById        Int?      @map("confirmed_by")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+
+  matchPlayer MatchPlayer @relation(fields: [matchPlayerId], references: [id], onDelete: Cascade)
+  confirmedBy User?       @relation("MatchStatConfirmedBy", fields: [confirmedById], references: [id], onDelete: Restrict)
+
+  @@map("match_player_stats")
+}
+
+model MatchScreenshot {
+  id                 Int      @id @default(autoincrement())
+  matchId            Int      @map("match_id")
+  type               String   @db.VarChar(16)
+  storageKey         String   @unique @map("storage_key") @db.VarChar(255)
+  originalFilename   String   @map("original_filename") @db.VarChar(255)
+  mimeType           String   @map("mime_type") @db.VarChar(64)
+  size               Int      @db.UnsignedInt
+  sha256             String   @db.Char(64)
+  uploadedById       Int      @map("uploaded_by")
+  recognitionStatus  String   @default("PENDING") @map("recognition_status") @db.VarChar(16)
+  recognitionPayload Json?    @map("recognition_payload")
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  match      InternalMatch @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  uploadedBy User          @relation(fields: [uploadedById], references: [id], onDelete: Restrict)
+
+  @@unique([matchId, type])
+  @@index([matchId])
+  @@index([matchId, type])
+  @@map("match_screenshots")
+}
+
+model MatchRecognition {
+  id               Int       @id @default(autoincrement())
+  matchId          Int       @map("match_id")
+  status           String    @default("PENDING") @db.VarChar(16)
+  engine           String    @db.VarChar(64)
+  startedById      Int       @map("started_by")
+  rawResult        Json?     @map("raw_result")
+  normalizedResult Json?     @map("normalized_result")
+  warnings         Json?
+  errorCode        String?   @map("error_code") @db.VarChar(64)
+  startedAt        DateTime? @map("started_at")
+  finishedAt       DateTime? @map("finished_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  match     InternalMatch @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  startedBy User          @relation(fields: [startedById], references: [id], onDelete: Restrict)
+
+  @@index([matchId, createdAt])
+  @@map("match_recognitions")
+}
+
+model MatchDispute {
+  id            Int       @id @default(autoincrement())
+  matchId       Int       @map("match_id")
+  matchPlayerId Int?      @map("match_player_id")
+  field         String?   @db.VarChar(64)
+  currentValue  Json?     @map("current_value")
+  message       String    @db.VarChar(1000)
+  status        String    @default("pending") @db.VarChar(16)
+  createdById   Int       @map("created_by")
+  handledById   Int?      @map("handled_by")
+  handledAt     DateTime? @map("handled_at")
+  resolution    String?   @db.VarChar(1000)
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  match       InternalMatch @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  matchPlayer MatchPlayer?  @relation(fields: [matchPlayerId], references: [id], onDelete: SetNull)
+  createdBy   User          @relation("MatchDisputeCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  handledBy   User?         @relation("MatchDisputeHandledBy", fields: [handledById], references: [id], onDelete: Restrict)
+
+  @@index([matchId])
+  @@index([status, createdAt])
+  @@map("match_disputes")
+}
+
+model CombatPost {
+  id               Int       @id @default(autoincrement())
+  tournamentId     Int?      @map("tournament_id")
+  matchId          Int?      @map("match_id")
+  authorId         Int       @map("author_id")
+  title            String    @db.VarChar(128)
+  content          String    @db.Text
+  videoStorageKey  String    @unique @map("video_storage_key") @db.VarChar(255)
+  originalFilename String    @map("original_filename") @db.VarChar(255)
+  mimeType         String    @map("mime_type") @db.VarChar(64)
+  size             Int       @db.UnsignedInt
+  sha256           String    @db.Char(64)
+  status           String    @default("published") @db.VarChar(16)
+  moderatedById    Int?      @map("moderated_by")
+  moderatedAt      DateTime? @map("moderated_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  tournament  Tournament?         @relation(fields: [tournamentId], references: [id], onDelete: SetNull)
+  match       InternalMatch?      @relation(fields: [matchId], references: [id], onDelete: SetNull)
+  author      User                @relation("CombatPostAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+  moderatedBy User?               @relation("CombatPostModeratedBy", fields: [moderatedById], references: [id], onDelete: Restrict)
+  likes       CombatPostLike[]
+  comments    CombatPostComment[]
+
+  @@index([status, createdAt])
+  @@index([matchId])
+  @@index([tournamentId])
+  @@map("combat_posts")
+}
+
+model CombatPostLike {
+  id        Int      @id @default(autoincrement())
+  postId    Int      @map("post_id")
+  userId    Int      @map("user_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  post CombatPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId])
+  @@index([userId])
+  @@map("combat_post_likes")
+}
+
+model CombatPostComment {
+  id            Int       @id @default(autoincrement())
+  postId        Int       @map("post_id")
+  authorId      Int       @map("author_id")
+  content       String    @db.VarChar(1000)
+  status        String    @default("active") @db.VarChar(16)
+  moderatedById Int?      @map("moderated_by")
+  moderatedAt   DateTime? @map("moderated_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  post        CombatPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  author      User       @relation("CombatPostCommentAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+  moderatedBy User?      @relation("CombatPostCommentModeratedBy", fields: [moderatedById], references: [id], onDelete: Restrict)
+
+  @@index([postId, status, createdAt])
+  @@map("combat_post_comments")
+}
+
+model TacticRoom {
+  id        Int      @id @default(autoincrement())
+  matchId   Int      @map("match_id")
+  side      String   @db.VarChar(4)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  match  InternalMatch @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  layers TacticLayer[]
+
+  @@unique([matchId, side])
+  @@map("tactic_rooms")
+}
+
+model TacticLayer {
+  id          Int      @id @default(autoincrement())
+  roomId      Int      @map("room_id")
+  name        String   @db.VarChar(64)
+  sortOrder   Int      @map("sort_order")
+  startTime   Int?     @map("start_time") @db.UnsignedInt
+  endTime     Int?     @map("end_time") @db.UnsignedInt
+  description String?  @db.VarChar(1000)
+  createdById Int      @map("created_by")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  room      TacticRoom     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  createdBy User           @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  routes    TacticRoute[]
+  markers   TacticMarker[]
+
+  @@unique([roomId, sortOrder])
+  @@index([roomId])
+  @@map("tactic_layers")
+}
+
+model TacticRoute {
+  id            Int      @id @default(autoincrement())
+  layerId       Int      @map("layer_id")
+  ownerMemberId Int      @map("owner_member_id")
+  colorKey      String   @map("color_key") @db.VarChar(16)
+  geometry      Json
+  revision      Int      @default(1) @db.UnsignedInt
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  layer       TacticLayer @relation(fields: [layerId], references: [id], onDelete: Cascade)
+  ownerMember User        @relation(fields: [ownerMemberId], references: [id], onDelete: Restrict)
+
+  @@unique([layerId, ownerMemberId])
+  @@index([ownerMemberId])
+  @@map("tactic_routes")
+}
+
+model TacticMarker {
+  id            Int      @id @default(autoincrement())
+  layerId       Int      @map("layer_id")
+  ownerMemberId Int      @map("owner_member_id")
+  type          String   @db.VarChar(16)
+  x             Decimal  @db.Decimal(7, 6)
+  y             Decimal  @db.Decimal(7, 6)
+  text          String?  @db.VarChar(120)
+  revision      Int      @default(1) @db.UnsignedInt
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  layer       TacticLayer @relation(fields: [layerId], references: [id], onDelete: Cascade)
+  ownerMember User        @relation(fields: [ownerMemberId], references: [id], onDelete: Restrict)
+
+  @@index([layerId, ownerMemberId])
+  @@map("tactic_markers")
 }

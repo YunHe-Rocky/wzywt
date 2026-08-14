@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/db";
 import { createHash } from "crypto";
 import { fetchWithRetry } from "@/lib/anti-bot";
-import { cacheDel } from "@/lib/redis";
+import { cacheDel, cacheDelPattern } from "@/lib/redis";
 import { computeTier, computeTags, parsePassives, buildEquipmentStats } from "@/core/game";
 
 const ITEM_URL = "https://pvp.qq.com/web201605/js/item.json";
@@ -151,12 +151,13 @@ export async function syncItems(): Promise<{ inserted: number; updated: number }
       await prisma.equipment.update({ where: { itemId }, data: updateData });
       updated++;
 
-      // Clear Redis cache
-      void cacheDel("item", itemId);
     }
   }
 
-  void cacheDel("items", "list");
+  await Promise.all([
+    cacheDelPattern("item:*"),
+    cacheDel("items", "list"),
+  ]);
 
   console.log(`[sync:items] Complete: ${inserted} new, ${updated} updated`);
   return { inserted, updated };

@@ -8,16 +8,26 @@ const CACHE_KEY = "official_news";
 const CACHE_TTL = 3600000; // 1 hour
 
 export async function GET() {
+  let staleItems: unknown[] = [];
   try {
     const cacheRow = await prisma.kvCache.findUnique({ where: { key: CACHE_KEY } });
 
     if (cacheRow) {
-      const cached = JSON.parse(cacheRow.value);
-      if (cached.timestamp && Date.now() - cached.timestamp < CACHE_TTL) {
-        return NextResponse.json(cached.items);
+      try {
+        const cached = JSON.parse(cacheRow.value) as { timestamp?: unknown; items?: unknown };
+        if (Array.isArray(cached.items)) staleItems = cached.items;
+        if (typeof cached.timestamp === "number" && Date.now() - cached.timestamp < CACHE_TTL) {
+          return NextResponse.json(staleItems);
+        }
+      } catch {
+        console.warn("[official-news] ignored malformed cache entry");
       }
     }
+  } catch (error) {
+    console.warn("[official-news] cache read failed", error instanceof Error ? error.message : error);
+  }
 
+  try {
     // Fetch from both announcement and news channels
     const [announcements, news] = await Promise.all([
       fetchGicpNews(GICP_CHANNELS.announcement, 5),
@@ -45,9 +55,11 @@ export async function GET() {
       });
       return NextResponse.json(merged);
     }
-  } catch {
-    /* fall through to empty */
+  } catch (error) {
+    console.warn("[official-news] upstream refresh failed", error instanceof Error ? error.message : error);
   }
 
-  return NextResponse.json([]);
+  return NextResponse.json(staleItems, {
+    headers: staleItems.length > 0 ? { Warning: '110 - "Response is stale"' } : undefined,
+  });
 }

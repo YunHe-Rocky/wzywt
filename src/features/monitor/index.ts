@@ -4,12 +4,23 @@
 import { prisma } from "@/lib/db";
 import { fetchWithRetry } from "@/lib/anti-bot";
 import { fetchGicpNews, GICP_CHANNELS } from "@/lib/gicp";
+import { readResponseBytes } from "@/lib/http-response";
 
 // ── Config ─────────────────────────────────────────────────────────────
 const HEROLIST_URL = "https://pvp.qq.com/web201605/js/herolist.json";
+type OfficialHero = {
+  ename: number;
+  cname: string;
+  title: string;
+  hero_type: number;
+  hero_type2?: number;
+  skin_name?: string;
+};
+type HeroListResponse = Awaited<ReturnType<typeof fetchWithRetry>>;
 
-interface MonitorResult {
+export interface MonitorResult {
   module: "news" | "heroes" | "skins" | "skills" | "items";
+  ok: boolean;
   changed: boolean;
   detail: string;
   count?: number;
@@ -19,14 +30,14 @@ interface MonitorResult {
 async function checkNews(): Promise<MonitorResult> {
   try {
     const items = await fetchGicpNews(GICP_CHANNELS.announcement, 1);
-    if (items.length === 0) return { module: "news", changed: false, detail: "no items from API" };
+    if (items.length === 0) return { module: "news", ok: false, changed: false, detail: "no items from API" };
 
     const firstTitle = items[0].title;
 
     const cache = await prisma.kvCache.findUnique({ where: { key: "news_last_title" } });
 
     if (cache?.value === firstTitle) {
-      return { module: "news", changed: false, detail: "unchanged" };
+      return { module: "news", ok: true, changed: false, detail: "unchanged" };
     }
 
     await prisma.kvCache.upsert({
@@ -35,37 +46,32 @@ async function checkNews(): Promise<MonitorResult> {
       create: { key: "news_last_title", value: firstTitle },
     });
 
-    return { module: "news", changed: true, detail: firstTitle };
+    return { module: "news", ok: true, changed: true, detail: firstTitle };
   } catch (e: unknown) {
-    return { module: "news", changed: false, detail: (e as Error).message };
+    return { module: "news", ok: false, changed: false, detail: (e as Error).message };
   }
 }
 
 // ── Hero Monitor (light: checks hero count + names) ────────────────────
-async function checkHeroes(): Promise<MonitorResult> {
+async function checkHeroes(response: Promise<HeroListResponse>): Promise<MonitorResult> {
   try {
-    const res = await fetchWithRetry(HEROLIST_URL, { timeout: 10000, referer: "https://pvp.qq.com/", isJson: true });
-    if (!res.ok || !res.json) return { module: "heroes", changed: false, detail: "HTTP " + res.status };
+    const res = await response;
+    if (!res.ok || !Array.isArray(res.json) || res.json.length === 0) {
+      return { module: "heroes", ok: false, changed: false, detail: "HTTP/schema " + res.status };
+    }
 
-    const official = res.json as { ename: number; cname: string; title: string; hero_type: number; hero_type2?: number }[];
+    const official = res.json as OfficialHero[];
 
     // Light check: compare hero count and names
     const dbCount = await prisma.hero.count();
     if (official.length !== dbCount) {
-      return { module: "heroes", changed: true, detail: `count ${dbCount}→${official.length}`, count: official.length };
+      return { module: "heroes", ok: true, changed: true, detail: `count ${dbCount}→${official.length}`, count: official.length };
     }
 
-    // Compare first & last hero names (cheap fingerprint)
-    const dbFirst = await prisma.hero.findFirst({ where: { heroId: official[0].ename }, select: { name: true } });
-    const dbLast = await prisma.hero.findFirst({ where: { heroId: official[official.length - 1].ename }, select: { name: true } });
-
-    if (!dbFirst || dbFirst.name !== official[0].cname || !dbLast || dbLast.name !== official[official.length - 1].cname) {
-      return { module: "heroes", changed: true, detail: "name mismatch", count: official.length };
-    }
-
-    // Check for any mismatch by sampling more heroes (every 20th + 命格 heroes)
-    let mismatchCount = 0;
+    // One batched query covers the boundary fingerprint and the rotating sample.
     const sampleIndices = new Set<number>();
+    sampleIndices.add(0);
+    sampleIndices.add(official.length - 1);
     for (let i = 0; i < official.length; i += 20) sampleIndices.add(i);
     // Also explicitly check heroes that have 命格 in DB
     const mingGeHeroes = await prisma.hero.findMany({ where: { mingge: true }, select: { heroId: true } });
@@ -74,30 +80,39 @@ async function checkHeroes(): Promise<MonitorResult> {
       if (idx >= 0) sampleIndices.add(idx);
     }
 
-    for (const i of Array.from(sampleIndices)) {
-      const db = await prisma.hero.findUnique({ where: { heroId: official[i].ename }, select: { name: true, title: true, heroType: true, mingge: true, minggeName: true } });
-      if (db && (db.name !== official[i].cname || db.title !== official[i].title || db.heroType !== official[i].hero_type)) {
-        mismatchCount++;
-      }
-    }
+    const sampledOfficials = Array.from(sampleIndices, (index) => official[index]);
+    const sampledRows = await prisma.hero.findMany({
+      where: { heroId: { in: sampledOfficials.map((hero) => hero.ename) } },
+      select: { heroId: true, name: true, title: true, heroType: true },
+    });
+    const sampledById = new Map(sampledRows.map((hero) => [hero.heroId, hero]));
+    const mismatchCount = sampledOfficials.filter((hero) => {
+      const stored = sampledById.get(hero.ename);
+      return !stored
+        || stored.name !== hero.cname
+        || stored.title !== hero.title
+        || stored.heroType !== hero.hero_type;
+    }).length;
 
     if (mismatchCount > 0) {
-      return { module: "heroes", changed: true, detail: `${mismatchCount} mismatches`, count: official.length };
+      return { module: "heroes", ok: true, changed: true, detail: `${mismatchCount} mismatches`, count: official.length };
     }
 
-    return { module: "heroes", changed: false, detail: "unchanged" };
+    return { module: "heroes", ok: true, changed: false, detail: "unchanged" };
   } catch (e: unknown) {
-    return { module: "heroes", changed: false, detail: (e as Error).message };
+    return { module: "heroes", ok: false, changed: false, detail: (e as Error).message };
   }
 }
 
 // ── Skin Monitor (light: checks skin names per hero from official JSON) ─
-async function checkSkins(): Promise<MonitorResult> {
+async function checkSkins(response: Promise<HeroListResponse>): Promise<MonitorResult> {
   try {
-    const res = await fetchWithRetry(HEROLIST_URL, { timeout: 10000, referer: "https://pvp.qq.com/", isJson: true });
-    if (!res.ok || !res.json) return { module: "skins", changed: false, detail: "HTTP " + res.status };
+    const res = await response;
+    if (!res.ok || !Array.isArray(res.json) || res.json.length === 0) {
+      return { module: "skins", ok: false, changed: false, detail: "HTTP/schema " + res.status };
+    }
 
-    const official = res.json as { ename: number; skin_name?: string }[];
+    const official = res.json as OfficialHero[];
 
     const storedHeroes = await prisma.hero.findMany({
       select: { heroId: true, skinsJson: true },
@@ -126,12 +141,12 @@ async function checkSkins(): Promise<MonitorResult> {
     }
 
     if (skinChanges > 0) {
-      return { module: "skins", changed: true, detail: `${skinChanges} heroes have new/changed skins` };
+      return { module: "skins", ok: true, changed: true, detail: `${skinChanges} heroes have new/changed skins` };
     }
 
-    return { module: "skins", changed: false, detail: "skins unchanged" };
+    return { module: "skins", ok: true, changed: false, detail: "skins unchanged" };
   } catch (e: unknown) {
-    return { module: "skins", changed: false, detail: (e as Error).message };
+    return { module: "skins", ok: false, changed: false, detail: (e as Error).message };
   }
 }
 
@@ -141,12 +156,13 @@ async function checkSkills(): Promise<MonitorResult> {
     const heroes = await prisma.hero.findMany({
       select: { heroId: true, name: true, dataHash: true, skillsJson: true, skinsJson: true },
     });
-    if (heroes.length === 0) return { module: "skills", changed: false, detail: "no heroes in db" };
+    if (heroes.length === 0) return { module: "skills", ok: false, changed: false, detail: "no heroes in db" };
 
-    // 50% random sample
-    const sampleSize = Math.max(heroes.length / 2, 1);
-    const shuffled = [...heroes].sort(() => Math.random() - 0.5);
-    const samples = shuffled.slice(0, sampleSize);
+    // Rotate a bounded deterministic window instead of opening dozens of upstream connections every three minutes.
+    const sampleSize = Math.min(8, heroes.length);
+    const windowIndex = Math.floor(Date.now() / (3 * 60 * 1000));
+    const start = (windowIndex * sampleSize) % heroes.length;
+    const samples = Array.from({ length: sampleSize }, (_, index) => heroes[(start + index) % heroes.length]);
 
     const { createHash } = await import("crypto");
     const { load } = await import("cheerio");
@@ -170,9 +186,16 @@ async function checkSkills(): Promise<MonitorResult> {
           let html = "";
           for (const url of urls) {
             try {
-              const res = await fetch(url, { headers: getHeaders(), signal: AbortSignal.timeout(8000) });
-              if (!res.ok) continue;
-              const buf = Buffer.from(await res.arrayBuffer());
+              const res = await fetch(url, {
+                headers: getHeaders(),
+                signal: AbortSignal.timeout(8000),
+                redirect: "error",
+              });
+              if (!res.ok) {
+                await res.body?.cancel();
+                continue;
+              }
+              const buf = Buffer.from(await readResponseBytes(res, 4 * 1024 * 1024));
               html = iconv.decode(buf, "gbk");
               if (html.includes("技能") || html.includes("skill-show")) break;
             } catch { continue; }
@@ -221,11 +244,11 @@ async function checkSkills(): Promise<MonitorResult> {
     }
 
     if (mismatchCount > 0) {
-      return { module: "skills", changed: true, detail: `${mismatchCount}/${samples.length} heroes have changes` };
+      return { module: "skills", ok: true, changed: true, detail: `${mismatchCount}/${samples.length} heroes have changes` };
     }
-    return { module: "skills", changed: false, detail: `${samples.length} heroes OK` };
+    return { module: "skills", ok: true, changed: false, detail: `${samples.length} heroes OK` };
   } catch (e: unknown) {
-    return { module: "skills", changed: false, detail: (e as Error).message };
+    return { module: "skills", ok: false, changed: false, detail: (e as Error).message };
   }
 }
 
@@ -234,7 +257,7 @@ async function checkItems(): Promise<MonitorResult> {
   try {
     const ITEM_URL = "https://pvp.qq.com/web201605/js/item.json";
     const res = await fetchWithRetry(ITEM_URL, { timeout: 10000, referer: "https://pvp.qq.com/", isJson: true });
-    if (!res.ok || !res.json) return { module: "items", changed: false, detail: "HTTP " + res.status };
+    if (!res.ok || !res.json) return { module: "items", ok: false, changed: false, detail: "HTTP " + res.status };
 
     const { createHash } = await import("crypto");
     const newHash = createHash("md5").update(JSON.stringify(res.json)).digest("hex");
@@ -242,7 +265,7 @@ async function checkItems(): Promise<MonitorResult> {
     const cache = await prisma.kvCache.findUnique({ where: { key: "items_hash" } });
 
     if (cache?.value === newHash) {
-      return { module: "items", changed: false, detail: "unchanged" };
+      return { module: "items", ok: true, changed: false, detail: "unchanged" };
     }
 
     await prisma.kvCache.upsert({
@@ -251,9 +274,9 @@ async function checkItems(): Promise<MonitorResult> {
       create: { key: "items_hash", value: newHash },
     });
 
-    return { module: "items", changed: true, detail: "item.json changed" };
+    return { module: "items", ok: true, changed: true, detail: "item.json changed" };
   } catch (e: unknown) {
-    return { module: "items", changed: false, detail: (e as Error).message };
+    return { module: "items", ok: false, changed: false, detail: (e as Error).message };
   }
 }
 
@@ -278,7 +301,18 @@ function emit(event: MonitorEvent) {
 }
 
 export async function runAllMonitors(): Promise<MonitorResult[]> {
-  const results = await Promise.all([checkNews(), checkHeroes(), checkSkins(), checkSkills(), checkItems()]);
+  const heroList = fetchWithRetry(HEROLIST_URL, {
+    timeout: 10_000,
+    referer: "https://pvp.qq.com/",
+    isJson: true,
+  });
+  const results = await Promise.all([
+    checkNews(),
+    checkHeroes(heroList),
+    checkSkins(heroList),
+    checkSkills(),
+    checkItems(),
+  ]);
   return results;
 }
 
@@ -286,55 +320,49 @@ export async function runMonitorAndScrape(
   changedModules?: string[]
 ): Promise<MonitorEvent[]> {
   const events: MonitorEvent[] = [];
+  const toScrape = new Set(changedModules ?? []);
+  if (toScrape.size === 0) return events;
+  const addEvent = (event: MonitorEvent) => {
+    events.push(event);
+    emit(event);
+  };
 
-  // If specific changed modules are passed, scrape only those
-  const toScrape = changedModules || [];
-
-  if (toScrape.length === 0) return events;
-
-  for (const mod of toScrape) {
-    events.push({ module: mod, action: "scrape-start", detail: "detected change", timestamp: Date.now() });
-
+  const heroModules = (["heroes", "skins", "skills"] as const).filter((module) => toScrape.has(module));
+  if (heroModules.length > 0) {
+    heroModules.forEach((module) => addEvent({ module, action: "scrape-start", detail: "detected change", timestamp: Date.now() }));
     try {
-      switch (mod) {
-        case "heroes":
-        case "skins":
-        case "skills": {
-          const { syncHeroes } = await import("@/features/heroes/server/sync");
-          const result = await syncHeroes();
-          events.push({ module: mod, action: "scrape-done", detail: `inserted=${result.inserted} updated=${result.updated}`, timestamp: Date.now() });
+      const [{ syncHeroes }, { downloadAllImages }] = await Promise.all([
+        import("@/features/heroes/server/sync"),
+        import("@/features/heroes/server/download-images"),
+      ]);
+      const result = await syncHeroes();
+      const images = await downloadAllImages();
+      const detail = `inserted=${result.inserted} updated=${result.updated}; images=${images.heroes}+${images.skins}`;
+      heroModules.forEach((module) => addEvent({ module, action: "scrape-done", detail, timestamp: Date.now() }));
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      heroModules.forEach((module) => addEvent({ module, action: "scrape-fail", detail, timestamp: Date.now() }));
+    }
+  }
 
-          // Auto-download new images from CDN
-          try {
-            const { downloadAllImages } = await import("@/features/heroes/server/download-images");
-            const imgResult = await downloadAllImages();
-            if (imgResult.heroes > 0 || imgResult.skins > 0) {
-              events.push({ module: mod, action: "scrape-done", detail: `downloaded ${imgResult.heroes} hero + ${imgResult.skins} skin images`, timestamp: Date.now() });
-            }
-          } catch (e: unknown) {
-            events.push({ module: mod, action: "scrape-fail", detail: `image download: ${(e as Error).message}`, timestamp: Date.now() });
-          }
-          break;
-        }
-        case "items": {
-          const { syncItems } = await import("@/features/equipment/server/sync");
-          const result = await syncItems();
-          events.push({ module: "items", action: "scrape-done", detail: `inserted=${result.inserted} updated=${result.updated}`, timestamp: Date.now() });
-          break;
-        }
-        case "news": {
-          try {
-            // Clear cache so next request fetches fresh data
-            await prisma.kvCache.deleteMany({ where: { key: "official_news" } });
-            events.push({ module: "news", action: "scrape-done", detail: "cache cleared, fresh data on next request", timestamp: Date.now() });
-          } catch (e: unknown) {
-            events.push({ module: "news", action: "scrape-fail", detail: (e as Error).message, timestamp: Date.now() });
-          }
-          break;
-        }
-      }
-    } catch (e: unknown) {
-      events.push({ module: mod, action: "scrape-fail", detail: (e as Error).message, timestamp: Date.now() });
+  if (toScrape.has("items")) {
+    addEvent({ module: "items", action: "scrape-start", detail: "detected change", timestamp: Date.now() });
+    try {
+      const { syncItems } = await import("@/features/equipment/server/sync");
+      const result = await syncItems();
+      addEvent({ module: "items", action: "scrape-done", detail: `inserted=${result.inserted} updated=${result.updated}`, timestamp: Date.now() });
+    } catch (error) {
+      addEvent({ module: "items", action: "scrape-fail", detail: error instanceof Error ? error.message : String(error), timestamp: Date.now() });
+    }
+  }
+
+  if (toScrape.has("news")) {
+    addEvent({ module: "news", action: "scrape-start", detail: "detected change", timestamp: Date.now() });
+    try {
+      await prisma.kvCache.deleteMany({ where: { key: "official_news" } });
+      addEvent({ module: "news", action: "scrape-done", detail: "cache cleared, fresh data on next request", timestamp: Date.now() });
+    } catch (error) {
+      addEvent({ module: "news", action: "scrape-fail", detail: error instanceof Error ? error.message : String(error), timestamp: Date.now() });
     }
   }
 

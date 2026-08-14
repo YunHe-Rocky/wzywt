@@ -36,7 +36,7 @@ export async function GET() {
     };
   });
 
-  void cacheSet("items", "list", result, 3600);
+  await cacheSet("items", "list", result, 3600);
 
   return NextResponse.json(result);
 }

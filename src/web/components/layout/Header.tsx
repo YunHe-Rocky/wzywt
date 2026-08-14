@@ -39,13 +39,7 @@ export function Header() {
 
   const version = latestVersion || "V2.0.1";
   const pathIsM = pathname.startsWith("/m");
-  const [isMobile, setIsMobile] = useState(false);
-  useEffect(() => {
-    const check = () => setIsMobile(window.innerWidth <= 768);
-    check();
-    window.addEventListener("resize", check);
-    return () => window.removeEventListener("resize", check);
-  }, []);
+  const route = (path: string) => pathIsM ? `/m${path}` : path;
 
   return (
     <>
@@ -60,6 +54,11 @@ export function Header() {
             {version}
           </span>
         </Link>
+
+        <nav className="header-primary-nav" aria-label="主导航">
+          <Link href={route("/tournaments")} aria-current={pathname.startsWith(route("/tournaments")) ? "page" : undefined}>赛事</Link>
+          {mounted && loaded && user && <Link href={route("/combat")} aria-current={pathname.startsWith(route("/combat")) ? "page" : undefined}>演武动态</Link>}
+        </nav>
 
         <div className="flex-1" />
 

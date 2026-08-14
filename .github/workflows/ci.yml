@@ -44,6 +44,8 @@ jobs:
       - run: npm run typecheck
       - run: npm run test:core
       - run: npm run test:markdown
+      - run: npm run test:next-stage
+      - run: npm run test:connections
       - run: npm run test:integration
       - run: npm run lint
       - run: npm run build

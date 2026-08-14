@@ -6,6 +6,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { authenticate } from "@/lib/auth";
 import { normalizeTournamentDraft, TournamentValidationError } from "@/features/tournaments/model";
+import { tryReadJsonRequest } from "@/lib/request-validation";
 
 function generateCode(): string {
   return String(randomInt(100_000, 1_000_000));
@@ -61,8 +62,9 @@ export async function POST(req: NextRequest) {
   if (!auth.ok) return NextResponse.json({ error: auth.code === "BANNED" ? "账户已被封禁" : "请先登录" }, { status: auth.code === "BANNED" ? 403 : 401 });
   const { userId } = auth.user;
 
-  const body = await req.json().catch(() => null) as Record<string, unknown> | null;
-  if (!body) return NextResponse.json({ error: "请求格式错误" }, { status: 400 });
+  const parsedBody = await tryReadJsonRequest<Record<string, unknown>>(req);
+  if (!parsedBody.ok) return parsedBody.response;
+  const body = parsedBody.value;
 
   let draft;
   try {

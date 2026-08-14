@@ -5,6 +5,8 @@ import { prisma } from "@/lib/db";
 import { cacheGet, cacheSet } from "@/lib/redis";
 import { authorizeSuperAdmin } from "@/lib/permissions";
 import { ROLE_LABELS, CLASS_LABELS } from "@/core/game";
+import { queueHeroSync } from "@/features/heroes/server/sync-jobs";
+import { apiErrorResponse } from "@/lib/api-errors";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -97,39 +99,19 @@ export async function GET(req: NextRequest) {
   }
 
   // Cache unfiltered list
-  void cacheSet("heroes", "list:v2", merged, 3600);
+  await cacheSet("heroes", "list:v2", merged, 3600);
 
   return NextResponse.json(merged);
 }
 
 export async function POST(req: NextRequest) {
-  const authorization = await authorizeSuperAdmin();
-  const userId = authorization.ok ? authorization.user.userId : 0;
-  if (!userId) return NextResponse.json({ error: "无权限" }, { status: 403 });
-
-  const { syncHeroes } = await import("@/features/heroes/server/sync");
-  import("@/lib/db").then(({ prisma }) => {
-    syncHeroes((p) => {
-      prisma.kvCache.upsert({
-        where: { key: "sync:heroes:progress" },
-        update: { value: JSON.stringify(p) },
-        create: { key: "sync:heroes:progress", value: JSON.stringify(p) },
-      }).catch(() => {});
-    }).then((result) => {
-      prisma.kvCache.upsert({
-        where: { key: "sync:heroes:progress" },
-        update: { value: JSON.stringify({ phase: "done", current: 1, total: 1, message: `同步完成: ${result.inserted} 新增, ${result.updated} 更新` }) },
-        create: { key: "sync:heroes:progress", value: JSON.stringify({ phase: "done", current: 1, total: 1, message: `同步完成: ${result.inserted} 新增, ${result.updated} 更新` }) },
-      }).catch(() => {});
-    }).catch((e: unknown) => {
-      console.error("Manual hero sync failed:", e);
-      prisma.kvCache.upsert({
-        where: { key: "sync:heroes:progress" },
-        update: { value: JSON.stringify({ phase: "error", current: 0, total: 0, message: "同步失败" }) },
-        create: { key: "sync:heroes:progress", value: JSON.stringify({ phase: "error", current: 0, total: 0, message: "同步失败" }) },
-      }).catch(() => {});
-    });
-  });
-
-  return NextResponse.json({ ok: true, message: "英雄同步已触发" });
+  try {
+    const authorization = await authorizeSuperAdmin();
+    const userId = authorization.ok ? authorization.user.userId : 0;
+    if (!userId) return NextResponse.json({ error: "无权限" }, { status: 403 });
+    const progress = await queueHeroSync(userId);
+    return NextResponse.json({ ok: true, jobId: progress.jobId, message: progress.message }, { status: 202 });
+  } catch (error) {
+    return apiErrorResponse(error);
+  }
 }

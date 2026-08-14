@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useAnnouncements } from "@/features/announcements/client";
 import { useToast } from "@/web/components/ui/Toast";
 import { MarkdownContent } from "@/web/components/content/MarkdownContent";
+import { apiRequest } from "@/features/shared/client/api";
 
 interface OfficialNews { title: string; date: string; url: string; }
 interface PublicTournament { id: number; name: string; code: string; announcement: string | null; _count: { players: number }; deadline: string; }
@@ -49,11 +50,20 @@ export default function Home() {
   }
 
   useEffect(() => {
-    fetch("/api/auth/me").then(r => r.json()).then(d => { setUser(d.user); setAuthLoaded(true); });
-    Promise.all([
-      fetch("/api/official-news").then(r => r.json()).then(d => { if (Array.isArray(d)) setNews(d); }).catch(() => {}),
-      fetch("/api/tournaments/public").then(r => r.json()).then(d => { if (d.tournaments) setRooms(d.tournaments); }).catch(() => {}),
-    ]).finally(() => setLoaded(true));
+    const controller = new AbortController();
+    void apiRequest<{ user?: User | null }>("/api/auth/me", { signal: controller.signal })
+      .then(({ data }) => { if (!controller.signal.aborted) setUser(data.user ?? null); })
+      .catch(() => undefined)
+      .finally(() => { if (!controller.signal.aborted) setAuthLoaded(true); });
+    void Promise.all([
+      apiRequest<OfficialNews[]>("/api/official-news", { signal: controller.signal })
+        .then(({ data }) => { if (!controller.signal.aborted && Array.isArray(data)) setNews(data); }),
+      apiRequest<{ tournaments?: PublicTournament[] }>("/api/tournaments/public", { signal: controller.signal })
+        .then(({ data }) => { if (!controller.signal.aborted && data.tournaments) setRooms(data.tournaments); }),
+    ]).catch(() => undefined).finally(() => {
+      if (!controller.signal.aborted) setLoaded(true);
+    });
+    return () => controller.abort();
   }, []);
 
   return (

@@ -1,17 +1,20 @@
-import { syncHeroes } from "@/features/heroes/server/sync";
-import { prisma } from "@/lib/db";
+import { loadEnvConfig } from "@next/env";
 
 async function main(): Promise<void> {
-  const result = await syncHeroes();
-  console.log(`[sync-heroes] ${result.inserted} inserted, ${result.updated} updated`);
+  loadEnvConfig(process.cwd());
+  const [{ syncHeroes }, { prisma }] = await Promise.all([
+    import("@/features/heroes/server/sync"),
+    import("@/lib/db"),
+  ]);
+  try {
+    const result = await syncHeroes();
+    console.log(`[sync-heroes] ${result.inserted} inserted, ${result.updated} updated`);
+  } finally {
+    await prisma.$disconnect();
+  }
 }
 
-main()
-  .catch((error: unknown) => {
-    console.error("[sync-heroes] Failed:", error instanceof Error ? error.message : error);
-    process.exitCode = 1;
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
-
+void main().catch((error: unknown) => {
+  console.error("[sync-heroes] Failed:", error instanceof Error ? error.message : error);
+  process.exitCode = 1;
+});

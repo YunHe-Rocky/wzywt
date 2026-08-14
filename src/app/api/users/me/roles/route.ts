@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { authenticate } from "@/lib/auth";
 import { normalizeRolePreferenceSettings } from "@/features/profile/model";
+import { tryReadJsonRequest } from "@/lib/request-validation";
 
 export async function GET() {
   const auth = await authenticate();
@@ -27,7 +28,9 @@ export async function PUT(req: NextRequest) {
   const { userId } = auth.user;
   if (!userId) return NextResponse.json({ error: "请先登录" }, { status: 401 });
 
-  const { preferences } = await req.json();
+  const body = await tryReadJsonRequest<{ preferences?: unknown }>(req);
+  if (!body.ok) return body.response;
+  const { preferences } = body.value;
   if (!Array.isArray(preferences) || preferences.length !== 5) {
     return NextResponse.json({ error: "必须为全部5个分路设置偏好" }, { status: 400 });
   }

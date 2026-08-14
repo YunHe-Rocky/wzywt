@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { authenticate } from "@/lib/auth";
+import { tryReadJsonRequest } from "@/lib/request-validation";
 
 export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
@@ -12,7 +13,10 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
   if (!userId) return NextResponse.json({ error: "请先登录" }, { status: 401 });
 
   const tournamentId = parseInt(params.id);
-  const { tempName } = await req.json();
+  const body = await tryReadJsonRequest<{ tempName?: unknown }>(req);
+  if (!body.ok) return body.response;
+  const tempName = typeof body.value.tempName === "string" ? body.value.tempName.trim() : "";
+  if (tempName.length > 32) return NextResponse.json({ error: "临时选手名称不能超过32个字符" }, { status: 400 });
 
   const tournament = await prisma.tournament.findUnique({ where: { id: tournamentId } });
   if (!tournament || tournament.status !== "recruiting") {

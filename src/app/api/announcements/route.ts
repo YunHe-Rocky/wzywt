@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { authorizeSuperAdmin } from "@/lib/permissions";
 import { AnnouncementValidationError } from "@/features/announcements/model";
 import { createAnnouncement } from "@/features/announcements/server/service";
+import { tryReadJsonRequest } from "@/lib/request-validation";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -31,8 +32,10 @@ export async function POST(req: NextRequest) {
   const userId = authorization.ok ? authorization.user.userId : 0;
   if (!userId) return NextResponse.json({ error: "无权限" }, { status: 403 });
 
+  const body = await tryReadJsonRequest(req);
+  if (!body.ok) return body.response;
   try {
-    const created = await createAnnouncement(await req.json().catch(() => null));
+    const created = await createAnnouncement(body.value);
     return NextResponse.json(created, { status: 201 });
   } catch (error) {
     if (error instanceof AnnouncementValidationError) {

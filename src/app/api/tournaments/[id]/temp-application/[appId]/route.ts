@@ -7,6 +7,7 @@ import {
   addTemporaryTournamentPlayer,
   TournamentCapacityError,
 } from "@/features/tournaments/server/capacity";
+import { tryReadJsonRequest } from "@/lib/request-validation";
 
 export async function PUT(
   req: NextRequest,
@@ -20,7 +21,9 @@ export async function PUT(
 
   const tournamentId = parseInt(params.id);
   const appId = parseInt(params.appId);
-  const { status } = await req.json();
+  const body = await tryReadJsonRequest<{ status?: unknown }>(req);
+  if (!body.ok) return body.response;
+  const { status } = body.value;
 
   const admin = await prisma.tournamentAdmin.findFirst({ where: { tournamentId, userId } });
   if (!admin) return NextResponse.json({ error: "仅管理员审批" }, { status: 403 });

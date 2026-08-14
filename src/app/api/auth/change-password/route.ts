@@ -4,13 +4,19 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { authenticate, hashPassword, verifyPassword } from "@/lib/auth";
 import { getSession } from "@/lib/session";
+import { tryReadJsonRequest } from "@/lib/request-validation";
 
 export async function POST(req: NextRequest) {
   const auth = await authenticate();
   if (!auth.ok) return NextResponse.json({ error: auth.code === "BANNED" ? "账户已被封禁" : "请先登录" }, { status: auth.code === "BANNED" ? 403 : 401 });
   const { userId } = auth.user;
 
-  const { answer, newPassword, confirmPassword, verifyOnly } = await req.json();
+  const body = await tryReadJsonRequest<Record<string, unknown>>(req);
+  if (!body.ok) return body.response;
+  const answer = typeof body.value.answer === "string" ? body.value.answer : "";
+  const newPassword = typeof body.value.newPassword === "string" ? body.value.newPassword : "";
+  const confirmPassword = typeof body.value.confirmPassword === "string" ? body.value.confirmPassword : "";
+  const verifyOnly = body.value.verifyOnly === true;
 
   if (!answer) {
     return NextResponse.json({ error: "请输入安全答案" }, { status: 400 });

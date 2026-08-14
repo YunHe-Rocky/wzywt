@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { apiRequest } from "@/features/shared/client/api";
 
 interface LogEntry {
   time: string;
@@ -20,6 +21,7 @@ export default function MonitorPage() {
   const [connected, setConnected] = useState(false);
   const [lastCycle, setLastCycle] = useState(0);
   const [checking, setChecking] = useState(false);
+  const manualCheckRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     const es = new EventSource("/api/heroes/watch");
@@ -29,8 +31,6 @@ export default function MonitorPage() {
     es.onmessage = (e) => {
       try {
         const msg = JSON.parse(e.data);
-        const now = new Date().toLocaleTimeString("zh-CN");
-
         switch (msg.type) {
           case "connected":
             addLog("system", "connected", "SSE 已连接，监控就绪");
@@ -38,7 +38,7 @@ export default function MonitorPage() {
           case "monitor-check":
             setLastCycle(msg.cycle);
             for (const r of msg.results) {
-              addLog(r.module, r.changed ? "changed" : "idle", r.detail);
+              addLog(r.module, r.ok === false ? "error" : r.changed ? "changed" : "idle", r.detail);
             }
             break;
           case "scrape-triggered":
@@ -62,7 +62,10 @@ export default function MonitorPage() {
       } catch {}
     };
 
-    return () => es.close();
+    return () => {
+      es.close();
+      manualCheckRef.current?.abort();
+    };
   }, []);
 
   function addLog(module: string, status: string, detail: string) {
@@ -71,13 +74,25 @@ export default function MonitorPage() {
   }
 
   async function triggerCheck() {
+    if (manualCheckRef.current) return;
+    const controller = new AbortController();
+    manualCheckRef.current = controller;
     setChecking(true);
     addLog("system", "manual", "手动触发检查...");
     try {
-      const res = await fetch("/api/heroes/watch");
-      // SSE will pick up the events
-      setChecking(false);
-    } catch {
+      const result = await apiRequest<{ error?: string }>("/api/heroes/watch", {
+        method: "POST",
+        signal: controller.signal,
+        timeoutMs: 15_000,
+      });
+      if (result.ok) addLog("system", "queued", "检查已入队，结果将通过实时连接推送");
+      else addLog("system", "error", result.data.error || "手动检查失败");
+    } catch (error) {
+      if (!controller.signal.aborted) {
+        addLog("system", "error", error instanceof Error ? error.message : "手动检查失败");
+      }
+    } finally {
+      if (manualCheckRef.current === controller) manualCheckRef.current = null;
       setChecking(false);
     }
   }
@@ -91,6 +106,7 @@ export default function MonitorPage() {
       case "idle": return "var(--text-muted)";
       case "connected": return "var(--green)";
       case "manual": return "var(--blue)";
+      case "queued": return "var(--blue)";
       default: return "var(--text-secondary)";
     }
   };

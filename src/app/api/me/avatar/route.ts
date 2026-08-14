@@ -3,22 +3,27 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { authenticate } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { writeFile, mkdir, unlink } from "fs/promises";
+import { writeFile, unlink } from "fs/promises";
 import { basename, join } from "path";
-import { existsSync } from "fs";
 import {
   detectAvatarImageType,
   MAX_AVATAR_SIZE,
 } from "@/features/profile/server/avatar";
-
-const AVATAR_DIR = process.env.AVATAR_DIR || "/data/uploads/avatars";
+import { ensureAvatarDirectory } from "@/features/profile/server/avatar-storage";
+import { readFormDataRequest } from "@/lib/request-validation";
+import { apiErrorResponse } from "@/lib/api-errors";
 
 export async function POST(req: NextRequest) {
   const auth = await authenticate();
   if (!auth.ok) return NextResponse.json({ error: auth.code === "BANNED" ? "账号已被封禁" : "请先登录" }, { status: auth.code === "BANNED" ? 403 : 401 });
   const { userId } = auth.user;
 
-  const formData = await req.formData();
+  let formData: FormData;
+  try {
+    formData = await readFormDataRequest(req, MAX_AVATAR_SIZE + 256 * 1024);
+  } catch (error) {
+    return apiErrorResponse(error);
+  }
   const file = formData.get("avatar") as File | null;
   if (!file) return NextResponse.json({ error: "请选择图片" }, { status: 400 });
 
@@ -35,12 +40,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "仅支持有效的 JPG、PNG 或 WebP 图片" }, { status: 400 });
   }
 
-  if (!existsSync(AVATAR_DIR)) {
-    await mkdir(AVATAR_DIR, { recursive: true });
-  }
-
+  const avatarDirectory = await ensureAvatarDirectory();
   const filename = `${userId}_${Date.now()}.${imageType.extension}`;
-  const nextPath = join(AVATAR_DIR, filename);
+  const nextPath = join(avatarDirectory, filename);
   const current = await prisma.user.findUnique({
     where: { id: userId },
     select: { avatar: true },
@@ -56,7 +58,7 @@ export async function POST(req: NextRequest) {
 
   // 数据库更新成功后再清理旧文件，失败不会影响新头像。
   if (current?.avatar && basename(current.avatar) === current.avatar) {
-    await unlink(join(AVATAR_DIR, current.avatar)).catch(() => {});
+    await unlink(join(avatarDirectory, current.avatar)).catch(() => {});
   }
 
   return NextResponse.json({ avatar: filename });

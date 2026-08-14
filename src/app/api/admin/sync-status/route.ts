@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { authorizeSuperAdmin } from "@/lib/permissions";
 import { prisma } from "@/lib/db";
+import { parseHeroSyncProgress } from "@/features/heroes/server/sync-jobs";
 
 export async function GET() {
   const authorization = await authorizeSuperAdmin();
@@ -13,5 +14,5 @@ export async function GET() {
   if (!row) {
     return NextResponse.json({ progress: null });
   }
-  return NextResponse.json({ progress: JSON.parse(row.value) });
+  return NextResponse.json({ progress: parseHeroSyncProgress(row.value) });
 }

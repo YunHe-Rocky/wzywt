@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { authenticate } from "@/lib/auth";
+import { tryReadJsonRequest } from "@/lib/request-validation";
 
 export async function POST(req: NextRequest) {
   const auth = await authenticate();
@@ -10,8 +11,9 @@ export async function POST(req: NextRequest) {
   const { userId } = auth.user;
   if (!userId) return NextResponse.json({ error: "请先登录" }, { status: 401 });
 
-  const body = await req.json().catch(() => ({}));
-  const code = typeof body.code === "string" ? body.code.trim() : "";
+  const body = await tryReadJsonRequest<{ code?: unknown }>(req);
+  if (!body.ok) return body.response;
+  const code = typeof body.value.code === "string" ? body.value.code.trim() : "";
   if (!code) return NextResponse.json({ error: "请输入赛事号" }, { status: 400 });
 
   const tournament = await prisma.tournament.findUnique({

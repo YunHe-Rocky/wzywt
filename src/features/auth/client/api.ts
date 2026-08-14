@@ -23,8 +23,8 @@ interface ErrorResponse {
   [key: string]: unknown;
 }
 
-export function getCurrentUser(): Promise<ApiResult<UserResponse>> {
-  return apiRequest<UserResponse>("/api/auth/me");
+export function getCurrentUser(signal?: AbortSignal): Promise<ApiResult<UserResponse>> {
+  return apiRequest<UserResponse>("/api/auth/me", { signal });
 }
 
 export function submitAuthentication(

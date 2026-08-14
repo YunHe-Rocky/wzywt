@@ -7,6 +7,7 @@ import {
   extractMarkdownHeadings,
   MarkdownContent,
 } from "@/web/components/content/MarkdownContent";
+import { apiRequest } from "@/features/shared/client/api";
 
 export default function ChangelogPage() {
   const [content, setContent] = useState("");
@@ -14,13 +15,12 @@ export default function ChangelogPage() {
   const [activeId, setActiveId] = useState("");
 
   useEffect(() => {
-    fetch("/api/changelog?type=features")
-      .then((response) => response.json())
-      .then((data) => {
-        setContent(data.content || "");
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
+    const controller = new AbortController();
+    void apiRequest<{ content?: string }>("/api/changelog?type=features", { signal: controller.signal })
+      .then(({ data }) => { if (!controller.signal.aborted) setContent(data.content || ""); })
+      .catch(() => undefined)
+      .finally(() => { if (!controller.signal.aborted) setLoading(false); });
+    return () => controller.abort();
   }, []);
 
   const toc = useMemo(() => extractMarkdownHeadings(content, true), [content]);

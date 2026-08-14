@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { authenticate, hashPassword } from "@/lib/auth";
 import { getSession } from "@/lib/session";
+import { tryReadJsonRequest } from "@/lib/request-validation";
 
 const PRESET_QUESTIONS = [
   "你的出生城市是？",
@@ -43,7 +44,11 @@ export async function POST(req: NextRequest) {
   if (!auth.ok) return NextResponse.json({ error: auth.code === "BANNED" ? "账户已被封禁" : "请先登录" }, { status: auth.code === "BANNED" ? 403 : 401 });
   const { userId } = auth.user;
 
-  const { securityQuestion, customQuestion, securityAnswer } = await req.json();
+  const body = await tryReadJsonRequest<Record<string, unknown>>(req);
+  if (!body.ok) return body.response;
+  const securityQuestion = typeof body.value.securityQuestion === "string" ? body.value.securityQuestion : "";
+  const customQuestion = typeof body.value.customQuestion === "string" ? body.value.customQuestion : "";
+  const securityAnswer = typeof body.value.securityAnswer === "string" ? body.value.securityAnswer : "";
 
   if (!securityQuestion || !securityAnswer) {
     return NextResponse.json({ error: "请填写所有字段" }, { status: 400 });

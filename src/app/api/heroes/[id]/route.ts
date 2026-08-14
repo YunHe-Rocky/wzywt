@@ -6,6 +6,7 @@ import { authorizeSuperAdmin } from "@/lib/permissions";
 import { broadcastHeroUpdate } from "@/features/heroes/server/events";
 import { cacheDel, cacheGet, cacheSet } from "@/lib/redis";
 import { ROLE_LABELS, CLASS_LABELS, ROLES } from "@/core/game";
+import { tryReadJsonRequest } from "@/lib/request-validation";
 
 export async function GET(_req: NextRequest, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
@@ -100,7 +101,7 @@ export async function GET(_req: NextRequest, props: { params: Promise<{ id: stri
     minggeRelatedId: hero.minggeRelatedId,
   };
 
-  void cacheSet("hero:v2", heroId, result, 3600);
+  await cacheSet("hero:v2", heroId, result, 3600);
 
   return NextResponse.json(result);
 }
@@ -114,12 +115,13 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
   const heroId = parseInt(params.id);
   if (!heroId) return NextResponse.json({ error: "无效ID" }, { status: 400 });
 
-  const body = await req.json().catch(() => null) as {
+  const parsedBody = await tryReadJsonRequest<{
     roleType?: unknown;
     secondaryRoleTypes?: unknown;
-  } | null;
-  const roleType = body?.roleType;
-  const secondaryRoleTypes = body?.secondaryRoleTypes;
+  }>(req);
+  if (!parsedBody.ok) return parsedBody.response;
+  const roleType = parsedBody.value.roleType;
+  const secondaryRoleTypes = parsedBody.value.secondaryRoleTypes;
   if (typeof roleType !== "string" || !ROLES.includes(roleType as (typeof ROLES)[number])) {
     return NextResponse.json({ error: "无效分路" }, { status: 400 });
   }

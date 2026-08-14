@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/db";
 import * as fs from "fs/promises";
 import * as path from "path";
+import { validateCrawlUrl } from "@/lib/anti-bot";
+import { readResponseBytes } from "@/lib/http-response";
 
 const HERO_IMG_DIR = path.join(process.cwd(), "public", "heroes", "images");
 const SKIN_IMG_DIR = path.join(process.cwd(), "public", "heroes", "skins");
@@ -14,15 +16,19 @@ async function pathExists(filePath: string): Promise<boolean> {
 
 async function fetchImage(url: string): Promise<Buffer | null> {
   try {
-    const res = await fetch(url, {
+    const res = await fetch(validateCrawlUrl(url), {
       headers: {
         "User-Agent": "Mozilla/5.0",
         Referer: "https://pvp.qq.com/",
       },
       signal: AbortSignal.timeout(15000),
+      redirect: "error",
     });
-    if (!res.ok || !res.headers.get("content-type")?.startsWith("image/")) return null;
-    const buffer = Buffer.from(await res.arrayBuffer());
+    if (!res.ok || !res.headers.get("content-type")?.startsWith("image/")) {
+      await res.body?.cancel();
+      return null;
+    }
+    const buffer = Buffer.from(await readResponseBytes(res, 12 * 1024 * 1024));
     return buffer.length >= 1024 ? buffer : null;
   } catch {
     return null;

@@ -1,10 +1,15 @@
+import "@/features/cron/load-env";
 import cron, { type ScheduledTask } from "node-cron";
 import { syncHeroes } from "@/features/heroes/server/sync";
 import { downloadAllImages } from "@/features/heroes/server/download-images";
-import { runAllMonitors, runMonitorAndScrape } from "@/features/monitor";
+import { runQueuedHeroSync } from "@/features/heroes/server/sync-jobs";
+import { runMonitorCycle, runQueuedMonitorCycle } from "@/features/monitor/cycle";
 import { runExclusiveTask } from "@/features/cron/task-lock";
+import { recordCronHeartbeat } from "@/features/cron/heartbeat";
 import { lockExpiredTournaments } from "@/features/tournaments/server/lockExpiredTournaments";
+import { processPendingMediaCleanup } from "@/features/media/server/storage-cleanup";
 import { prisma } from "@/lib/db";
+import { getMediaStorage } from "@/lib/storage";
 
 const HERO_SYNC_STAMP_KEY = "cron:hero_sync:last_success";
 const HERO_SYNC_RECENT_MS = 6 * 60 * 60 * 1000;
@@ -48,38 +53,7 @@ async function runHeroSync(label: string, skipWhenRecent = false): Promise<void>
   }
 }
 
-export async function runMonitorCycle(): Promise<void> {
-  try {
-    await runExclusiveTask("hero-pipeline", 30 * 60 * 1000, async () => {
-      const results = await runAllMonitors();
-      const changed = results.filter((result) => result.changed);
-      if (changed.length === 0) return;
-
-      console.log(
-        `[monitor] Changes detected: ${changed.map((item) => `${item.module}:${item.detail}`).join(", ")}`,
-      );
-      const events = await runMonitorAndScrape(changed.map((item) => item.module));
-      events.forEach((event) => {
-        console.log(`[monitor] ${event.module} ${event.action}: ${event.detail}`);
-      });
-      if (events.some((event) =>
-        ["heroes", "skins", "skills"].includes(event.module) && event.action === "scrape-done")) {
-        await recordHeroSyncSuccess();
-      }
-
-      if (changed.some((item) => item.module === "heroes" || item.module === "skins")) {
-        try {
-          const result = await downloadAllImages();
-          console.log(`[monitor] Images: ${result.heroes} hero + ${result.skins} skins downloaded`);
-        } catch (error) {
-          logError("monitor:images", error);
-        }
-      }
-    });
-  } catch (error) {
-    logError("monitor", error);
-  }
-}
+export { runMonitorCycle } from "@/features/monitor/cycle";
 
 export async function runDeadlineCheck(): Promise<void> {
   try {
@@ -97,29 +71,67 @@ export async function runDeadlineCheck(): Promise<void> {
   }
 }
 
+async function runMediaCleanup(): Promise<void> {
+  await runExclusiveTask("media-cleanup", 4 * 60 * 1000, async () => {
+    const result = await processPendingMediaCleanup(getMediaStorage());
+    if (result.processed > 0 || result.failed > 0) {
+      console.log(`[media-cleanup] processed=${result.processed} failed=${result.failed}`);
+    }
+  });
+}
+
 export interface CronWorker {
   stop(): Promise<void>;
 }
 
 export function startCronWorker(): CronWorker {
   console.log("[cron] Starting cron jobs...");
+  const inFlight = new Set<Promise<void>>();
+  let stopping = false;
+  const track = (scope: string, operation: () => Promise<unknown>): Promise<void> => {
+    const task = operation()
+      .then(() => undefined)
+      .catch((error) => logError(scope, error))
+      .finally(() => inFlight.delete(task));
+    inFlight.add(task);
+    return task;
+  };
+  const schedule = (scope: string, operation: () => Promise<unknown>) => {
+    if (!stopping) void track(scope, operation);
+  };
   const tasks: ScheduledTask[] = [
-    cron.schedule("0 6 * * *", () => void runHeroSync("daily")),
-    cron.schedule("*/3 * * * *", () => void runMonitorCycle()),
-    cron.schedule("* * * * *", () => void runDeadlineCheck()),
+    cron.schedule("0 6 * * *", () => schedule("hero-sync:daily", () => runHeroSync("daily"))),
+    cron.schedule("*/3 * * * *", () => schedule("monitor", runMonitorCycle)),
+    cron.schedule("*/10 * * * * *", () => schedule("monitor:queued", runQueuedMonitorCycle)),
+    cron.schedule("* * * * *", () => schedule("deadline", runDeadlineCheck)),
+    cron.schedule("*/10 * * * * *", () => schedule("hero-sync:queued", runQueuedHeroSync)),
+    cron.schedule("*/30 * * * * *", () => schedule("heartbeat", recordCronHeartbeat)),
+    cron.schedule("*/5 * * * *", () => schedule("media-cleanup", runMediaCleanup)),
   ];
 
-  const initialMonitor = runMonitorCycle();
+  void track("heartbeat:initial", recordCronHeartbeat);
+  const initialMonitor = track("monitor:initial", runMonitorCycle);
   const initialSyncTimer = setTimeout(
-    () => void initialMonitor.then(() => runHeroSync("initial", true)),
+    () => schedule("hero-sync:initial", async () => {
+      await initialMonitor;
+      await runHeroSync("initial", true);
+    }),
     5_000,
   );
   console.log("[cron] All cron jobs registered");
 
   return {
     async stop() {
+      stopping = true;
       clearTimeout(initialSyncTimer);
       tasks.forEach((task) => task.stop());
+      const draining = Promise.allSettled([...inFlight]);
+      let drained = false;
+      await Promise.race([
+        draining.then(() => { drained = true; }),
+        new Promise<void>((resolve) => setTimeout(resolve, 300_000)),
+      ]);
+      if (!drained) console.error(`[cron] forced shutdown with ${inFlight.size} task(s) still active`);
       await prisma.$disconnect();
     },
   };

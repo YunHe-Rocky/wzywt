@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { apiRequest } from "@/features/shared/client/api";
 
 interface Stats {
   userCount: number;
@@ -13,9 +14,11 @@ export default function AdminDashboard() {
   const [stats, setStats] = useState<Stats | null>(null);
 
   useEffect(() => {
-    fetch("/api/admin/stats")
-      .then((r) => r.json())
-      .then(setStats);
+    const controller = new AbortController();
+    void apiRequest<Stats>("/api/admin/stats", { signal: controller.signal })
+      .then(({ ok, data }) => { if (ok && !controller.signal.aborted) setStats(data); })
+      .catch(() => undefined);
+    return () => controller.abort();
   }, []);
 
   const cards = [

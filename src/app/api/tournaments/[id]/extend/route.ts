@@ -9,6 +9,7 @@ import {
   TournamentCapacityError,
 } from "@/features/tournaments/server/capacity";
 import { parsePositiveInteger, TournamentValidationError } from "@/features/tournaments/model";
+import { tryReadJsonRequest } from "@/lib/request-validation";
 
 export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
@@ -25,9 +26,10 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
     }
     throw error;
   }
-  const body = await req.json().catch(() => ({}));
-  const newDeadline = typeof body.newDeadline === "string"
-    ? new Date(body.newDeadline)
+  const body = await tryReadJsonRequest<{ newDeadline?: unknown }>(req);
+  if (!body.ok) return body.response;
+  const newDeadline = typeof body.value.newDeadline === "string"
+    ? new Date(body.value.newDeadline)
     : null;
   if (!newDeadline || Number.isNaN(newDeadline.getTime())) {
     return NextResponse.json({ error: "请提供有效的新截止时间" }, { status: 400 });

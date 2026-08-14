@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { cacheGet, cacheSet, cacheDel } from "@/lib/redis";
+import { cacheGet, cacheSet } from "@/lib/redis";
 
 export async function GET(_req: NextRequest, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
@@ -38,10 +38,7 @@ export async function GET(_req: NextRequest, props: { params: Promise<{ id: stri
     moveSpeed: item.moveSpeed, critRate: item.critRate, lifesteal: item.lifesteal,
   };
 
-  // clear old cache
-  void cacheDel("item", itemId);
-
-  void cacheSet("item", itemId, result, 3600);
+  await cacheSet("item", itemId, result, 3600);
 
   return NextResponse.json(result);
 }

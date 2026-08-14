@@ -1,26 +1,19 @@
-// 启动前检测并释放端口 8001
-import { execSync } from "child_process";
+// 启动前只检测端口，不终止来源不明的用户进程。
+import { createServer } from "node:net";
 
 const PORT = 8001;
 
-try {
-  // Windows: 找到占用端口的 PID 并杀掉
-  const result = execSync(`netstat -ano | findstr LISTENING | findstr :${PORT}`, { encoding: "utf-8" });
-  const lines = result.trim().split(/\r?\n/);
-  for (const line of lines) {
-    const parts = line.trim().split(/\s+/);
-    const pid = parts[parts.length - 1];
-    if (pid && pid !== "0") {
-      try {
-        execSync(`taskkill /F /PID ${pid}`, { stdio: "ignore" });
-        console.log(`[kill-port] 已释放端口 ${PORT} (PID ${pid})`);
-      } catch {
-        console.error(`[kill-port] 无法终止 PID ${pid}，请手动关闭`);
-      }
-    }
+const server = createServer();
+server.unref();
+server.once("error", (error: NodeJS.ErrnoException) => {
+  if (error.code === "EADDRINUSE") {
+    console.error(`[port-check] 端口 ${PORT} 已被占用；请确认进程归属后手动处理`);
+    process.exitCode = 1;
+    return;
   }
-} catch {
-  // 没有进程占用该端口，正常
-}
-
-console.log(`[kill-port] 端口 ${PORT} 就绪`);
+  console.error(`[port-check] 端口 ${PORT} 检查失败：${error.message}`);
+  process.exitCode = 1;
+});
+server.listen(PORT, () => {
+  server.close(() => console.log(`[port-check] 端口 ${PORT} 就绪`));
+});

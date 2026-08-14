@@ -23,7 +23,35 @@
 - [completed] Phase H：CI、测试矩阵、全量验证、CHANGELOG 与交付报告
 - [completed] Phase I：执行隔离数据库 integration、Shell 语法、Playwright E2E 与可安全确认的生产前置检查
 
+## Next-stage development (2026-08-12)
+
+Goal: implement the first release described by `docs/王者演武堂_下一阶段开发指导_Codex版.md`: permanent match records, protected combat posts/video, and team-private tactics without changing the existing split algorithm.
+
+- [completed] Phase J: inventory architecture and define reusable domain boundaries
+- [completed] Phase K: add Prisma models, constraints, indexes, and a forward-only migration
+- [completed] Phase L: implement storage, match validation/recognition normalization, confirmation, submission, disputes, and audited corrections
+- [completed] Phase M: implement protected combat posts, video streaming, likes, comments, and moderation
+- [completed] Phase N: implement team-private tactic rooms, layers, routes, markers, ownership rules, and persistence
+- [completed] Phase O: add API adapters and client/UI flows for all three domains
+- [completed] Phase P: add tests, wire CI, run the complete validation matrix, and document production operations
+- [completed] Phase Q: refactor the mobile match result into a readable responsive table and complete visual regression acceptance
+- [completed] Phase R: demote original screenshots to a progressive-disclosure evidence section and make match results the primary content
+- [completed] Phase S: replace the abstract tactic background with a project-owned, canyon-structured tactical map and visually verify route contrast
+- [completed] Phase T: process the user-provided canyon screenshot into a complete standalone drawing canvas, integrate it, and verify real route overlays
+- [completed] Phase U: replace the rejected generated map with a deterministic real-map crop, add one match clock for layer visibility, minion waves, objectives, buffs, and jungle camps, then complete browser acceptance
+- [completed] Phase V-UX: simplify tactic-board interaction into clock, stage, draw; collapse resource details, layer administration, coordinates, and destructive actions; verify desktop and mobile usability
+- [completed] Phase V: audit and repair the complete connection chain (browser/client, Next.js API, Session, Prisma/MySQL, Redis, OCR/media integrations, cron, health/deploy), add deterministic failure/recovery tests, and rerun production-grade validation
+
+## Phase V acceptance criteria
+
+- Inventory every outbound/inbound connection boundary and document ownership, timeout, cancellation, retry, pooling, and failure semantics.
+- Fix reproducible correctness, security, availability, race, leak, stale-state, and reconnect defects without weakening architecture or tests.
+- Validate unavailable Redis/OCR/media dependencies fail safely and recover; validate database and HTTP paths with real local services where supported.
+- Pass architecture, typecheck, core/domain/integration tests, lint, production build, browser E2E, and connection-specific regression tests; report any production-only checks not actually performed.
+
 ## Errors Encountered
+
+| Phase V first typecheck: removed `ServiceError` import still used by multipart validation; SSE cleanup inferred `() => undefined` | 1 | Restored the import and explicitly typed cleanup as `() => void` before rerunning typecheck |
 
 | Error | Attempt | Resolution |
 |---|---:|---|
@@ -51,3 +79,26 @@
 | production E2E 的 API 请求在 `http://127.0.0.1` 不发送 Secure Cookie | 1 | base URL 改为可配置并默认使用浏览器认可的可信本地来源 `http://localhost:8001` |
 | E2E 截图写入 `.planning` 被 ACL 拒绝 | 1 | 截图迁移到已忽略且可写的 `.cache/test-artifacts` |
 | 生产操作缺少可验证 SSH target、凭据和待轮换 Secret | 1 | 仅完成生产前置检查与部署文档修复；禁止猜测目标或生成无法交付的新凭据 |
+| `src/features` 旧目录 ACL 拒绝创建新子目录，自动权限复核两次未完成 | 2 | 保持架构边界，改用 `src/features/<domain>.ts` 与既有 `tournaments/server` 中的领域服务文件，不等待或绕过权限 |
+| 向 `src/features` 新增领域文件被安全复核明确拒绝 | 3 | 按安全边界停止对该目录的写入；需要用户明确授权修复该目录 ACL 后才能继续 Phase L-N |
+| `icacls /T` 只更新了 `src/features` 根和部分目录，48 个旧对象仍拒绝递归 ACL 修改 | 1 | 用户已明确授权；不触碰旧对象，利用根目录新增的继承权限创建四个独立业务域继续开发 |
+| `src/web` 与 `src/web/components` 均拒绝新增 UI 领域目录，ACL 审批未返回 | 3 | 已完成所有可写的服务端/API/client 工作；为遵守 app→web 分层，停止把复杂 UI 塞进 app，等待用户明确授权修复 `src/web` ACL |
+| `check:architecture` 被 Node 26 `uv_os_get_passwd ENOMEM` 阻断 | 1 | 与既有宿主问题一致；待 ACL 解除后使用仓库忽略目录中的 userinfo shim 复跑，不修改生产代码 |
+| 首轮新功能浏览器回归发现列表响应 envelope、异步表单引用、动态 ID 与 FK 清理问题 | 1 | 分别修复 UI 解包、提前保存 form、使用 API 返回 ID，并按依赖顺序清理；全流程复跑 PASS |
+| Node 26 在成功生成生产路由后触发 libuv 退出 assertion | 1 | 使用工作区内置 Node 24 执行相同 production build，exit code 0 |
+| 最终 E2E 截图上传返回 500 | 1 | 验收启动命令误用 `MEDIA_ROOT`；改为产品要求的 `MEDIA_STORAGE_DIR` 后六图上传及完整浏览器回归 PASS |
+| Webapp skill bundled Python lacks `playwright` | 1 | 按既有项目依赖使用 Node Playwright，仍遵循 production server、network idle、DOM reconnaissance、console 和截图验收流程 |
+| Chrome 直接打开本地 SVG 时 GPU sandbox 崩溃 | 1 | 改用应用 production server 提供静态 SVG，再由项目 Playwright 截图验证 |
+| 战术板视觉 fixture 的 Header 用户请求访问空数据库返回 500 | 1 | 补充 `/api/auth/me` 浏览器路由 fixture，与战术接口一并隔离 |
+| PowerShell 当前进程没有 `System.Drawing.Image` 类型 | 1 | 改用工作区内置 Python Pillow 只读校验生成图片尺寸和格式 |
+| API route inventory initially used incompatible PowerShell `Get-Content` binding for `FileInfo` | 1 | Retried with `-LiteralPath ([string]$file.FullName)` and completed the inventory |
+| Combined monitor patch matched a partially changed file and failed verification | 1 | Re-read exact file state, restored the cycle module, and applied smaller verified patches |
+| Health patch was rejected because it transiently deleted the probe route | 1 | Updated `/api/health` in place so the deployment probe remained present |
+| Phase V typecheck found readonly `process.env.NODE_ENV` writes in a regression test | 1 | Replaced direct assignment and deletion with typed `Reflect` operations |
+| First production browser smoke reached a stale helper-spawned server and observed the wrong 500/200 responses | 1 | Verified port ownership, avoided the Windows helper child-process leak, and moved to a direct Node-owned server harness |
+| PowerShell `Start-Process` failed on inherited `Path`/`PATH` duplicates | 1 | Replaced it with a Node `spawn` harness using an explicit child process and deterministic cleanup |
+| Architecture check rejected direct `@next/env` import from `scripts/cron.ts` | 1 | Moved env initialization into the cron feature before its database dependencies; the script still imports only the worker |
+| Port preflight on IPv4 loopback returned Windows `EACCES` while Next binds the dual-stack wildcard | 1 | Changed the non-destructive preflight to bind the same wildcard address as Next.js |
+| Production build attempted Redis connections while collecting routes | 1 | Enabled lazy connection plus one bounded offline retry, and cached the client globally; a fresh build completed with zero Redis I/O |
+| Final `tsx` gate could not call Windows `os.userInfo()` in the managed host | 2 | Used an ignored `.cache` preload shim only for local verification; production code and CI commands were unchanged |
+| Cleanup of the stale `.next` backup hit locked webpack cache files | 1 | Removed all other temporary artifacts and left the remaining cache isolated under `.cache`; did not terminate the unknown process that may own the files |

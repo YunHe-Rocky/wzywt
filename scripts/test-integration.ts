@@ -83,8 +83,87 @@ try {
     where: { tournamentId: splitTournament.id, action: "split" },
   }), 1);
 
-  console.log("Capacity and split concurrency integration tests passed.");
+  const match = await prisma.internalMatch.create({
+    data: {
+      tournamentId: splitTournament.id,
+      createdById: userIds[0],
+      players: {
+        create: userIds.slice(0, 10).map((memberId, index) => ({
+          memberId,
+          side: index < 5 ? "red" : "blue",
+          slot: (index % 5) + 1,
+          gameNickname: `${prefix}_p${index}`,
+          roleType: ["top", "jungle", "mid", "adc", "support"][index % 5],
+        })),
+      },
+      tacticRooms: { create: [{ side: "red" }, { side: "blue" }] },
+    },
+    include: { players: true, tacticRooms: true },
+  });
+  assert.equal(match.players.length, 10);
+  assert.equal(match.tacticRooms.length, 2);
+
+  await prisma.matchScreenshot.create({
+    data: {
+      matchId: match.id,
+      type: "DATA",
+      storageKey: `match-screenshots/2026/08/${prefix}-data.png`,
+      originalFilename: "data.png",
+      mimeType: "image/png",
+      size: 8,
+      sha256: "a".repeat(64),
+      uploadedById: userIds[0],
+    },
+  });
+  await assert.rejects(() => prisma.matchScreenshot.create({
+    data: {
+      matchId: match.id,
+      type: "DATA",
+      storageKey: `match-screenshots/2026/08/${prefix}-duplicate.png`,
+      originalFilename: "duplicate.png",
+      mimeType: "image/png",
+      size: 8,
+      sha256: "b".repeat(64),
+      uploadedById: userIds[0],
+    },
+  }), (error: unknown) => typeof error === "object" && error !== null && "code" in error && error.code === "P2002");
+
+  const post = await prisma.combatPost.create({
+    data: {
+      authorId: userIds[0],
+      matchId: match.id,
+      tournamentId: splitTournament.id,
+      title: `${prefix}_post`,
+      content: "integration content",
+      videoStorageKey: `post-videos/2026/08/${prefix}.mp4`,
+      originalFilename: "clip.mp4",
+      mimeType: "video/mp4",
+      size: 12,
+      sha256: "c".repeat(64),
+    },
+  });
+  await prisma.combatPostLike.create({ data: { postId: post.id, userId: userIds[1] } });
+  await assert.rejects(
+    () => prisma.combatPostLike.create({ data: { postId: post.id, userId: userIds[1] } }),
+    (error: unknown) => typeof error === "object" && error !== null && "code" in error && error.code === "P2002",
+  );
+
+  const redRoom = match.tacticRooms.find(({ side }) => side === "red");
+  assert.ok(redRoom);
+  const layer = await prisma.tacticLayer.create({
+    data: { roomId: redRoom.id, name: "开局", sortOrder: 0, createdById: userIds[0] },
+  });
+  await prisma.tacticRoute.create({
+    data: { layerId: layer.id, ownerMemberId: userIds[0], colorKey: "crimson", geometry: { version: 1, arrow: true, points: [{ x: 0, y: 0 }, { x: 1, y: 1 }] } },
+  });
+  await assert.rejects(() => prisma.tacticRoute.create({
+    data: { layerId: layer.id, ownerMemberId: userIds[0], colorKey: "crimson", geometry: { version: 1, arrow: true, points: [{ x: 0.1, y: 0.1 }, { x: 0.9, y: 0.9 }] } },
+  }), (error: unknown) => typeof error === "object" && error !== null && "code" in error && error.code === "P2002");
+
+  console.log("Capacity, split, match archive, combat post, and tactic integration tests passed.");
 } finally {
+  await prisma.combatPost.deleteMany({ where: { title: { startsWith: prefix } } });
+  await prisma.internalMatch.deleteMany({ where: { tournamentId: { in: tournamentIds } } });
   await prisma.tournament.deleteMany({ where: { id: { in: tournamentIds } } });
   await prisma.user.deleteMany({ where: { id: { in: userIds } } });
   await prisma.$disconnect();

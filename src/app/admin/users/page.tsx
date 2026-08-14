@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { apiRequest, jsonRequest } from "@/features/shared/client/api";
 
 interface UserRow {
   id: number;
@@ -17,28 +18,57 @@ export default function AdminUsersPage() {
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   useEffect(() => {
+    const controller = new AbortController();
     setLoading(true);
-    fetch(`/api/admin/users?page=${page}`)
-      .then((r) => r.json())
-      .then((d) => { setUsers(d.users); setTotal(d.total); setLoading(false); });
+    setError("");
+    void apiRequest<{ users?: UserRow[]; total?: number }>(`/api/admin/users?page=${page}`, { signal: controller.signal })
+      .then(({ ok, data }) => {
+        if (controller.signal.aborted) return;
+        if (!ok) {
+          setError("用户列表加载失败");
+          return;
+        }
+        setUsers(data.users ?? []);
+        setTotal(data.total ?? 0);
+      })
+      .catch((requestError: unknown) => {
+        if (!controller.signal.aborted) setError(requestError instanceof Error ? requestError.message : "用户列表加载失败");
+      })
+      .finally(() => { if (!controller.signal.aborted) setLoading(false); });
+    return () => controller.abort();
   }, [page]);
 
   async function toggleBan(id: number, current: boolean) {
-    await fetch(`/api/admin/users/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ banned: !current }),
-    });
-    setUsers((prev) => prev.map((u) => (u.id === id ? { ...u, banned: !current } : u)));
+    setError("");
+    try {
+      const result = await jsonRequest<{ error?: string }>(`/api/admin/users/${id}`, "PATCH", { banned: !current });
+      if (!result.ok) {
+        setError(result.data.error || "更新用户状态失败");
+        return;
+      }
+      setUsers((prev) => prev.map((u) => (u.id === id ? { ...u, banned: !current } : u)));
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "更新用户状态失败");
+    }
   }
 
   async function deleteUser(id: number) {
     if (!confirm("确定删除该用户？此操作不可撤销。")) return;
-    await fetch(`/api/admin/users/${id}`, { method: "DELETE" });
-    setUsers((prev) => prev.filter((u) => u.id !== id));
-    setTotal((t) => t - 1);
+    setError("");
+    try {
+      const result = await apiRequest<{ error?: string }>(`/api/admin/users/${id}`, { method: "DELETE" });
+      if (!result.ok) {
+        setError(result.data.error || "删除用户失败");
+        return;
+      }
+      setUsers((prev) => prev.filter((u) => u.id !== id));
+      setTotal((t) => t - 1);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "删除用户失败");
+    }
   }
 
   const totalPages = Math.ceil(total / 20);
@@ -47,6 +77,7 @@ export default function AdminUsersPage() {
     <div className="px-6 py-8">
       <h1 className="text-xl font-bold mb-1">用户管理</h1>
       <p className="text-[12px] text-text-muted mb-5">共 {total} 个用户</p>
+      {error && <p role="alert" className="mb-4 text-[12px] text-red">{error}</p>}
 
       {loading ? (
         <div className="skeleton h-80 rounded-xl" />

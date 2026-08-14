@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { getEquipmentItem } from "@/features/equipment/client/api";
 
 type NumericStat = "atk" | "ap" | "def" | "mdef" | "hp" | "mp" | "cdReduce" | "atkSpeed" | "moveSpeed" | "critRate" | "lifesteal";
 
@@ -40,10 +41,12 @@ export default function EquipmentDetailPage() {
   const [imgError, setImgError] = useState(false);
 
   useEffect(() => {
-    fetch(`/api/equipment/${itemId}`)
-      .then((r) => r.json())
-      .then((data) => { if (!data.error) setItem(data); setLoading(false); })
-      .catch(() => setLoading(false));
+    const controller = new AbortController();
+    void getEquipmentItem<Equipment>(itemId, controller.signal)
+      .then(({ data }) => { if (!controller.signal.aborted) setItem(data.error ? null : data); })
+      .catch(() => { if (!controller.signal.aborted) setItem(null); })
+      .finally(() => { if (!controller.signal.aborted) setLoading(false); });
+    return () => controller.abort();
   }, [itemId]);
 
   if (loading) {

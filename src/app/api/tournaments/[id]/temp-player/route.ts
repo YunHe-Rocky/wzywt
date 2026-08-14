@@ -7,6 +7,7 @@ import {
   addTemporaryTournamentPlayer,
   TournamentCapacityError,
 } from "@/features/tournaments/server/capacity";
+import { tryReadJsonRequest } from "@/lib/request-validation";
 
 export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
@@ -16,7 +17,9 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
   if (!userId) return NextResponse.json({ error: "请先登录" }, { status: 401 });
 
   const tournamentId = parseInt(params.id);
-  const { tempName } = await req.json();
+  const body = await tryReadJsonRequest<{ tempName?: unknown }>(req);
+  if (!body.ok) return body.response;
+  const { tempName } = body.value;
   if (tempName !== undefined && (typeof tempName !== "string" || tempName.trim().length > 32)) {
     return NextResponse.json({ error: "临时选手名称不能超过32个字符" }, { status: 400 });
   }
@@ -43,7 +46,12 @@ export async function PUT(req: NextRequest, props: { params: Promise<{ id: strin
   if (!userId) return NextResponse.json({ error: "请先登录" }, { status: 401 });
 
   const tournamentId = parseInt(params.id);
-  const { targetUserId, heroPowers } = await req.json();
+  const body = await tryReadJsonRequest<{ targetUserId?: unknown; heroPowers?: unknown }>(req);
+  if (!body.ok) return body.response;
+  const { targetUserId, heroPowers } = body.value;
+  if (typeof targetUserId !== "number" || !Number.isSafeInteger(targetUserId) || targetUserId <= 0) {
+    return NextResponse.json({ error: "目标用户无效" }, { status: 400 });
+  }
 
   // Admin or original applicant can fill temp player data
   const isAdmin = await prisma.tournamentAdmin.findFirst({ where: { tournamentId, userId } });

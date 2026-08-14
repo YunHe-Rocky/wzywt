@@ -5,6 +5,7 @@ import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/db";
 import { authenticate, verifyPassword } from "@/lib/auth";
 import { deleteUserAndOwnedTournaments } from "@/features/users/server/deleteUser";
+import { tryReadJsonRequest } from "@/lib/request-validation";
 
 export async function GET() {
   const session = await getSession();
@@ -67,7 +68,9 @@ export async function DELETE(req: NextRequest) {
   if (!auth.ok) return NextResponse.json({ error: auth.code === "BANNED" ? "账户已被封禁" : "请先登录" }, { status: auth.code === "BANNED" ? 403 : 401 });
   const { userId } = auth.user;
 
-  const { answer } = await req.json();
+  const body = await tryReadJsonRequest<{ answer?: unknown }>(req);
+  if (!body.ok) return body.response;
+  const answer = typeof body.value.answer === "string" ? body.value.answer : "";
   if (!answer) {
     return NextResponse.json({ error: "请输入安全答案确认身份" }, { status: 400 });
   }

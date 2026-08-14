@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { ROLE_BADGES, CLASS_BADGES, ROLES, CLASS_TO_LANE } from "@/core/game";
+import { apiRequest, jsonRequest } from "@/features/shared/client/api";
 
 interface Hero {
   heroId: number;
@@ -21,15 +22,17 @@ export default function AdminHeroesPage() {
   const [errors, setErrors] = useState<Record<number, string>>({});
 
   useEffect(() => {
-    fetch("/api/heroes")
-      .then((r) => r.json())
-      .then((data) => {
+    const controller = new AbortController();
+    void apiRequest<Hero[]>("/api/heroes", { signal: controller.signal })
+      .then(({ data }) => {
+        if (controller.signal.aborted) return;
         setHeroes(Array.isArray(data)
           ? data.map((hero) => ({ ...hero, secondaryRoleTypes: hero.secondaryRoleTypes ?? [] }))
           : []);
       })
-      .catch(() => setHeroes([]))
-      .finally(() => setLoading(false));
+      .catch(() => { if (!controller.signal.aborted) setHeroes([]); })
+      .finally(() => { if (!controller.signal.aborted) setLoading(false); });
+    return () => controller.abort();
   }, []);
 
   async function saveLanes(heroId: number, roleType: string, secondaryRoleTypes: string[]) {
@@ -38,11 +41,7 @@ export default function AdminHeroesPage() {
 
     try {
       const normalizedSecondary = secondaryRoleTypes.filter((lane) => lane !== roleType);
-      const res = await fetch(`/api/heroes/${heroId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ roleType, secondaryRoleTypes: normalizedSecondary }),
-      });
+      const res = await jsonRequest<{ error?: string }>(`/api/heroes/${heroId}`, "PATCH", { roleType, secondaryRoleTypes: normalizedSecondary });
 
       if (res.ok) {
         setHeroes((prev) => prev.map((hero) => (
@@ -51,8 +50,7 @@ export default function AdminHeroesPage() {
             : hero
         )));
       } else {
-        const err = await res.json().catch(() => ({ error: "保存失败" }));
-        setErrors((prev) => ({ ...prev, [heroId]: err.error || "保存失败" }));
+        setErrors((prev) => ({ ...prev, [heroId]: res.data.error || "保存失败" }));
       }
     } catch {
       setErrors((prev) => ({ ...prev, [heroId]: "网络异常，请重试" }));

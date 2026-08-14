@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { authenticate } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { normalizeGameProfile } from "@/features/profile/model";
+import { tryReadJsonRequest } from "@/lib/request-validation";
 
 export async function PATCH(req: NextRequest) {
   const auth = await authenticate();
@@ -11,8 +12,9 @@ export async function PATCH(req: NextRequest) {
   const { userId } = auth.user;
   if (!userId) return NextResponse.json({ error: "请先登录" }, { status: 401 });
 
-  const body = await req.json().catch(() => null) as Record<string, unknown> | null;
-  if (!body) return NextResponse.json({ error: "请求格式错误" }, { status: 400 });
+  const parsedBody = await tryReadJsonRequest<Record<string, unknown>>(req);
+  if (!parsedBody.ok) return parsedBody.response;
+  const body = parsedBody.value;
 
   let gameProfile;
   try {

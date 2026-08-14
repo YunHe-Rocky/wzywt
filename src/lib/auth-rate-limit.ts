@@ -28,33 +28,42 @@ export function getRequestIp(headers: Headers): string {
 
 async function consumeLimit(scope: string, key: string, maxAttempts: number): Promise<void> {
   const keyHash = hash(`${scope}:${key}`);
-  const now = new Date();
+  let retryAfterSeconds = 0;
+  for (let transactionAttempt = 0; transactionAttempt < 3; transactionAttempt++) {
+    const now = new Date();
+    try {
+      retryAfterSeconds = await prisma.$transaction(async (tx) => {
+        const record = await tx.authRateLimit.findUnique({
+          where: { scope_keyHash: { scope, keyHash } },
+        });
 
-  const retryAfterSeconds = await prisma.$transaction(async (tx) => {
-    const record = await tx.authRateLimit.findUnique({
-      where: { scope_keyHash: { scope, keyHash } },
-    });
+        if (record?.blockedUntil && record.blockedUntil > now) {
+          return Math.ceil((record.blockedUntil.getTime() - now.getTime()) / 1000);
+        }
 
-    if (record?.blockedUntil && record.blockedUntil > now) {
-      return Math.ceil((record.blockedUntil.getTime() - now.getTime()) / 1000);
+        const windowExpired = !record || now.getTime() - record.windowStart.getTime() >= WINDOW_MS;
+        const attempts = windowExpired ? 1 : record.attempts + 1;
+        const blockedUntil = attempts > maxAttempts ? new Date(now.getTime() + BLOCK_MS) : null;
+
+        await tx.authRateLimit.upsert({
+          where: { scope_keyHash: { scope, keyHash } },
+          create: { scope, keyHash, attempts, windowStart: now, blockedUntil },
+          update: {
+            attempts,
+            windowStart: windowExpired ? now : record.windowStart,
+            blockedUntil,
+          },
+        });
+
+        return blockedUntil ? Math.ceil(BLOCK_MS / 1000) : 0;
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+      break;
+    } catch (error) {
+      const retryable = error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034";
+      if (!retryable || transactionAttempt === 2) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 10 * (transactionAttempt + 1)));
     }
-
-    const windowExpired = !record || now.getTime() - record.windowStart.getTime() >= WINDOW_MS;
-    const attempts = windowExpired ? 1 : record.attempts + 1;
-    const blockedUntil = attempts > maxAttempts ? new Date(now.getTime() + BLOCK_MS) : null;
-
-    await tx.authRateLimit.upsert({
-      where: { scope_keyHash: { scope, keyHash } },
-      create: { scope, keyHash, attempts, windowStart: now, blockedUntil },
-      update: {
-        attempts,
-        windowStart: windowExpired ? now : record.windowStart,
-        blockedUntil,
-      },
-    });
-
-    return blockedUntil ? Math.ceil(BLOCK_MS / 1000) : 0;
-  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+  }
 
   if (retryAfterSeconds > 0) throw new RateLimitError(retryAfterSeconds);
 }

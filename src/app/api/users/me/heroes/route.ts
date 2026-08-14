@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { authenticate } from "@/lib/auth";
 import { normalizeHeroPowerScore, ROLES } from "@/core/game";
+import { tryReadJsonRequest } from "@/lib/request-validation";
 
 export async function GET() {
   const auth = await authenticate();
@@ -26,10 +27,13 @@ export async function POST(req: NextRequest) {
   const { userId } = auth.user;
   if (!userId) return NextResponse.json({ error: "请先登录" }, { status: 401 });
 
-  const { roleType, heroId, heroName, powerScore } = await req.json();
+  const body = await tryReadJsonRequest<Record<string, unknown>>(req);
+  if (!body.ok) return body.response;
+  const { roleType, heroId, heroName, powerScore } = body.value;
   if (
     typeof roleType !== "string"
     || !ROLES.includes(roleType as (typeof ROLES)[number])
+    || typeof heroId !== "number"
     || !Number.isInteger(heroId)
     || heroId <= 0
     || typeof heroName !== "string"

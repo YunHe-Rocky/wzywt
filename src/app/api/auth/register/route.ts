@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { hashPassword } from "@/lib/auth";
 import { getSession } from "@/lib/session";
+import { tryReadJsonRequest } from "@/lib/request-validation";
 
 const PRESET_QUESTIONS = [
   "你的出生城市是？",
@@ -17,7 +18,14 @@ const PRESET_QUESTIONS = [
 ];
 
 export async function POST(req: NextRequest) {
-  const { username, securityQuestion, customQuestion, securityAnswer, password, confirmPassword } = await req.json();
+  const body = await tryReadJsonRequest<Record<string, unknown>>(req);
+  if (!body.ok) return body.response;
+  const username = typeof body.value.username === "string" ? body.value.username : "";
+  const securityQuestion = typeof body.value.securityQuestion === "string" ? body.value.securityQuestion : "";
+  const customQuestion = typeof body.value.customQuestion === "string" ? body.value.customQuestion : "";
+  const securityAnswer = typeof body.value.securityAnswer === "string" ? body.value.securityAnswer : "";
+  const password = typeof body.value.password === "string" ? body.value.password : "";
+  const confirmPassword = typeof body.value.confirmPassword === "string" ? body.value.confirmPassword : "";
 
   if (!username || !securityQuestion || !securityAnswer || !password || !confirmPassword) {
     return NextResponse.json({ error: "请填写所有字段" }, { status: 400 });

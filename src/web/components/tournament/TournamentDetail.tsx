@@ -6,6 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useToast } from "@/web/components/ui/Toast";
 import { ROLE_LABELS } from "@/core/game";
 import { TeamBuilder } from "@/web/components/tournament/TeamBuilder";
+import { MatchArchivePanel } from "@/web/MatchArchivePanel";
 import { getCurrentUser } from "@/features/auth/client/api";
 import {
   addTemporaryPlayer,
@@ -818,7 +819,7 @@ export function TournamentDetail() {
       {splitResult && (
         <div style={{ marginBottom: 32 }}>
           <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-            {[{ k: "result", l: "分队结果" }, { k: "builder", l: "英雄阵容" }].map(t => (
+            {[{ k: "result", l: "分队结果" }, { k: "builder", l: "英雄阵容" }, { k: "archive", l: "比赛档案" }].map(t => (
               <button key={t.k} onClick={() => setSplitTab(t.k)}
                 style={{ padding: "6px 20px", borderRadius: 8, fontSize: 14, fontWeight: splitTab === t.k ? 600 : 400, border: splitTab === t.k ? "1px solid var(--gold)" : "1px solid transparent", background: splitTab === t.k ? "var(--gold-alpha-08)" : "transparent", color: splitTab === t.k ? "var(--gold)" : "var(--text-secondary)", cursor: "pointer" }}>{t.l}</button>
             ))}
@@ -953,6 +954,9 @@ export function TournamentDetail() {
             currentUserId={me?.userId || 0}
             isOwner={isOwner}
           />
+        )}
+        {splitTab === "archive" && (
+          <MatchArchivePanel tournamentId={tournament.id} canManage={isAdmin} />
         )}
         </div>
       )}

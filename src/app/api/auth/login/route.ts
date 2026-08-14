@@ -4,9 +4,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { verifyPassword } from "@/lib/auth";
 import { getSession } from "@/lib/session";
+import { tryReadJsonRequest } from "@/lib/request-validation";
 
 export async function POST(req: NextRequest) {
-  const { username, password } = await req.json();
+  const body = await tryReadJsonRequest<{ username?: unknown; password?: unknown }>(req);
+  if (!body.ok) return body.response;
+  const { username, password } = body.value;
+  if (typeof username !== "string" || typeof password !== "string" || !username || !password) {
+    return NextResponse.json({ error: "请输入用户名和密码" }, { status: 400 });
+  }
   const user = await prisma.user.findUnique({
     where: { username },
     select: {

@@ -2,8 +2,9 @@ import { prisma } from "@/lib/db";
 import { load } from "cheerio";
 import * as iconv from "iconv-lite";
 import { createHash } from "crypto";
-import { getHeaders } from "@/lib/anti-bot";
-import { cacheDel } from "@/lib/redis";
+import { getHeaders, validateCrawlUrl } from "@/lib/anti-bot";
+import { readResponseBytes } from "@/lib/http-response";
+import { cacheDel, cacheDelPattern } from "@/lib/redis";
 import {
   createHeroSkins,
   KNOWN_MINGGE_PAIRS,
@@ -24,8 +25,17 @@ type CrawlConfig = typeof DEFAULTS;
 async function getCrawlConfig(): Promise<CrawlConfig> {
   const row = await prisma.kvCache.findUnique({ where: { key: "config:crawl_urls" } });
   if (!row) return { ...DEFAULTS };
-  const saved = JSON.parse(row.value) as Partial<CrawlConfig>;
-  return { ...DEFAULTS, ...saved };
+  try {
+    const saved = JSON.parse(row.value) as Partial<CrawlConfig>;
+    const config = { ...DEFAULTS, ...saved };
+    for (const key of Object.keys(DEFAULTS) as Array<keyof CrawlConfig>) {
+      config[key] = validateCrawlUrl(config[key]);
+    }
+    return config;
+  } catch (error) {
+    console.warn("[sync] invalid crawl configuration; using trusted defaults", error instanceof Error ? error.message : error);
+    return { ...DEFAULTS };
+  }
 }
 
 interface RawHero {
@@ -75,12 +85,16 @@ async function fetchDetail(cfg: CrawlConfig, heroId: number, idName?: string): P
   for (const url of urls) {
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
-        const res = await fetch(url, {
+        const res = await fetch(validateCrawlUrl(url), {
           headers: getHeaders(),
           signal: AbortSignal.timeout(10000),
+          redirect: "error",
         });
-        if (!res.ok) break;
-        const buf = Buffer.from(await res.arrayBuffer());
+        if (!res.ok) {
+          await res.body?.cancel();
+          break;
+        }
+        const buf = Buffer.from(await readResponseBytes(res, 4 * 1024 * 1024));
         // Try multiple encodings
         for (const enc of ["gbk", "utf-8", "gb2312"]) {
           const html = iconv.decode(buf, enc);
@@ -101,12 +115,15 @@ async function fetchDetail(cfg: CrawlConfig, heroId: number, idName?: string): P
 // ── Check if image URL exists ───────────────────────────────────────
 async function imgExists(url: string): Promise<boolean> {
   try {
-    const res = await fetch(url, {
+    const res = await fetch(validateCrawlUrl(url), {
       method: "HEAD",
       headers: getHeaders(),
       signal: AbortSignal.timeout(5000),
+      redirect: "error",
     });
-    return res.ok;
+    const ok = res.ok;
+    await res.body?.cancel();
+    return ok;
   } catch {
     return false;
   }
@@ -233,7 +250,7 @@ async function fetchHeroList(cfg: CrawlConfig): Promise<HeroCatalogRecord[]> {
   const jsonRes = await fetchWithRetry(cfg.hero_list_json, {
     timeout: 15000, referer: "https://pvp.qq.com/", isJson: true,
   });
-  const jsonHeroes = (jsonRes.ok && jsonRes.json ? jsonRes.json as RawHero[] : []);
+  const jsonHeroes = (jsonRes.ok && Array.isArray(jsonRes.json) ? jsonRes.json as RawHero[] : []);
   // 3. 使用 HTML + JSON 并集。命格/新英雄可能只出现在 JSON，不能被 HTML 主列表丢弃。
   const heroes = mergeHeroCatalog(idMap, jsonHeroes);
   // 硬补：已知重做英雄的拼音映射（数字页有旧数据）
@@ -377,10 +394,7 @@ export async function syncHeroes(onProgress?: (p: SyncProgress) => void): Promis
       await prisma.heroSkill.deleteMany({ where: { heroId: h.ename } });
       await prisma.heroSkill.createMany({ data: skillRows });
 
-      // Clear Redis cache for this hero
-      void cacheDel("hero:v2", h.ename);
     }
-    void cacheDel("heroes", "list:v2");
 
     console.log(`[sync] ${Math.min(b + batchSize, heroes.length)}/${heroes.length} done`);
   }
@@ -409,9 +423,13 @@ export async function syncHeroes(onProgress?: (p: SyncProgress) => void): Promis
         },
       }),
     ]);
-    void cacheDel("hero:v2", pair.baseId);
-    void cacheDel("hero:v2", pair.formId);
   }
+
+  // Invalidate once after all database writes so readers cannot retain a partially refreshed catalog.
+  await Promise.all([
+    cacheDelPattern("hero:v2:*"),
+    cacheDel("heroes", "list:v2"),
+  ]);
 
   console.log(`[sync] Complete: ${inserted} new, ${updated} updated, ${imageFallbacks} img fallback, ${detail404s} no detail page`);
   progress("done", 1, 1, `同步完成: ${inserted} 新增, ${updated} 更新`);

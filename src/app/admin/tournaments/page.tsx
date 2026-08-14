@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { apiRequest } from "@/features/shared/client/api";
 
 interface TournamentRow {
   id: number;
@@ -24,20 +25,42 @@ export default function AdminTournamentsPage() {
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   useEffect(() => {
+    const controller = new AbortController();
     setLoading(true);
-    fetch(`/api/admin/tournaments?page=${page}`)
-      .then((r) => r.json())
-      .then((d) => { setTournaments(d.tournaments); setTotal(d.total); setLoading(false); });
+    setError("");
+    void apiRequest<{ tournaments?: TournamentRow[]; total?: number }>(`/api/admin/tournaments?page=${page}`, { signal: controller.signal })
+      .then(({ ok, data }) => {
+        if (controller.signal.aborted) return;
+        if (!ok) {
+          setError("房间列表加载失败");
+          return;
+        }
+        setTournaments(data.tournaments ?? []);
+        setTotal(data.total ?? 0);
+      })
+      .catch((requestError: unknown) => {
+        if (!controller.signal.aborted) setError(requestError instanceof Error ? requestError.message : "房间列表加载失败");
+      })
+      .finally(() => { if (!controller.signal.aborted) setLoading(false); });
+    return () => controller.abort();
   }, [page]);
 
   async function deleteRoom(id: number, name: string) {
     if (!confirm(`确定删除房间「${name}」？此操作不可撤销。`)) return;
-    const res = await fetch(`/api/tournaments/${id}`, { method: "DELETE" });
-    if (res.ok) {
+    setError("");
+    try {
+      const res = await apiRequest<{ error?: string }>(`/api/tournaments/${id}`, { method: "DELETE" });
+      if (!res.ok) {
+        setError(res.data.error || "删除房间失败");
+        return;
+      }
       setTournaments((prev) => prev.filter((t) => t.id !== id));
       setTotal((t) => t - 1);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "删除房间失败");
     }
   }
 
@@ -47,6 +70,7 @@ export default function AdminTournamentsPage() {
     <div className="px-6 py-8">
       <h1 className="text-xl font-bold mb-1">房间管理</h1>
       <p className="text-[12px] text-text-muted mb-5">共 {total} 个房间</p>
+      {error && <p role="alert" className="mb-4 text-[12px] text-red">{error}</p>}
 
       {loading ? (
         <div className="skeleton h-80 rounded-xl" />

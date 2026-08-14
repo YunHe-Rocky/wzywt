@@ -6,6 +6,13 @@ import {
   normalizePeakScore,
   normalizeRolePreferenceSettings,
 } from "@/features/profile/model";
+import {
+  addHeroPower,
+  getHeroPowers,
+  getRolePreferences,
+  removeHeroPower,
+  updateRolePreferences,
+} from "@/features/profile/client/api";
 
 const ROLES = ["top", "jungle", "mid", "adc", "support"] as const;
 
@@ -24,16 +31,27 @@ export function useRolePreferences() {
   const [animatingIdx, setAnimatingIdx] = useState<number | null>(null);
 
   useEffect(() => {
-    fetch("/api/users/me/roles").then(r => r.json()).then(d => {
-      if (d.preferences?.length) {
-        const s = normalizeRolePreferenceSettings(d.preferences)
+    const controller = new AbortController();
+    void getRolePreferences<{ preferences?: Pref[] }>(controller.signal).then(({ data }) => {
+      if (controller.signal.aborted) return;
+      if (data.preferences?.length) {
+        const s = normalizeRolePreferenceSettings(data.preferences)
           .sort((a, b) => a.preferenceRank - b.preferenceRank);
         setPrefs(s); setSharedRank(s[0]?.roleRank || 0);
-      } else setPrefs(ROLES.map((r, i) => ({ roleType: r, preferenceRank: i + 1, roleRank: 0, peakScore: 0, peakRank: 0 })));
-    }).catch(() => { setPrefs(ROLES.map((r, i) => ({ roleType: r, preferenceRank: i + 1, roleRank: 0, peakScore: 0, peakRank: 0 }))); });
-    fetch("/api/users/me/heroes").then(r => r.json()).then(d => {
-      if (d.heroPowers) { const g: Record<string, HeroEntry[]> = {}; ROLES.forEach(r => g[r] = d.heroPowers[r] || []); setHeroesByRole(g); }
-    }).catch(() => {});
+      } else {
+        setPrefs(ROLES.map((r, i) => ({ roleType: r, preferenceRank: i + 1, roleRank: 0, peakScore: 0, peakRank: 0 })));
+      }
+    }).catch(() => {
+      if (!controller.signal.aborted) setPrefs(ROLES.map((r, i) => ({ roleType: r, preferenceRank: i + 1, roleRank: 0, peakScore: 0, peakRank: 0 })));
+    });
+    void getHeroPowers<{ heroPowers?: Record<string, HeroEntry[]> }>(controller.signal).then(({ data }) => {
+      if (!controller.signal.aborted && data.heroPowers) {
+        const grouped: Record<string, HeroEntry[]> = {};
+        ROLES.forEach((role) => { grouped[role] = data.heroPowers?.[role] || []; });
+        setHeroesByRole(grouped);
+      }
+    }).catch(() => undefined);
+    return () => controller.abort();
   }, []);
 
   const moveUp = useCallback((i: number) => {
@@ -66,20 +84,20 @@ export function useRolePreferences() {
 
   const savePrefs = useCallback(async (onSuccess: () => void, onError: (msg: string) => void) => {
     setSaving(true);
-    const res = await fetch("/api/users/me/roles", {
-      method: "PUT", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        preferences: normalizeRolePreferenceSettings(prefs).map(p => ({
+    try {
+      const res = await updateRolePreferences(normalizeRolePreferenceSettings(prefs).map(p => ({
           role_type: p.roleType,
           preference_rank: p.preferenceRank,
           role_rank: p.roleRank,
           peak_score: p.peakScore,
           peak_rank: p.peakRank,
-        })),
-      })
-    });
-    setSaving(false);
-    res.ok ? onSuccess() : onError("保存失败");
+        })));
+      res.ok ? onSuccess() : onError("保存失败");
+    } catch (error) {
+      onError(error instanceof Error ? error.message : "保存失败");
+    } finally {
+      setSaving(false);
+    }
   }, [prefs]);
 
   const addHero = useCallback(async (role: string, onSuccess: () => void, onError: (msg: string) => void) => {
@@ -91,25 +109,29 @@ export function useRolePreferences() {
       onError(error instanceof Error ? error.message : "英雄战力无效");
       return;
     }
-    const res = await fetch("/api/users/me/heroes", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ roleType: role, heroId: parseInt(selHero), heroName: selHeroName, powerScore })
-    });
-    if (res.ok) {
-      const c = await res.json();
-      setHeroesByRole(p => ({ ...p, [role]: [...(p[role] || []), c] }));
-      setSelHero(""); setSelHeroName(""); setSelPower("");
-      onSuccess();
-    } else {
-      const e = await res.json();
-      onError(e.error || "添加失败");
+    try {
+      const res = await addHeroPower<HeroEntry & { error?: string }>({ roleType: role, heroId: parseInt(selHero), heroName: selHeroName, powerScore });
+      if (res.ok) {
+        setHeroesByRole(p => ({ ...p, [role]: [...(p[role] || []), res.data] }));
+        setSelHero(""); setSelHeroName(""); setSelPower("");
+        onSuccess();
+      } else {
+        onError(res.data.error || "添加失败");
+      }
+    } catch (error) {
+      onError(error instanceof Error ? error.message : "添加失败");
     }
   }, [selHero, selHeroName, selPower]);
 
   const removeHero = useCallback(async (id: number, role: string, onSuccess: () => void) => {
-    await fetch(`/api/users/me/heroes?id=${id}`, { method: "DELETE" });
-    setHeroesByRole(p => ({ ...p, [role]: p[role].filter(h => h.id !== id) }));
-    onSuccess();
+    try {
+      const result = await removeHeroPower(id);
+      if (!result.ok) return;
+      setHeroesByRole(p => ({ ...p, [role]: p[role].filter(h => h.id !== id) }));
+      onSuccess();
+    } catch {
+      // Keep local state unchanged when the server mutation is not confirmed.
+    }
   }, []);
 
   return {

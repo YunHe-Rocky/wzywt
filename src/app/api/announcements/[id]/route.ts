@@ -8,6 +8,7 @@ import {
   isAnnouncementNotFound,
   updateAnnouncement,
 } from "@/features/announcements/server/service";
+import { tryReadJsonRequest } from "@/lib/request-validation";
 
 export async function PUT(req: NextRequest, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
@@ -15,10 +16,12 @@ export async function PUT(req: NextRequest, props: { params: Promise<{ id: strin
   const userId = authorization.ok ? authorization.user.userId : 0;
   if (!userId) return NextResponse.json({ error: "无权限" }, { status: 403 });
 
+  const body = await tryReadJsonRequest(req);
+  if (!body.ok) return body.response;
   try {
     const updated = await updateAnnouncement(
       Number(params.id),
-      await req.json().catch(() => null),
+      body.value,
     );
     return NextResponse.json(updated);
   } catch (error) {

@@ -12,6 +12,7 @@ import {
   RateLimitError,
 } from "@/lib/auth-rate-limit";
 import { prisma } from "@/lib/db";
+import { tryReadJsonRequest } from "@/lib/request-validation";
 
 const INVALID_CREDENTIALS = "账号或安全答案错误";
 
@@ -23,8 +24,9 @@ function tooManyRequests(error: RateLimitError) {
 }
 
 export async function POST(req: NextRequest) {
-  const body = await req.json().catch(() => null) as Record<string, unknown> | null;
-  if (!body) return NextResponse.json({ error: "请求格式错误" }, { status: 400 });
+  const parsedBody = await tryReadJsonRequest<Record<string, unknown>>(req);
+  if (!parsedBody.ok) return parsedBody.response;
+  const body = parsedBody.value;
 
   const resetToken = typeof body.resetToken === "string" ? body.resetToken : "";
   if (resetToken) return completePasswordReset(body, resetToken);

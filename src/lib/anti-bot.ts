@@ -1,5 +1,7 @@
 // HTTP retry strategy with rotating browser headers; no browser fallback.
 
+import { readResponseJson, readResponseText } from "@/lib/http-response";
+
 const ALLOWED_CRAWL_HOSTS = new Set(["pvp.qq.com", "game.gtimg.cn"]);
 
 export function validateCrawlUrl(value: string): string {
@@ -73,19 +75,21 @@ export async function fetchWithRetry(
         return {
           ok: true,
           status: res.status,
-          text: isJson ? undefined : await res.text(),
-          json: isJson ? await res.json() : undefined,
+          text: isJson ? undefined : await readResponseText(res, 5 * 1024 * 1024),
+          json: isJson ? await readResponseJson(res, 5 * 1024 * 1024) : undefined,
         };
       }
 
       // 403/429/503 → rate limited or blocked, wait and retry
       if (res.status === 403 || res.status === 429 || res.status === 503) {
+        await res.body?.cancel();
         const delay = (attempt + 1) * 3000 + Math.random() * 2000;
         console.log(`[anti-bot] ${res.status} on ${safeUrl}, waiting ${Math.round(delay / 1000)}s...`);
         await new Promise((r) => setTimeout(r, delay));
         continue;
       }
 
+      await res.body?.cancel();
       return { ok: false, status: res.status };
     } catch (e) {
       if (attempt < 4) {

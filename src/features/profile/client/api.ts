@@ -7,20 +7,28 @@ interface ErrorResponse {
   [key: string]: unknown;
 }
 
-export function getHeroPowers(): Promise<ApiResult<ErrorResponse>> {
-  return apiRequest("/api/users/me/heroes");
+export function getRolePreferences<T = ErrorResponse>(signal?: AbortSignal): Promise<ApiResult<T>> {
+  return apiRequest("/api/users/me/roles", { signal });
 }
 
-export function addHeroPower(body: {
+export function updateRolePreferences<T = ErrorResponse>(preferences: unknown): Promise<ApiResult<T>> {
+  return jsonRequest("/api/users/me/roles", "PUT", { preferences });
+}
+
+export function getHeroPowers<T = ErrorResponse>(signal?: AbortSignal): Promise<ApiResult<T>> {
+  return apiRequest("/api/users/me/heroes", { signal });
+}
+
+export function addHeroPower<T = ErrorResponse>(body: {
   roleType: string;
   heroId: number;
   heroName: string;
   powerScore: number;
-}): Promise<ApiResult<ErrorResponse>> {
+}): Promise<ApiResult<T>> {
   return jsonRequest("/api/users/me/heroes", "POST", body);
 }
 
-export function removeHeroPower(id: number): Promise<ApiResult<ErrorResponse>> {
+export function removeHeroPower<T = ErrorResponse>(id: number): Promise<ApiResult<T>> {
   return apiRequest(`/api/users/me/heroes?id=${id}`, { method: "DELETE" });
 }
 

@@ -10,15 +10,19 @@ export function useAuth() {
   const router = useRouter();
 
   useEffect(() => {
-    getCurrentUser()
+    const controller = new AbortController();
+    getCurrentUser(controller.signal)
       .then(({ data }) => {
+        if (controller.signal.aborted) return;
         setUser(data.user ?? null);
         setLoaded(true);
       })
       .catch(() => {
+        if (controller.signal.aborted) return;
         setUser(null);
-        setLoaded(false);
+        setLoaded(true);
       });
+    return () => controller.abort();
   }, []);
 
   const logout = useCallback(async () => {

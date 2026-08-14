@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import { readResponseJson } from "@/lib/http-response";
 
 const SERVICE_ID = 18;
 const PC_TOKEN = "234ce0aef3020cb83887883877b64869";
@@ -61,11 +62,15 @@ export async function fetchGicpNews(
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/131.0.0.0",
     },
     signal: AbortSignal.timeout(10000),
+    redirect: "error",
   });
 
-  if (!res.ok) return [];
+  if (!res.ok) {
+    await res.body?.cancel();
+    return [];
+  }
 
-  const json = (await res.json()) as {
+  const json = (await readResponseJson(res, 2 * 1024 * 1024)) as {
     status: number;
     data: { items: GicpNewsItem[] };
   };
