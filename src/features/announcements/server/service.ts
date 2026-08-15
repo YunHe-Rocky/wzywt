@@ -25,6 +25,20 @@ export async function listAdminAnnouncements() {
   });
 }
 
+export async function listPublishedAnnouncements(full = false) {
+  const announcements = await prisma.announcement.findMany({
+    where: { published: true },
+    orderBy: [{ version: "desc" }, { createdAt: "desc" }],
+    select: full
+      ? { title: true, version: true, brief: true, content: true, slug: true, createdAt: true }
+      : { title: true, version: true, brief: true, slug: true, createdAt: true },
+  });
+  return announcements.map((announcement) => ({
+    ...announcement,
+    date: announcement.createdAt.toISOString().split("T")[0],
+  }));
+}
+
 export async function createAnnouncement(input: unknown) {
   const draft = normalizeAnnouncementDraft(input);
   const baseSlug = createAnnouncementSlug(draft.version, draft.title);

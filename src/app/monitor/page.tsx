@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { apiRequest } from "@/features/shared/client/api";
+import { usePageResources } from "@/features/resource-scheduler/client";
+import type { ResourceSnapshot } from "@/features/resource-scheduler/model";
 
 interface LogEntry {
   time: string;
@@ -21,9 +23,12 @@ export default function MonitorPage() {
   const [connected, setConnected] = useState(false);
   const [lastCycle, setLastCycle] = useState(0);
   const [checking, setChecking] = useState(false);
+  const [resources, setResources] = useState<ResourceSnapshot[]>([]);
   const manualCheckRef = useRef<AbortController | null>(null);
+  const { leaseId, error: leaseError } = usePageResources("monitor");
 
   useEffect(() => {
+    if (!leaseId) return;
     const es = new EventSource("/api/heroes/watch");
     es.onopen = () => setConnected(true);
     es.onerror = () => setConnected(false);
@@ -66,7 +71,20 @@ export default function MonitorPage() {
       es.close();
       manualCheckRef.current?.abort();
     };
-  }, []);
+  }, [leaseId]);
+
+  useEffect(() => {
+    if (!leaseId) return;
+    const controller = new AbortController();
+    const refresh = () => {
+      void apiRequest<{ resources?: ResourceSnapshot[] }>("/api/admin/resources", { signal: controller.signal })
+        .then(({ ok, data }) => { if (ok && !controller.signal.aborted) setResources(data.resources ?? []); })
+        .catch(() => undefined);
+    };
+    refresh();
+    const timer = setInterval(refresh, 5_000);
+    return () => { controller.abort(); clearInterval(timer); };
+  }, [leaseId]);
 
   function addLog(module: string, status: string, detail: string) {
     const time = new Date().toLocaleTimeString("zh-CN");
@@ -123,6 +141,7 @@ export default function MonitorPage() {
             {connected && <span style={{ color: "var(--green)", marginLeft: 10 }}>● 在线</span>}
             {!connected && <span style={{ color: "var(--red)", marginLeft: 10 }}>● 离线</span>}
           </p>
+          {leaseError && <p style={{ fontSize: 12, color: "var(--red)", margin: "6px 0 0" }}>{leaseError}</p>}
         </div>
         <button
           onClick={triggerCheck}
@@ -149,6 +168,29 @@ export default function MonitorPage() {
             </div>
           );
         })}
+      </div>
+
+      <div className="card" style={{ padding: "16px 20px", marginBottom: 24, overflowX: "auto" }}>
+        <h3 style={{ fontSize: 14, fontWeight: 600, color: "var(--text)", margin: "0 0 12px" }}>动态资源生命周期</h3>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, minWidth: 720 }}>
+          <thead>
+            <tr style={{ color: "var(--text-muted)", textAlign: "left" }}>
+              <th style={{ padding: "6px 8px" }}>资源</th><th>状态</th><th>作用域</th><th>Lease</th>
+              <th>加载/复用</th><th>命中/过期</th><th>释放</th><th>版本</th>
+            </tr>
+          </thead>
+          <tbody>
+            {resources.map((resource) => (
+              <tr key={resource.key} style={{ borderTop: "1px solid var(--border-light)" }}>
+                <td style={{ padding: "7px 8px", color: "var(--text)" }}>{resource.name}</td>
+                <td style={{ color: resource.state === "HOT" ? "var(--green)" : resource.state === "WARMING" ? "var(--gold)" : "var(--text-muted)" }}>{resource.state}</td>
+                <td>{resource.scope}</td><td>{resource.leases}</td>
+                <td>{resource.loads}/{resource.sharedLoads}</td><td>{resource.cacheHits}/{resource.staleHits}</td>
+                <td>{resource.evictions}</td><td style={{ fontFamily: "monospace" }}>{resource.version?.slice(0, 8) ?? "-"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
 
       {/* Log */}

@@ -1,30 +1,16 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
 import { authorizeSuperAdmin } from "@/lib/permissions";
 import { AnnouncementValidationError } from "@/features/announcements/model";
-import { createAnnouncement } from "@/features/announcements/server/service";
+import { createAnnouncement, listPublishedAnnouncements } from "@/features/announcements/server/service";
 import { tryReadJsonRequest } from "@/lib/request-validation";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const full = searchParams.get("full") === "true";
 
-  const announcements = await prisma.announcement.findMany({
-    where: { published: true },
-    orderBy: [{ version: "desc" }, { createdAt: "desc" }],
-    select: full
-      ? { title: true, version: true, brief: true, content: true, slug: true, createdAt: true }
-      : { title: true, version: true, brief: true, slug: true, createdAt: true },
-  });
-
-  const mapped = announcements.map((a) => ({
-    ...a,
-    date: a.createdAt.toISOString().split("T")[0],
-  }));
-
-  return NextResponse.json({ announcements: mapped });
+  return NextResponse.json({ announcements: await listPublishedAnnouncements(full) });
 }
 
 export async function POST(req: NextRequest) {

@@ -10,6 +10,8 @@ import { lockExpiredTournaments } from "@/features/tournaments/server/lockExpire
 import { processPendingMediaCleanup } from "@/features/media/server/storage-cleanup";
 import { prisma } from "@/lib/db";
 import { getMediaStorage } from "@/lib/storage";
+import { syncItems } from "@/features/equipment/server/sync";
+import { refreshOfficialNews } from "@/features/official-news/server/service";
 
 const HERO_SYNC_STAMP_KEY = "cron:hero_sync:last_success";
 const HERO_SYNC_RECENT_MS = 6 * 60 * 60 * 1000;
@@ -54,6 +56,22 @@ async function runHeroSync(label: string, skipWhenRecent = false): Promise<void>
 }
 
 export { runMonitorCycle } from "@/features/monitor/cycle";
+
+async function runEquipmentSync(label: string): Promise<void> {
+  await runExclusiveTask("equipment-sync", 30 * 60 * 1000, async () => {
+    console.log(`[equipment-sync] Starting ${label} sync...`);
+    const result = await syncItems();
+    if (result.inserted + result.updated === 0) throw new Error("equipment source returned no usable items");
+    console.log(`[equipment-sync] ${label}: ${result.inserted} inserted, ${result.updated} updated`);
+  });
+}
+
+async function runOfficialNewsSync(): Promise<void> {
+  await runExclusiveTask("official-news-sync", 2 * 60 * 1000, async () => {
+    const result = await refreshOfficialNews();
+    console.log(`[official-news-sync] refreshed ${result.items.length} items`);
+  });
+}
 
 export async function runDeadlineCheck(): Promise<void> {
   try {
@@ -101,6 +119,8 @@ export function startCronWorker(): CronWorker {
   };
   const tasks: ScheduledTask[] = [
     cron.schedule("0 6 * * *", () => schedule("hero-sync:daily", () => runHeroSync("daily"))),
+    cron.schedule("30 6 * * *", () => schedule("equipment-sync:daily", () => runEquipmentSync("daily"))),
+    cron.schedule("*/30 * * * *", () => schedule("official-news-sync", runOfficialNewsSync)),
     cron.schedule("*/3 * * * *", () => schedule("monitor", runMonitorCycle)),
     cron.schedule("*/10 * * * * *", () => schedule("monitor:queued", runQueuedMonitorCycle)),
     cron.schedule("* * * * *", () => schedule("deadline", runDeadlineCheck)),
@@ -111,6 +131,7 @@ export function startCronWorker(): CronWorker {
 
   void track("heartbeat:initial", recordCronHeartbeat);
   const initialMonitor = track("monitor:initial", runMonitorCycle);
+  void track("official-news-sync:initial", runOfficialNewsSync);
   const initialSyncTimer = setTimeout(
     () => schedule("hero-sync:initial", async () => {
       await initialMonitor;

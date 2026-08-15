@@ -92,6 +92,24 @@ cron ─────→ features ─────→ core / lib
 4. 数据库、缓存、Session、文件和第三方服务：放 `lib`。
 5. `scripts/cron.ts` 只启动功能层任务，不直接实现任务。
 
+## 系统子架构与动态资源调度
+
+系统按运行职责分为 Web、数据、同步和平台管控四个子架构；代码仍遵守上述目录依赖方向：
+
+- Web：Route 适配、React 渲染/交互、页面资源协调和权限入口。
+- 数据：MySQL 业务事实、Redis 缓存/锁、本地媒体、进程内短生命周期派生数据。
+- 同步：官方资讯、英雄和装备由独立 `cron` 进程调度，不依赖页面访问。
+- 平台管控：health、cron heartbeat、数据监控和 Resource Scheduler 指标。
+
+`src/features/resource-scheduler` 是页面协调层，包含：
+
+- 页面资源清单和 `immediate/deferred/interaction` 加载模式；
+- 公共/用户作用域隔离、SingleFlight、stale-while-revalidate；
+- 90 秒 Lease、30 秒续租和 `COLD/WARMING/HOT/IDLE/EVICTED` 状态机；
+- `/api/resources/*` Route 适配与 `/api/admin/resources` 管理员监控。
+
+Lease 只管理页面派生数据、SSE/轮询和临时计算。Prisma、Redis client、Cron、媒体文件及已保存业务数据不注册释放器，也不随页面退出关闭。
+
 ## 自动边界检查
 
 ```bash

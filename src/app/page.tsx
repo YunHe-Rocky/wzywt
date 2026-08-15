@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useAnnouncements } from "@/features/announcements/client";
 import { useToast } from "@/web/components/ui/Toast";
 import { MarkdownContent } from "@/web/components/content/MarkdownContent";
 import { apiRequest } from "@/features/shared/client/api";
+import { usePageResources } from "@/features/resource-scheduler/client";
 
 interface OfficialNews { title: string; date: string; url: string; }
 interface PublicTournament { id: number; name: string; code: string; announcement: string | null; _count: { players: number }; deadline: string; }
@@ -38,9 +38,10 @@ export default function Home() {
   const [authLoaded, setAuthLoaded] = useState(false);
   const [news, setNews] = useState<OfficialNews[]>([]);
   const [rooms, setRooms] = useState<PublicTournament[]>([]);
-  const [loaded, setLoaded] = useState(false);
+  const [newsLoaded, setNewsLoaded] = useState(false);
   const [activeSlug, setActiveSlug] = useState<string | null>(null);
-  const { announcements, loaded: announcementsLoaded } = useAnnouncements(true);
+  const { immediate, loading: resourcesLoading, leaseId, loadResource } = usePageResources("home");
+  const announcements = (immediate["home.announcements"]?.data as Announcement[] | undefined) ?? [];
   const { success } = useToast();
 
   function copyCode(e: React.MouseEvent, code: string) {
@@ -55,16 +56,25 @@ export default function Home() {
       .then(({ data }) => { if (!controller.signal.aborted) setUser(data.user ?? null); })
       .catch(() => undefined)
       .finally(() => { if (!controller.signal.aborted) setAuthLoaded(true); });
-    void Promise.all([
-      apiRequest<OfficialNews[]>("/api/official-news", { signal: controller.signal })
-        .then(({ data }) => { if (!controller.signal.aborted && Array.isArray(data)) setNews(data); }),
-      apiRequest<{ tournaments?: PublicTournament[] }>("/api/tournaments/public", { signal: controller.signal })
-        .then(({ data }) => { if (!controller.signal.aborted && data.tournaments) setRooms(data.tournaments); }),
-    ]).catch(() => undefined).finally(() => {
-      if (!controller.signal.aborted) setLoaded(true);
-    });
     return () => controller.abort();
   }, []);
+
+  useEffect(() => {
+    const value = immediate["home.public-tournaments"]?.data;
+    if (Array.isArray(value)) setRooms(value as PublicTournament[]);
+  }, [immediate]);
+
+  useEffect(() => {
+    if (!leaseId) return;
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+      void loadResource<OfficialNews[]>("home.official-news", false, controller.signal)
+        .then((items) => { if (!controller.signal.aborted) setNews(items); })
+        .catch(() => undefined)
+        .finally(() => { if (!controller.signal.aborted) setNewsLoaded(true); });
+    }, 0);
+    return () => { clearTimeout(timer); controller.abort(); };
+  }, [leaseId, loadResource]);
 
   return (
     <div className="page-shell page-shell--wide">
@@ -81,7 +91,7 @@ export default function Home() {
             <div className="px-5 py-3 border-b border-border-light">
               <div className="text-sm font-semibold text-gold-light">📢 系统公告</div>
             </div>
-            {!loaded || !announcementsLoaded ? <div className="px-5 py-6"><SkeletonLines count={3} /></div>
+            {resourcesLoading ? <div className="px-5 py-6"><SkeletonLines count={3} /></div>
               : announcements.length === 0 ? <p className="text-center text-text-muted text-sm py-6">暂无系统公告</p>
                 : announcements.map(a => (
                   <div key={a.slug} className="border-b border-border-light last:border-b-0">
@@ -107,7 +117,7 @@ export default function Home() {
             <div className="px-5 py-3 border-b border-border-light">
               <div className="text-sm font-semibold text-gold-light">🏠 公开房间</div>
             </div>
-            {!loaded ? <div className="px-5 py-6"><SkeletonLines count={2} /></div>
+            {resourcesLoading ? <div className="px-5 py-6"><SkeletonLines count={2} /></div>
               : rooms.length === 0 ? <p className="text-center text-text-muted text-sm py-6">暂无公开房间</p>
                 : <div className="grid grid-cols-1 sm:grid-cols-2 gap-0">
                   {rooms.map((room, i) => (
@@ -135,7 +145,7 @@ export default function Home() {
             <div className="px-5 py-3 border-b border-border-light">
               <div className="text-sm font-semibold text-text-secondary">王者官方公告</div>
             </div>
-            {!loaded ? <div className="px-5 py-4"><SkeletonLines count={2} /></div>
+            {!newsLoaded ? <div className="px-5 py-4"><SkeletonLines count={2} /></div>
               : news.length === 0 ? <p className="text-center text-text-muted text-sm py-4">暂无公告</p>
                 : news.slice(0, 5).map((item, i) => (
                   <div key={i}

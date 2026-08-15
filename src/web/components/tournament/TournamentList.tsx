@@ -7,10 +7,10 @@ import {
   createTournament,
   joinTournament,
   joinTournamentByCode,
-  listTournaments,
   type JoinRoomPreview,
 } from "@/features/tournaments/client/api";
 import { JoinRoomPreviewModal } from "@/web/components/tournament/JoinRoomPreviewModal";
+import { usePageResources } from "@/features/resource-scheduler/client";
 
 interface Tournament {
   id: number; name: string; code: string; deadline: string; status: string;
@@ -33,11 +33,22 @@ export function TournamentList() {
   const [joinPreview, setJoinPreview] = useState<JoinRoomPreview | null>(null);
   const [joining, setJoining] = useState(false);
   const router = useRouter();
+  const { immediate, loading, error: resourceError, loadResource } = usePageResources("tournaments");
 
-  useEffect(() => { refresh(); }, []);
+  useEffect(() => {
+    const data = immediate["tournaments.lobby"]?.data as {
+      tournaments?: Tournament[];
+      publicTournaments?: Tournament[];
+    } | undefined;
+    if (data?.tournaments) setTournaments(data.tournaments);
+    if (data?.publicTournaments) setPublicTournaments(data.publicTournaments);
+  }, [immediate]);
 
   async function refresh() {
-    const { data } = await listTournaments();
+    const data = await loadResource<{
+      tournaments?: Tournament[];
+      publicTournaments?: Tournament[];
+    }>("tournaments.lobby", true);
     if (data.tournaments) setTournaments(data.tournaments);
     if (data.publicTournaments) setPublicTournaments(data.publicTournaments);
   }
@@ -200,16 +211,18 @@ export function TournamentList() {
       )}
 
       {/* Error */}
-      {error && (
+      {(error || resourceError) && (
         <p style={{
           color: "var(--red)", fontSize: 13, fontWeight: 500, marginBottom: 16,
           padding: "10px 14px", background: "rgba(224, 80, 80, 0.06)",
           border: "1px solid rgba(224, 80, 80, 0.2)", borderRadius: "var(--radius-sm)",
-        }}>{error}</p>
+        }}>{error || resourceError}</p>
       )}
 
       {/* ============ MY TOURNAMENTS ============ */}
-      {tournaments.length === 0 && publicTournaments.length === 0 ? (
+      {loading ? (
+        <div className="skeleton" style={{ height: 180 }} />
+      ) : tournaments.length === 0 && publicTournaments.length === 0 ? (
         <div style={{ textAlign: "center", padding: "64px 0" }}>
           <p style={{ color: "var(--text-muted)", fontSize: 15 }}>暂无赛事</p>
           <p style={{ color: "var(--text-muted)", fontSize: 12, marginTop: 8 }}>创建或加入一个赛事开始吧</p>

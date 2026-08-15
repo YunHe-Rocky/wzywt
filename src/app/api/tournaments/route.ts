@@ -7,6 +7,7 @@ import { prisma } from "@/lib/db";
 import { authenticate } from "@/lib/auth";
 import { normalizeTournamentDraft, TournamentValidationError } from "@/features/tournaments/model";
 import { tryReadJsonRequest } from "@/lib/request-validation";
+import { listTournamentLobbyForUser } from "@/features/tournaments/server/list";
 
 function generateCode(): string {
   return String(randomInt(100_000, 1_000_000));
@@ -17,44 +18,7 @@ export async function GET() {
   if (!auth.ok) return NextResponse.json({ error: auth.code === "BANNED" ? "账户已被封禁" : "请先登录" }, { status: auth.code === "BANNED" ? 403 : 401 });
   const { userId } = auth.user;
 
-  // 我的赛事（参与的 + 管理的）
-  const tournaments = await prisma.tournament.findMany({
-    where: {
-      OR: [
-        { players: { some: { userId } } },
-        { admins: { some: { userId } } },
-      ],
-      status: { not: "finished" },
-    },
-    include: {
-      _count: { select: { players: { where: { isSpectator: false } } } },
-      admins: { select: { userId: true, role: true } },
-    },
-    orderBy: { deadline: "asc" },
-  });
-
-  const myIds = tournaments.map((t) => t.id);
-
-  // 公开可报名的赛事（排除已加入的）
-  const publicTournaments = await prisma.tournament.findMany({
-    where: {
-      isPublic: true,
-      status: "recruiting",
-      id: { notIn: myIds },
-      players: { some: { isSpectator: false } },
-      admins: { some: { role: "owner" } },
-    },
-    include: {
-      _count: { select: { players: { where: { isSpectator: false } } } },
-      admins: { select: { userId: true, role: true } },
-    },
-    orderBy: { deadline: "asc" },
-  });
-
-  return NextResponse.json({
-    tournaments,
-    publicTournaments,
-  });
+  return NextResponse.json(await listTournamentLobbyForUser(userId));
 }
 
 export async function POST(req: NextRequest) {
