@@ -1,5 +1,23 @@
 # Progress
 
+## 2026-08-15 faction-cohesive tactic colors
+
+- Phase X completed from user feedback that one faction must not use colors with excessive hue differences.
+- Replaced global cross-spectrum tactic colors with faction-scoped semantic member tokens while preserving historical colorKey values and route/marker/draft behavior.
+- Added permanent test:next-stage assertions for both exact five-color faction palettes.
+- PASS: architecture, typecheck, next-stage tests, lint (0 errors / 18 existing warnings), diff check, and production build.
+- Production Chrome on isolated port 8016 PASS: red and blue each rendered five unique route colors and five matching marker colors; console errors 0. The task-owned server was stopped and port 8001 was untouched.
+## 2026-08-15 tactic-board interaction and layer privacy
+
+- Phase W started from direct user feedback: marking feels delayed and illogical; owner and ordinary members must not see another participant's annotations until match data is formally submitted.
+- Restored the existing project planning files and preserved all prior completed phases and unrelated work.
+- Loaded `ui-ux-pro-max` and `planning-with-files`; initial sandboxed reads and the direct workspace patch failed because the managed PowerShell helper could not apply deny-read ACLs on the Chinese workspace path. Patches now use generated unified diffs applied by Git.
+- Implemented server-side owner filtering for routes and markers before `SUBMITTED`; owner/admin access does not bypass it. `SUBMITTED` removes the filter, returns all team annotations, sets `canDraw=false`, and rejects every layer/route/marker mutation.
+- Replaced click-by-click route input with Pointer Capture drag sampling, coalesced-event fallback, one-stroke history, live draft rendering, and explicit editable/private versus published/read-only UI states.
+- Updated domain tests and the database-backed E2E specification for owner/member pre-submit isolation, drag sampling, post-submit visibility, and write lock. The configured database is remote, so the mutating database E2E was not executed locally.
+- Final PASS: architecture, typecheck, next-stage tests, E2E syntax, lint (0 errors / 18 existing warnings), diff check, and production build.
+- Production Chrome smoke on isolated port 8015 with intercepted APIs PASS: 11 pointer-sampled/saved route points, 2 published review routes, 375px overflow 0, console errors 0. The test server was stopped; the existing 8001 process was untouched.
+
 ## 2026-08-13 connection-chain audit
 
 - Manual monitor checks now queue in MySQL and are consumed only by cron, eliminating Web/cron heavy-task races when Redis is unavailable.

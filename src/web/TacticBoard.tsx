@@ -18,9 +18,10 @@ import { useToast } from "@/web/components/ui/Toast";
 interface RouteItem { id: number; ownerMemberId: number; colorKey: TacticColorKey; geometry: { version: 1; points: TacticPoint[]; arrow: boolean }; revision: number; canEdit: boolean; ownerMember: { username: string } }
 interface MarkerItem { id: number; ownerMemberId: number; type: "POINT" | "TEXT"; x: number; y: number; text: string | null; revision: number; canEdit: boolean; ownerMember: { username: string } }
 interface LayerItem { id: number; name: string; description: string | null; startTime: number | null; endTime: number | null; updatedAt: string; routes: RouteItem[]; markers: MarkerItem[] }
-interface RoomData { room: { id: number; side: "red" | "blue"; layers: LayerItem[] }; access: { userId: number; canManageLayers: boolean; canDraw: boolean; ownColorKey: TacticColorKey | null } }
+interface RoomData { room: { id: number; side: "red" | "blue"; layers: LayerItem[] }; access: { userId: number; canManageLayers: boolean; canDraw: boolean; ownColorKey: TacticColorKey | null; sharedAnnotationsVisible: boolean } }
 type ToolMode = "route" | "point" | "text";
-const COLOR: Record<TacticColorKey, string> = { crimson: "var(--tactic-crimson)", azure: "var(--tactic-azure)", amber: "var(--tactic-amber)", jade: "var(--tactic-jade)", violet: "var(--tactic-violet)" };
+// colorKey remains a stable member-slot identity; the room faction supplies its visual palette.
+const COLOR: Record<TacticColorKey, string> = { crimson: "var(--tactic-member-1)", azure: "var(--tactic-member-2)", amber: "var(--tactic-member-3)", jade: "var(--tactic-member-4)", violet: "var(--tactic-member-5)" };
 const BOARD_WIDTH = 1500;
 const BOARD_HEIGHT = 870;
 const CLOCK_PRESETS = [30, 120, 600, 1200] as const;
@@ -34,6 +35,8 @@ export function TacticBoard() {
   const routePrefix = usePathname().startsWith("/m/") ? "/m" : "";
   const { id: tournamentId, matchId, side } = params;
   const svgRef = useRef<SVGSVGElement>(null);
+  const activePointerRef = useRef<number | null>(null);
+  const draftRef = useRef<TacticPoint[]>([]);
   const [data, setData] = useState<RoomData | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
   const [followClock, setFollowClock] = useState(true);
@@ -63,7 +66,7 @@ export function TacticBoard() {
   const layers = useMemo(() => data?.room.layers || [], [data?.room.layers]);
   const activeLayer = layers[activeIndex] || null;
   const visibleLayers = useMemo(() => layers.map((layer, index) => ({ layer, index })).filter(({ index }) => Math.abs(index - activeIndex) <= 1), [activeIndex, layers]);
-  const ownRoute = activeLayer?.routes.find((route) => route.canEdit);
+  const ownRoute = data?.access.canDraw ? activeLayer?.routes.find((route) => route.canEdit) : undefined;
   const timeline = useMemo(() => getTacticTimeline(clockSeconds, clearRecords), [clockSeconds, clearRecords]);
   const quickResources = useMemo(() => timeline.filter(({ id }) => ["lane", "buff", "jungle", "tyrant", "overlord", "tempest"].includes(id)), [timeline]);
   const timerStorageKey = `tactic-timers:${matchId}:${side}`;
@@ -91,19 +94,70 @@ export function TacticBoard() {
 
   useEffect(() => {
     const points = ownRoute?.geometry.points || [];
-    setDraft(points); setHistory([]); setFuture([]);
+    draftRef.current = points; setDraft(points); setHistory([]); setFuture([]);
   }, [ownRoute]);
   useEffect(() => {
     setLayerStart(activeLayer?.startTime === null || activeLayer?.startTime === undefined ? "" : formatTacticTime(activeLayer.startTime));
     setLayerEnd(activeLayer?.endTime === null || activeLayer?.endTime === undefined ? "" : formatTacticTime(activeLayer.endTime));
   }, [activeLayer?.id, activeLayer?.startTime, activeLayer?.endTime]);
 
-  function pushDraft(next: TacticPoint[]) { setHistory((items) => [...items.slice(-49), draft]); setDraft(next); setFuture([]); }
-  function undo() { const previous = history.at(-1); if (!previous) return; setFuture((items) => [draft, ...items]); setDraft(previous); setHistory((items) => items.slice(0, -1)); }
-  function redo() { const next = future[0]; if (!next) return; setHistory((items) => [...items, draft]); setDraft(next); setFuture((items) => items.slice(1)); }
-  function normalizedPoint(event: PointerEvent<SVGSVGElement>): TacticPoint {
-    const bounds = event.currentTarget.getBoundingClientRect();
-    return { x: Math.max(0, Math.min(1, (event.clientX - bounds.left) / bounds.width)), y: Math.max(0, Math.min(1, (event.clientY - bounds.top) / bounds.height)) };
+  function replaceDraft(next: TacticPoint[]) { draftRef.current = next; setDraft(next); }
+  function pushDraft(next: TacticPoint[]) { setHistory((items) => [...items.slice(-49), draftRef.current]); replaceDraft(next); setFuture([]); }
+  function undo() {
+    const previous = history.at(-1);
+    if (!previous) return;
+    setFuture((items) => [draftRef.current, ...items]);
+    replaceDraft(previous);
+    setHistory((items) => items.slice(0, -1));
+  }
+  function redo() {
+    const next = future[0];
+    if (!next) return;
+    setHistory((items) => [...items, draftRef.current]);
+    replaceDraft(next);
+    setFuture((items) => items.slice(1));
+  }
+  function normalizedPoint(clientX: number, clientY: number, board: SVGSVGElement): TacticPoint {
+    const bounds = board.getBoundingClientRect();
+    return { x: Math.max(0, Math.min(1, (clientX - bounds.left) / bounds.width)), y: Math.max(0, Math.min(1, (clientY - bounds.top) / bounds.height)) };
+  }
+  function appendPointerSamples(event: PointerEvent<SVGSVGElement>) {
+    const coalescedSamples = event.nativeEvent.getCoalescedEvents?.();
+    const nativeSamples = coalescedSamples && coalescedSamples.length > 0 ? coalescedSamples : [event.nativeEvent];
+    const next = [...draftRef.current];
+    for (const sample of nativeSamples) {
+      const point = normalizedPoint(sample.clientX, sample.clientY, event.currentTarget);
+      const previous = next.at(-1);
+      if (previous && Math.hypot(point.x - previous.x, point.y - previous.y) < 0.004) continue;
+      if (next.length < 64) next.push(point);
+      else next[next.length - 1] = point;
+    }
+    if (next.length !== draftRef.current.length || next.at(-1) !== draftRef.current.at(-1)) replaceDraft(next);
+  }
+  function boardPointerDown(event: PointerEvent<SVGSVGElement>) {
+    if (!data?.access.canDraw || !activeLayer || busy || (event.pointerType === "mouse" && event.button !== 0)) return;
+    event.preventDefault();
+    const point = normalizedPoint(event.clientX, event.clientY, event.currentTarget);
+    if (mode !== "route") {
+      void addMarkerAt(point);
+      return;
+    }
+    activePointerRef.current = event.pointerId;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setHistory((items) => [...items.slice(-49), draftRef.current]);
+    setFuture([]);
+    replaceDraft([point]);
+  }
+  function boardPointerMove(event: PointerEvent<SVGSVGElement>) {
+    if (activePointerRef.current !== event.pointerId || mode !== "route") return;
+    event.preventDefault();
+    appendPointerSamples(event);
+  }
+  function finishRoutePointer(event: PointerEvent<SVGSVGElement>) {
+    if (activePointerRef.current !== event.pointerId) return;
+    appendPointerSamples(event);
+    activePointerRef.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
   }
   async function addMarkerAt(point: TacticPoint) {
     if (!activeLayer) return;
@@ -113,11 +167,6 @@ export function TacticBoard() {
     setBusy(false);
     if (!result.ok) return error(apiMessage(result.data, "点位保存失败"));
     success("点位已保存"); await load();
-  }
-  function boardPointer(event: PointerEvent<SVGSVGElement>) {
-    if (!data?.access.canDraw || !activeLayer || busy) return;
-    const point = normalizedPoint(event);
-    if (mode === "route") pushDraft([...draft, point].slice(-64)); else void addMarkerAt(point);
   }
   async function addAccessiblePoint() {
     const point = { x: Number(coordinate.x), y: Number(coordinate.y) };
@@ -169,7 +218,8 @@ export function TacticBoard() {
 
   if (!data) return <main className="tactic-shell"><div className="feature-empty">正在验证战术室权限…</div></main>;
   return <main className={`tactic-shell tactic-shell--${side}`}>
-    <header className="tactic-header"><div><nav className="feature-breadcrumb"><Link href={`${routePrefix}/tournaments/${tournamentId}/matches/${matchId}`}>比赛档案 #{matchId}</Link><span>/</span><span>{side === "red" ? "红方" : "蓝方"}战术室</span></nav><h1>{side === "red" ? "红方" : "蓝方"}战术推演</h1><p>一个比赛时钟同时驱动时间图层、兵线、野区和远古生物。</p></div><span className="feature-status">TEAM PRIVATE</span></header>
+    <header className="tactic-header"><div><nav className="feature-breadcrumb"><Link href={`${routePrefix}/tournaments/${tournamentId}/matches/${matchId}`}>比赛档案 #{matchId}</Link><span>/</span><span>{side === "red" ? "红方" : "蓝方"}战术室</span></nav><h1>{side === "red" ? "红方" : "蓝方"}战术推演</h1><p>一个比赛时钟同时驱动时间图层、兵线、野区和远古生物。</p></div><span className="feature-status">{data.access.sharedAnnotationsVisible ? "REVIEW OPEN" : "TEAM PRIVATE"}</span></header>
+    <div className="tactic-privacy-notice" data-open={data.access.sharedAnnotationsVisible} role="status"><strong>{data.access.sharedAnnotationsVisible ? "复盘已公开" : "独立标注中"}</strong><span>{data.access.sharedAnnotationsVisible ? "房主已正式提交比赛数据，现在可以查看队友标注；战术板已锁定为只读。" : "当前只显示你的路线与点位，房主也无法查看。房主正式提交比赛数据后，全队标注才会公开。"}</span></div>
     <section className="tactic-clock-panel" aria-label="比赛时间轴">
       <div className="tactic-clock-control">
         <button className="tactic-play" aria-label={playing ? "暂停比赛时钟" : "播放比赛时钟"} onClick={() => setPlaying((value) => !value)}>{playing ? "暂停" : "播放"}</button>
@@ -183,13 +233,13 @@ export function TacticBoard() {
     <section className="tactic-stage-panel tactic-stage-panel--focused">
         <div className="tactic-stage-switcher" aria-label="战术阶段"><div className="tactic-layer-list">{layers.map((layer, index) => <button key={layer.id} aria-current={index === activeIndex} onClick={() => { setFollowClock(false); setActiveIndex(index); }}><strong>{layer.name}</strong><small>{secondsLabel(layer.startTime)}{layer.endTime === null ? "" : ` – ${secondsLabel(layer.endTime)}`}</small></button>)}</div><button className="tactic-follow" aria-pressed={followClock} onClick={() => setFollowClock((value) => !value)}>{followClock ? "跟随时间" : "手动阶段"}</button></div>
         <div className="tactic-toolbar" aria-label="绘制工具">
-          {(["route", "point", "text"] as ToolMode[]).map((tool) => <button key={tool} aria-pressed={mode === tool} onClick={() => setMode(tool)}>{tool === "route" ? "路线" : tool === "point" ? "点位" : "文字"}</button>)}
-          {mode === "text" && <input className="tactic-inline-text" aria-label="地图文字" value={markerText} maxLength={120} placeholder="输入文字后点地图" onChange={(event) => setMarkerText(event.target.value)} />}
+          {(["route", "point", "text"] as ToolMode[]).map((tool) => <button key={tool} disabled={!data.access.canDraw} aria-pressed={mode === tool} onClick={() => setMode(tool)}>{tool === "route" ? "拖动路线" : tool === "point" ? "添加点位" : "添加文字"}</button>)}
+          {mode === "text" && <input className="tactic-inline-text" aria-label="地图文字" disabled={!data.access.canDraw} value={markerText} maxLength={120} placeholder="输入文字后点地图" onChange={(event) => setMarkerText(event.target.value)} />}
           <span className="tactic-toolbar-spacer" />
-          <button disabled={history.length === 0} onClick={undo}>撤销</button><button disabled={future.length === 0} onClick={redo}>重做</button><button className="toolbar-primary" disabled={busy || draft.length < 2} onClick={saveCurrentRoute}>保存路线</button>
+          <button disabled={!data.access.canDraw || history.length === 0} onClick={undo}>撤销</button><button disabled={!data.access.canDraw || future.length === 0} onClick={redo}>重做</button><button className="toolbar-primary" disabled={!data.access.canDraw || busy || draft.length < 2} onClick={saveCurrentRoute}>保存路线</button>
         </div>
         {!activeLayer ? <div className="feature-empty">房主需要先创建一个战术图层。</div> : <div className="tactic-board-wrap">
-          <svg ref={svgRef} className="tactic-board" viewBox={`0 0 ${BOARD_WIDTH} ${BOARD_HEIGHT}`} role="img" aria-label="王者峡谷战术板，点击添加路线或点位" onPointerDown={boardPointer}>
+          <svg ref={svgRef} className="tactic-board" data-readonly={!data.access.canDraw} viewBox={`0 0 ${BOARD_WIDTH} ${BOARD_HEIGHT}`} role="img" aria-label={data.access.canDraw ? "王者峡谷战术板，按住并拖动绘制路线，点击添加点位" : "王者峡谷战术复盘，只读查看已公开标注"} onPointerDown={boardPointerDown} onPointerMove={boardPointerMove} onPointerUp={finishRoutePointer} onPointerCancel={finishRoutePointer}>
             <image href="/images/tactic-map-source.jpg" x="-350" y="-90" width="2048" height="963" />
             <rect width={BOARD_WIDTH} height={BOARD_HEIGHT} fill="rgba(2, 12, 18, .08)" pointerEvents="none" />
             <defs><marker id="tactic-arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L7,3 z" fill="context-stroke" /></marker></defs>
@@ -202,9 +252,9 @@ export function TacticBoard() {
           <div className="tactic-board-caption"><strong>{formatTacticTime(clockSeconds)} · {activeLayer.name}</strong><span>{activeLayer.description || "点击真实峡谷地图开始标记"}</span></div>
         </div>}
         <details className="tactic-advanced"><summary>图层与精确编辑</summary><div className="tactic-advanced-grid">
-          {data.access.canManageLayers && <div className="tactic-layer-manager"><h3>管理时间图层</h3><label>图层名称<input value={layerName} maxLength={64} placeholder="新图层名称" onChange={(event) => setLayerName(event.target.value)} /></label><div className="tactic-layer-time-inputs"><label>开始<input value={layerStart} placeholder="2:00" inputMode="numeric" onChange={(event) => setLayerStart(event.target.value)} /></label><label>结束<input value={layerEnd} placeholder="10:00" inputMode="numeric" onChange={(event) => setLayerEnd(event.target.value)} /></label></div><div className="tactic-advanced-actions"><button className="btn-subtle" disabled={busy || !layerName.trim()} onClick={addLayer}>新建图层</button><button className="btn-subtle" disabled={busy || !activeLayer} onClick={saveLayerRange}>保存时间</button><button className="btn-danger" disabled={!activeLayer || busy} onClick={removeLayer}>删除图层</button></div></div>}
-          <div><h3>精确坐标</h3><div className="tactic-accessible-editor"><label>X（0–1）<input type="number" min="0" max="1" step="0.01" value={coordinate.x} onChange={(event) => setCoordinate({ ...coordinate, x: event.target.value })} /></label><label>Y（0–1）<input type="number" min="0" max="1" step="0.01" value={coordinate.y} onChange={(event) => setCoordinate({ ...coordinate, y: event.target.value })} /></label><button className="btn-subtle" disabled={!data.access.canDraw || !activeLayer || busy} onClick={addAccessiblePoint}>按坐标添加</button></div><button className="text-action" disabled={!ownRoute} onClick={removeOwnRoute}>删除本人路线</button></div>
-        </div>{activeLayer && <div className="tactic-owned-items"><p>本人点位</p>{activeLayer.markers.filter((marker) => marker.canEdit).map((marker) => <button className="text-action" key={marker.id} onClick={() => removeMarker(marker)}>删除 {marker.type === "TEXT" ? marker.text : `(${marker.x.toFixed(2)}, ${marker.y.toFixed(2)})`}</button>)}</div>}</details>
+          {data.access.canManageLayers && !data.access.sharedAnnotationsVisible && <div className="tactic-layer-manager"><h3>管理时间图层</h3><label>图层名称<input value={layerName} maxLength={64} placeholder="新图层名称" onChange={(event) => setLayerName(event.target.value)} /></label><div className="tactic-layer-time-inputs"><label>开始<input value={layerStart} placeholder="2:00" inputMode="numeric" onChange={(event) => setLayerStart(event.target.value)} /></label><label>结束<input value={layerEnd} placeholder="10:00" inputMode="numeric" onChange={(event) => setLayerEnd(event.target.value)} /></label></div><div className="tactic-advanced-actions"><button className="btn-subtle" disabled={busy || !layerName.trim()} onClick={addLayer}>新建图层</button><button className="btn-subtle" disabled={busy || !activeLayer} onClick={saveLayerRange}>保存时间</button><button className="btn-danger" disabled={!activeLayer || busy} onClick={removeLayer}>删除图层</button></div></div>}
+          <div><h3>精确坐标</h3><div className="tactic-accessible-editor"><label>X（0–1）<input disabled={!data.access.canDraw} type="number" min="0" max="1" step="0.01" value={coordinate.x} onChange={(event) => setCoordinate({ ...coordinate, x: event.target.value })} /></label><label>Y（0–1）<input disabled={!data.access.canDraw} type="number" min="0" max="1" step="0.01" value={coordinate.y} onChange={(event) => setCoordinate({ ...coordinate, y: event.target.value })} /></label><button className="btn-subtle" disabled={!data.access.canDraw || !activeLayer || busy} onClick={addAccessiblePoint}>按坐标添加</button></div><button className="text-action" disabled={!data.access.canDraw || !ownRoute} onClick={removeOwnRoute}>删除本人路线</button></div>
+        </div>{activeLayer && <div className="tactic-owned-items"><p>本人点位</p>{activeLayer.markers.filter((marker) => marker.canEdit).map((marker) => <button className="text-action" key={marker.id} disabled={!data.access.canDraw} onClick={() => removeMarker(marker)}>删除 {marker.type === "TEXT" ? marker.text : `(${marker.x.toFixed(2)}, ${marker.y.toFixed(2)})`}</button>)}</div>}</details>
     </section>
   </main>;
 }

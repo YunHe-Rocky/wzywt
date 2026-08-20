@@ -41,6 +41,23 @@ Goal: implement the first release described by `docs/王者演武堂_下一阶�
 - [completed] Phase U: replace the rejected generated map with a deterministic real-map crop, add one match clock for layer visibility, minion waves, objectives, buffs, and jungle camps, then complete browser acceptance
 - [completed] Phase V-UX: simplify tactic-board interaction into clock, stage, draw; collapse resource details, layer administration, coordinates, and destructive actions; verify desktop and mobile usability
 - [completed] Phase V: audit and repair the complete connection chain (browser/client, Next.js API, Session, Prisma/MySQL, Redis, OCR/media integrations, cron, health/deploy), add deterministic failure/recovery tests, and rerun production-grade validation
+- [completed] Phase W: repair tactic-board pointer responsiveness and interaction flow; enforce private participant annotations until the owner completes match-data submission, then unlock read-only team viewing
+- [completed] Phase X: replace cross-spectrum member colors with cohesive red-side and blue-side palettes while preserving per-member distinction
+
+## Phase X acceptance criteria
+
+- All five red-side member colors stay within a coherent red/coral family; all five blue-side member colors stay within a coherent blue/sky family.
+- Existing persisted `colorKey` values remain compatible and resolve through semantic CSS tokens scoped by faction.
+- Saved routes, markers, and current drafts use the same faction palette and remain individually distinguishable.
+- Typecheck, lint/build, and browser-computed color checks pass for both factions.
+
+## Phase W acceptance criteria
+
+- Pointer/pen/touch route drawing follows the current input position without stale state, duplicated gestures, or accidental map scrolling.
+- The default marking flow is task-oriented and usable on desktop and mobile, with clear selected, pressed, disabled, and privacy states.
+- Before completion, every authenticated member can read and mutate only their own annotations; owner status does not bypass this isolation.
+- The server-authoritative `SUBMITTED` match transition unlocks team annotation viewing and freezes tactic mutations.
+- Authorization is enforced in the feature service and filtered API response; regression coverage includes pre/post-completion access rules.
 
 ## Phase V acceptance criteria
 
@@ -55,6 +72,13 @@ Goal: implement the first release described by `docs/王者演武堂_下一阶�
 
 | Error | Attempt | Resolution |
 |---|---:|---|
+| Generated Phase X unified patch had an invalid first hunk line count | 1 | Switched to bounded unique-match replacements after the direct workspace apply_patch ACL failure |
+| First PowerShell here-string replacement used content on the header line | 1 | Reissued the same guarded replacements with valid multiline here-string syntax |
+| Palette regression regex was double-escaped inside String.raw and matched no CSS block | 1 | Reduced escapes to regex syntax, reran the test, and confirmed both five-color arrays |
+| Screenshot inspection tool hit the same managed deny-read ACL helper error | 1 | Used Playwright computed styles, exact route/marker assertions, screenshots, and zero-console-error evidence || Managed sandbox/apply_patch could not apply deny-read ACLs on the Chinese workspace path | 1 | Generated unified diffs in the writable ASCII visualization root, validated with `git apply --check`, then used bounded unique-match replacement only for CRLF hunks Git refused |
+| `git apply` rejected several byte-identical long JSX/import hunks under CRLF conversion | 1 | Applied clean hunks first, then replaced only exact unique old strings and removed generated `.rej` files |
+| `with_server.py` lost browser output and orphaned the task-owned 8015 process tree | 1 | Verified command lines and PIDs, stopped only the 8015 tree, then used a controllable PTY server and explicit Ctrl+C cleanup |
+| First browser drag assertion used coordinates on a partially off-screen SVG and observed the unchanged two-point route | 1 | Scrolled the board into view, counted native pointerdown/move/up events, and reran: 11 draft/saved points, zero console errors |
 | 初次组合读取输出被截断且 Markdown 显示乱码 | 1 | 改为 UTF-8 分段读取 |
 | PowerShell `Get-ChildItem -Filter` 传入数组失败 | 1 | 改用显式文件列表循环 |
 | `.planning` ACL 拒绝新建隔离计划目录 | 1 | 使用 skill 兼容的仓库根目录 planning 文件 |

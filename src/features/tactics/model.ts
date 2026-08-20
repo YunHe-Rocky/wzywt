@@ -32,3 +32,12 @@ export function tacticColorForSlot(slot: number): TacticColorKey {
   if (!Number.isInteger(slot) || slot < 1 || slot > TACTIC_COLOR_KEYS.length) throw new Error("INVALID_TACTIC_SLOT");
   return TACTIC_COLOR_KEYS[slot - 1];
 }
+
+export function canViewSharedTacticAnnotations(matchStatus: string): boolean {
+  return matchStatus === "SUBMITTED";
+}
+
+export function visibleTacticAnnotationOwnerId(sharedAnnotationsVisible: boolean, viewerUserId: number): number | undefined {
+  if (!Number.isSafeInteger(viewerUserId) || viewerUserId <= 0) throw new Error("INVALID_TACTIC_VIEWER");
+  return sharedAnnotationsVisible ? undefined : viewerUserId;
+}

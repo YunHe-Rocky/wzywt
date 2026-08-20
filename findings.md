@@ -1,5 +1,11 @@
 # Findings
 
+## 2026-08-15 faction-cohesive tactic colors
+
+- Root cause: persisted tactic colorKey values identify five member slots, but the UI interpreted those keys as five unrelated global hues (red, blue, amber, green, violet).
+- Compatibility-preserving fix: keep every persisted key unchanged and map it to --tactic-member-1..5; scope the actual tokens under .tactic-shell--red and .tactic-shell--blue.
+- The red palette stays within red/coral variants and the blue palette within blue/sky variants; lightness and saturation retain five-member separation without implying different factions.
+- Production Chrome computed-style acceptance covered five saved routes and five markers for each faction: all expected colors resolved, all five colors per faction were unique, and console errors were zero.
 ## 2026-08-13 connection-chain audit
 
 - Audit scope: browser/client fetch lifecycle, Next.js route adapters and auth, Prisma/MySQL lifecycle, Redis client/locks/cache invalidation, OCR outbound HTTP, media storage/streaming, cron/worker scheduling, and deploy health/rollback.

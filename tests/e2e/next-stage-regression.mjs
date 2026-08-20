@@ -138,8 +138,49 @@ try {
     await tx.matchRecognition.create({ data: { matchId, status: "COMPLETED", engine: "e2e-fixture", startedById: users[0].id, normalizedResult: { version: 1, consistencyStatus: "PASS", players: [] }, warnings: [], startedAt: new Date(), finishedAt: new Date() } });
     await tx.matchScreenshot.updateMany({ where: { matchId }, data: { recognitionStatus: "COMPLETED" } });
     await tx.internalMatch.update({ where: { id: matchId }, data: { status: "WAITING_CONFIRMATION", consistencyStatus: "PASS", consistencyDetails: { source: "e2e-fixture-after-fail-closed-check" } } });
+    const redRoom = await tx.tacticRoom.findUniqueOrThrow({ where: { matchId_side: { matchId, side: "red" } } });
+    const tacticLayer = await tx.tacticLayer.create({ data: { roomId: redRoom.id, name: "开局协同", sortOrder: 0, startTime: 0, endTime: 240, createdById: users[0].id } });
+    await tx.tacticRoute.createMany({ data: [
+      { layerId: tacticLayer.id, ownerMemberId: users[0].id, colorKey: "crimson", geometry: { version: 1, arrow: true, points: [{ x: 0.15, y: 0.8 }, { x: 0.42, y: 0.55 }] } },
+      { layerId: tacticLayer.id, ownerMemberId: users[1].id, colorKey: "azure", geometry: { version: 1, arrow: true, points: [{ x: 0.2, y: 0.75 }, { x: 0.48, y: 0.5 }] } },
+    ] });
   });
   await page.reload({ waitUntil: "domcontentloaded", timeout: 60_000 });
+  await waitReady(page);
+  await page.getByText("PASS", { exact: true }).waitFor();
+  const tacticUrl = `${baseUrl}/api/tournaments/${tournament.id}/matches/${matchId}/tactics/red`;
+  const ownerPrivateResponse = await context.request.get(tacticUrl);
+  const ownerPrivateRoom = await ownerPrivateResponse.json();
+  assert.equal(ownerPrivateResponse.status(), 200);
+  assert.equal(ownerPrivateRoom.access.sharedAnnotationsVisible, false);
+  assert.equal(ownerPrivateRoom.room.layers[0].routes.length, 1, "房主提交赛果前也只能读取本人标注");
+  assert.equal(ownerPrivateRoom.room.layers[0].routes[0].ownerMemberId, users[0].id);
+  const privacyContext = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: "zh-CN" });
+  const privacyPage = await privacyContext.newPage();
+  await login(privacyPage, users[1].username);
+  const memberPrivateResponse = await privacyContext.request.get(tacticUrl);
+  const memberPrivateRoom = await memberPrivateResponse.json();
+  assert.equal(memberPrivateResponse.status(), 200);
+  assert.equal(memberPrivateRoom.access.sharedAnnotationsVisible, false);
+  assert.equal(memberPrivateRoom.room.layers[0].routes.length, 1, "普通队员提交赛果前只能读取本人标注");
+  assert.equal(memberPrivateRoom.room.layers[0].routes[0].ownerMemberId, users[1].id);
+  await page.goto(`${baseUrl}/tournaments/${tournament.id}/matches/${matchId}/tactics/red`, { waitUntil: "domcontentloaded", timeout: 60_000 });
+  await waitReady(page);
+  await page.getByText("独立标注中", { exact: true }).waitFor();
+  const editableBoard = page.locator("svg.tactic-board");
+  const editableBox = await editableBoard.boundingBox();
+  assert.ok(editableBox);
+  await page.mouse.move(editableBox.x + editableBox.width * 0.18, editableBox.y + editableBox.height * 0.78);
+  await page.mouse.down();
+  for (let step = 1; step <= 8; step += 1) {
+    await page.mouse.move(editableBox.x + editableBox.width * (0.18 + step * 0.035), editableBox.y + editableBox.height * (0.78 - step * 0.03));
+  }
+  await page.mouse.up();
+  assert.ok(await editableBoard.locator("circle").count() >= 2, "一次拖动应连续生成多个路线采样点");
+  const routeResponse = page.waitForResponse((response) => response.url().endsWith("/route") && response.request().method() === "PUT");
+  await page.getByRole("button", { name: "保存路线" }).click();
+  assert.equal((await routeResponse).status(), 200);
+  await page.goto(`${baseUrl}/tournaments/${tournament.id}/matches/${matchId}`, { waitUntil: "domcontentloaded", timeout: 60_000 });
   await waitReady(page);
   await page.getByText("PASS", { exact: true }).waitFor();
   const confirmResponse = page.waitForResponse((response) => response.url().endsWith("/confirmation") && response.request().method() === "PUT");
@@ -154,27 +195,20 @@ try {
 
   const screenshotResponse = await context.request.get(`${baseUrl}/api/tournaments/${tournament.id}/matches/${matchId}/screenshots/DATA`);
   assert.equal(screenshotResponse.status(), 200);
+  const memberReviewResponse = await privacyContext.request.get(tacticUrl);
+  const memberReviewRoom = await memberReviewResponse.json();
+  assert.equal(memberReviewResponse.status(), 200);
+  assert.equal(memberReviewRoom.access.sharedAnnotationsVisible, true);
+  assert.equal(memberReviewRoom.access.canDraw, false);
+  assert.equal(memberReviewRoom.room.layers[0].routes.length, 2, "正式提交赛果后队员才可读取队友标注");
+  await privacyContext.close();
   await page.getByRole("link", { name: "进入红方战术室" }).click();
   await waitReady(page);
+  await page.getByText("复盘已公开", { exact: true }).waitFor();
   await page.getByRole("slider", { name: "比赛时间" }).fill("120");
   await page.locator(".tactic-resource-strip").getByText("第 5 波 2:22", { exact: true }).waitFor();
-  await page.getByText("图层与精确编辑", { exact: true }).click();
-  await page.getByPlaceholder("新图层名称").fill("开局反野");
-  await page.getByLabel("开始").fill("2:00");
-  await page.getByLabel("结束").fill("4:00");
-  const layerResponse = page.waitForResponse((response) => response.url().endsWith(`/tactics/red`) && response.request().method() === "POST");
-  await page.getByRole("button", { name: "新建图层" }).click();
-  assert.equal((await layerResponse).status(), 201);
-  await page.getByText("2:00 – 4:00", { exact: true }).waitFor();
-  const board = page.locator("svg.tactic-board");
-  await board.waitFor();
-  const box = await board.boundingBox();
-  assert.ok(box);
-  await page.mouse.click(box.x + box.width * 0.2, box.y + box.height * 0.8);
-  await page.mouse.click(box.x + box.width * 0.45, box.y + box.height * 0.55);
-  const routeResponse = page.waitForResponse((response) => response.url().endsWith("/route") && response.request().method() === "PUT");
-  await page.getByRole("button", { name: "保存路线" }).click();
-  assert.equal((await routeResponse).status(), 200);
+  assert.equal(await page.getByRole("button", { name: "拖动路线" }).isDisabled(), true);
+  assert.equal(await page.getByRole("button", { name: "保存路线" }).isDisabled(), true);
   await page.screenshot({ path: path.join(artifactDir, "tactic-desktop.png"), fullPage: true });
   await expectNoHorizontalOverflow(page, "desktop tactic");
 

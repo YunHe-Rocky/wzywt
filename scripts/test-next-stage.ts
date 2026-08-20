@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { File } from "node:buffer";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parseByteRange } from "@/features/combat-posts/model";
@@ -10,7 +10,7 @@ import {
   normalizeRecognitionPayload,
   STAT_FIELDS_BY_SCREENSHOT,
 } from "@/features/matches/model";
-import { parseTacticGeometry, tacticColorForSlot } from "@/features/tactics/model";
+import { canViewSharedTacticAnnotations, parseTacticGeometry, tacticColorForSlot, visibleTacticAnnotationOwnerId } from "@/features/tactics/model";
 import { formatTacticTime, getTacticTimeline, parseTacticTime } from "@/features/tactics/timeline";
 import { validateCombatVideo, validateScreenshotFile } from "@/lib/media-validation";
 import { LocalMediaStorage } from "@/lib/storage/local";
@@ -59,7 +59,23 @@ async function main() {
   assert.equal(parseTacticGeometry({ version: 1, arrow: true, points: [{ x: 0, y: 0 }, { x: 1, y: 1 }] })?.points.length, 2);
   assert.equal(parseTacticGeometry({ version: 1, arrow: true, points: [{ x: -0.1, y: 0 }, { x: 1, y: 1 }] }), null);
   assert.deepEqual(Array.from({ length: 5 }, (_, index) => tacticColorForSlot(index + 1)), ["crimson", "azure", "amber", "jade", "violet"]);
+  const tacticCss = await readFile(new URL("../src/app/globals.css", import.meta.url), "utf8");
+  const factionPalettes = {
+    red: ["#ff4d5f", "#f76f7c", "#dc3548", "#ff8878", "#c62845"],
+    blue: ["#3b82f6", "#60a5fa", "#2563eb", "#38bdf8", "#1d4ed8"],
+  };
+  for (const [side, expected] of Object.entries(factionPalettes)) {
+    const block = tacticCss.match(new RegExp(String.raw`\.tactic-shell--${side}\s*\{[^}]+\}`, "i"))?.[0] || "";
+    const colors = [...block.matchAll(/--tactic-member-\d:\s*(#[0-9a-f]{6})/gi)].map((match) => match[1].toLowerCase());
+    assert.deepEqual(colors, expected, `${side} 方必须使用同阵营五人语义色板`);
+  }
   assert.throws(() => tacticColorForSlot(6), /INVALID_TACTIC_SLOT/);
+  assert.equal(canViewSharedTacticAnnotations("DRAFT"), false);
+  assert.equal(canViewSharedTacticAnnotations("UPLOADED"), false, "仅上传截图不得提前公开战术标注");
+  assert.equal(canViewSharedTacticAnnotations("CONFIRMED"), false);
+  assert.equal(canViewSharedTacticAnnotations("SUBMITTED"), true);
+  assert.equal(visibleTacticAnnotationOwnerId(false, 42), 42, "赛果提交前只查询本人标注");
+  assert.equal(visibleTacticAnnotationOwnerId(true, 42), undefined, "正式提交后取消 owner filter 并公开队内标注");
   assert.equal(parseTacticTime("2:00"), 120);
   assert.equal(parseTacticTime("2:60"), null);
   assert.equal(formatTacticTime(120), "2:00");

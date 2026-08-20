@@ -1,6 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { isMatchSide, type MatchSide } from "@/features/matches/model";
-import { parseTacticGeometry, tacticColorForSlot } from "@/features/tactics/model";
+import { canViewSharedTacticAnnotations, parseTacticGeometry, tacticColorForSlot, visibleTacticAnnotationOwnerId } from "@/features/tactics/model";
 import { requireAuth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { PermissionError } from "@/lib/permissions";
@@ -42,6 +42,7 @@ async function getTacticAccess(tournamentId: number, matchId: number, requestedS
   const match = await prisma.internalMatch.findFirst({
     where: { id: matchId, tournamentId },
     select: {
+      status: true,
       players: { select: { memberId: true, side: true, slot: true } },
       tournament: { select: { admins: { where: { userId: user.userId }, select: { role: true } } } },
     },
@@ -50,25 +51,28 @@ async function getTacticAccess(tournamentId: number, matchId: number, requestedS
   const ownSlot = match.players.find(({ memberId }) => memberId === user.userId);
   if (user.role !== "admin" && ownSlot?.side !== requestedSide) throw new PermissionError();
   const owner = user.role === "admin" || match.tournament.admins.some(({ role }) => role === "owner");
-  return { user, side: requestedSide, ownSlot, canManageLayers: owner };
+  const sharedAnnotationsVisible = canViewSharedTacticAnnotations(match.status);
+  return { user, side: requestedSide, ownSlot, canManageLayers: owner, canDraw: Boolean(ownSlot) && !sharedAnnotationsVisible, sharedAnnotationsVisible };
 }
 
 async function requireLayerManager(tournamentId: number, matchId: number, side: MatchSide) {
   const access = await getTacticAccess(tournamentId, matchId, side);
   if (!access.canManageLayers) throw new PermissionError();
+  if (access.sharedAnnotationsVisible) throw new ServiceError("CONFLICT", "比赛数据已提交，战术板已锁定为只读复盘");
   return access;
 }
 
 export async function getTacticRoom(tournamentId: number, matchId: number, side: MatchSide) {
   const access = await getTacticAccess(tournamentId, matchId, side);
+  const visibleOwnerMemberId = visibleTacticAnnotationOwnerId(access.sharedAnnotationsVisible, access.user.userId);
   const room = await prisma.tacticRoom.findUnique({
     where: { matchId_side: { matchId, side } },
     include: {
       layers: {
         orderBy: { sortOrder: "asc" },
         include: {
-          routes: { orderBy: { ownerMemberId: "asc" }, include: { ownerMember: { select: { id: true, username: true } } } },
-          markers: { orderBy: { id: "asc" }, include: { ownerMember: { select: { id: true, username: true } } } },
+          routes: { where: visibleOwnerMemberId === undefined ? undefined : { ownerMemberId: visibleOwnerMemberId }, orderBy: { ownerMemberId: "asc" }, include: { ownerMember: { select: { id: true, username: true } } } },
+          markers: { where: visibleOwnerMemberId === undefined ? undefined : { ownerMemberId: visibleOwnerMemberId }, orderBy: { id: "asc" }, include: { ownerMember: { select: { id: true, username: true } } } },
         },
       },
     },
@@ -81,15 +85,16 @@ export async function getTacticRoom(tournamentId: number, matchId: number, side:
       side: room.side,
       layers: room.layers.map((layer) => ({
         ...layer,
-        routes: layer.routes.map((route) => ({ ...route, canEdit: route.ownerMemberId === access.user.userId })),
-        markers: layer.markers.map((marker) => ({ ...marker, x: Number(marker.x), y: Number(marker.y), canEdit: marker.ownerMemberId === access.user.userId })),
+        routes: layer.routes.map((route) => ({ ...route, canEdit: access.canDraw && route.ownerMemberId === access.user.userId })),
+        markers: layer.markers.map((marker) => ({ ...marker, x: Number(marker.x), y: Number(marker.y), canEdit: access.canDraw && marker.ownerMemberId === access.user.userId })),
       })),
     },
     access: {
       userId: access.user.userId,
       canManageLayers: access.canManageLayers,
-      canDraw: Boolean(access.ownSlot),
+      canDraw: access.canDraw,
       ownColorKey: access.ownSlot ? tacticColorForSlot(access.ownSlot.slot) : null,
+      sharedAnnotationsVisible: access.sharedAnnotationsVisible,
     },
   };
 }
@@ -142,6 +147,7 @@ async function requireOwnLayer(tournamentId: number, matchId: number, side: Matc
   const access = await getTacticAccess(tournamentId, matchId, side);
   const ownSlot = access.ownSlot;
   if (!ownSlot) throw new PermissionError();
+  if (!access.canDraw) throw new ServiceError("CONFLICT", "比赛数据已提交，战术板已锁定为只读复盘");
   const layer = await prisma.tacticLayer.findFirst({ where: { id: layerId, room: { matchId, side } }, select: { id: true } });
   if (!layer) throw new ServiceError("NOT_FOUND", "战术图层不存在");
   return { ...access, ownSlot, layer };
@@ -175,6 +181,7 @@ export async function saveOwnTacticRoute(tournamentId: number, matchId: number, 
 export async function deleteOwnTacticRoute(tournamentId: number, matchId: number, side: MatchSide, routeId: number, expectedRevision: unknown) {
   const access = await getTacticAccess(tournamentId, matchId, side);
   if (!access.ownSlot) throw new PermissionError();
+  if (!access.canDraw) throw new ServiceError("CONFLICT", "比赛数据已提交，战术板已锁定为只读复盘");
   const revision = parseId(expectedRevision, "路线版本");
   const deleted = await prisma.tacticRoute.deleteMany({
     where: { id: routeId, ownerMemberId: access.user.userId, revision, layer: { room: { matchId, side } } },
@@ -200,7 +207,9 @@ export async function createOwnTacticMarker(tournamentId: number, matchId: numbe
 
 export async function updateOwnTacticMarker(tournamentId: number, matchId: number, side: MatchSide, markerId: number, input: unknown) {
   const access = await getTacticAccess(tournamentId, matchId, side);
-  if (!access.ownSlot || !isRecord(input)) throw new PermissionError();
+  if (!access.ownSlot) throw new PermissionError();
+  if (!access.canDraw) throw new ServiceError("CONFLICT", "比赛数据已提交，战术板已锁定为只读复盘");
+  if (!isRecord(input)) throw new ServiceError("VALIDATION_ERROR", "点位数据格式错误");
   if (!["POINT", "TEXT"].includes(String(input.type))) throw new ServiceError("VALIDATION_ERROR", "点位类型无效");
   const revision = parseId(input.expectedRevision, "点位版本");
   const type = String(input.type);
@@ -221,6 +230,7 @@ export async function updateOwnTacticMarker(tournamentId: number, matchId: numbe
 export async function deleteOwnTacticMarker(tournamentId: number, matchId: number, side: MatchSide, markerId: number, expectedRevision: unknown) {
   const access = await getTacticAccess(tournamentId, matchId, side);
   if (!access.ownSlot) throw new PermissionError();
+  if (!access.canDraw) throw new ServiceError("CONFLICT", "比赛数据已提交，战术板已锁定为只读复盘");
   const deleted = await prisma.tacticMarker.deleteMany({
     where: { id: markerId, ownerMemberId: access.user.userId, revision: parseId(expectedRevision, "点位版本"), layer: { room: { matchId, side } } },
   });
