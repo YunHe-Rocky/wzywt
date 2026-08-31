@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, useCallback, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, useCallback, type ReactNode } from "react";
 import { FeaturePortal } from "@/web/components/ui/FeaturePortal";
 
 type ToastType = "success" | "error" | "loading";
@@ -25,18 +25,32 @@ let nextId = 0;
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const timersRef = useRef<Set<number>>(new Set());
+
+  const schedule = useCallback((callback: () => void, delay: number) => {
+    const timer = window.setTimeout(() => {
+      timersRef.current.delete(timer);
+      callback();
+    }, delay);
+    timersRef.current.add(timer);
+  }, []);
+
+  const dismissToast = useCallback((id: number) => {
+    setToasts((prev) => prev.map((toast) => toast.id === id ? { ...toast, exiting: true } : toast));
+    schedule(() => setToasts((prev) => prev.filter((toast) => toast.id !== id)), 200);
+  }, [schedule]);
+
+  useEffect(() => () => {
+    timersRef.current.forEach((timer) => window.clearTimeout(timer));
+    timersRef.current.clear();
+  }, []);
 
   const addToast = useCallback((message: string, type: ToastType = "success") => {
     const id = nextId++;
     setToasts((prev) => [...prev, { id, type, message, exiting: false }]);
     const duration = type === "error" ? 5000 : type === "loading" ? 8000 : 2500;
-    setTimeout(() => {
-      setToasts((prev) => prev.map((t) => (t.id === id ? { ...t, exiting: true } : t)));
-      setTimeout(() => {
-        setToasts((prev) => prev.filter((t) => t.id !== id));
-      }, 200);
-    }, duration);
-  }, []);
+    schedule(() => dismissToast(id), duration);
+  }, [dismissToast, schedule]);
 
   const ctx: ToastContextValue = {
     toast: addToast,
@@ -106,7 +120,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               <span aria-hidden="true" style={{ fontSize: 18, color: typeIconColors[t.type] }}>
                 {icons[t.type]}
               </span>
-              <span style={{ color: "var(--text-primary)" }}>{t.message}</span>
+              <span style={{ color: "var(--text)", flex: 1 }}>{t.message}</span>
+              <button className="toast-dismiss" type="button" aria-label="关闭提示" onClick={() => dismissToast(t.id)}>×</button>
             </div>
           ))}
         </div>

@@ -102,6 +102,7 @@ export function HeroDetailView() {
   })();
   const selectedSkin = displaySkins.find((skin) => skin.index === selectedIndex)
     ?? { name: displayHero?.name ?? "", index: selectedIndex };
+  const displayHeroId = (displayHero as Hero | null)?.heroId;
   const imageCandidates = displayHero
     ? getSkinCandidates(displayHero as Hero, selectedSkin)
     : [];
@@ -121,7 +122,7 @@ export function HeroDetailView() {
     setImageCandidateIndex(0);
     setImgFailed(false);
     localStorage.setItem(displayStorageKey, String(selectedIndex));
-  }, [selectedIndex, displayStorageKey, (displayHero as Hero | null)?.heroId]);
+  }, [selectedIndex, displayStorageKey, displayHeroId]);
 
   // 切换命格形态时重置皮肤
   useEffect(() => {

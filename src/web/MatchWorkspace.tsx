@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams, usePathname } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { type KeyboardEvent, useCallback, useEffect, useMemo, useState } from "react";
 import {
   confirmMatch,
   correctMatch,
@@ -14,6 +14,7 @@ import {
 } from "@/features/matches/client/api";
 import { MATCH_ROLE_TYPES, MATCH_SCREENSHOT_TYPES, STAT_FIELDS_BY_SCREENSHOT, type MatchScreenshotType, type MatchStatField } from "@/features/matches/model";
 import { useToast } from "@/web/components/ui/Toast";
+import { ConfirmDialog } from "@/web/components/ui/ConfirmDialog";
 
 const SCREEN_LABELS: Record<MatchScreenshotType, string> = {
   DATA: "数据", OUTPUT: "输出", SURVIVAL: "生存", DEVELOPMENT: "发育", KDA: "KDA", TEAM: "团队",
@@ -25,6 +26,18 @@ const STAT_LABELS: Record<MatchStatField, string> = {
   kills: "击败", deaths: "死亡", assists: "助攻", controlScore: "控制效果", healing: "治疗量", towerDamage: "对塔伤害",
 };
 const ALL_STATS = Object.keys(STAT_LABELS) as MatchStatField[];
+const MATCH_STATUS_LABELS: Record<string, string> = {
+  DRAFT: "待上传数据",
+  WAITING_CONFIRMATION: "等待人工确认",
+  CONFIRMED: "已确认，待正式提交",
+  SUBMITTED: "已正式提交",
+};
+const CONSISTENCY_LABELS: Record<string, string> = { PASS: "一致性通过", WARNING: "存在待核查项", FAIL: "一致性未通过" };
+const RECOGNITION_LABELS: Record<string, string> = { PENDING: "等待识别", RUNNING: "识别中", COMPLETED: "识别完成", FAILED: "识别失败" };
+
+function localizedStatus(labels: Record<string, string>, value: string | null | undefined, fallback: string) {
+  return value ? labels[value] || value : fallback;
+}
 
 interface EditablePlayer {
   id: number; side: "red" | "blue"; slot: number; memberId: number | null; isGuest: boolean;
@@ -65,20 +78,25 @@ export function MatchWorkspace() {
   const [disputeMessage, setDisputeMessage] = useState("");
   const [disputePlayerId, setDisputePlayerId] = useState("");
   const [correction, setCorrection] = useState({ playerId: "", field: "score", value: "", reason: "" });
+  const [submitConfirmationOpen, setSubmitConfirmationOpen] = useState(false);
   const { success, error } = useToast();
 
   const load = useCallback(async () => {
-    const result = await getMatch<DetailData>(tournamentId, matchId);
-    if (!result.ok) return error(apiMessage(result.data, "比赛档案加载失败"));
-    setDetail(result.data);
-    setWinnerSide(result.data.match.winnerSide || "red");
-    setPlayers(result.data.match.players.map((player) => ({
-      ...player,
-      heroName: player.heroName || "",
-      score: player.score ?? 0,
-      statsUpdatedAt: player.stats?.updatedAt || null,
-      stats: { ...emptyStats(), ...(player.stats || {}) },
-    })));
+    try {
+      const result = await getMatch<DetailData>(tournamentId, matchId);
+      if (!result.ok) return error(apiMessage(result.data, "比赛档案加载失败，请确认登录状态后重试"));
+      setDetail(result.data);
+      setWinnerSide(result.data.match.winnerSide || "red");
+      setPlayers(result.data.match.players.map((player) => ({
+        ...player,
+        heroName: player.heroName || "",
+        score: player.score ?? 0,
+        statsUpdatedAt: player.stats?.updatedAt || null,
+        stats: { ...emptyStats(), ...(player.stats || {}) },
+      })));
+    } catch (cause) {
+      error(cause instanceof Error ? cause.message : "比赛档案加载失败，请检查网络后重试");
+    }
   }, [error, matchId, tournamentId]);
 
   useEffect(() => { void load(); }, [load]);
@@ -92,13 +110,32 @@ export function MatchWorkspace() {
     setPlayers((current) => current.map((player) => player.id === id ? { ...player, stats: { ...player.stats, [field]: value } } : player));
   }
 
+  function moveDataTab(event: KeyboardEvent<HTMLButtonElement>, type: MatchScreenshotType) {
+    const currentIndex = MATCH_SCREENSHOT_TYPES.indexOf(type);
+    let nextIndex = currentIndex;
+    if (event.key === "ArrowRight" || event.key === "ArrowDown") nextIndex = (currentIndex + 1) % MATCH_SCREENSHOT_TYPES.length;
+    else if (event.key === "ArrowLeft" || event.key === "ArrowUp") nextIndex = (currentIndex - 1 + MATCH_SCREENSHOT_TYPES.length) % MATCH_SCREENSHOT_TYPES.length;
+    else if (event.key === "Home") nextIndex = 0;
+    else if (event.key === "End") nextIndex = MATCH_SCREENSHOT_TYPES.length - 1;
+    else return;
+    event.preventDefault();
+    const nextType = MATCH_SCREENSHOT_TYPES[nextIndex];
+    setActiveType(nextType);
+    window.requestAnimationFrame(() => document.getElementById(`match-data-tab-${nextType}`)?.focus());
+  }
+
   async function upload(type: MatchScreenshotType, file: File) {
     setBusy(`upload-${type}`);
-    const result = await uploadScreenshot(tournamentId, matchId, type, file);
-    setBusy(null);
-    if (!result.ok) return error(apiMessage(result.data, `${SCREEN_LABELS[type]}截图上传失败`));
-    success(`${SCREEN_LABELS[type]}截图已保存`);
-    await load();
+    try {
+      const result = await uploadScreenshot(tournamentId, matchId, type, file);
+      if (!result.ok) return error(apiMessage(result.data, `${SCREEN_LABELS[type]}截图上传失败，请重试`));
+      success(`${SCREEN_LABELS[type]}截图已保存`);
+      await load();
+    } catch (cause) {
+      error(cause instanceof Error ? cause.message : `${SCREEN_LABELS[type]}截图上传失败，请检查网络后重试`);
+    } finally {
+      setBusy(null);
+    }
   }
 
   function mergeRecognition(payload: unknown) {
@@ -121,49 +158,70 @@ export function MatchWorkspace() {
 
   async function recognize() {
     setBusy("recognize");
-    const result = await startRecognition<{ normalizedResult?: unknown }>(tournamentId, matchId);
-    setBusy(null);
-    if (!result.ok) return error(apiMessage(result.data, "OCR 识别失败"));
-    mergeRecognition(result.data.normalizedResult);
-    success("识别完成，请逐项人工复核；身份推荐未自动绑定");
-    await load();
-    mergeRecognition(result.data.normalizedResult);
+    try {
+      const result = await startRecognition<{ normalizedResult?: unknown }>(tournamentId, matchId);
+      if (!result.ok) return error(apiMessage(result.data, "OCR 识别失败，请稍后重试"));
+      mergeRecognition(result.data.normalizedResult);
+      success("识别完成，请逐项人工复核；身份推荐未自动绑定");
+      await load();
+      mergeRecognition(result.data.normalizedResult);
+    } catch (cause) {
+      error(cause instanceof Error ? cause.message : "OCR 识别失败，请检查网络后重试");
+    } finally {
+      setBusy(null);
+    }
   }
 
   async function confirm() {
     if (!detail) return;
     setBusy("confirm");
-    const result = await confirmMatch(tournamentId, matchId, {
-      expectedMatchUpdatedAt: detail.match.updatedAt,
-      players: players.map((player) => ({
-        id: player.id, memberId: player.memberId, isGuest: player.isGuest, gameNickname: player.gameNickname.trim(),
-        heroId: player.heroId, heroName: player.heroName.trim() || null, roleType: player.roleType, score: Number(player.score),
-        stats: Object.fromEntries(ALL_STATS.map((field) => [field, Number(player.stats[field])])),
-      })),
-    });
-    setBusy(null);
-    if (!result.ok) return error(apiMessage(result.data, "人工确认失败"));
-    success("十名选手与全部数据已确认");
-    await load();
+    try {
+      const result = await confirmMatch(tournamentId, matchId, {
+        expectedMatchUpdatedAt: detail.match.updatedAt,
+        players: players.map((player) => ({
+          id: player.id, memberId: player.memberId, isGuest: player.isGuest, gameNickname: player.gameNickname.trim(),
+          heroId: player.heroId, heroName: player.heroName.trim() || null, roleType: player.roleType, score: Number(player.score),
+          stats: Object.fromEntries(ALL_STATS.map((field) => [field, Number(player.stats[field])])),
+        })),
+      });
+      if (!result.ok) return error(apiMessage(result.data, "人工确认失败，请检查数据后重试"));
+      success("十名选手与全部数据已确认");
+      await load();
+    } catch (cause) {
+      error(cause instanceof Error ? cause.message : "人工确认失败，请检查网络后重试");
+    } finally {
+      setBusy(null);
+    }
   }
 
   async function submit() {
     const redTotalKills = players.filter((player) => player.side === "red").reduce((sum, player) => sum + Number(player.stats.kills), 0);
     const blueTotalKills = players.filter((player) => player.side === "blue").reduce((sum, player) => sum + Number(player.stats.kills), 0);
     setBusy("submit");
-    const result = await submitMatchRecord(tournamentId, matchId, { winnerSide, redTotalKills, blueTotalKills });
-    setBusy(null);
-    if (!result.ok) return error(apiMessage(result.data, "正式提交失败"));
-    success("比赛档案已正式提交并锁定原图");
-    await load();
+    try {
+      const result = await submitMatchRecord(tournamentId, matchId, { winnerSide, redTotalKills, blueTotalKills });
+      if (!result.ok) return error(apiMessage(result.data, "正式提交失败，请核对赛果后重试"));
+      setSubmitConfirmationOpen(false);
+      success("比赛档案已正式提交并锁定原图");
+      await load();
+    } catch (cause) {
+      error(cause instanceof Error ? cause.message : "正式提交失败，请检查网络后重试；档案尚未锁定");
+    } finally {
+      setBusy(null);
+    }
   }
 
   async function dispute() {
     setBusy("dispute");
-    const result = await createDispute(tournamentId, matchId, { message: disputeMessage, matchPlayerId: disputePlayerId ? Number(disputePlayerId) : null, field: null });
-    setBusy(null);
-    if (!result.ok) return error(apiMessage(result.data, "异议提交失败"));
-    setDisputeMessage(""); success("异议已提交"); await load();
+    try {
+      const result = await createDispute(tournamentId, matchId, { message: disputeMessage, matchPlayerId: disputePlayerId ? Number(disputePlayerId) : null, field: null });
+      if (!result.ok) return error(apiMessage(result.data, "异议提交失败，请检查说明后重试"));
+      setDisputeMessage(""); success("异议已提交"); await load();
+    } catch (cause) {
+      error(cause instanceof Error ? cause.message : "异议提交失败，请检查网络后重试");
+    } finally {
+      setBusy(null);
+    }
   }
 
   async function correct() {
@@ -171,14 +229,19 @@ export function MatchWorkspace() {
     if (!player) return error("请选择选手");
     const isStat = ALL_STATS.includes(correction.field as MatchStatField);
     setBusy("correct");
-    const result = await correctMatch(matchId, {
-      matchPlayerId: player.id, field: correction.field,
-      value: correction.field === "gameNickname" || correction.field === "heroName" || correction.field === "roleType" ? correction.value : Number(correction.value),
-      reason: correction.reason, expectedUpdatedAt: isStat ? player.statsUpdatedAt : player.updatedAt,
-    });
-    setBusy(null);
-    if (!result.ok) return error(apiMessage(result.data, "纠错失败"));
-    success("纠错已写入审计记录"); await load();
+    try {
+      const result = await correctMatch(matchId, {
+        matchPlayerId: player.id, field: correction.field,
+        value: correction.field === "gameNickname" || correction.field === "heroName" || correction.field === "roleType" ? correction.value : Number(correction.value),
+        reason: correction.reason, expectedUpdatedAt: isStat ? player.statsUpdatedAt : player.updatedAt,
+      });
+      if (!result.ok) return error(apiMessage(result.data, "纠错失败，请刷新数据后重试"));
+      success("纠错已写入审计记录"); await load();
+    } catch (cause) {
+      error(cause instanceof Error ? cause.message : "纠错失败，请检查网络后重试");
+    } finally {
+      setBusy(null);
+    }
   }
 
   if (!detail) return <main className="page-shell page-shell--wide"><div className="feature-empty">正在读取比赛档案…</div></main>;
@@ -190,14 +253,14 @@ export function MatchWorkspace() {
       <nav className="feature-breadcrumb" aria-label="面包屑"><Link href={`${routePrefix}/tournaments/${tournamentId}`}>{detail.match.tournamentName}</Link><span>/</span><span>比赛档案 #{matchId}</span></nav>
       <header className="feature-hero">
         <div><p className="feature-kicker">VERIFIED MATCH RECORD</p><h1>比赛档案 #{matchId}</h1><p>{new Date(detail.match.playedAt).toLocaleString("zh-CN")} · 十人分队快照已固定</p></div>
-        <div className="feature-hero-actions"><span className="feature-status">{detail.match.status}</span><span className={`consistency consistency--${detail.match.consistencyStatus.toLowerCase()}`}>{detail.match.consistencyStatus}</span></div>
+        <div className="feature-hero-actions"><span className="feature-status">{localizedStatus(MATCH_STATUS_LABELS, detail.match.status, "状态未知")}</span><span className={`consistency consistency--${detail.match.consistencyStatus.toLowerCase()}`}>{localizedStatus(CONSISTENCY_LABELS, detail.match.consistencyStatus, "一致性未检查")}</span></div>
       </header>
 
       <section className="feature-section" aria-labelledby="confirm-title">
         <div className="feature-heading"><div><p className="feature-kicker">HUMAN REVIEW</p><h2 id="confirm-title">十人数据复核</h2><p>OCR 只预填字段，正式成员身份必须人工选择；补位选手保持游客身份。</p></div>{canEdit && <button className="btn-primary feature-action" disabled={Boolean(busy)} onClick={confirm}>{busy === "confirm" ? "保存中…" : "确认全部数据"}</button>}</div>
-        <div className="data-tabs" role="tablist" aria-label="数据分类">{MATCH_SCREENSHOT_TYPES.map((type) => <button key={type} role="tab" aria-selected={activeType === type} onClick={() => setActiveType(type)}>{SCREEN_LABELS[type]}</button>)}</div>
+        <div className="data-tabs" role="tablist" aria-label="数据分类">{MATCH_SCREENSHOT_TYPES.map((type) => <button id={`match-data-tab-${type}`} key={type} role="tab" tabIndex={activeType === type ? 0 : -1} aria-selected={activeType === type} aria-controls="match-data-panel" onKeyDown={(event) => moveDataTab(event, type)} onClick={() => setActiveType(type)}>{SCREEN_LABELS[type]}</button>)}</div>
         <p className="match-result-table-hint" id="match-result-table-hint">表格按红蓝双方分组；移动端可在表格内左右滑动查看完整数据。</p>
-        <div className="match-result-table-wrap" tabIndex={0} role="region" aria-label="十人比赛数据表" aria-describedby="match-result-table-hint">
+        <div id="match-data-panel" className="match-result-table-wrap" tabIndex={0} role="tabpanel" aria-labelledby={`match-data-tab-${activeType}`} aria-describedby="match-result-table-hint">
           <table className="match-result-table">
             <caption>十人比赛数据复核表，当前数据分类：{SCREEN_LABELS[activeType]}</caption>
             <thead>
@@ -229,7 +292,7 @@ export function MatchWorkspace() {
 
       <details className="match-evidence-disclosure" open={canEdit && detail.match.screenshots.length < 6}>
         <summary>
-          <span><strong>数据依据</strong><small>比赛截图 {detail.match.screenshots.length}/6 · {detail.match.recognition?.status || "未识别"}</small></span>
+          <span><strong>数据依据</strong><small>比赛截图 {detail.match.screenshots.length}/6 · {localizedStatus(RECOGNITION_LABELS, detail.match.recognition?.status, "未识别")}</small></span>
           <span className="match-evidence-toggle" aria-hidden="true">查看</span>
         </summary>
         <div className="match-evidence-content">
@@ -252,15 +315,16 @@ export function MatchWorkspace() {
 
       <section className="feature-section match-finalize" aria-labelledby="submit-title">
         <div><p className="feature-kicker">FINALIZE</p><h2 id="submit-title">赛果与正式提交</h2><p>双方总击杀自动取十名选手 K 值之和，并由服务端再次核验。</p></div>
-        <div className="match-score-editor"><label>胜方<select disabled={!canEdit} value={winnerSide} onChange={(event) => setWinnerSide(event.target.value as "red" | "blue")}><option value="red">红方</option><option value="blue">蓝方</option></select></label><strong>{players.filter((p) => p.side === "red").reduce((s, p) => s + Number(p.stats.kills), 0)} : {players.filter((p) => p.side === "blue").reduce((s, p) => s + Number(p.stats.kills), 0)}</strong>{canEdit && <button className="btn-primary" disabled={Boolean(busy) || detail.match.status !== "CONFIRMED"} onClick={submit}>{busy === "submit" ? "提交中…" : "正式提交并锁定"}</button>}</div>
+        <div className="match-score-editor"><label>胜方<select disabled={!canEdit} value={winnerSide} onChange={(event) => setWinnerSide(event.target.value as "red" | "blue")}><option value="red">红方</option><option value="blue">蓝方</option></select></label><strong>{players.filter((p) => p.side === "red").reduce((s, p) => s + Number(p.stats.kills), 0)} : {players.filter((p) => p.side === "blue").reduce((s, p) => s + Number(p.stats.kills), 0)}</strong>{canEdit && <button className="btn-primary" disabled={Boolean(busy) || detail.match.status !== "CONFIRMED"} onClick={() => setSubmitConfirmationOpen(true)}>正式提交并锁定</button>}</div>
       </section>
 
       <div className="feature-two-columns">
-        <section className="feature-section"><p className="feature-kicker">DISPUTE</p><h2>数据异议</h2><select value={disputePlayerId} onChange={(event) => setDisputePlayerId(event.target.value)}><option value="">整场比赛</option>{players.map((player) => <option value={player.id} key={player.id}>{player.gameNickname}</option>)}</select><textarea rows={4} minLength={5} maxLength={1000} placeholder="说明需要核查的数据与理由" value={disputeMessage} onChange={(event) => setDisputeMessage(event.target.value)} /><button className="btn-subtle" disabled={busy === "dispute" || disputeMessage.trim().length < 5 || detail.match.status !== "SUBMITTED"} onClick={dispute}>提交异议</button>{detail.match.disputes.map((item) => <p className="feature-note" key={item.id}>#{item.id} · {item.status} · {item.message}</p>)}</section>
+        <section className="feature-section dispute-form"><p className="feature-kicker">DISPUTE</p><h2>数据异议</h2><label>异议范围<select value={disputePlayerId} onChange={(event) => setDisputePlayerId(event.target.value)}><option value="">整场比赛</option>{players.map((player) => <option value={player.id} key={player.id}>{player.gameNickname}</option>)}</select></label><label>异议说明<textarea rows={4} minLength={5} maxLength={1000} placeholder="说明需要核查的数据与理由" value={disputeMessage} onChange={(event) => setDisputeMessage(event.target.value)} /></label><button className="btn-subtle" disabled={busy === "dispute" || disputeMessage.trim().length < 5 || detail.match.status !== "SUBMITTED"} onClick={dispute}>{busy === "dispute" ? "提交中…" : "提交异议"}</button>{detail.match.disputes.map((item) => <p className="feature-note" key={item.id}>#{item.id} · {item.status} · {item.message}</p>)}</section>
         <section className="feature-section"><p className="feature-kicker">TEAM PRIVATE</p><h2>战术推演</h2><p>仅本队成员可进入对应战术室；房主维护图层，成员只编辑自己的路线与点位。</p><div className="feature-row-actions"><Link className="btn-subtle" href={`${routePrefix}/tournaments/${tournamentId}/matches/${matchId}/tactics/red`}>进入红方战术室</Link><Link className="btn-subtle" href={`${routePrefix}/tournaments/${tournamentId}/matches/${matchId}/tactics/blue`}>进入蓝方战术室</Link></div></section>
       </div>
 
-      {detail.access.isSuperAdmin && detail.match.status === "SUBMITTED" && <section className="feature-section"><p className="feature-kicker">AUDITED CORRECTION</p><h2>超管纠错</h2><div className="correction-grid"><select value={correction.playerId} onChange={(event) => setCorrection({ ...correction, playerId: event.target.value })}><option value="">选择选手</option>{players.map((player) => <option key={player.id} value={player.id}>{player.gameNickname}</option>)}</select><select value={correction.field} onChange={(event) => setCorrection({ ...correction, field: event.target.value })}><option value="score">评分</option><option value="gameNickname">昵称</option><option value="heroName">英雄</option><option value="roleType">分路</option>{ALL_STATS.map((field) => <option value={field} key={field}>{STAT_LABELS[field]}</option>)}</select><input placeholder="新值" value={correction.value} onChange={(event) => setCorrection({ ...correction, value: event.target.value })} /><input placeholder="修改原因（至少 5 字）" value={correction.reason} onChange={(event) => setCorrection({ ...correction, reason: event.target.value })} /><button className="btn-primary" disabled={busy === "correct" || correction.reason.trim().length < 5} onClick={correct}>保存审计纠错</button></div></section>}
+      {detail.access.isSuperAdmin && detail.match.status === "SUBMITTED" && <section className="feature-section"><p className="feature-kicker">AUDITED CORRECTION</p><h2>超管纠错</h2><div className="correction-grid"><label>选手<select value={correction.playerId} onChange={(event) => setCorrection({ ...correction, playerId: event.target.value })}><option value="">选择选手</option>{players.map((player) => <option key={player.id} value={player.id}>{player.gameNickname}</option>)}</select></label><label>字段<select value={correction.field} onChange={(event) => setCorrection({ ...correction, field: event.target.value })}><option value="score">评分</option><option value="gameNickname">昵称</option><option value="heroName">英雄</option><option value="roleType">分路</option>{ALL_STATS.map((field) => <option value={field} key={field}>{STAT_LABELS[field]}</option>)}</select></label><label>新值<input value={correction.value} onChange={(event) => setCorrection({ ...correction, value: event.target.value })} /></label><label>修改原因<input placeholder="至少 5 字" value={correction.reason} onChange={(event) => setCorrection({ ...correction, reason: event.target.value })} /></label><button className="btn-primary" disabled={busy === "correct" || correction.reason.trim().length < 5} onClick={correct}>{busy === "correct" ? "保存中…" : "保存审计纠错"}</button></div></section>}
+      <ConfirmDialog open={submitConfirmationOpen} title="正式提交并锁定比赛档案？" description="提交后原图、十人数据和战术标注都会进入只读复盘状态。请确认胜方与比分无误。" confirmLabel="确认提交并锁定" danger={false} busy={busy === "submit"} onClose={() => setSubmitConfirmationOpen(false)} onConfirm={() => void submit()} />
     </main>
   );
 }

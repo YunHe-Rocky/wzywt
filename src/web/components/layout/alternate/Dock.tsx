@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { GLASS_CARD, GLASS_SHADOW_TOP, GLASS_SHADOW_BOTTOM, dockPanel, childStagger, BTN_PRESS, BTN_RELEASE } from "@/web/animation";
@@ -23,6 +23,7 @@ export function Dock() {
   const [subOpen, setSubOpen] = useState(false);
   const [bounce, setBounce] = useState(false);
   const [pendingPath, setPendingPath] = useState<string | null>(null);
+  const catalogButtonRef = useRef<HTMLButtonElement>(null);
   const mPrefix = pathname.startsWith("/m") ? "/m" : "";
   const href = (path: string) => mPrefix + path;
 
@@ -45,6 +46,17 @@ export function Dock() {
     const handler = () => setSubOpen(false);
     document.addEventListener("click", handler);
     return () => document.removeEventListener("click", handler);
+  }, [subOpen]);
+  useEffect(() => {
+    if (!subOpen) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      setSubOpen(false);
+      window.requestAnimationFrame(() => catalogButtonRef.current?.focus());
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
   }, [subOpen]);
 
   const toggleSub = (e: React.MouseEvent) => {
@@ -73,14 +85,17 @@ export function Dock() {
   const isTujianActive = isActive("/heroes") || isActive("/equipment");
 
   return (
-    <div
-      className="fixed bottom-0 left-0 right-0 z-50 flex flex-col items-center pb-3 pointer-events-none"
+    <nav
+      className="dock-shell fixed bottom-0 left-0 right-0 z-50 flex flex-col items-center pointer-events-none"
+      aria-label="底部导航"
       aria-busy={Boolean(pendingPath)}
     >
       {pendingPath && <div className="dock-route-progress" aria-hidden="true" />}
       {/* 二级 Dock */}
       <div style={{ display: "flex", justifyContent: "center", width: "100%" }}>
       <div
+        id="dock-catalog-menu"
+        aria-hidden={!subOpen}
         className="pointer-events-auto flex items-end gap-0.5 px-3 py-1.5 pb-2 rounded-2xl mb-2"
         onClick={(e) => e.stopPropagation()}
         style={{ ...GLASS_CARD, ...GLASS_SHADOW_TOP, ...dockPanel(subOpen) }}
@@ -92,11 +107,12 @@ export function Dock() {
               <div key={item.key} className="flex flex-col items-center gap-0.5 px-1.5" style={subOpen ? stag.enter : stag.exit}>
                 <Link href={href(item.href)} aria-label={item.label} tabIndex={subOpen ? undefined : -1} aria-hidden={!subOpen}
                   {...navigationFeedback(item.href)}
-                  className="flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-200"
+                  aria-current={active ? "page" : undefined}
+                  className="dock-nav-target flex items-center justify-center w-11 h-11 rounded-xl transition-all duration-200 touch-manipulation"
                   style={{ background: active || pendingPath === href(item.href) ? "var(--gold-alpha-08)" : "transparent", color: active || pendingPath === href(item.href) ? "var(--gold)" : "#aaa", pointerEvents: subOpen ? "auto" : "none" }}>
                   <span className="scale-[0.82]">{item.icon}</span>
                 </Link>
-                <span className="text-[9px] tracking-wide" style={{ color: active ? "var(--gold)" : "#bbb", fontWeight: active ? 600 : 400 }}>
+                <span className="dock-nav-label text-[11px] tracking-wide" style={{ color: active ? "var(--gold)" : "#777", fontWeight: active ? 600 : 500 }}>
                   {item.label}
                 </span>
               </div>
@@ -110,11 +126,12 @@ export function Dock() {
         {MAIN_NAV.slice(0, 2).map((item) => (
           <div key={item.key} className="flex flex-col items-center gap-0.5 px-1.5">
             <Link href={href(item.href)} aria-label={item.label} {...navigationFeedback(item.href)}
-              className="flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-150 touch-manipulation"
+              aria-current={isActive(item.href) ? "page" : undefined}
+              className="dock-nav-target flex items-center justify-center w-11 h-11 rounded-xl transition-all duration-150 touch-manipulation"
               style={{ background: isVisualActive(item.href) ? "var(--gold-alpha-08)" : "transparent", color: isVisualActive(item.href) ? "var(--gold)" : "#aaa" }}>
               <span className="scale-[0.82]">{item.icon}</span>
             </Link>
-            <span className="text-[9px] tracking-wide" style={{ color: isVisualActive(item.href) ? "var(--gold)" : "#bbb", fontWeight: isVisualActive(item.href) ? 600 : 400 }}>
+            <span className="dock-nav-label text-[11px] tracking-wide" style={{ color: isVisualActive(item.href) ? "var(--gold)" : "#777", fontWeight: isVisualActive(item.href) ? 600 : 500 }}>
               {item.label}
             </span>
           </div>
@@ -122,10 +139,11 @@ export function Dock() {
 
         {/* 图鉴 */}
         <div className="flex flex-col items-center gap-0.5 px-1.5">
-          <button onClick={toggleSub}
+          <button ref={catalogButtonRef} onClick={toggleSub}
             aria-label={subOpen ? "关闭图鉴菜单" : "打开图鉴菜单"}
             aria-expanded={subOpen}
-            className="flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-200"
+            aria-controls="dock-catalog-menu"
+            className="dock-nav-target flex items-center justify-center w-11 h-11 rounded-xl transition-all duration-200 touch-manipulation"
             style={{ background: isTujianActive || subOpen ? "var(--gold-alpha-08)" : "transparent", color: isTujianActive || subOpen ? "var(--gold)" : "#aaa", ...(bounce ? BTN_PRESS : BTN_RELEASE) }}>
             <span className="scale-[0.82]">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -133,7 +151,7 @@ export function Dock() {
               </svg>
             </span>
           </button>
-          <span className="text-[9px] tracking-wide" style={{ color: isTujianActive || subOpen ? "var(--gold)" : "#bbb", fontWeight: isTujianActive || subOpen ? 600 : 400 }}>
+          <span className="dock-nav-label text-[11px] tracking-wide" style={{ color: isTujianActive || subOpen ? "var(--gold)" : "#777", fontWeight: isTujianActive || subOpen ? 600 : 500 }}>
             图鉴
           </span>
         </div>
@@ -141,16 +159,17 @@ export function Dock() {
         {MAIN_NAV.slice(2).map((item) => (
           <div key={item.key} className="flex flex-col items-center gap-0.5 px-1.5">
             <Link href={href(item.href)} aria-label={item.label} {...navigationFeedback(item.href)}
-              className="flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-150 touch-manipulation"
+              aria-current={isActive(item.href) ? "page" : undefined}
+              className="dock-nav-target flex items-center justify-center w-11 h-11 rounded-xl transition-all duration-150 touch-manipulation"
               style={{ background: isVisualActive(item.href) ? "var(--gold-alpha-08)" : "transparent", color: isVisualActive(item.href) ? "var(--gold)" : "#aaa" }}>
               <span className="scale-[0.82]">{item.icon}</span>
             </Link>
-            <span className="text-[9px] tracking-wide" style={{ color: isVisualActive(item.href) ? "var(--gold)" : "#bbb", fontWeight: isVisualActive(item.href) ? 600 : 400 }}>
+            <span className="dock-nav-label text-[11px] tracking-wide" style={{ color: isVisualActive(item.href) ? "var(--gold)" : "#777", fontWeight: isVisualActive(item.href) ? 600 : 500 }}>
               {item.label}
             </span>
           </div>
         ))}
       </div>
-    </div>
+    </nav>
   );
 }

@@ -1,0 +1,45 @@
+# Progress
+
+## 2026-08-31
+
+- 完整读取 `planning-with-files`、`ui-ux-pro-max`、`webapp-testing` 技能说明。
+- 恢复已完成的根 V2.1 计划与 V2.2 资源调度计划；会话 catch-up 无未同步输出。
+- 新建独立的人因优化计划，不覆盖历史工作。
+- Phase 1 进行中：下一步读取权威架构、设计 tokens、Git 状态、最近提交与最新页面/组件入口。
+- 已完整读取 `docs/code-architecture.md`，确认分层与语义层级约束。
+- 已盘点 Git、最近提交、全站页面/组件与样式入口；锁定新功能和公共 UI 的优先审计文件。
+- 已读取 UI 系统、主题布局、Tailwind token 与 `globals.css` 基线，发现移动字号、重复 gutter、溢出掩盖和文档漂移等待验证风险。
+- 已运行 UI/UX 设计系统查询；保留人因检查项，拒绝其不适合本项目且自报可访问性较差的 3D 风格建议。
+- 已开始完整读取最新比赛归档、复核、战报与战术板组件；第一批高风险项为 tab 键盘语义、英文状态、异步一致性、战术板删除保护和键盘替代可发现性。
+- 已补齐新功能源码并审计最新监控、Header、Dock、Toast；确认表单标签、永久动作确认、44px 触控、菜单键盘行为、监控架构边界和数据表语义是实质缺陷。
+- 已运行 UX/Next.js 补充查询并读取关键 CSS；纠正了移动输入字号判断，确认通用触控高度、焦点环、未定义 token、双层表格滚动与溢出裁剪为更高置信问题。
+- 浏览器审计前置：8001 当前无监听，不会干扰用户服务；已按 webapp-testing 要求先运行 `with_server.py --help` 并确认其启动/清理接口。
+- Python Playwright 不可用，改用仓库已安装的 Node Playwright + 本机 Chrome；现有数据库写入型 E2E 暂不在未知数据库目标上运行。
+- 首轮 fixture 浏览器审计已成功启动、渲染并截图五个移动页面，但在追加 Header Escape 测试时找不到已登录用户菜单，脚本在写出 JSON 前超时；测试助手已停止其启动的 8001 服务。
+- 已核对 auth/lease 客户端响应结构；下一步直接检查已生成截图/DOM，并让键盘附加检查在控件缺失时记录结果而不是阻断全部报告。
+- 首轮五张移动截图均存在；工作区中文路径导致图片查看工具 ACL 失败，已只读复制比赛档案与战术板截图到本轮应用可视化目录供检查。
+- 图片查看工具在已批准的 ASCII 可视化目录仍触发同一宿主 ACL helper 错误；本轮将以 Playwright DOM/计算样式/截图文件证据为主，不伪称已完成模型侧视觉检查。
+- 第二轮修正后的审计由 helper 成功拉起端口，但 Next 首个动态页面在 60 秒内未完成 `domcontentloaded`，脚本超时；helper 再次完成服务清理。下一步改用可观察 PTY 服务读取编译输出，不重复盲跑同一路径。
+- 可观察启动发现 8001 实际仍被 PID 25940 监听，说明 helper 的“stopped”没有清理整个 Windows 子进程树；未直接终止，先核对创建时间/命令行/父进程，确保只停止本轮测试拥有的进程。
+- 已确认残留链为本轮 10:29 启动的 `cmd -> next dev -> start-server`（27040 -> 17052 -> 25940）；仅停止命令行明确指向本项目的 Next 父进程，子进程随之退出，8001 已释放，未触碰其他 Node/用户进程。
+- 可观察服务 2.7 秒 Ready，第三次运行完成全部页面采集后再次卡在 Header 探针；根因现已确认：按钮点击后可访问名称从“打开用户菜单”变为“关闭用户菜单”，原 role+name locator 随即失效，并非 Header 缺失。已改为稳定的 aria-label 后缀选择器。
+- 修正后完整浏览器基线 PASS 写出报告：8 个页面报告、2 个键盘探针、0 console/page error；确认触控尺寸、字段标签、tab 方向键和 Header Escape 为可复现缺陷。
+- 已通过 PTY Ctrl+C 和 Windows batch 确认结束可观察服务，待只读复核 8001 无监听。
+- 已复核 8001 无监听并读取基线明细，区分出内部宽表/地图裁切与真正页面溢出；正式修改方案锁定，准备进入最新功能与公共组件修复。
+- Phase 4 完成：比赛归档补齐 tab 键盘模型、中文状态、可见字段标签和正式提交确认；战报/评论补齐 pending、失败恢复和删除确认；战术板补齐键盘替代说明、危险删除确认、中文状态和 44px 操作面；监控页拆为薄 Route、Web 视图与 Feature 客户端状态层。
+- 公共人因修复进行中：Header/Dock 支持 Escape 与焦点返回，Header/Dock/按钮命中区提升到 44px，移动 Dock 使用底部安全区；Toast 支持手动关闭；确认、注销和改密弹窗补齐语义、焦点圈闭、可见标签、请求失败恢复与防重复提交。
+- 移除根布局和移动布局的横向裁剪/双重 gutter，以组件局部滚动承载宽表；比赛、战术与监控表格改为单层滚动语义区域，监控资源状态/作用域改为中文可读文本。
+- 新鲜验证：`npm.cmd run typecheck` PASS；`npm.cmd run check:architecture` PASS（Architecture boundaries are valid）。
+- 交付前异常路径终审确认共享 `apiRequest` 在超时/断网会抛出；比赛加载/创建/上传/OCR/确认/提交/异议/纠错与战术点位/路线/图层保存已统一用 `try/catch/finally` 恢复 busy 并保留可重试反馈。
+- 监控资源轮询增加 in-flight 门闩，避免 5 秒周期在慢请求时重叠；账号注销成功后主动关闭并清空弹窗，而不是依赖路由切换偶然卸载。
+- 将临时 Node/Playwright 审计提升为 `tests/e2e/human-factors-regression.mjs` 和 `npm run test:e2e:human-factors`；同步更新数据库写入型 `next-stage-regression.mjs` 的正式提交确认步骤。
+- 人因回归曾真实发现 `ConfirmDialog` 首次 Portal 挂载没有初始焦点；修复为 Portal 常驻、内容按 open 切换后，取消首焦点、Escape 和焦点返回均由严格断言通过。
+- 最终 production 浏览器矩阵 PASS：375px 手机的比赛 121、战术 39、动态列表 16、动态详情 14、监控 10 个可见控件，以及 1440px 桌面比赛/战术/监控，全部为 0 undersized、0 unnamed、0 unlabeled、0 focus-missing、0 residual-motion；各页 documentWidth 与 viewportWidth 完全相等。
+- 进一步审阅报告后未把信息性小字当作装饰项放过：版本、头像缩写、截图状态/文件信息、战术备注和点赞评论计数统一提升到至少 12px，并将 tinyText 从统计项升级为硬断言；最终手机与桌面全部页面均为 0 tinyText。
+- 最终 `npm.cmd run check` PASS：architecture、typecheck、core、markdown、next-stage、connections、resource scheduler 全部通过。
+- 全站 lint 初次完成为 0 error、18 warning；已安全消除 `HeroDetail` 的复杂依赖表达式 warning，残余 17 条均为既有 `<img>` 性能建议，未关闭规则。Markdown 外链、用户头像和英雄资源回退需要先确定 Next Image 远程域名/缓存策略，未机械替换。
+- 最终 `npm.cmd run build` PASS：Next 15.5.23 production 编译、lint/type、40/40 静态页面、build traces 全部完成；`/monitor` 首载 107 kB。
+- `docs/ui-system.md` 已从已失效的 hash 双主题/34px Header 说明纠偏为当前 V2.2.1 单主题、人因基线和最新功能边界。
+- 最终 production 服务由 `next start -p 8001` 验收后用 Ctrl+C 正常结束；端口 8001 已确认无监听。
+- 未执行 `tests/e2e/next-stage-regression.mjs` 的真实数据库写入链，因为当前 `DATABASE_URL` 未确认指向隔离测试库；测试步骤已兼容新确认弹窗，但不虚报数据库 E2E PASS。
+- 截图与 JSON 报告保存在 `.cache/test-artifacts/human-factors-regression`；宿主图片查看 ACL 始终失败，因此本轮证据为真实 Chrome DOM/计算样式/截图文件，不声称模型侧视觉看图验收。

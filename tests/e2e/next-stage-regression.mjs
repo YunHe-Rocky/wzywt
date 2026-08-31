@@ -189,6 +189,9 @@ try {
   await page.getByText("CONFIRMED", { exact: true }).waitFor();
   const submitResponse = page.waitForResponse((response) => response.url().endsWith("/submit") && response.request().method() === "POST");
   await page.getByRole("button", { name: "正式提交并锁定" }).click();
+  const submitDialog = page.getByRole("alertdialog", { name: "正式提交并锁定比赛档案？" });
+  await submitDialog.waitFor();
+  await submitDialog.getByRole("button", { name: "确认提交并锁定" }).click();
   assert.equal((await submitResponse).status(), 200);
   await page.getByText("SUBMITTED", { exact: true }).waitFor();
   await expectNoHorizontalOverflow(page, "desktop match");

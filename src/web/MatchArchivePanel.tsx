@@ -17,6 +17,14 @@ interface MatchListItem {
   _count: { screenshots: number; players: number; combatPosts: number };
 }
 
+const MATCH_STATUS_LABELS: Record<string, string> = {
+  DRAFT: "待上传数据",
+  WAITING_CONFIRMATION: "等待人工确认",
+  CONFIRMED: "待正式提交",
+  SUBMITTED: "已正式提交",
+};
+const CONSISTENCY_LABELS: Record<string, string> = { PASS: "通过", WARNING: "待核查", FAIL: "未通过" };
+
 export function MatchArchivePanel({ tournamentId, canManage }: { tournamentId: number; canManage: boolean }) {
   const routePrefix = usePathname().startsWith("/m/") ? "/m" : "";
   const [matches, setMatches] = useState<MatchListItem[]>([]);
@@ -26,21 +34,31 @@ export function MatchArchivePanel({ tournamentId, canManage }: { tournamentId: n
 
   const load = useCallback(async () => {
     setLoading(true);
-    const result = await listMatches<{ matches: MatchListItem[]; error?: string }>(tournamentId);
-    setLoading(false);
-    if (!result.ok) return error(result.data.error || "比赛档案加载失败");
-    setMatches(result.data.matches);
+    try {
+      const result = await listMatches<{ matches: MatchListItem[]; error?: string }>(tournamentId);
+      if (!result.ok) return error(result.data.error || "比赛档案加载失败，请确认登录状态后重试");
+      setMatches(result.data.matches);
+    } catch (cause) {
+      error(cause instanceof Error ? cause.message : "比赛档案加载失败，请检查网络后重试");
+    } finally {
+      setLoading(false);
+    }
   }, [error, tournamentId]);
 
   useEffect(() => { void load(); }, [load]);
 
   async function createDraft() {
     setCreating(true);
-    const result = await createMatch<{ match: { id: number }; error?: string }>(tournamentId);
-    setCreating(false);
-    if (!result.ok) return error(result.data.error || "比赛档案创建失败");
-    success("比赛档案已创建");
-    await load();
+    try {
+      const result = await createMatch<{ match: { id: number }; error?: string }>(tournamentId);
+      if (!result.ok) return error(result.data.error || "比赛档案创建失败，请稍后重试");
+      success("比赛档案已创建");
+      await load();
+    } catch (cause) {
+      error(cause instanceof Error ? cause.message : "比赛档案创建失败，请检查网络后重试");
+    } finally {
+      setCreating(false);
+    }
   }
 
   return (
@@ -53,7 +71,7 @@ export function MatchArchivePanel({ tournamentId, canManage }: { tournamentId: n
         </div>
         {canManage && (
           <button className="btn-primary feature-action" disabled={creating} onClick={createDraft}>
-            {creating ? "创建中…" : matches.length ? "重开档案" : "创建比赛档案"}
+            {creating ? "创建中…" : matches.length ? "新建下一场档案" : "创建比赛档案"}
           </button>
         )}
       </div>
@@ -67,13 +85,13 @@ export function MatchArchivePanel({ tournamentId, canManage }: { tournamentId: n
               <div className="match-archive-main">
                 <div className="feature-meta-row">
                   <strong>第 {match.id} 场</strong>
-                  <span className="feature-status">{match.status}</span>
+                  <span className="feature-status">{MATCH_STATUS_LABELS[match.status] || match.status}</span>
                   <span>{new Date(match.playedAt).toLocaleString("zh-CN")}</span>
                 </div>
                 <div className="match-scoreline">
                   <span>红方 {match.redTotalKills ?? "—"}</span><b>:</b><span>{match.blueTotalKills ?? "—"} 蓝方</span>
                 </div>
-                <small>原图 {match._count.screenshots}/6 · 选手 {match._count.players}/10 · 动态 {match._count.combatPosts} · 一致性 {match.consistencyStatus}</small>
+                <small>原图 {match._count.screenshots}/6 · 选手 {match._count.players}/10 · 动态 {match._count.combatPosts} · 一致性 {CONSISTENCY_LABELS[match.consistencyStatus] || match.consistencyStatus}</small>
               </div>
               <div className="feature-row-actions">
                 <Link className="btn-subtle" href={`${routePrefix}/tournaments/${tournamentId}/matches/${match.id}`}>查看档案</Link>

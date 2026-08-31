@@ -7,7 +7,7 @@ import { changePassword as changePasswordRequest } from "@/features/auth/client/
 
 
 const goldBtn: React.CSSProperties = {
-  width: "100%", padding: "11px 0", border: "none",
+  width: "100%", minHeight: 44, padding: "11px 0", border: "none",
   borderRadius: "var(--radius-sm)", fontSize: 13, fontWeight: 700, cursor: "pointer",
   background: "linear-gradient(135deg, var(--gold-light), var(--gold-dim))",
   color: "#fff", letterSpacing: 0.5,
@@ -15,8 +15,8 @@ const goldBtn: React.CSSProperties = {
 };
 
 const inputStyle: React.CSSProperties = {
-  width: "100%", padding: "10px 12px", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)",
-  background: "var(--bg-input)", color: "var(--text)", fontSize: 13, boxSizing: "border-box",
+  width: "100%", minHeight: 44, padding: "10px 12px", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)",
+  background: "var(--bg-input)", color: "var(--text)", fontSize: 16, boxSizing: "border-box",
 };
 
 const labelStyle: React.CSSProperties = {
@@ -42,6 +42,18 @@ export function SecurityQuestionModal({
   const modalRef = useRef<HTMLDivElement>(null);
   const answerRef = useRef<HTMLInputElement>(null);
   const newPwRef = useRef<HTMLInputElement>(null);
+  const returnFocusRef = useRef<HTMLElement | null>(null);
+  const onCloseRef = useRef(onClose);
+  const loadingRef = useRef(loading);
+
+  useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
+  useEffect(() => { loadingRef.current = loading; }, [loading]);
+
+  useEffect(() => {
+    if (!open) return;
+    returnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    return () => { window.requestAnimationFrame(() => returnFocusRef.current?.focus()); };
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -53,7 +65,7 @@ export function SecurityQuestionModal({
 
     // Esc to close and focus trap
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") { handleClose(); return; }
+      if (e.key === "Escape") { e.preventDefault(); handleClose(); return; }
       if (e.key === "Tab" && modalRef.current) {
         const focusable = modalRef.current.querySelectorAll<HTMLElement>(
           'button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])'
@@ -80,32 +92,44 @@ export function SecurityQuestionModal({
   async function verifyAnswer() {
     if (!answer) { setError("请输入安全答案"); return; }
     setLoading(true); setError("");
-    const { ok, data } = await changePasswordRequest({ answer, verifyOnly: true });
-    setLoading(false);
-    if (!ok) { setError(data.error || "验证失败"); return; }
-    if (data.verified) setStep(2);
+    try {
+      const { ok, data } = await changePasswordRequest({ answer, verifyOnly: true });
+      if (!ok) { setError(data.error || "验证失败，请核对答案后重试。"); return; }
+      if (data.verified) setStep(2);
+    } catch {
+      setError("验证请求未完成，请检查网络后重试。");
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function changePassword() {
     if (newPassword.length < 11) { setError("密码至少11位"); return; }
     if (newPassword !== confirmPassword) { setError("两次密码不一致"); return; }
     setLoading(true); setError("");
-    const { ok, data } = await changePasswordRequest({ answer, newPassword, confirmPassword });
-    setLoading(false);
-    if (!ok) { setError(data.error || "修改失败"); return; }
-    success("密码已修改");
-    handleClose();
+    try {
+      const { ok, data } = await changePasswordRequest({ answer, newPassword, confirmPassword });
+      if (!ok) { setError(data.error || "修改失败，请检查输入后重试。"); return; }
+      success("密码已修改");
+      setStep(1); setAnswer(""); setNewPassword(""); setConfirmPassword(""); setError("");
+      onCloseRef.current();
+    } catch {
+      setError("密码修改请求未完成，请检查网络后重试。原密码保持不变。");
+    } finally {
+      setLoading(false);
+    }
   }
 
   function handleClose() {
-    setStep(1); setAnswer(""); setNewPassword(""); setConfirmPassword(""); setError(""); onClose();
+    if (loadingRef.current) return;
+    setStep(1); setAnswer(""); setNewPassword(""); setConfirmPassword(""); setError(""); onCloseRef.current();
   }
 
   return (
     <FeaturePortal>
       <>
-      <div onClick={handleClose} className="modal-backdrop" aria-hidden="true" />
-      <div ref={modalRef} className="modal-card" role="dialog" aria-modal="true" aria-label="修改密码">
+      <div onMouseDown={handleClose} className="modal-backdrop" aria-hidden="true" />
+      <div ref={modalRef} className="modal-card" role="dialog" aria-modal="true" aria-label="修改密码" aria-busy={loading}>
         <div className="modal-glow" />
 
         {step === 1 ? (
@@ -140,7 +164,7 @@ export function SecurityQuestionModal({
             </div>
 
             <div style={{ marginBottom: error ? 12 : 18 }}>
-              <label style={labelStyle}>安全答案</label>
+              <label htmlFor="security-answer" style={labelStyle}>安全答案</label>
               <input
                 ref={answerRef}
                 id="security-answer"
@@ -154,7 +178,7 @@ export function SecurityQuestionModal({
             </div>
 
             {error && (
-              <p style={{
+              <p role="alert" style={{
                 fontSize: 12, color: "var(--red)", textAlign: "center", marginBottom: 12,
                 padding: "8px 12px", background: "rgba(224,80,80,0.06)", borderRadius: "var(--radius-sm)",
               }}>{error}</p>
@@ -188,14 +212,14 @@ export function SecurityQuestionModal({
 
             <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: error ? 12 : 18 }}>
               <div>
-                <label style={labelStyle}>新密码</label>
+                <label htmlFor="new-password" style={labelStyle}>新密码</label>
                 <input ref={newPwRef} type="password" placeholder="至少 11 位"
                   id="new-password" name="new-password"
                   value={newPassword} onChange={(e) => setNewPassword(e.target.value)}
                   style={inputStyle} autoComplete="new-password" />
               </div>
               <div>
-                <label style={labelStyle}>确认新密码</label>
+                <label htmlFor="confirm-password" style={labelStyle}>确认新密码</label>
                 <input type="password" placeholder="再次输入"
                   id="confirm-password" name="confirm-password"
                   value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)}
@@ -204,7 +228,7 @@ export function SecurityQuestionModal({
             </div>
 
             {error && (
-              <p style={{
+              <p role="alert" style={{
                 fontSize: 12, color: "var(--red)", textAlign: "center", marginBottom: 12,
                 padding: "8px 12px", background: "rgba(224,80,80,0.06)", borderRadius: "var(--radius-sm)",
               }}>{error}</p>
@@ -218,8 +242,7 @@ export function SecurityQuestionModal({
         )}
 
         <div style={{ textAlign: "center", marginTop: 14 }}>
-          <button onClick={handleClose}
-            style={{ background: "none", border: "none", color: "#888", fontSize: 11, cursor: "pointer" }}>
+          <button type="button" onClick={handleClose} disabled={loading} className="btn-subtle">
             取消
           </button>
         </div>
