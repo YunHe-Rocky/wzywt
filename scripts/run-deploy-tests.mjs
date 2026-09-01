@@ -43,6 +43,17 @@ function resolveBash() {
 }
 
 try {
+  const interop = spawnSync(process.execPath, ["scripts/check-next-env-interop.mjs"], {
+    cwd: repoRoot,
+    env: process.env,
+    stdio: "inherit",
+    shell: false,
+    windowsHide: true,
+  });
+  if (interop.error) throw interop.error;
+  if (interop.signal) throw new Error(`next-env interop check ended by ${interop.signal}`);
+  if (interop.status !== 0) process.exit(interop.status ?? 1);
+
   const bash = resolveBash();
   const execution = spawnSync(bash, ["scripts/test-deploy.sh"], {
     cwd: repoRoot,

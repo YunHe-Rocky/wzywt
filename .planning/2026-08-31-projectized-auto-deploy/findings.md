@@ -87,3 +87,11 @@
 - Regression must cover a PM2 banner followed by a valid 6.x line and retain the existing 5.x rejection before backup.
 - Final evidence: valid PM2 output may contain leading banners, but the matched numeric version line is now used for acceptance, logging and host snapshots; invalid 5.x output remains rejected.
 - The server's remaining failure is not a deployment-parser defect: application connectivity requires TCP at the exact DATABASE_URL endpoint. Socket-only MySQL access is insufficient, and service configuration/restart remains an explicit operator maintenance action.
+## Node 26 CommonJS/ESM backup incident findings
+
+- Production Node 26.8.1 reports that `@next/env` is CommonJS and does not expose `loadEnvConfig` as a reliable ESM named export; the current backup entry therefore fails before executing backup logic.
+- The deployment transaction still failed closed at the correct boundary: no successful backup means no migration, release switch, PM2 activation or health acceptance.
+- Global audit found the same named import in exactly three production paths: `scripts/db-backup.mjs`, `scripts/sync-heroes.ts`, and `src/features/cron/load-env.ts`; `.planning` contains one non-production historical fixture.
+- `scripts/deploy-env.mjs` uses its own bounded parser and does not import `@next/env`, so deployment metadata parsing is outside this failure.
+- The fake deployment archive replaces `db-backup.mjs`, so the existing deployment matrix cannot detect real `@next/env` interoperability without an additional installed-module regression.
+- Final correction is intentionally broader than the observed backup crash: backup, Cron and hero sync now share the same CommonJS-safe import form, while a direct installed-module gate prevents the fake deployment archive from hiding future Node interoperability regressions.

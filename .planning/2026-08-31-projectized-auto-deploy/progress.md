@@ -97,3 +97,14 @@
 - PM2 banner 修复全量验证 PASS：`npm run test:deploy`、`npm run check`、lint（0 error，17 条既有 `<img>` warning）和 production build 均通过。
 - 最终审计 PASS：`git diff --check`、Node 语法、先前 Bash 语法、全部 `scripts/*.sh` LF、`.env` 未修改、运行脚本无自动 systemd 启停；部署文档新增 MySQL TCP 只读诊断。
 - 生产 MySQL `127.0.0.1:3306` 的 `ECONNREFUSED` 仍是有效阻塞。未在生产机执行备份、migration、PM2 激活、服务变更或凭据轮换；既有无关删除保持未动。
+## 2026-09-01 Node 26 CommonJS/ESM backup follow-up
+
+- 生产构建完成后在 `create database backup` 入口停止：Node 26 拒绝从 CommonJS `@next/env` 使用 `loadEnvConfig` 命名导入。
+- 失败发生在备份脚本加载期；数据库备份、migration、current 原子切换和 `wangzhe-yanwutang-web`/`wangzhe-yanwutang-cron` 激活均未完成。
+- Replaced named `@next/env` imports in backup, hero sync and Cron env loading with CommonJS-compatible default import/destructuring.
+- Added a real installed-module interoperability gate before the fake-host deployment matrix; Node syntax and TypeScript checks PASS.
+- Full `npm run test:deploy` PASS, retaining ordinary env, renamed project, command/service evidence, two-process activation, rollback and PM2 ownership coverage.
+- Aggregate `npm run check` PASS across Shell EOL, architecture, typecheck, core, Markdown, next-stage, connections and resources.
+- ESLint PASS with 0 errors and 17 existing `<img>` warnings; production `npm run build` PASS on Next.js 15.5.23.
+- Final Node 26 audit PASS: no production named import from CommonJS `@next/env`, Node syntax PASS, `.env` unchanged, all Shell files remain LF, and `git diff --check` PASS.
+- Production retry requires syncing the five changed/new runtime-test files into a clean source tree, then rerunning `bash scripts/deploy.sh --check` and the full deploy; the previous failed release never reached backup, migration or PM2 activation.

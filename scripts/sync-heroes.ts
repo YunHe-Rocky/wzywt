@@ -1,5 +1,6 @@
-import { loadEnvConfig } from "@next/env";
+import nextEnv from "@next/env";
 
+const { loadEnvConfig } = nextEnv;
 async function main(): Promise<void> {
   loadEnvConfig(process.cwd());
   const [{ syncHeroes }, { prisma }] = await Promise.all([

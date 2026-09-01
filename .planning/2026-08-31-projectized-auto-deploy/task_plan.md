@@ -167,3 +167,20 @@
 | Second transform attempt rejected intentional blank lines in mandatory string arrays | 1 | Added `AllowEmptyString` to both exact-line array parameters and the third transform completed |
 | First phase-sync script used `if` where PowerShell required a precomputed expression value | 1 | Moved newline selection to a variable before joining the error rows |
 | A quoted multi-pattern docs search was split by the Windows cmd wrapper | 1 | Used the returned single-pattern context and an exact bounded docs transform |
+## Follow-up: Node 26 CommonJS/ESM backup incident
+
+- [completed] Phase 24：全局审计部署路径中的 `@next/env` 导入和 Node 26 模块互操作边界
+- [completed] Phase 25：修复备份入口并增加 Node 26 下真实模块加载回归，保持备份先于 migration/activation
+- [completed] Phase 26：运行部署矩阵、项目检查、lint、build、差异审计并交付生产重试步骤
+
+### Node 26 env-loader acceptance
+
+- `db-backup.mjs` 在生产 Node 26 下必须能加载 CommonJS 形态的 `@next/env`，不能依赖命名导入互操作。
+- 全局审计所有部署期 env loader，避免备份修复后在后续步骤重复触发同类错误。
+- 回归必须真实导入当前安装的 `@next/env`，并保持备份失败时 migration、current 切换和两个 PM2 进程激活均不发生。
+
+### Node 26 env-loader errors
+
+| Error | Attempt | Resolution |
+|---|---:|---|
+| An inline Node export probe was split by the Windows PowerShell command wrapper | 1 | Replaced it with a repository regression file that runs through the normal Node command |
