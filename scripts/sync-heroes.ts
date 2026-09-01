@@ -1,6 +1,6 @@
-import nextEnv from "@next/env";
+import { createRequire } from "node:module";
 
-const { loadEnvConfig } = nextEnv;
+const { loadEnvConfig } = createRequire(import.meta.url)("@next/env") as typeof import("@next/env");
 async function main(): Promise<void> {
   loadEnvConfig(process.cwd());
   const [{ syncHeroes }, { prisma }] = await Promise.all([

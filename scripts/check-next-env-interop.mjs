@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import nextEnv from "@next/env";
+import { createRequire } from "node:module";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(scriptDir, "..");
@@ -12,8 +12,8 @@ const productionLoaders = [
   "src/features/cron/load-env.ts",
 ];
 
-assert.equal(typeof nextEnv, "object", "@next/env default export must be an object");
-assert.equal(typeof nextEnv.loadEnvConfig, "function", "@next/env must expose loadEnvConfig");
+const nextEnv = createRequire(import.meta.url)("@next/env");
+assert.equal(typeof nextEnv.loadEnvConfig, "function", "@next/env must expose loadEnvConfig through require");
 
 for (const relativePath of productionLoaders) {
   const content = readFileSync(resolve(repoRoot, relativePath), "utf8");

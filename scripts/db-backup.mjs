@@ -1,9 +1,9 @@
 import { closeSync, mkdirSync, openSync, readFileSync, unlinkSync } from "node:fs";
 import { spawn } from "node:child_process";
 import { resolve } from "node:path";
-import nextEnv from "@next/env";
+import { createRequire } from "node:module";
 
-const { loadEnvConfig } = nextEnv;
+const { loadEnvConfig } = createRequire(import.meta.url)("@next/env");
 loadEnvConfig(process.cwd());
 const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl) throw new Error("DATABASE_URL is required");

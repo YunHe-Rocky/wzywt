@@ -54,6 +54,19 @@ try {
   if (interop.signal) throw new Error(`next-env interop check ended by ${interop.signal}`);
   if (interop.status !== 0) process.exit(interop.status ?? 1);
 
+  const tsxCli = resolve(repoRoot, "node_modules", "tsx", "dist", "cli.mjs");
+  const tsxInterop = spawnSync(process.execPath, [tsxCli, "src/features/cron/load-env.ts"], {
+    cwd: repoRoot,
+    env: process.env,
+    stdio: "inherit",
+    shell: false,
+    windowsHide: true,
+  });
+  if (tsxInterop.error) throw tsxInterop.error;
+  if (tsxInterop.signal) throw new Error(`next-env tsx check ended by ${tsxInterop.signal}`);
+  if (tsxInterop.status !== 0) process.exit(tsxInterop.status ?? 1);
+  console.log("[next-env-tsx] PASS");
+
   const bash = resolveBash();
   const execution = spawnSync(bash, ["scripts/test-deploy.sh"], {
     cwd: repoRoot,
