@@ -542,7 +542,8 @@ assert_contains "$dirty_case/check.log" "no stash, reset, checkout, or deletion 
 assert_current_is_old "$dirty_case"
 [[ ! -e "$dirty_case/backup.marker" ]] || fail "dirty source reached the database backup step"
 
-if ! run_deploy "$success_case" >"$success_case/deploy.log" 2>&1; then
+pm2_banner=$'-------------\n[PM2] Runtime Edition\n6.7.1'
+if ! run_deploy "$success_case" "TEST_PM2_VERSION=$pm2_banner" >"$success_case/deploy.log" 2>&1; then
   cat -- "$success_case/deploy.log" >&2
   fail "successful deployment scenario failed"
 fi
@@ -553,6 +554,9 @@ new_target="$(readlink -f -- "$success_case/app/current")"
 [[ -f "$success_case/backup.marker" ]] || fail "database backup step was not executed"
 [[ ! -e "$success_case/pwned" ]] || fail "non-whitelisted env content was executed"
 assert_contains "$success_case/deploy.log" "is active and healthy"
+assert_contains "$success_case/deploy.log" "command pm2 ->"
+assert_contains "$success_case/deploy.log" "(6.7.1)"
+assert_not_contains "$success_case/deploy.log" "(-------------)"
 assert_contains "$success_case/commands.log" "pm2 save"
 assert_not_contains "$success_case/commands.log" "systemctl start"
 host_snapshot="$(find "$success_case/app/shared/host-snapshots" -maxdepth 1 -type f -name '*-host-*.json' -print -quit)"
@@ -565,7 +569,10 @@ assert.equal(snapshot.ok, true);
 assert.equal(snapshot.identity.projectName, "success");
 assert.notEqual(snapshot.identity.packageName, snapshot.identity.projectName);
 assert.equal(snapshot.services[0].properties.ActiveState, "active");
-assert.ok(snapshot.commands.every((entry) => entry.path && entry.versionOutput));
+assert.ok(snapshot.commands.every((entry) => entry.path && entry.versionOutput && entry.versionLine));
+const pm2 = snapshot.commands.find((entry) => entry.name === "pm2");
+assert.equal(pm2.versionLine, "6.7.1");
+assert.match(pm2.versionOutput, /-------------/);
 NODE
 
 pm2_failure_case="$(prepare_case pm2-failure)"

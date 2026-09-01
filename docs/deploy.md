@@ -127,6 +127,25 @@ PM2、health 或 `pm2 save` 失败时，脚本把 `current` 和本项目 PM2 回
 
 需要额外核对自定义 systemd unit、PID 文件或 lock 文件时，可使用 `docs/deploy-host.example.json`。这是特殊宿主的高级能力，不是普通部署必填项。
 
+PM2 等命令可能先输出 banner；检查器会保留有界完整输出，但只显示和记录实际匹配版本规则的非空行。
+
+### MySQL 命令能登录，但预检报告 TCP `ECONNREFUSED`
+
+`mysql -u USER -p` 未指定 `-h` 时通常通过 Unix Socket 登录；应用 `DATABASE_URL` 的 `127.0.0.1:3306` 使用 TCP，两者不是同一条连接链。先执行只读诊断：
+
+```bash
+ss -lntp | grep -E ':3306[[:space:]]' || true
+mysql -NBe "SHOW VARIABLES WHERE Variable_name IN ('port','bind_address','skip_networking','socket');"
+systemctl list-units --type=service --all | grep -Ei 'mysql|maria' || true
+systemctl list-unit-files | grep -Ei 'mysql|maria' || true
+```
+
+- 没有 3306 listener，或 `skip_networking=ON`：应用 TCP 当前不可用，保持停止部署。
+- listener 只绑定其他地址：让 MySQL 的受控监听地址与 `DATABASE_URL` 一致，不要靠跳过检查掩盖。
+- unit 名不是 `mysqld/mysql/mariadb`：endpoint 连通仍可部署；若还要求 PID/lock/unit 精确证据，再使用高级宿主清单。
+
+修改 MySQL 配置属于独立宿主维护：先备份实际配置，验证语法，再显式 restart 和复查 listener；应用部署脚本不会自动执行这些动作。
+
 ## 7. 高级覆盖不是必填表
 
 只有自动发现不适用于特殊宿主时，才临时使用以下覆盖：

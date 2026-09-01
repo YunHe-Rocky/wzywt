@@ -128,6 +128,7 @@ function inspectCommand(definition) {
     versionArgs: definition.versionArgs,
     versionPattern: definition.versionPattern || null,
     versionOutput: null,
+    versionLine: null,
     exitCode: null,
     ok: false,
     errors: [],
@@ -143,13 +144,23 @@ function inspectCommand(definition) {
     const execution = spawnPortable(path, definition.versionArgs);
     result.exitCode = execution.status;
     result.versionOutput = bounded(`${execution.stdout ?? ""}\n${execution.stderr ?? ""}`);
+    const versionLines = result.versionOutput
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+    result.versionLine = versionLines[0] ?? null;
     if (execution.error) fail(`${definition.name} version command failed: ${execution.error.message}`);
     if (execution.signal) fail(`${definition.name} version command ended by ${execution.signal}`);
     if (execution.status !== 0) fail(`${definition.name} version command exited ${execution.status}`);
     if (!result.versionOutput) fail(`${definition.name} version command returned no output`);
     const versionPattern = validatePattern(definition.versionPattern, definition.name);
-    if (versionPattern && !versionPattern.test(result.versionOutput)) {
-      fail(`${definition.name} version does not match ${definition.versionPattern}`);
+    if (versionPattern) {
+      const matchedLine = versionLines.find((line) => {
+        versionPattern.lastIndex = 0;
+        return versionPattern.test(line);
+      });
+      if (!matchedLine) fail(`${definition.name} version does not match ${definition.versionPattern}`);
+      result.versionLine = matchedLine;
     }
     result.ok = true;
   } catch (error) {
@@ -412,7 +423,7 @@ if (snapshotPath) {
 }
 
 for (const command of snapshot.commands) {
-  const version = command.versionOutput?.split(/\r?\n/, 1)[0] || "<unavailable>";
+  const version = command.versionLine || command.versionOutput?.split(/\r?\n/, 1)[0] || "<unavailable>";
   console.log(`[deploy-host] command ${command.name} -> ${command.path ?? command.requested} (${version})`);
 }
 for (const service of snapshot.services) {

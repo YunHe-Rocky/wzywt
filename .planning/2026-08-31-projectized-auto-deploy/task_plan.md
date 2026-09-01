@@ -116,6 +116,19 @@
 - [completed] Phase 19：让预检输出可执行的分类诊断和安全恢复命令，但保持禁止自动 stash/reset
 - [completed] Phase 20：补部署回归、Shell/项目检查、lint、build 和差异审计
 
+## Follow-up: PM2 banner and MySQL TCP preflight
+
+- [completed] Phase 21：修正命令多行版本输出识别，避免 PM2 banner 被当成版本
+- [completed] Phase 22：补 PM2 banner/真实版本匹配与错误版本拒绝回归，保持快照输出有界
+- [completed] Phase 23：运行部署矩阵、项目检查、lint、build、差异审计并交付 MySQL TCP 只读诊断
+
+### PM2/TCP acceptance
+
+- 版本正则应对命令输出的任一规范化非空行匹配，不能只检查 banner 第一行。
+- 快照和日志只展示实际匹配的版本行；无匹配时保留安全的首行诊断。
+- 错误 PM2 版本仍必须失败，不能通过放宽默认正则掩盖。
+- DATABASE_URL 的 TCP endpoint 拒绝必须继续阻止部署；Unix Socket CLI 登录不等于应用 TCP 可用。
+
 ### Dirty-tree acceptance
 
 - dirty 失败必须列出精确路径和状态，而不是只报一句 source tree is dirty。
@@ -153,3 +166,4 @@
 | First exact-transform script parsed embedded Bash quotes as PowerShell syntax | 1 | Generated a derived script with single-quoted PowerShell literals; no workspace file had changed |
 | Second transform attempt rejected intentional blank lines in mandatory string arrays | 1 | Added `AllowEmptyString` to both exact-line array parameters and the third transform completed |
 | First phase-sync script used `if` where PowerShell required a precomputed expression value | 1 | Moved newline selection to a variable before joining the error rows |
+| A quoted multi-pattern docs search was split by the Windows cmd wrapper | 1 | Used the returned single-pattern context and an exact bounded docs transform |

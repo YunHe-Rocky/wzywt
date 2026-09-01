@@ -84,3 +84,16 @@
 - Dirty-tree follow-up final validation PASS: deployment matrix, aggregate project check, Bash syntax, lint with 0 errors and 17 existing warnings, production build, diff check, ZIP ignore, env preservation, LF bytes and no automatic Git cleanup.
 - No production backup, migration, PM2 activation, service mutation or credential rotation was executed. Exposed production credentials require operator-side rotation.
 - Unrelated existing image and legacy-config deletions remain untouched.
+
+## 2026-09-01 PM2 banner and MySQL TCP follow-up
+
+- Production preflight exposed one false-negative PM2 version parse and one real MySQL TCP refusal; no backup, migration, PM2 activation or service mutation occurred.
+
+- Implemented per-line command version matching with a persisted matched `versionLine`, bounded full output and first-line failure fallback.
+- Updated the success deployment fixture to emit a PM2 banner before a valid 6.7.1 version; validation is in progress.
+
+- PM2 banner deployment regression PASS: a valid 6.7.1 line after banner text was logged/persisted, while 5.0.0 still failed before backup.
+- Node/Bash syntax and targeted diff checks passed.
+- PM2 banner 修复全量验证 PASS：`npm run test:deploy`、`npm run check`、lint（0 error，17 条既有 `<img>` warning）和 production build 均通过。
+- 最终审计 PASS：`git diff --check`、Node 语法、先前 Bash 语法、全部 `scripts/*.sh` LF、`.env` 未修改、运行脚本无自动 systemd 启停；部署文档新增 MySQL TCP 只读诊断。
+- 生产 MySQL `127.0.0.1:3306` 的 `ECONNREFUSED` 仍是有效阻塞。未在生产机执行备份、migration、PM2 激活、服务变更或凭据轮换；既有无关删除保持未动。

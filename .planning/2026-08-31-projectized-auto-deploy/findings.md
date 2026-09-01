@@ -75,3 +75,15 @@
 
 - Final dirty-tree implementation evidence: both checks call one bounded classifier, the fake-host regression proves stop-before-backup, and the root ZIP ignore is matched by Git.
 - The operator recovery for the observed server state is to restore top-level script files to 0644, inspect `git status --short`, and proceed only when no real content changes remain.
+
+## PM2 banner and MySQL TCP incident findings
+
+- Production PM2 execution succeeded but reported `-------------` as the captured version line; the actual numeric version is emitted later after PM2 banner text.
+- Database inspection reached `127.0.0.1:3306` from DATABASE_URL and received ECONNREFUSED. A successful `mysql -u ... -p` invocation without `-h` uses the local Unix Socket by default and does not contradict the failed TCP probe.
+- The runtime inspector correctly refused deployment. The safe next step is read-only listener/config/unit discovery, not automatic systemctl mutation or weakening the endpoint check.
+
+- Inspector root cause: `versionOutput` contains bounded combined stdout/stderr, but an anchored pattern is tested once against the whole block and the console always prints its first line.
+- Safe correction: normalize non-empty output lines, match the unchanged regex against each line, persist the matched `versionLine`, retain the bounded full output, and use the first line only as no-match diagnostic fallback.
+- Regression must cover a PM2 banner followed by a valid 6.x line and retain the existing 5.x rejection before backup.
+- Final evidence: valid PM2 output may contain leading banners, but the matched numeric version line is now used for acceptance, logging and host snapshots; invalid 5.x output remains rejected.
+- The server's remaining failure is not a deployment-parser defect: application connectivity requires TCP at the exact DATABASE_URL endpoint. Socket-only MySQL access is insufficient, and service configuration/restart remains an explicit operator maintenance action.
