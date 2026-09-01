@@ -184,3 +184,15 @@
 | Error | Attempt | Resolution |
 |---|---:|---|
 | An inline Node export probe was split by the Windows PowerShell command wrapper | 1 | Replaced it with a repository regression file that runs through the normal Node command |
+
+## Follow-up: activation failure observability and retryability
+
+- [completed] Phase 27：保留激活失败 release，输出结构化 health 原因与两个项目 PM2 进程日志，补首次发布/回滚回归
+- [completed] Phase 28：运行部署矩阵、项目检查、lint/build 和差异审计，交付一次可定位的服务器重试流程
+
+### Activation diagnostics acceptance
+
+- 503 不再被 `curl --fail` 反复噪声掩盖；部署日志必须显示 HTTP 状态、releaseId 和失败检查项。
+- 激活失败时只采集本项目 web/cron 的有界 PM2 日志，持久化到 shared deploy-logs，不打印 PM2 全局环境或 Secret。
+- 首次发布失败或旧版回滚成功后，失败的已构建 release 保留供诊断/重试；`current` 和 PM2 仍必须回到安全状态。
+- 回归必须覆盖 health 503 响应体、Cron 错误日志、首次失败现场保留和旧版回滚。

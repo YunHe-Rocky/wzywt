@@ -108,3 +108,13 @@
 - ESLint PASS with 0 errors and 17 existing `<img>` warnings; production `npm run build` PASS on Next.js 15.5.23.
 - Final Node 26 audit PASS: no production named import from CommonJS `@next/env`, Node syntax PASS, `.env` unchanged, all Shell files remain LF, and `git diff --check` PASS.
 - Production retry requires syncing the five changed/new runtime-test files into a clean source tree, then rerunning `bash scripts/deploy.sh --check` and the full deploy; the previous failed release never reached backup, migration or PM2 activation.
+
+## 2026-09-01 activation failure observability follow-up
+
+- Confirmed the repeated 503 incident was obscured by `curl --fail`, suppressed health-verifier output and automatic deletion of the failed first release.
+- Added structured health attempt output, bounded project-only PM2 web/Cron log capture, durable health/PM2 diagnostics, and activation-stage failed-release preservation while retaining safe PM2 cleanup or previous-release rollback.
+- Deployment regression matrix PASS: Node 26 native env loading, real TSX Cron env loading, 503 `cron=failed` evidence, fixture Cron bootstrap log, diagnostic persistence, failed release retention, first-release cleanup and old-release rollback.
+- Phase 28 full project validation is in progress.- Phase 28 final validation PASS: full deploy matrix, aggregate project check, ESLint (0 errors / 17 existing image warnings), production Next.js build, Node syntax, Bash syntax, Shell LF gate and `git diff --check`.
+- Updated deployment documentation with automatic 503/PM2 diagnostic paths, failed-release preservation, first-release cleanup and previous-release rollback semantics.
+- Final audit shows only the seven intended deployment/planning/documentation files modified; `.env`, credentials and unrelated source files were not changed.
+- One final audit command initially used `bashPath=` instead of PowerShell `$bashPath=`; it made no workspace write beyond the already-applied docs update, and the corrected Node/Bash/diff audit passed.

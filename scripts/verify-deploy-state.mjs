@@ -127,6 +127,18 @@ function verifyStopped(expectedTarget, names) {
   console.log(`[deploy-verify] PM2 apps are stopped for ${names.join(", ")}`);
 }
 
+function healthSummary(expectedReleaseId) {
+  const response = readStdinJson();
+  const release = typeof response?.releaseId === "string" ? response.releaseId : "<missing>";
+  const checks = response?.checks && typeof response.checks === "object"
+    ? Object.entries(response.checks)
+      .filter(([name, status]) => typeof name === "string" && typeof status === "string")
+      .map(([name, status]) => `${name}=${status}`)
+      .join(",")
+    : "<missing>";
+  console.log(`health ok=${response?.ok === true} release=${release} expected=${expectedReleaseId} checks=${checks}`);
+}
+
 function verifyHealth(expectedReleaseId) {
   const response = readStdinJson();
   if (response?.ok !== true) fail("health response is not ok");
@@ -146,6 +158,7 @@ function usage() {
   console.error("  node scripts/verify-deploy-state.mjs pm2-after <release-dir> <release-id> <web-name> <cron-name>");
   console.error("  node scripts/verify-deploy-state.mjs pm2-stopped <release-dir> <web-name> <cron-name>");
   console.error("  node scripts/verify-deploy-state.mjs health <release-id>");
+  console.error("  node scripts/verify-deploy-state.mjs health-summary <release-id>");
   process.exit(2);
 }
 
@@ -155,6 +168,7 @@ try {
   else if (mode === "pm2-after" && args.length === 4) verifyAfter(args[0], args[1], args.slice(2));
   else if (mode === "pm2-stopped" && args.length === 3) verifyStopped(args[0], args.slice(1));
   else if (mode === "health" && args.length === 1) verifyHealth(args[0]);
+  else if (mode === "health-summary" && args.length === 1) healthSummary(args[0]);
   else usage();
 } catch (error) {
   console.error(`[deploy-verify] ${error instanceof Error ? error.message : String(error)}`);

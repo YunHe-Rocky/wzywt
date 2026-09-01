@@ -95,3 +95,11 @@
 - `scripts/deploy-env.mjs` uses its own bounded parser and does not import `@next/env`, so deployment metadata parsing is outside this failure.
 - The fake deployment archive replaces `db-backup.mjs`, so the existing deployment matrix cannot detect real `@next/env` interoperability without an additional installed-module regression.
 - Final correction is intentionally broader than the observed backup crash: backup, Cron and hero sync now share the same CommonJS-safe import form, while a direct installed-module gate prevents the fake deployment archive from hiding future Node interoperability regressions.
+
+## Activation failure observability findings
+
+- Existing health polling used `curl --fail` and suppressed the release verifier, so 503 responses produced repeated generic curl errors while the useful JSON body and failed check names were hidden.
+- The EXIT trap deleted every non-current failed release. On a first deployment, rollback removes `current`, so the only built artifact was immediately deleted and later release-local Prisma/log inspection necessarily resolved to an empty path.
+- Safe diagnostics do not require dumping `pm2 jlist`, which may contain environment secrets. Bounded `pm2 logs <project-app> --nostream --lines 40` calls scope output to the two derived project process names.
+- Activation failure is a distinct boundary from build/backup/migration failure: preserve only after entering atomic activation, while pre-activation failures continue to clean incomplete releases.
+- The deployment matrix now proves structured 503 output (`cron=failed`), bounded Cron log capture, durable diagnostic files, failed release retention, first-release PM2 cleanup, and previous-release rollback.

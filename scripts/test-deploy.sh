@@ -241,6 +241,15 @@ case "$command_name" in
     printf '[]\n' >"$TEST_PM2_STATE"
     printf 'pm2 delete %s\n' "$*" >>"$TEST_COMMAND_LOG"
     ;;
+  logs)
+    app_name="${1:-unknown}"
+    printf '[TAILING] last 40 lines for %s\n' "$app_name"
+    if [[ "$app_name" == *-cron ]]; then
+      printf '[cron] bootstrap failed fixture-env-loader\n'
+    else
+      printf '[web] health endpoint returned fixture status\n'
+    fi
+    ;;
   *) printf 'unexpected fake pm2 command: %s %s\n' "$command_name" "$*" >&2; exit 91 ;;
 esac
 SH
@@ -250,16 +259,23 @@ cat >"$FAKE_BIN/curl" <<'SH'
 set -Eeuo pipefail
 if [[ "${1:-}" == "--version" ]]; then printf 'curl 8.12.0 fake\n'; exit 0; fi
 output_file=""
+write_out=0
 while (($#)); do
   case "$1" in
     --output) output_file="$2"; shift 2 ;;
+    --write-out) write_out=1; shift 2 ;;
     *) shift ;;
   esac
 done
 [[ -n "$output_file" ]] || exit 92
 release_id="$(basename -- "$(readlink -f -- "$TEST_BASE_DIR/current")")"
-printf '{"ok":true,"releaseId":"%s","checks":{"database":"ok","mediaStorage":"ok","avatarStorage":"ok","cron":"ok","redis":"ok"}}\n' "$release_id" >"$output_file"
-if [[ "${TEST_FAIL_HEALTH_NEW:-0}" == "1" && "$release_id" != "$TEST_OLD_RELEASE_ID" ]]; then exit 22; fi
+if [[ "${TEST_FAIL_HEALTH_NEW:-0}" == "1" && "$release_id" != "$TEST_OLD_RELEASE_ID" ]]; then
+  printf '{"ok":false,"releaseId":"%s","checks":{"database":"ok","mediaStorage":"ok","avatarStorage":"ok","cron":"failed","redis":"degraded"}}\n' "$release_id" >"$output_file"
+  ((write_out == 0)) || printf '503'
+else
+  printf '{"ok":true,"releaseId":"%s","checks":{"database":"ok","mediaStorage":"ok","avatarStorage":"ok","cron":"ok","redis":"ok"}}\n' "$release_id" >"$output_file"
+  ((write_out == 0)) || printf '200'
+fi
 SH
 
 cat >"$FAKE_BIN/systemctl" <<'SH'
@@ -581,8 +597,9 @@ if run_deploy "$pm2_failure_case" TEST_FAIL_PM2_NEW=1 >"$pm2_failure_case/deploy
 fi
 assert_current_is_old "$pm2_failure_case"
 assert_contains "$pm2_failure_case/deploy.log" "was rolled back"
-[[ "$(find "$pm2_failure_case/app/releases" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')" == "1" ]] \
-  || fail "failed PM2 release was not cleaned"
+[[ "$(find "$pm2_failure_case/app/releases" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')" == "2" ]] \
+  || fail "failed PM2 release was not preserved"
+assert_contains "$pm2_failure_case/deploy.log" "failed release preserved for diagnosis"
 
 health_failure_case="$(prepare_case health-failure)"
 if run_deploy "$health_failure_case" TEST_FAIL_HEALTH_NEW=1 >"$health_failure_case/deploy.log" 2>&1; then
@@ -591,6 +608,13 @@ fi
 assert_current_is_old "$health_failure_case"
 assert_contains "$health_failure_case/deploy.log" "release-aware health check did not pass"
 assert_contains "$health_failure_case/deploy.log" "was rolled back"
+assert_contains "$health_failure_case/deploy.log" "health attempt 1/"
+assert_contains "$health_failure_case/deploy.log" "http=503"
+assert_contains "$health_failure_case/deploy.log" "cron=failed"
+assert_contains "$health_failure_case/deploy.log" "bootstrap failed fixture-env-loader"
+health_diagnostic="$(find "$health_failure_case/app/shared/deploy-logs" -maxdepth 1 -type f -name '*-health.json' -print -quit)"
+pm2_diagnostic="$(find "$health_failure_case/app/shared/deploy-logs" -maxdepth 1 -type f -name '*-pm2.log' -print -quit)"
+[[ -s "$health_diagnostic" && -s "$pm2_diagnostic" ]] || fail "activation diagnostics were not persisted"
 
 collision_case="$(prepare_case collision)"
 outside="$TEST_ROOT/unrelated"
@@ -624,8 +648,9 @@ fi
 assert_contains "$first_failure_case/deploy.log" "first release activation failed and no previous release exists"
 [[ "$(tr -d '[:space:]' <"$first_failure_case/pm2-state.json")" == "[]" ]] \
   || fail "failed first deployment left project PM2 apps"
-[[ "$(find "$first_failure_case/app/releases" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')" == "1" ]] \
-  || fail "failed first release was not cleaned"
+[[ "$(find "$first_failure_case/app/releases" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')" == "2" ]] \
+  || fail "failed first release was not preserved"
+assert_contains "$first_failure_case/deploy.log" "failed release preserved for diagnosis"
 
 version_case="$(prepare_case version-mismatch)"
 if run_deploy "$version_case" TEST_PM2_VERSION=5.0.0 >"$version_case/deploy.log" 2>&1; then

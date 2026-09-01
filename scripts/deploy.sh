@@ -15,6 +15,8 @@ CURRENT_LINK=""
 MIGRATION_LOG=""
 DEPLOY_LOG_DIR=""
 DEPLOY_SUCCEEDED=0
+PRESERVE_FAILED_RELEASE=0
+ACTIVATION_DIAGNOSTICS_COLLECTED=0
 
 log() { printf '[deploy] %s\n' "$*"; }
 fail() { printf '[deploy] ERROR: %s\n' "$*" >&2; exit 1; }
@@ -87,7 +89,8 @@ cleanup_on_exit() {
     [[ -n "$file" ]] && rm -f -- "$file" 2>/dev/null || true
   done
 
-  if [[ "$DEPLOY_SUCCEEDED" != "1" && -n "$RELEASE_DIR" && -d "$RELEASE_DIR" && -n "$RELEASES_DIR" ]] \
+  if [[ "$DEPLOY_SUCCEEDED" != "1" && "$PRESERVE_FAILED_RELEASE" != "1" \
+    && -n "$RELEASE_DIR" && -d "$RELEASE_DIR" && -n "$RELEASES_DIR" ]] \
     && path_within "$RELEASE_DIR" "$RELEASES_DIR"; then
     if [[ -n "$MIGRATION_LOG" && -f "$MIGRATION_LOG" && -n "$DEPLOY_LOG_DIR" && -d "$DEPLOY_LOG_DIR" ]]; then
       cp -- "$MIGRATION_LOG" "$DEPLOY_LOG_DIR/$(basename "$RELEASE_DIR")-migrate.log" 2>/dev/null || true
@@ -567,7 +570,9 @@ fi
 
 PREVIOUS_TARGET="$CURRENT_TARGET"
 HEALTH_RESPONSE_FILE=""
+HEALTH_CURL_ERROR_FILE=""
 new_temp_file HEALTH_RESPONSE_FILE
+new_temp_file HEALTH_CURL_ERROR_FILE
 
 atomic_switch() {
   local target="$1" temporary_link="$BASE_DIR/.current-$RELEASE_ID-$$"
@@ -604,25 +609,81 @@ reload_release() {
 }
 
 wait_for_health() {
-  local expected_release="$1" attempt
+  local expected_release="$1" attempt http_status="transport-error"
   for ((attempt = 1; attempt <= HEALTH_ATTEMPTS; attempt += 1)); do
-    if "$CURL_BIN" --fail --silent --show-error \
+    : >"$HEALTH_RESPONSE_FILE"
+    : >"$HEALTH_CURL_ERROR_FILE"
+    if http_status="$("$CURL_BIN" --silent --show-error \
       --connect-timeout "$HEALTH_TIMEOUT_SECONDS" \
       --max-time "$HEALTH_TIMEOUT_SECONDS" \
-      --output "$HEALTH_RESPONSE_FILE" "$HEALTH_URL" \
-      && "$NODE_BIN" "$SCRIPT_DIR/verify-deploy-state.mjs" health "$expected_release" \
-        <"$HEALTH_RESPONSE_FILE" >/dev/null 2>&1; then
-      log "release-aware health passed for $expected_release"
-      return 0
+      --output "$HEALTH_RESPONSE_FILE" \
+      --write-out '%{http_code}' "$HEALTH_URL" 2>"$HEALTH_CURL_ERROR_FILE")"; then
+      if [[ "$http_status" =~ ^2[0-9][0-9]$ ]] \
+        && "$NODE_BIN" "$SCRIPT_DIR/verify-deploy-state.mjs" health "$expected_release" \
+          <"$HEALTH_RESPONSE_FILE" >/dev/null 2>&1; then
+        log "release-aware health passed for $expected_release"
+        return 0
+      fi
+    else
+      http_status="transport-error"
+    fi
+
+    if ((attempt == 1 || attempt == HEALTH_ATTEMPTS || attempt % 5 == 0)); then
+      printf '[deploy] health attempt %s/%s http=%s ' "$attempt" "$HEALTH_ATTEMPTS" "$http_status" >&2
+      if [[ -s "$HEALTH_RESPONSE_FILE" ]]; then
+        "$NODE_BIN" "$SCRIPT_DIR/verify-deploy-state.mjs" health-summary "$expected_release" \
+          <"$HEALTH_RESPONSE_FILE" >&2 || printf 'response=invalid-json\n' >&2
+      elif [[ -s "$HEALTH_CURL_ERROR_FILE" ]]; then
+        "$NODE_BIN" -e '
+const fs = require("node:fs");
+const value = fs.readFileSync(process.argv[1], "utf8").replace(/\s+/g, " ").trim().slice(0, 500);
+console.log(`transport=${value || "unknown"}`);
+' "$HEALTH_CURL_ERROR_FILE" >&2
+      else
+        printf 'response=empty\n' >&2
+      fi
     fi
     ((attempt < HEALTH_ATTEMPTS)) && sleep "$HEALTH_INTERVAL_SECONDS"
   done
   return 1
 }
 
+collect_activation_diagnostics() {
+  local health_diagnostic pm2_diagnostic
+  [[ "$ACTIVATION_DIAGNOSTICS_COLLECTED" == "0" ]] || return 0
+  ACTIVATION_DIAGNOSTICS_COLLECTED=1
+  mkdir -p -- "$DEPLOY_LOG_DIR"
+  health_diagnostic="$DEPLOY_LOG_DIR/$RELEASE_ID-health.json"
+  pm2_diagnostic="$DEPLOY_LOG_DIR/$RELEASE_ID-pm2.log"
+
+  if [[ -s "$HEALTH_RESPONSE_FILE" ]]; then
+    cp -- "$HEALTH_RESPONSE_FILE" "$health_diagnostic" 2>/dev/null || true
+    chmod 600 -- "$health_diagnostic" 2>/dev/null || true
+    log "last health response saved to $health_diagnostic"
+    "$NODE_BIN" "$SCRIPT_DIR/verify-deploy-state.mjs" health-summary "$RELEASE_ID" \
+      <"$HEALTH_RESPONSE_FILE" 2>&1 || true
+  fi
+
+  {
+    printf '[deploy-diagnostics] PM2 app=%s\n' "$PM2_WEB_NAME"
+    "$PM2_BIN" logs "$PM2_WEB_NAME" --nostream --lines 40 || true
+    printf '[deploy-diagnostics] PM2 app=%s\n' "$PM2_CRON_NAME"
+    "$PM2_BIN" logs "$PM2_CRON_NAME" --nostream --lines 40 || true
+  } >"$pm2_diagnostic" 2>&1
+  chmod 600 -- "$pm2_diagnostic" 2>/dev/null || true
+  log "project PM2 diagnostics saved to $pm2_diagnostic"
+  "$NODE_BIN" -e '
+const fs = require("node:fs");
+const lines = fs.readFileSync(process.argv[1], "utf8").split(/\r?\n/);
+process.stdout.write(`${lines.slice(-82).join("\n")}\n`);
+' "$pm2_diagnostic" >&2 || true
+  log "failed release preserved for diagnosis: $RELEASE_DIR"
+}
+
 rollback_release() {
   local reason="$1" rollback_ok=0
   log "activation failed: $reason"
+  collect_activation_diagnostics
   if [[ "$PREVIOUS_TARGET" != "-" && -d "$PREVIOUS_TARGET" ]]; then
     log "roll back current link and PM2 to $PREVIOUS_TARGET"
     if atomic_switch "$PREVIOUS_TARGET" \
@@ -645,6 +706,7 @@ rollback_release() {
   fail "first release activation failed and no previous release exists: $reason"
 }
 
+PRESERVE_FAILED_RELEASE=1
 log "atomically switch current link to $RELEASE_ID"
 atomic_switch "$RELEASE_DIR" || rollback_release "could not switch the current release link"
 log "activate the project through PM2"

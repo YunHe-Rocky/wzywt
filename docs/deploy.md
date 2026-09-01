@@ -114,6 +114,8 @@ bash scripts/deploy.sh --check --env-file /secure/path/project.env
 
 PM2、health 或 `pm2 save` 失败时，脚本把 `current` 和本项目 PM2 回切到旧 release，并重新验证旧 health。数据库 migration 后不会自动覆盖式恢复备份；这需要停写窗口和人工判断，避免抹掉 migration 后的新写入。
 
+激活期间如果 health 返回 503，脚本会直接显示 HTTP 状态、release id 和 `database/mediaStorage/avatarStorage/cron/redis` 的结构化状态，并自动收集本项目 Web/Cron 各 40 行 PM2 日志。诊断文件保存在 `<源码目录>-runtime/shared/deploy-logs/`，权限为 0600；已进入原子激活阶段的失败 release 会保留，便于复现和审计。有旧版时 `current` 和 PM2 仍自动回滚；首次发布时会删除失败的两个 PM2 进程并移除 `current`，但不再销毁唯一的构建现场。
+
 ## 6. 服务版本不对怎么办
 
 脚本不会替用户自动安装、升级、start、enable 或覆盖 MySQL、Redis、Nginx、Node、PM2。
