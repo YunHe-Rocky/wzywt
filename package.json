@@ -21,9 +21,11 @@
     "test:next-stage": "tsx scripts/test-next-stage.ts",
     "test:connections": "tsx scripts/test-connections.ts",
     "test:resources": "tsx scripts/test-resource-scheduler.ts",
+    "check:shell-eol": "node scripts/check-shell-line-endings.mjs",
+    "test:deploy": "npm run check:shell-eol && node scripts/run-deploy-tests.mjs",
     "test:e2e": "node tests/e2e/ui-regression.mjs",
     "test:e2e:human-factors": "node tests/e2e/human-factors-regression.mjs",
-    "check": "npm run check:architecture && npm run typecheck && npm run test:core && npm run test:markdown && npm run test:next-stage && npm run test:connections && npm run test:resources"
+    "check": "npm run check:shell-eol && npm run check:architecture && npm run typecheck && npm run test:core && npm run test:markdown && npm run test:next-stage && npm run test:connections && npm run test:resources"
   },
   "dependencies": {
     "@next/env": "^15.5.23",

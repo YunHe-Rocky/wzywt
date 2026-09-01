@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "description": "Copy to the project's shared directory and replace every path, version, user, unit, PID/lock file and port with values verified on that host.",
+  "commands": [
+    {
+      "name": "nginx",
+      "command": "/opt/Nginx/nginx.1.30.2/sbin/nginx",
+      "versionArgs": ["-v"],
+      "versionPattern": "nginx/1\\.30\\.2"
+    }
+  ],
+  "services": [
+    {
+      "name": "mysql",
+      "scope": "system",
+      "units": ["mysqld.service", "mysql.service"],
+      "user": "mysql",
+      "subStates": ["running"],
+      "pidFile": "/run/mysqld/mysqld.pid",
+      "lockFile": "/run/lock/subsys/mysqld",
+      "host": "127.0.0.1",
+      "port": 3306,
+      "timeoutMs": 2000
+    },
+    {
+      "name": "redis",
+      "scope": "system",
+      "units": ["redis.service", "redis-server.service"],
+      "user": "redis",
+      "subStates": ["running"],
+      "pidFile": "/run/redis/redis.pid",
+      "host": "127.0.0.1",
+      "port": 6379,
+      "timeoutMs": 2000
+    }
+  ]
+}

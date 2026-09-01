@@ -21,6 +21,9 @@
 # production
 /build
 
+# deployment transport archives kept beside a production checkout
+/*.zip
+
 # misc
 .DS_Store
 *.pem

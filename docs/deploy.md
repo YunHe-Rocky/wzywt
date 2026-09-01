@@ -1,146 +1,207 @@
-# 王者演武堂 — Rocky Linux 部署文档
+# 王者演武堂 — 一键部署
 
-生产运行目录为 `/opt/yanwutang/current`，源码仓库、共享配置和历史 release 分离。Web 进程监听 `127.0.0.1:8081`，由 Nginx 对外提供 HTTPS。
+部署不要求把普通 `.env` 改成运维配置表。项目名、目录、用户、PM2、命令和 Git 分支都由脚本自动识别。
 
-## 一、服务器基础
+## 1. 用户只需要这样做
 
-```bash
-sudo dnf update -y
-sudo dnf install -y git curl tar gzip openssl mysql-server
-sudo timedatectl set-timezone Asia/Shanghai
-sudo systemctl enable --now mysqld
-```
-
-安装 Node.js 20 与 PM2：
+服务器已有项目代码和普通 `.env` 时：
 
 ```bash
-curl -fsSL https://rpm.nodesource.com/setup_20.x | sudo bash -
-sudo dnf install -y nodejs
-sudo npm install -g pm2
-pm2 startup systemd
+cd /opt/wzywt
+bash scripts/deploy.sh --check
+bash scripts/deploy.sh
 ```
 
-执行 `pm2 startup` 输出的命令，使进程能够在系统重启后恢复。
+`--check` 只检查，不备份、不迁移、不创建 release、不切换 PM2。它通过后再执行第二条正式部署命令。
 
-## 二、数据库
+脚本通过 Bash 调用，不需要 `chmod -R`，也不需要把 `.ts`、`.mjs` 设为可执行。
 
-数据库只监听本机或受信任内网地址，不向公网开放 3306。账号密码由运维人员生成并保存到共享 `.env`，禁止写入仓库或 shell 历史。
+如果源码树不干净，预检会列出最多 20 条精确 Git 状态，并区分脚本权限变化和未跟踪文件。它只给出检查/恢复提示，不会自动 stash、reset、checkout 或删除文件。
 
-```sql
-CREATE DATABASE yanwutang CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE USER 'yanwutang'@'localhost' IDENTIFIED BY '<STRONG_DB_PASSWORD>';
-GRANT ALL PRIVILEGES ON yanwutang.* TO 'yanwutang'@'localhost';
-FLUSH PRIVILEGES;
-```
-
-## 三、首次部署
+当前服务器若刚执行过 `chmod a+x -R scripts`，先恢复仓库记录的普通文件权限：
 
 ```bash
-sudo mkdir -p /opt/yanwutang
-sudo chown "$USER:$USER" /opt/yanwutang
-git clone https://github.com/YunHe-Rocky/wzywt.git /opt/yanwutang/source
-mkdir -p /opt/yanwutang/shared/mysql-bak /opt/yanwutang/shared/media /opt/yanwutang/releases
-chmod 700 /opt/yanwutang/shared/media
+cd /opt/yanwutang
+git diff --summary -- scripts
+find scripts -maxdepth 1 -type f -exec chmod 0644 {} +
+git status --short
 ```
 
-创建 `/opt/yanwutang/shared/.env`：
+只有确认输出中没有真实内容修改后才能继续。根目录传输用 ZIP 已由 `/*.zip` 忽略；更推荐把后续安装包保存在项目目录之外，例如 `/opt/deploy-packages`。
+
+## 2. `.env` 仍然只是应用环境
+
+普通项目配置如下，不需要任何 `DEPLOY_*`：
 
 ```dotenv
-DATABASE_URL="mysql://yanwutang:<URL_ENCODED_DB_PASSWORD>@localhost:3306/yanwutang?connection_limit=10&connect_timeout=5&pool_timeout=10"
-SESSION_SECRET="<AT_LEAST_32_RANDOM_CHARACTERS>"
+PORT=8001
+HOST=127.0.0.1
+
+DATABASE_URL="mysql://APP_USER:URL_ENCODED_PASSWORD@127.0.0.1:3306/APP_DB?connection_limit=10&connect_timeout=5&pool_timeout=10"
+SESSION_SECRET="至少32位随机字符串"
+
 REDIS_URL="redis://127.0.0.1:6379"
-REDIS_REQUIRED="1"
-MEDIA_STORAGE_DIR="/opt/yanwutang/shared/media"
-AVATAR_DIR="/opt/yanwutang/shared/media/avatars"
-MATCH_OCR_ENDPOINT="https://<OCR_SERVICE>/v1/matches/recognize"
-MATCH_OCR_TOKEN="<OCR_BEARER_TOKEN>"
+REDIS_REQUIRED=0
+
+MEDIA_STORAGE_DIR=
+AVATAR_DIR=
+MATCH_OCR_ENDPOINT=
+MATCH_OCR_TOKEN=
 ```
 
-`MATCH_OCR_ENDPOINT` 和 `MATCH_OCR_TOKEN` 在未接 OCR 服务时可以留空；此时上传、人工复核、历史档案和战术室仍可用，但“启动 OCR”会明确返回 503，不会伪造识别结果。OCR 服务必须接收 `screenshots` 与对应 `types` 的六组 multipart 字段，并返回指导文档约定的六页结构。
+- `DATABASE_URL` 是部署、备份和 migration 必需的应用配置。
+- Redis 未配置就跳过；配置但 `REDIS_REQUIRED=0` 时不可用会告警；设为 `1` 时不可用会阻止部署。
+- 媒体路径留空时，脚本自动放到项目 shared 运行目录，不需要用户计算路径。
+- `.env` 不会被复制进 Git release；新 release 只建立指向原文件的软链接。
 
-Web 与 Cron 是两个独立 Prisma 进程，`connection_limit=10` 表示每个进程最多 10 条数据库连接；应结合 MySQL `max_connections` 和并发量调整，禁止把 `pool_timeout` 或 `connect_timeout` 设为 `0`。
-
-可用 `openssl rand -base64 48` 生成 `SESSION_SECRET`。`.env` 权限应限制为运行用户可读：
+默认自动读取当前项目根的 `.env`。特殊情况下仍可显式指定：
 
 ```bash
-chmod 600 /opt/yanwutang/shared/.env
-cd /opt/yanwutang/source
-bash scripts/deploy.sh
+bash scripts/deploy.sh --check --env-file /secure/path/project.env
 ```
 
-对于历史上通过 `prisma db push` 创建且没有 migration 记录的数据库，只能在核对备份和 schema 后执行一次：
+## 3. 脚本自动识别什么
+
+| 项目事实 | 自动规则 |
+|---|---|
+| 源码目录 | 必须等于当前 `pwd -P` 和脚本反推的项目根 |
+| 项目名 | `package.json.name` 清理为安全名称 |
+| release 运行目录 | 源码名为 `source` 时使用父目录；否则使用相邻的 `<源码目录>-runtime` |
+| `/opt/wzywt` | 自动得到 `/opt/wzywt-runtime` |
+| 用户和组 | 当前实际执行用户的 `id -un` / `id -gn` |
+| PM2 home | 当前用户的 `PM2_HOME`，否则 `$HOME/.pm2` |
+| PM2 进程名 | `<项目名>-web`、`<项目名>-cron` |
+| 地址和端口 | 普通 `HOST` / `PORT`，缺省为 `127.0.0.1:8001` |
+| Git remote/branch | 当前分支 upstream；其次当前分支；最后 `origin/main` |
+| 全局命令 | 显式路径、`command -v`、npm global prefix、标准路径，范围有界 |
+| 数据库/Redis | 从普通 `DATABASE_URL` / `REDIS_URL` 只提取 host 和 port，不记录账号密码 |
+| 本地 systemd | 自动尝试 MySQL/MariaDB/Redis 常见 unit，并核对 ActiveState、SubState、MainPID 和 `/proc` |
+
+自动发现的 systemd unit 不存在时，只要配置的 TCP endpoint 真实可达即可，兼容容器或远程服务。若发现了已加载 unit，但 unit 状态、PID 与端口事实冲突，则停止部署。
+
+## 4. 部署前检查
+
+预检按顺序确认：
+
+1. 当前目录确实是脚本所属 Git 项目，生产源码树不是 dirty 状态。
+2. Git remote/ref 有效，命令真实存在；Node 默认接受 20/22/24/26，PM2 默认要求 6 或更高。
+3. 数据库端口可连接；Redis 按普通 `.env` 的 required 规则处理。
+4. 本地标准 systemd unit 若存在，则必须 active、running/listening、MainPID 有效。
+5. 已存在的同名 PM2 应用必须属于当前项目、当前 release 和当前 OS 用户。
+6. 任何其他用户、其他 cwd 或未知进程都不会被脚本接管或按端口杀死。
+
+预检输出会直接展示脚本发现的项目名、源码目录、运行目录、用户、PM2 名、端口、Git ref、命令版本和脱敏服务 endpoint。用户不需要预先回答这些问题。
+
+## 5. 正式部署做什么
+
+```text
+有界发现命令与服务
+→ 保存脱敏宿主快照
+→ 锁定项目部署
+→ fetch 当前 upstream
+→ 从精确 commit archive 新 release
+→ npm ci / Prisma validate / production build
+→ mysqldump 逻辑备份
+→ prisma migrate deploy
+→ 原子切换 current
+→ 只 startOrReload 本项目两个 PM2 应用
+→ 校验 PM2 PID、PID 文件、cwd、用户和 release id
+→ 校验 /api/health 属于新 release
+→ pm2 save
+```
+
+生产始终使用 `prisma migrate deploy`，禁止 `prisma db push`。数据库备份失败不会执行 migration，build 失败也不会触碰运行服务。
+
+PM2、health 或 `pm2 save` 失败时，脚本把 `current` 和本项目 PM2 回切到旧 release，并重新验证旧 health。数据库 migration 后不会自动覆盖式恢复备份；这需要停写窗口和人工判断，避免抹掉 migration 后的新写入。
+
+## 6. 服务版本不对怎么办
+
+脚本不会替用户自动安装、升级、start、enable 或覆盖 MySQL、Redis、Nginx、Node、PM2。
+
+版本或状态不符合时，它会在应用备份、migration 和切换前停止。正式部署会把以下脱敏证据保存到运行目录的 `shared/host-snapshots`：
+
+- 命令实际路径和版本输出；
+- 数据库/Redis endpoint，不含用户名、密码或完整 URL；
+- 可发现 systemd unit 的状态、MainPID、User、FragmentPath；
+- 项目名、源码目录、运行目录和执行用户。
+
+需要额外核对自定义 systemd unit、PID 文件或 lock 文件时，可使用 `docs/deploy-host.example.json`。这是特殊宿主的高级能力，不是普通部署必填项。
+
+## 7. 高级覆盖不是必填表
+
+只有自动发现不适用于特殊宿主时，才临时使用以下覆盖：
+
+| 覆盖 | 用途 |
+|---|---|
+| `DEPLOY_PROJECT_NAME` | 保持历史 PM2 名或使用不同部署名 |
+| `DEPLOY_BASE_DIR` | 改变自动推导的 `<源码>-runtime` |
+| `DEPLOY_REMOTE` / `DEPLOY_BRANCH` | detached HEAD 或特殊发布分支 |
+| `DEPLOY_WEB_HOST` / `DEPLOY_WEB_PORT` | 覆盖普通 `HOST` / `PORT` |
+| `DEPLOY_PM2_*` | 使用非默认 PM2 home、命令或进程名 |
+| `DEPLOY_*_BIN` | 使用不在 PATH/标准目录中的命令 |
+| `DEPLOY_*_VERSION_PATTERN` | 收紧或扩展该项目允许的版本 |
+| `DEPLOY_HOST_MANIFEST` | 自定义 unit、PID、lock、端口证据 |
+
+这些值可以在维护命令的进程环境中临时传入，不需要污染普通项目 `.env`。
+
+## 8. 改名、换用户、换端口
+
+- 改项目名：修改 `package.json.name` 后，新默认 PM2 名随之变化。若旧 PM2 仍存在，所有权检查会停止，不会猜测删除旧进程。
+- 换用户：用目标用户执行部署即可；脚本自动使用该用户的组和 PM2 home。其他用户的 PM2 不会被接管。
+- 换端口：只改普通 `.env` 的 `PORT`，PM2 参数、应用环境和 health URL一起变化；Nginx upstream 是宿主配置，仍需独立备份、`nginx -t` 和显式 reload。
+
+安全停止同样不需要部署参数表：
 
 ```bash
-ALLOW_MIGRATION_BASELINE=1 bash scripts/deploy.sh
+cd /opt/wzywt
+bash scripts/stop.sh
 ```
 
-新数据库和完成 baseline 后的发布禁止设置该变量。生产 schema 只允许 `prisma migrate deploy`，禁止 `prisma db push`。
+它先执行同一套所有权预检，再只停止当前项目的精确 Web/Cron 名，不使用 `fuser -k`。
 
-## 四、后续发布
+## 9. CRLF 现场恢复
+
+若 Rocky Linux 报：
+
+```text
+set: pipefail: 无效的选项名
+```
+
+说明脚本被复制成 Windows CRLF。该错误发生在第 2 行，尚未进入备份、migration 或 PM2。先备份并只修复 Shell 文件：
 
 ```bash
-cd /opt/yanwutang/source
-git status --short
-bash scripts/deploy.sh
+cd /opt/wzywt
+test "$(pwd -P)" = "/opt/wzywt"
+
+backup_dir="/var/backups/wzywt-shell-$(date -u +%Y%m%dT%H%M%SZ)"
+install -d -m 0700 "$backup_dir"
+find scripts -maxdepth 1 -type f \( -name '*.sh' -o -name '*.bash' \) \
+  -exec cp -p -t "$backup_dir" -- {} +
+find scripts -maxdepth 1 -type f \( -name '*.sh' -o -name '*.bash' \) \
+  -exec sed -i 's/\r$//' {} +
+
+if grep -Il $'\r' scripts/*.sh scripts/*.bash 2>/dev/null; then
+  echo 'Shell 脚本仍含 CR，停止部署' >&2
+  exit 1
+fi
+
+find scripts -maxdepth 1 -type f -exec chmod 0644 {} +
+bash -n scripts/*.sh
+bash scripts/deploy.sh --check
 ```
 
-脚本执行顺序：
+仓库已通过 `.gitattributes` 和 `npm run check:shell-eol` 强制 Shell 使用 LF，防止再次复制错误字节。
 
-1. 拒绝 dirty source tree，拉取 `origin/main`。
-2. 从 `origin/main` 创建不可变 release，执行 `npm ci`、Prisma 校验和 production build。
-3. 先生成数据库备份，再执行 `prisma migrate deploy`。
-4. 原子切换 `/opt/yanwutang/current`，使用 PM2 reload。
-5. 请求 `http://127.0.0.1:8081/api/health`，确认数据库、媒体目录、当前 release 的 Cron 心跳和 Redis；失败时自动回滚到上一 release。
+## 10. 发布后验证
 
-Hero Sync 与代码发布解耦，由 Cron 或管理员手动触发。
-
-## 五、Nginx 与防火墙
-
-将站点配置放到 `/opt/Nginx/nginx.1.30.2/conf.d/sites/`，反向代理到 `http://127.0.0.1:8081`。修改后执行：
+部署成功后至少检查：
 
 ```bash
-sudo /opt/Nginx/nginx.1.30.2/sbin/nginx -t
-sudo /opt/Nginx/nginx.1.30.2/sbin/nginx -s reload
-sudo firewall-cmd --permanent --add-service=http
-sudo firewall-cmd --permanent --add-service=https
-sudo firewall-cmd --reload
-```
-
-不要为公网添加 MySQL 3306 端口规则。
-
-演武视频最大为 256 MiB，站点 `server` 或对应 `location` 需要设置：
-
-```nginx
-client_max_body_size 260m;
-proxy_read_timeout 120s;
-proxy_request_buffering off;
-```
-
-视频由受 Session 保护的 Next.js API 流式返回，Nginx 保持 `Range` 请求头和 `206 Content-Range` 响应即可；不得为 `/api/combat-posts/*/video` 配置静态文件 alias，也不得暴露 `MEDIA_STORAGE_DIR`。
-
-## 六、备份与恢复检查
-
-发布脚本会在 migration 前调用 `scripts/db-backup.mjs`，备份保存在 `/opt/yanwutang/shared/mysql-bak`。手工备份使用同一入口：
-
-```bash
-cd /opt/yanwutang/current
-node scripts/db-backup.mjs /opt/yanwutang/shared/mysql-bak
-```
-
-数据库凭据从 `DATABASE_URL` 解析并通过临时 defaults file 传递，不应出现在命令行参数中。必须定期在隔离数据库验证备份可恢复。
-
-比赛原图与视频不在数据库备份内。需要同时备份 `/opt/yanwutang/shared/media`，并以数据库备份时间为边界制作一致性快照；恢复演练必须同时验证数据库记录、文件大小、受保护视频 Range 播放和超管原图访问。
-
-## 七、运行检查
-
-```bash
+cd /opt/wzywt
+bash scripts/deploy.sh --check
 pm2 status
-pm2 logs yanwutang-web --lines 100
-pm2 logs yanwutang-cron --lines 100
-curl --fail http://127.0.0.1:8081/api/health
-readlink -f /opt/yanwutang/current
+curl --fail "http://127.0.0.1:8001/api/health"
+readlink -f /opt/wzywt-runtime/current
 ```
 
-健康接口通过证明 Web、数据库、媒体目录、当前 release 的 Cron 进程和必需 Redis 已就绪；发布后仍需验证登录、赛事创建/加入/分队及管理员操作。
-
-本阶段上线后还需验证：创建比赛档案、六槽上传、OCR 或明确 503、十人复核、正式提交、红蓝战术隔离、成员仅编辑本人路线、视频发布、未登录视频 401、Range 206、点赞评论和超管下架。部署前先确认 `MEDIA_STORAGE_DIR` 可写且不指向 `/`、release 目录或源码目录。
+内部 health 通过仍不等于完整业务通过。正式域名还要验证 TLS、登录、赛事创建/加入/分队、管理员操作、上传/OCR、受保护视频、评论点赞和回滚演练。

@@ -21,7 +21,7 @@
 | 爬虫 | cheerio + iconv-lite + node-cron |
 | 实时推送 | SSE (Server-Sent Events) |
 | 部署 | Rocky Linux + Nginx 1.30.2 + PM2 + acme.sh |
-| 端口 | 开发 8001 / 生产 8081 |
+| 端口 | 普通 `.env` 的 `HOST` / `PORT`，缺省 `127.0.0.1:8001`；高级覆盖仅用于特殊宿主 |
 
 ---
 
@@ -963,7 +963,7 @@ Header 用户头像点击展开下拉菜单：
 npm run dev            # 开发服务器 (localhost:8001)，自动清理端口占用
 npm run dev:all        # 开发 + cron 定时任务
 npm run build          # 生产构建
-npm run db:push        # 同步 Prisma schema
+npm run db:migrate     # 开发库创建并应用 Prisma migration
 npm run db:generate    # 重新生成 Prisma 客户端
 npm run sync-heroes    # 手动同步英雄数据
 npm run cron           # 独立 cron 进程
@@ -972,18 +972,21 @@ npx tsc --noEmit       # 类型检查
 
 ### 20.2 部署
 
-`bash scripts/deploy.sh` — 完整部署流程：
-SSL 证书 → git pull → npm install → prisma generate → 英雄同步 → npm run build → pm2 restart
+必须先进入脚本所属项目根。`bash scripts/deploy.sh --check --env-file <shared/.env>` 会锁定 `pwd -P`/脚本根/配置 source，检查运行用户与组、命令路径和版本、宿主清单中的 systemd MainPID/User/SubState/PID/lock/端口，以及 PM2 进程归属；完整部署才持久化宿主快照并激活：
+
+remote-tracking commit archive → `npm ci` / build → 数据库备份 → `prisma migrate deploy` → 原子切换 `current` → 只 reload 项目 PM2 应用 → 核验 PM2 cwd/release id → release-aware health → `pm2 save`
+
+PM2 激活、PID、状态、健康检查或持久化失败时，必须回切并重新验证上一 release。部署禁止自动 stash、生产 `db push`、发布时 Hero Sync，以及安装/启动/升级全局服务；全局服务版本不符时只记录宿主快照并拒绝。完整运维契约以 [deploy.md](deploy.md) 为准。
 
 ### 20.3 服务器配置
 
 | 组件 | 路径/配置 |
 |------|-----------|
-| Nginx | `/opt/Nginx/nginx.1.30.2/` |
-| 站点配置 | `conf.d/sites/` |
+| Nginx | 路径和版本由宿主清单显式验证；应用部署不安装或 reload |
+| 站点配置 | 从 `docs/nginx-site.conf.template` 渲染，备份后 `nginx -t`，再独立 reload |
 | SSL | Let's Encrypt + acme.sh |
-| PM2 | `ecosystem.config.js` (生产端口 8081) |
-| 代理 | 80/443 → 127.0.0.1:8081 |
+| PM2 | `ecosystem.config.js`；名称、home、运行用户从项目和当前用户自动推导，监听读取普通 `HOST` / `PORT` |
+| 代理 | 80/443 → 普通 `HOST:PORT`；部署自动让 PM2 与 health 一致，Nginx upstream 独立验证 |
 | SSE | `proxy_buffering off` + `proxy_read_timeout 86400s` |
 | MySQL | `<DB_HOST>:3306`，数据库 `<DB_NAME>` |
 | Redis | 同上服务器，密码认证 |
@@ -995,6 +998,12 @@ SSL 证书 → git pull → npm install → prisma generate → 英雄同步 →
 | DATABASE_URL | MySQL 连接字符串 |
 | SESSION_SECRET | iron-session 加密密钥（≥32 字符）；生产环境必填且不得写入仓库 |
 | REDIS_URL | Redis 连接字符串 |
+| REDIS_REQUIRED | `1` 时 Redis 失败会使 readiness fail closed |
+| MEDIA_STORAGE_DIR / AVATAR_DIR | 共享媒体路径，生产必须位于项目 shared 目录内 |
+| 自动项目事实 | `pwd`、`package.json`、当前用户、PM2 home、Git upstream 和 `<source>-runtime`，普通部署无需填写 |
+| HOST / PORT | 普通应用监听配置；PM2、health 与 release 验证共享同一自动解析结果 |
+| DATABASE_URL / REDIS_URL | 自动提取脱敏 endpoint 并检查 TCP；本地标准 systemd unit 若存在则核对 MainPID |
+| DEPLOY_* 高级覆盖 / DEPLOY_HOST_MANIFEST | 仅处理特殊宿主、历史身份或自定义 PID/lock；禁止自动启动全局服务 |
 
 ---
 

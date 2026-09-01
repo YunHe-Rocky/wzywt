@@ -39,7 +39,10 @@ jobs:
       - run: npx prisma generate
       - run: npx prisma validate
       - run: npx prisma migrate deploy
-      - run: bash -n scripts/deploy.sh scripts/mysql-backup.sh
+      - run: npm run check:shell-eol
+      - run: bash -n scripts/*.sh
+      - run: node --check scripts/check-shell-line-endings.mjs && node --check scripts/deploy-env.mjs && node --check scripts/inspect-deploy-host.mjs && node --check scripts/inspect-runtime-services.mjs && node --check scripts/run-deploy-tests.mjs && node --check scripts/verify-deploy-state.mjs
+      - run: npm run test:deploy
       - run: npm run check:architecture
       - run: npm run typecheck
       - run: npm run test:core

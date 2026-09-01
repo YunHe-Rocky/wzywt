@@ -1,4 +1,4 @@
-import { closeSync, mkdirSync, openSync, unlinkSync } from "node:fs";
+import { closeSync, mkdirSync, openSync, readFileSync, unlinkSync } from "node:fs";
 import { spawn } from "node:child_process";
 import { resolve } from "node:path";
 import { loadEnvConfig } from "@next/env";
@@ -13,10 +13,22 @@ if (url.protocol !== "mysql:") throw new Error("DATABASE_URL must use the mysql 
 const database = decodeURIComponent(url.pathname.replace(/^\//, ""));
 if (!database) throw new Error("DATABASE_URL must include a database name");
 
+function projectSlug() {
+  let value = process.env.DEPLOY_PROJECT_NAME;
+  if (!value) {
+    const packageJson = JSON.parse(readFileSync(resolve(process.cwd(), "package.json"), "utf8"));
+    value = packageJson.name;
+  }
+  if (typeof value !== "string" || !value) throw new Error("DEPLOY_PROJECT_NAME or package.json name is required");
+  const slug = value.replace(/^@/, "").replace(/[^A-Za-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "");
+  if (!slug) throw new Error("project name cannot form a safe backup prefix");
+  return slug;
+}
+
 const outputDir = resolve(process.argv[2] || "data/mysql-bak");
 mkdirSync(outputDir, { recursive: true });
 const timestamp = new Date().toISOString().replace(/[-:T]/g, "").slice(0, 14);
-const outputFile = resolve(outputDir, `yanwutang-${timestamp}.sql`);
+const outputFile = resolve(outputDir, `${projectSlug()}-${timestamp}.sql`);
 closeSync(openSync(outputFile, "wx", 0o600));
 
 const args = [

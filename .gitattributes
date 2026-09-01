@@ -1,0 +1,4 @@
+# Keep the attributes file and Linux Shell entrypoints stable across Windows checkouts.
+.gitattributes text eol=lf
+*.sh text eol=lf
+*.bash text eol=lf
