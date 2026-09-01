@@ -23,3 +23,16 @@ for (const relativePath of productionLoaders) {
     `${relativePath} must not use a named ESM import from CommonJS @next/env`,
   );
 }
+
+const backupSource = readFileSync(resolve(repoRoot, "scripts/db-backup.mjs"), "utf8");
+for (const option of [
+  "--single-transaction",
+  "--quick",
+  "--skip-lock-tables",
+  "--set-gtid-purged=OFF",
+  "--no-tablespaces",
+]) {
+  assert.match(backupSource, new RegExp(`^[ \\t]*["']${option}["'],?$`, "m"), `backup must include ${option}`);
+}
+
+console.log("[next-env-interop] PASS");
