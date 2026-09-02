@@ -6,6 +6,8 @@ import { readCombatPostUpload } from "@/features/combat-posts/server/upload";
 import { ApiConnectionError, apiRequest } from "@/features/shared/client/api";
 import { recognizeMatchScreenshots } from "@/features/matches/server/recognition-provider";
 import { redisRetryDelay } from "@/lib/redis";
+import { resolveSessionCookieSecure } from "@/lib/session-config";
+import { shouldBootstrapEquipment } from "@/features/cron/bootstrap-policy";
 import { readFormDataRequest, readJsonRequest, tryReadJsonRequest } from "@/lib/request-validation";
 import { ServiceError } from "@/lib/service-error";
 import { LocalMediaStorage } from "@/lib/storage/local";
@@ -201,6 +203,17 @@ async function main(): Promise<void> {
   assert.equal(redisRetryDelay(1), 250);
   assert.equal(redisRetryDelay(4), 2_000);
   assert.equal(redisRetryDelay(100), 5_000);
+  assert.equal(resolveSessionCookieSecure({ NODE_ENV: "production", SESSION_COOKIE_SECURE: undefined }), true);
+  assert.equal(resolveSessionCookieSecure({ NODE_ENV: "development", SESSION_COOKIE_SECURE: undefined }), false);
+  assert.equal(resolveSessionCookieSecure({ NODE_ENV: "production", SESSION_COOKIE_SECURE: "0" }), false);
+  assert.equal(resolveSessionCookieSecure({ NODE_ENV: "development", SESSION_COOKIE_SECURE: "1" }), true);
+  assert.throws(
+    () => resolveSessionCookieSecure({ NODE_ENV: "production", SESSION_COOKIE_SECURE: "false" }),
+    /must be 0 or 1/,
+  );
+  assert.equal(shouldBootstrapEquipment(0), true);
+  assert.equal(shouldBootstrapEquipment(1), false);
+  assert.throws(() => shouldBootstrapEquipment(-1), /non-negative safe integer/);
   await testRequestLimits();
   await testClientConnectionErrors();
   await testStreamingCombatUpload();

@@ -118,3 +118,14 @@
 - Updated deployment documentation with automatic 503/PM2 diagnostic paths, failed-release preservation, first-release cleanup and previous-release rollback semantics.
 - Final audit shows only the seven intended deployment/planning/documentation files modified; `.env`, credentials and unrelated source files were not changed.
 - One final audit command initially used `bashPath=` instead of PowerShell `$bashPath=`; it made no workspace write beyond the already-applied docs update, and the corrected Node/Bash/diff audit passed.
+## 2026-09-01 HTTP LAN authentication and catalog follow-up
+
+- Host-side TCP, curl and real Chrome acceptance proved the deployed page is reachable and rendered; diagnosis moved from network/PM2 to authentication and data activation.
+- Confirmed production Secure Cookie over plain HTTP blocks session persistence, live heroes are populated, live equipment is empty, and equipment has no initial Cron bootstrap.
+- Phases 29-31 started to add an explicit secure-cookie override, empty-only equipment bootstrap and regression coverage while preserving secure production defaults.- Implemented secure-by-default session cookie resolution with an explicit `SESSION_COOKIE_SECURE=0` escape hatch for trusted HTTP-only LAN deployments; invalid values fail closed.
+- Added empty-only equipment bootstrap ten seconds after Cron startup, protected by the existing distributed/database task lock; non-empty databases log a skip instead of resyncing on every restart.
+- Added pure configuration/bootstrap policy tests and documented the HTTP-versus-HTTPS boundary in `.env.example` and `docs/deploy.md`.
+- Initial typecheck found the project `ProcessEnv` declaration made a `Pick` field required; replaced it with an explicit optional interface. A generated documentation transform interpreted PowerShell backtick-zero as NUL; removed the byte, restored UTF-8 text, and `git diff --check` passed.
+- Targeted architecture, typecheck and connection tests PASS; Phase 31 full validation is in progress.- Phase 31 final validation PASS: aggregate check, full deployment matrix, architecture, typecheck, connection/resource/business tests, ESLint with zero errors, production Next.js build and diff checks.
+- Live production evidence remains read-only: `/api/heroes` is populated, `/api/equipment` is empty, and protected resource access is anonymous until the new cookie configuration is deployed. No user account, password, production row or credential was read or mutated.
+- Server rollout requires adding `SESSION_COOKIE_SECURE=0` to the HTTP-only trusted-LAN `.env`, syncing this code through Git, and rerunning the normal deployment. Cron will bootstrap equipment only when its table is empty.

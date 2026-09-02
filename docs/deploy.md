@@ -39,6 +39,8 @@ HOST=127.0.0.1
 
 DATABASE_URL="mysql://APP_USER:URL_ENCODED_PASSWORD@127.0.0.1:3306/APP_DB?connection_limit=10&connect_timeout=5&pool_timeout=10"
 SESSION_SECRET="至少32位随机字符串"
+# HTTPS 保持空值；仅受信任 HTTP 内网使用 0
+SESSION_COOKIE_SECURE=
 
 REDIS_URL="redis://127.0.0.1:6379"
 REDIS_REQUIRED=0
@@ -50,6 +52,7 @@ MATCH_OCR_TOKEN=
 ```
 
 - `DATABASE_URL` 是部署、备份和 migration 必需的应用配置。
+- HTTPS 部署让 `SESSION_COOKIE_SECURE` 留空，生产默认只发送 Secure Cookie。仅当用 `http://内网IP` 直连受信任局域网时设为 `0`；改用 HTTPS 后应删除该值或设为 `1`。
 - Redis 未配置就跳过；配置但 `REDIS_REQUIRED=0` 时不可用会告警；设为 `1` 时不可用会阻止部署。
 - 媒体路径留空时，脚本自动放到项目 shared 运行目录，不需要用户计算路径。
 - `.env` 不会被复制进 Git release；新 release 只建立指向原文件的软链接。

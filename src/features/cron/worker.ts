@@ -12,6 +12,7 @@ import { prisma } from "@/lib/db";
 import { getMediaStorage } from "@/lib/storage";
 import { syncItems } from "@/features/equipment/server/sync";
 import { refreshOfficialNews } from "@/features/official-news/server/service";
+import { shouldBootstrapEquipment } from "@/features/cron/bootstrap-policy";
 
 const HERO_SYNC_STAMP_KEY = "cron:hero_sync:last_success";
 const HERO_SYNC_RECENT_MS = 6 * 60 * 60 * 1000;
@@ -57,8 +58,15 @@ async function runHeroSync(label: string, skipWhenRecent = false): Promise<void>
 
 export { runMonitorCycle } from "@/features/monitor/cycle";
 
-async function runEquipmentSync(label: string): Promise<void> {
+async function runEquipmentSync(label: string, emptyOnly = false): Promise<void> {
   await runExclusiveTask("equipment-sync", 30 * 60 * 1000, async () => {
+    if (emptyOnly) {
+      const existingCount = await prisma.equipment.count();
+      if (!shouldBootstrapEquipment(existingCount)) {
+        console.log(`[equipment-sync] skip ${label}: ${existingCount} items already exist`);
+        return;
+      }
+    }
     console.log(`[equipment-sync] Starting ${label} sync...`);
     const result = await syncItems();
     if (result.inserted + result.updated === 0) throw new Error("equipment source returned no usable items");
@@ -139,12 +147,17 @@ export function startCronWorker(): CronWorker {
     }),
     5_000,
   );
+  const initialEquipmentSyncTimer = setTimeout(
+    () => schedule("equipment-sync:initial", () => runEquipmentSync("initial", true)),
+    10_000,
+  );
   console.log("[cron] All cron jobs registered");
 
   return {
     async stop() {
       stopping = true;
       clearTimeout(initialSyncTimer);
+      clearTimeout(initialEquipmentSyncTimer);
       tasks.forEach((task) => task.stop());
       const draining = Promise.allSettled([...inFlight]);
       let drained = false;

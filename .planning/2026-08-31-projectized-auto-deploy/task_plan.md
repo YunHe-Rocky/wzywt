@@ -196,3 +196,15 @@
 - 激活失败时只采集本项目 web/cron 的有界 PM2 日志，持久化到 shared deploy-logs，不打印 PM2 全局环境或 Secret。
 - 首次发布失败或旧版回滚成功后，失败的已构建 release 保留供诊断/重试；`current` 和 PM2 仍必须回到安全状态。
 - 回归必须覆盖 health 503 响应体、Cron 错误日志、首次失败现场保留和旧版回滚。
+## Follow-up: HTTP LAN authentication and first-data activation
+
+- [completed] Phase 29：复现并修复生产 HTTP IP 访问时 Secure Session Cookie 无法持久化，保持 HTTPS 默认安全
+- [completed] Phase 30：让空装备库在 Cron 首次启动时有界自动同步，已有数据时跳过
+- [completed] Phase 31：补认证配置/数据激活回归，运行完整检查、lint/build 和差异审计
+
+### HTTP LAN and bootstrap acceptance
+
+- 生产默认仍使用 Secure Cookie；只有显式 `SESSION_COOKIE_SECURE=0` 时允许受信任 HTTP 内网保存会话。
+- 开关只接受空值/0/1，无效值 fail closed；文档明确 HTTP 内网与 HTTPS 的安全差异。
+- 英雄公开 API 有数据时不得误判为英雄库空；图鉴资源租约 401 应随会话修复恢复。
+- 装备表为空时 Cron 启动后安排一次初始同步；表非空时不在每次 PM2 restart 重复全量同步。

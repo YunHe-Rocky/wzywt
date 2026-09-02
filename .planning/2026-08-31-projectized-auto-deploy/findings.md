@@ -103,3 +103,9 @@
 - Safe diagnostics do not require dumping `pm2 jlist`, which may contain environment secrets. Bounded `pm2 logs <project-app> --nostream --lines 40` calls scope output to the two derived project process names.
 - Activation failure is a distinct boundary from build/backup/migration failure: preserve only after entering atomic activation, while pre-activation failures continue to clean incomplete releases.
 - The deployment matrix now proves structured 503 output (`cron=failed`), bounded Cron log capture, durable diagnostic files, failed release retention, first-release PM2 cleanup, and previous-release rollback.
+## HTTP LAN authentication and empty catalog findings
+
+- Live host-side curl and Chrome proved `192.168.33.133:8001` is reachable and `/tournaments` renders. The browser remained anonymous and the protected resource endpoint returned 401.
+- `src/lib/session.ts` hard-codes `secure: NODE_ENV === production`; browsers do not persist Secure cookies over plain `http://192.168...`, so a valid credential response cannot establish the next authenticated request on this deployment shape.
+- Live `/api/heroes` returns about 58 KB of hero records, so the hero database is populated. `/api/equipment` returns `[]`, while the page resource scheduler requires authentication; these are separate failures.
+- Cron schedules equipment sync only at 06:30 daily and has no empty-database bootstrap, so a first deployment after that time remains empty until the next day or a manual sync.
