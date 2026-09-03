@@ -16,6 +16,7 @@
     "check:architecture": "tsx scripts/check-architecture.ts",
     "typecheck": "tsc --noEmit",
     "test:core": "tsx scripts/test-core.ts",
+    "test:auth-session": "tsx scripts/test-auth-session-contract.ts",
     "test:markdown": "tsx scripts/test-markdown.ts",
     "test:integration": "tsx scripts/test-integration.ts",
     "test:next-stage": "tsx scripts/test-next-stage.ts",
@@ -25,7 +26,7 @@
     "test:deploy": "npm run check:shell-eol && node scripts/run-deploy-tests.mjs",
     "test:e2e": "node tests/e2e/ui-regression.mjs",
     "test:e2e:human-factors": "node tests/e2e/human-factors-regression.mjs",
-    "check": "npm run check:shell-eol && npm run check:architecture && npm run typecheck && npm run test:core && npm run test:markdown && npm run test:next-stage && npm run test:connections && npm run test:resources"
+    "check": "npm run check:shell-eol && npm run check:architecture && npm run typecheck && npm run test:core && npm run test:auth-session && npm run test:markdown && npm run test:next-stage && npm run test:connections && npm run test:resources"
   },
   "dependencies": {
     "@next/env": "^15.5.23",

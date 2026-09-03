@@ -18,6 +18,9 @@ interface UserResponse {
 
 interface ErrorResponse {
   error?: string;
+  id?: number;
+  username?: string;
+  role?: string;
   resetToken?: string;
   expiresIn?: number;
   [key: string]: unknown;

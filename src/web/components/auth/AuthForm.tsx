@@ -75,6 +75,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
   const [showForgotPw, setShowForgotPw] = useState(false);
   const [shatterRedirect, setShatterRedirect] = useState<string | null>(null);
   const didNavigateRef = useRef(false);
+  const initialAuthCheckRef = useRef<AbortController | null>(null);
   const forgotModalRef = useRef<HTMLDivElement>(null);
   const forgotUserRef = useRef<HTMLInputElement>(null);
   const forgotAnswerRef = useRef<HTMLInputElement>(null);
@@ -112,10 +113,21 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
   }, [showForgot, forgotStep]);
 
   useEffect(() => {
-    getCurrentUser().then(({ data }) => {
-      if (data.user) router.replace(redirect);
-      else setChecking(false);
-    });
+    const controller = new AbortController();
+    initialAuthCheckRef.current = controller;
+    void getCurrentUser(controller.signal)
+      .then(({ data }) => {
+        if (controller.signal.aborted) return;
+        if (data.user) router.replace(redirect);
+        else setChecking(false);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setChecking(false);
+      });
+    return () => {
+      controller.abort();
+      if (initialAuthCheckRef.current === controller) initialAuthCheckRef.current = null;
+    };
   }, [router, redirect]);
 
   const finishLoginTransition = useCallback(() => {
@@ -126,6 +138,8 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault(); setError(""); setLoading(true);
+    initialAuthCheckRef.current?.abort();
+    initialAuthCheckRef.current = null;
     const body: Record<string, string> = { username, password };
     if (mode === "register") {
       body.securityQuestion = securityQuestion;
@@ -133,19 +147,37 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
       body.securityAnswer = securityAnswer;
       body.confirmPassword = confirmPassword;
     }
-    const { ok, data } = await submitAuthentication(mode, body);
-    if (!ok) {
+    try {
+      const { ok, data } = await submitAuthentication(mode, body);
+      if (!ok) {
+        setLoading(false);
+        setError(data.error || "操作失败");
+        return;
+      }
+
+      // 凭据校验成功不等于浏览器已经建立 Session。尤其在 production + HTTP
+      // 下，Secure Cookie 可能被浏览器拒绝；跳转到公开首页会制造“登录成功”的假象。
+      const confirmed = await getCurrentUser();
+      const expectedUsername = data.username || username;
+      if (!confirmed.ok || confirmed.data.user?.username !== expectedUsername) {
+        setLoading(false);
+        setError(mode === "register"
+          ? "账户已创建，但登录状态未能保存。请返回登录；若通过 HTTP 内网地址访问，请联系管理员检查 Session Cookie 配置。"
+          : "账号密码已验证，但登录状态未能保存。若通过 HTTP 内网地址访问，请联系管理员检查 Session Cookie 配置。");
+        return;
+      }
+
+      if (mode === "register") success("欢迎加入王者演武堂！");
+      if (mode === "login") {
+        const dest = redirect;
+        const sep = dest.includes("?") ? "&" : "?";
+        setShatterRedirect(dest + sep + "_from=login");
+      } else {
+        router.replace(redirect);
+      }
+    } catch (requestError) {
       setLoading(false);
-      setError(data.error || "操作失败");
-      return;
-    }
-    if (mode === "register") success("欢迎加入王者演武堂！");
-    if (mode === "login") {
-      const dest = redirect;
-      const sep = dest.includes("?") ? "&" : "?";
-      setShatterRedirect(dest + sep + "_from=login");
-    } else {
-      router.replace(redirect);
+      setError(requestError instanceof Error ? requestError.message : "网络连接失败，请稍后重试");
     }
   }
 

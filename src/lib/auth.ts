@@ -53,7 +53,8 @@ export async function requireAuth() {
 
   const authState = resolveAuthState(session, user);
   if (!authState.ok) {
-    session.destroy();
+    // 鉴权是只读操作：旧标签页的失效请求可能晚于一次成功登录返回。
+    // 此处若销毁 Cookie，会把浏览器中刚写入的新会话一并清掉。
     throw new AuthError(authState.code);
   }
 
