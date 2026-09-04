@@ -1,6 +1,11 @@
-# 王者演武堂 — 一键部署
+# 王者演武堂 — 完整部署指南
 
-部署不要求把普通 `.env` 改成运维配置表。项目名、目录、用户、PM2、命令和 Git 分支都由脚本自动识别。
+`.env` 是本项目唯一的部署配置清单。应用、release、PM2、MySQL、Redis、媒体目录、公网域名、Nginx 和 TLS/SSL 证书都必须在其中有明确值。参数范文见 [`.env.example`](../.env.example)，完整 Nginx 范文和专项讲解见 [`nginx.conf.example`](nginx.conf.example) 与 [`nginx-configuration.md`](nginx-configuration.md)。
+
+这不表示所有宿主操作都要自动化。模板中 `[app]` 由应用读取，`[deploy]` 由 `scripts/deploy.sh` 读取，`[ops]` 是人工执行 Nginx、TLS 和 systemd 步骤时的唯一参数来源。未被脚本消费的值不得宣称已自动生效。
+
+完整流程是：安装宿主依赖 → 创建专用用户/目录 → 拉取代码并填写 `.env` → 准备 MySQL/Redis/持久化目录 → `deploy.sh --check` → 正式发布 → 按 `.env` 签发/安装证书和 Nginx 站点 → 公网 HTTPS 与业务验收。
+
 
 ## 1. 用户只需要这样做
 
@@ -29,9 +34,9 @@ git status --short
 
 只有确认输出中没有真实内容修改后才能继续。根目录传输用 ZIP 已由 `/*.zip` 忽略；更推荐把后续安装包保存在项目目录之外，例如 `/opt/deploy-packages`。
 
-## 2. `.env` 仍然只是应用环境
+## 2. 建立完整 `.env`
 
-普通项目配置如下，不需要任何 `DEPLOY_*`：
+先复制 `.env.example` 并设置为 `0600`；下列是应用核心项，其余 release、PM2、路径、Nginx 和 TLS 项也必须按模板填写：
 
 ```dotenv
 PORT=8001
@@ -166,13 +171,13 @@ systemctl list-unit-files | grep -Ei 'mysql|maria' || true
 | `DEPLOY_*_VERSION_PATTERN` | 收紧或扩展该项目允许的版本 |
 | `DEPLOY_HOST_MANIFEST` | 自定义 unit、PID、lock、端口证据 |
 
-这些值可以在维护命令的进程环境中临时传入，不需要污染普通项目 `.env`。
+这些值应写入受权限保护的 `.env`，使部署意图可审计。脚本仍会根据现场事实校验路径、版本、所有权和端口。
 
 ## 8. 改名、换用户、换端口
 
 - 改项目名：修改 `package.json.name` 后，新默认 PM2 名随之变化。若旧 PM2 仍存在，所有权检查会停止，不会猜测删除旧进程。
 - 换用户：用目标用户执行部署即可；脚本自动使用该用户的组和 PM2 home。其他用户的 PM2 不会被接管。
-- 换端口：只改普通 `.env` 的 `PORT`，PM2 参数、应用环境和 health URL一起变化；Nginx upstream 是宿主配置，仍需独立备份、`nginx -t` 和显式 reload。
+- 换端口：同时更新 `.env` 的 `PORT`、`DEPLOY_WEB_PORT`、`DEPLOY_HEALTH_URL` 和 Nginx upstream，再执行内部与公网两段 health 检查。
 
 安全停止同样不需要部署参数表：
 
@@ -229,3 +234,45 @@ readlink -f /opt/wzywt-runtime/current
 ```
 
 内部 health 通过仍不等于完整业务通过。正式域名还要验证 TLS、登录、赛事创建/加入/分队、管理员操作、上传/OCR、受保护视频、评论点赞和回滚演练。
+
+## 11. `.env` 配置覆盖范围
+
+部署前执行 `cp .env.example .env && chmod 600 .env`，然后逐项替换示例值。除应用必需的 `DATABASE_URL` 和 `SESSION_SECRET` 外，还必须确认：
+
+- release：`DEPLOY_SOURCE_DIR`、`DEPLOY_BASE_DIR`、用户/组、Git remote/branch。
+- 运行时：Node/npm/npx/PM2 实际路径，尤其是 `/opt/runtime/NodeJS` 不在 `PATH` 时。
+- 服务：MySQL、Redis、备份、媒体和头像持久化目录。
+- 进程：PM2 home、Web/Cron 名称、内部监听地址和 health URL。
+- 公网：`PUBLIC_HOST`、Nginx 配置路径、上传限制、TLS 模式、证书链和私钥路径。
+
+`.env` 声明是意图，不是现状证明。每次部署仍要校验文件、权限、版本、端口、证书和进程归属。
+
+## 12. Nginx 与 TLS/SSL（按 `.env` 人工执行）
+
+完整可参考配置见 [`docs/nginx.conf.example`](nginx.conf.example)，独立安装、共享 Nginx 合并、参数映射、证书签发、验证、续期和回滚讲解见 [`docs/nginx-configuration.md`](nginx-configuration.md)。
+
+1. 确认 `PUBLIC_HOST` 已解析到服务器，80/443 端口已按宿主策略放行。
+2. `TLS_CERT_MODE=existing` 或 `manual` 时，将证书链和私钥安全安装到 `TLS_CERT_FILE` / `TLS_KEY_FILE`。私钥不得进入仓库，并只授予 Nginx 所需的最小读权限。
+3. `TLS_CERT_MODE=certbot` 时，先创建 `TLS_CERTBOT_WEBROOT`，再使用：
+
+```bash
+/usr/bin/certbot certonly --webroot -w /var/www/certbot \
+  -d example.com -m admin@example.com --agree-tos --no-eff-email
+```
+
+上述路径、域名和邮箱必须以 `.env` 实际值替换。首次签发需先安装只提供 `/.well-known/acme-challenge/` 的 HTTP 站点。
+
+4. 以 `docs/nginx-site.conf.template` 的反向代理 location 为基础生成临时站点文件，再显式加入 HTTP ACME challenge/跳转 server 和带 `ssl_certificate` / `ssl_certificate_key` 的 HTTPS server。所有域名、upstream、证书、webroot 和上传限制只能取自同一 `.env`。不得用 `source .env` 执行未审核内容。
+5. 备份已有 `NGINX_SITE_CONFIG`，安装新配置，执行 `NGINX_BIN -t`。只有成功后才可 `systemctl reload NGINX_SERVICE`；失败时恢复备份并再次检查。
+6. 检查证书和公网链路：
+
+```bash
+openssl x509 -in /etc/letsencrypt/live/example.com/fullchain.pem \
+  -noout -subject -issuer -dates
+curl --fail --proto '=https' --tlsv1.2 https://example.com/api/health
+openssl s_client -connect example.com:443 -servername example.com </dev/null
+```
+
+7. Certbot 模式必须验证 `certbot renew --dry-run`；其他模式必须配置到期监控。续期后同样要 `nginx -t` 后才 reload。
+
+`scripts/setup-ssl.sh` 保持退役：它不得自动安装软件、停止全局 Nginx 或覆盖未确认的站点。SSL 不是 release 回滚的一部分，但其全部参数和验收结果必须与 `.env` 一致。

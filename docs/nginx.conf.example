@@ -1,0 +1,152 @@
+# 王者演武堂 Nginx 完整参考配置
+#
+# 这是“Nginx 只服务本项目”时可参考的完整 nginx.conf。
+# 如果服务器已经有 Nginx/其他站点，禁止覆盖 /etc/nginx/nginx.conf；
+# 只把 map（放在 http 内）和两个 server 块合并进现有配置。
+#
+# 上线前必须按 .env 替换：
+#   game.example.com
+#   /etc/letsencrypt/live/game.example.com/fullchain.pem
+#   /etc/letsencrypt/live/game.example.com/privkey.pem
+#   /var/www/certbot
+#   127.0.0.1:8001
+# 详细操作见 docs/nginx-configuration.md。
+
+user nginx;
+worker_processes auto;
+error_log /var/log/nginx/error.log warn;
+pid /run/nginx.pid;
+
+events {
+    worker_connections 4096;
+    multi_accept on;
+}
+
+http {
+    include       /etc/nginx/mime.types;
+    default_type  application/octet-stream;
+
+    log_format main '$remote_addr - $remote_user [$time_local] "$request" '
+                    '$status $body_bytes_sent "$http_referer" '
+                    '"$http_user_agent" "$http_x_forwarded_for" '
+                    'request_time=$request_time upstream_time=$upstream_response_time';
+    access_log /var/log/nginx/access.log main;
+
+    sendfile on;
+    tcp_nopush on;
+    keepalive_timeout 65;
+    server_tokens off;
+    types_hash_max_size 4096;
+
+    # 比赛截图和视频上传上限，对应 NGINX_CLIENT_MAX_BODY_SIZE。
+    client_max_body_size 260m;
+    client_body_timeout 120s;
+
+    gzip on;
+    gzip_vary on;
+    gzip_min_length 1024;
+    gzip_types text/plain text/css application/json application/javascript
+               application/xml image/svg+xml;
+
+    # 支持未来的 WebSocket Upgrade；普通 HTTP 保持 keep-alive。
+    map $http_upgrade $connection_upgrade {
+        default upgrade;
+        ''      '';
+    }
+
+    # HTTP：保留 ACME challenge，其余永久跳转 HTTPS。
+    server {
+        listen 80;
+        listen [::]:80;
+        server_name game.example.com;
+
+        access_log /var/log/nginx/wangzhe-yanwutang-access.log main;
+        error_log  /var/log/nginx/wangzhe-yanwutang-error.log warn;
+
+        location ^~ /.well-known/acme-challenge/ {
+            root /var/www/certbot;
+            default_type text/plain;
+            try_files $uri =404;
+        }
+
+        location / {
+            return 301 https://$host$request_uri;
+        }
+    }
+
+    server {
+        listen 443 ssl http2;
+        listen [::]:443 ssl http2;
+        server_name game.example.com;
+
+        ssl_certificate     /etc/letsencrypt/live/game.example.com/fullchain.pem;
+        ssl_certificate_key /etc/letsencrypt/live/game.example.com/privkey.pem;
+        ssl_protocols TLSv1.2 TLSv1.3;
+        ssl_session_cache shared:WZYWT_SSL:10m;
+        ssl_session_timeout 1d;
+        ssl_session_tickets off;
+
+        # 首次 HTTPS 验收通过前不要开 HSTS；确认后再取消注释。
+        # add_header Strict-Transport-Security "max-age=31536000" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+        add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
+
+        access_log /var/log/nginx/wangzhe-yanwutang-access.log main;
+        error_log  /var/log/nginx/wangzhe-yanwutang-error.log warn;
+
+        # Next.js 入口。Host/X-Forwarded-* 使应用知道原始 HTTPS 请求。
+        location / {
+            proxy_pass http://127.0.0.1:8001;
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection $connection_upgrade;
+
+            # 上传直接流向应用，避免 Nginx 先完整缓存大文件。
+            proxy_request_buffering off;
+            proxy_buffering off;
+            proxy_connect_timeout 5s;
+            proxy_send_timeout 300s;
+            proxy_read_timeout 300s;
+        }
+
+        # Hero monitor 使用 SSE。关闭缓冲并给长连接更长读超时。
+        location = /api/heroes/watch {
+            proxy_pass http://127.0.0.1:8001;
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_set_header Connection "";
+            proxy_buffering off;
+            proxy_cache off;
+            proxy_read_timeout 1h;
+            add_header X-Accel-Buffering no;
+        }
+
+        # Next 带 hash 的静态资源可长期缓存。
+        location /_next/static/ {
+            proxy_pass http://127.0.0.1:8001;
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_cache_valid 200 1d;
+            add_header Cache-Control "public, max-age=31536000, immutable";
+        }
+
+        # public 目录文件不一定带 hash，使用较短缓存。
+        location /public/ {
+            proxy_pass http://127.0.0.1:8001;
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_cache_valid 200 1h;
+            add_header Cache-Control "public, max-age=3600";
+        }
+    }
+}
