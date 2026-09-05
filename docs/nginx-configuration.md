@@ -1,115 +1,97 @@
-# Nginx 与 SSL/TLS 配置讲解
+# Nginx 与 SSL/TLS 配置指南
 
-本文与 [`.env.example`](../.env.example) 和 [`nginx.conf.example`](nginx.conf.example) 配套。目标是让 `.env` 保存全部部署意图，但由运维人员审核后执行宿主级操作；`deploy.sh` 不会擅自覆盖全局 Nginx、申请证书或修改防火墙。
+Nginx 与证书是一次性或低频宿主配置，不属于每次应用发布。`scripts/deploy.sh` 不会覆盖全局 Nginx、申请证书、修改防火墙或 reload 其他站点；日常发布请看 [部署指南](deploy.md)。
 
-## 1. 先确定使用方式
+本页不要求把 Nginx/TLS 参数写进应用 `.env`。直接以已经核实的域名、路径和现有 Nginx include 规则修改站点配置，避免维护一套应用根本不会读取的重复变量。
 
-### 方式 A：这台服务器的 Nginx 只服务本项目
+## 1. 选择配置方式
 
-可以把 `docs/nginx.conf.example` 作为完整 `/etc/nginx/nginx.conf` 的参考，但仍必须先备份原文件、替换全部示例值并执行 `nginx -t`。发行版自带配置可能还有模块、日志轮转或目录约定，不应机械覆盖。
+### Nginx 只服务本项目
 
-### 方式 B：Nginx 已服务其他网站（更常见）
+可以参考 [`nginx.conf.example`](nginx.conf.example)，但仍要先备份实际配置、替换全部示例值并执行 `nginx -t`。发行版或自编译安装可能有自己的模块、日志和 include 约定，不能机械覆盖。
 
-禁止替换 `/etc/nginx/nginx.conf`。只进行以下合并：
+### Nginx 已服务其他网站（更常见）
 
-1. 将范文中的 `map $http_upgrade ...` 放到现有 `http {}` 内；如果已有同名 map 就复用。
-2. 将两个 `server {}` 保存到 `.env` 的 `NGINX_SITE_CONFIG`。
-3. 保留现有站点和现有 `include` 规则。
-4. 用 `NGINX_BIN -t` 检查整个 Nginx 配置树，而不是只检查新文件。
+不要替换主 `nginx.conf`。只做三件事：
 
-Rocky Linux RPM 常见站点路径是 `/etc/nginx/conf.d/*.conf`；自编译 Nginx 可能完全不同。以 `nginx -V` 和现有 `nginx.conf` 的 `include` 为准。
+1. 已有 `map $http_upgrade ...` 就复用；没有时放进现有 `http {}`。
+2. 把本项目的两个 `server {}` 放到现有 `include` 会加载的独立站点文件。
+3. 对整个配置树执行实际 Nginx 二进制的 `-t`，成功后才 reload。
 
-## 2. `.env` 与 Nginx 的逐项对应
+Rocky Linux RPM 常见站点目录是 `/etc/nginx/conf.d/*.conf`；自编译 Nginx 可能不同。以 `nginx -V` 和当前主配置中的 `include` 为准。
 
-| `.env` 变量 | Nginx 中的位置 | 范例 | 如何确认 |
-|---|---|---|---|
-| `PUBLIC_HOST` | 两个 `server_name`、证书目录、外部验证 | `game.example.com` | DNS A/AAAA 记录和实际域名 |
-| `PUBLIC_PORT` | HTTPS `listen` | `443` | `ss -lntp` 与防火墙策略 |
-| `DEPLOY_WEB_HOST` | 每个 `proxy_pass` host | `127.0.0.1` | 必须与 PM2/Next 监听一致 |
-| `DEPLOY_WEB_PORT` | 每个 `proxy_pass` port | `8001` | 必须与 `.env` 的 `PORT` 一致 |
-| `NGINX_BIN` | 检查和 reload 前的命令 | `/usr/sbin/nginx` | `command -v nginx` |
-| `NGINX_SERVICE` | systemd unit | `nginx` | `systemctl status nginx` |
-| `NGINX_SITE_CONFIG` | 项目站点文件 | `/etc/nginx/conf.d/wangzhe-yanwutang.conf` | 查看主配置的 `include` |
-| `NGINX_CLIENT_MAX_BODY_SIZE` | `client_max_body_size` | `260m` | 应覆盖项目允许的最大视频/图片请求 |
-| `TLS_CERT_FILE` | `ssl_certificate` | `fullchain.pem` | 文件存在且含完整证书链 |
-| `TLS_KEY_FILE` | `ssl_certificate_key` | `privkey.pem` | 文件存在、权限最小、与证书匹配 |
-| `TLS_TRUSTED_CERT_FILE` | 可选 `ssl_trusted_certificate` | 留空 | 仅 CA/OCSP 方案明确要求时配置 |
-| `TLS_CERTBOT_WEBROOT` | ACME challenge 的 `root` | `/var/www/certbot` | Certbot 与 Nginx 必须使用同一路径 |
-| `PUBLIC_HEALTH_URL` | 发布后的外部检查 | `https://game.example.com/api/health` | 必须经过公网 DNS、TLS 和 Nginx |
+## 2. 只需要确认这些事实
 
-Nginx 不会自动读取 `.env`。这些变量是生成和复核配置时的权威输入，必须由人逐项替换，或以后实现一个只生成临时文件、不 reload 的安全渲染工具。
+| 事实 | 放到哪里 | 如何确认 |
+|---|---|---|
+| 公网域名 | `server_name`、证书签发、外部验证 URL | DNS A/AAAA 与真实域名 |
+| 内部 upstream | `proxy_pass http://127.0.0.1:8001` | `deploy.sh` 默认和内部 health |
+| 站点文件路径 | 当前 Nginx 的 include 目录 | 查看实际 `nginx.conf` |
+| 上传上限 | `client_max_body_size` | 覆盖项目允许的最大图片/视频请求 |
+| 证书链 | `ssl_certificate` | 文件存在、有效期正确、包含完整链 |
+| 私钥 | `ssl_certificate_key` | 权限最小且与证书匹配 |
+| ACME webroot | 80 端口 challenge location 与 Certbot `-w` | 两处必须是同一路径 |
 
-## 3. 签发证书
+应用默认只监听 `127.0.0.1:8001`。除非架构明确需要跨主机访问，不要改成 `0.0.0.0`。
 
-### 已有证书或人工 CA
+## 3. 签发或安装证书
 
-当 `TLS_CERT_MODE=existing` 或 `manual`：
+### 已有证书
 
-1. 将证书链放到 `TLS_CERT_FILE`。
-2. 将对应私钥放到 `TLS_KEY_FILE`。
-3. 私钥不得提交 Git，不得放进源码/release 目录。
-4. 验证证书与私钥匹配（两条输出的 SHA-256 必须相同）：
+1. 把完整证书链与私钥放到宿主受保护目录，不要放进源码或 release。
+2. 私钥只授予 Nginx 所需的最小权限。
+3. 验证证书和 RSA 私钥匹配；两条 SHA-256 应相同：
 
 ```bash
 openssl x509 -noout -modulus -in /path/to/fullchain.pem | openssl sha256
 openssl rsa  -noout -modulus -in /path/to/privkey.pem   | openssl sha256
 ```
 
-如果使用 ECDSA 私钥，上述 `openssl rsa` 不适用，应由证书提供方给出对应验证命令。
+ECDSA 私钥应使用证书提供方对应的验证方式，不能套用 `openssl rsa`。
 
 ### Certbot webroot
 
-当 `TLS_CERT_MODE=certbot`：
-
-1. 创建 `.env` 中的 webroot：`install -d -m 0755 /var/www/certbot`。
-2. 先安装仅监听 80、提供 `/.well-known/acme-challenge/` 的临时站点。
-3. 从外部确认 challenge 文件能通过 HTTP 访问。
-4. 按 `.env` 实际路径、域名和邮箱执行：
+1. 创建一个固定的 ACME webroot。
+2. 先安装仅提供 `/.well-known/acme-challenge/` 的 HTTP 站点。
+3. 从外部确认 challenge 文件可访问。
+4. 使用真实域名、通知邮箱和同一个 webroot 签发：
 
 ```bash
-/usr/bin/certbot certonly --webroot \
+sudo install -d -m 0755 /var/www/certbot
+sudo certbot certonly --webroot \
   -w /var/www/certbot \
   -d game.example.com \
-  -m admin@game.example.com \
+  -m admin@example.com \
   --agree-tos --no-eff-email
 ```
 
-5. 证书生成后再启用 HTTPS server 和 HTTP 301 跳转。
+证书存在后再启用 HTTPS server 和 HTTP 301 跳转。不要让 Nginx 配置提前引用不存在的证书文件。
 
-不要在签发证书前启用引用不存在证书文件的 HTTPS 配置，否则 `nginx -t` 会失败。
+## 4. 安装配置的安全顺序
 
-## 4. 安装配置的安全事务
+1. `readlink -f` 确认正在编辑的主配置、include 目录和站点文件。
+2. 把现有站点文件备份到 root-only 目录并保留时间戳。
+3. 从 [`nginx.conf.example`](nginx.conf.example) 或 [`nginx-site.conf.template`](nginx-site.conf.template) 复制所需片段到临时文件。
+4. 替换全部 `example.com`、证书路径、webroot 和占位符。
+5. 安装站点文件，执行实际 Nginx 二进制的 `-t`。
+6. 只有检查成功后才 reload；不要 stop 全局 Nginx。
+7. reload 后检查 80/443 listener、内部 health、公网 health 和错误日志。
+8. 任一步失败就恢复站点备份，再次 `nginx -t` 后 reload。
 
-以下步骤是操作顺序，不是可直接无脑粘贴的脚本。所有路径必须先与 `.env` 对照：
-
-1. `readlink -f` 确认源文件和目标文件。
-2. 将现有配置备份到 root-only 目录，并保留时间戳。
-3. 把编辑完成的配置先写入临时文件。
-4. 检查临时文件不存在 `CHANGE_ME`、`example.com` 或未替换占位符。
-5. 安装到 `NGINX_SITE_CONFIG`。
-6. 执行 `NGINX_BIN -t`。
-7. 只有检查成功后才执行 `systemctl reload NGINX_SERVICE`。
-8. reload 后检查 unit、80/443 listener、内部 health、公网 health 和日志。
-9. 任一步失败就恢复备份，再次 `nginx -t` 后 reload；不要直接 stop 全局 Nginx。
-
-## 5. 发布后验证
+## 5. 验证
 
 ```bash
-# 内部应用，不经过 Nginx/TLS
+# 应用内部链路
 curl --fail http://127.0.0.1:8001/api/health
 
-# HTTP 必须跳转到 HTTPS
+# HTTP 跳转
 curl -I http://game.example.com/
 
-# 公网完整链路
-curl --fail --proto '=https' --tlsv1.2 \
-  https://game.example.com/api/health
+# 公网 DNS + TLS + Nginx + upstream
+curl --fail --proto '=https' --tlsv1.2 https://game.example.com/api/health
 
-# 证书主题、签发者和有效期
-openssl x509 -in /etc/letsencrypt/live/game.example.com/fullchain.pem \
-  -noout -subject -issuer -dates
-
-# 带 SNI 的握手与证书链
+# 证书和 SNI
+openssl x509 -in /path/to/fullchain.pem -noout -subject -issuer -dates
 openssl s_client -connect game.example.com:443 \
   -servername game.example.com -verify_return_error </dev/null
 
@@ -117,17 +99,17 @@ systemctl status nginx --no-pager
 ss -lntp | grep -E ':(80|443|8001)[[:space:]]'
 ```
 
-内部 `/api/health` 成功只证明 Next.js/依赖链；公网 URL 成功才覆盖 DNS、443、证书、Nginx 和 upstream。仍需继续验证登录、Secure Cookie、赛事流程、上传、OCR、视频 Range、评论/点赞和管理员操作。
+内部 health 通过不等于公网完成。还要验证登录、Secure Cookie、赛事流程、上传、OCR、视频 Range、评论/点赞和管理员操作。
 
 ## 6. 续期与回滚
 
-Certbot 模式至少执行一次：
+Certbot 至少执行一次：
 
 ```bash
 certbot renew --dry-run
 systemctl list-timers --all | grep -i certbot
 ```
 
-续期 hook 应执行 `nginx -t`，成功后才 reload。非 Certbot 模式必须在监控系统中设置证书到期告警。
+续期 hook 必须先 `nginx -t`，成功后才 reload。非 Certbot 证书需要独立到期告警。
 
-Nginx/证书是宿主级事务，不属于应用 release 的原子回滚。应用回滚不会自动回滚证书或站点配置，因此每次修改前必须单独备份并记录：原文件、目标文件、证书序列号、到期时间、`nginx -t` 结果和 reload 时间。
+Nginx/证书不属于应用 release 的自动回滚。每次修改前单独备份站点文件，并记录证书序列号、到期时间、`nginx -t` 和 reload 结果。

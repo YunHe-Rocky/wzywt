@@ -1,5 +1,18 @@
 # Findings
 
+## 2026-09-05 deployment simplification
+
+- The current deploy guide opens with a large `.env` as the supposed single inventory for application, release, PM2, host operations, Nginx, and TLS. That makes optional and automatically derived settings look mandatory.
+- `deploy.sh` already auto-discovers the project root/name, runtime sibling directory, current user/group, PM2 home/names, host/port defaults, Git upstream, command paths, and database/Redis endpoints; the normal operator path should expose these defaults instead of re-documenting overrides as required inputs.
+- The safety contract remains: clean Git source, backup before migration, production `prisma migrate deploy`, project-owned PM2 processes only, release-aware health, and automatic application rollback. Simplification must not weaken these gates.
+- Detailed Nginx/TLS and special-host manifests already have dedicated files and should be linked as optional paths rather than repeated in the primary deploy guide.
+- The user-provided production `.env` demonstrates the failure mode: many duplicated deployment and host-operation values, hard-coded tool-version paths, a misspelled public-health key, and live secrets mixed with non-secret operational metadata. Secret values were not copied into project files and must be rotated separately.
+
+- Existing deployments may genuinely rely on a non-default PM2 home. Removing `DEPLOY_PM2_HOME` without discovery could hide the running apps and create a duplicate/port conflict; the simplification now auto-detects an established sibling `<source>-pm2` containing PM2 state, while the guide tells operators to retain only the one override when a historical layout differs.
+- Final `.env.example` has exactly two active keys: `DATABASE_URL` and `SESSION_SECRET`. Redis and OCR are commented opt-ins; host/port, media paths, deployment internals, Nginx/TLS, services, backup paths, and seed values are not presented as routine inputs.
+- Deployment output regression checks reject full MySQL URLs, fixture passwords, and Session Secret values. No user-provided secret value was copied into repository files; real exposed credentials still require server-side rotation.
+
+
 ## 2026-08-15 faction-cohesive tactic colors
 
 - Root cause: persisted tactic colorKey values identify five member slots, but the UI interpreted those keys as five unrelated global hues (red, blue, amber, green, violet).

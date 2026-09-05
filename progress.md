@@ -1,5 +1,18 @@
 # Progress
 
+## 2026-09-05 deployment simplification
+
+- Started Phase Y after direct feedback that the deployment documentation is too difficult and internally inconsistent.
+- Read the complete `planning-with-files` workflow, restored the existing root planning files, and appended rather than replaced the completed V2.1 history.
+- Confirmed the worktree had no reported Git changes before this task. Initial managed-sandbox reads failed on the Chinese workspace path; continued with narrowly scoped read-only escalation.
+- Read the primary deploy guide, `.env.example`, README, host-manifest example, PM2 config, deployment-script inventory, and prior deployment memory index. Focused script-to-document reconciliation is in progress.
+- Applied the 7-file deployment simplification: minimal `.env.example`, short primary guide, separate advanced/Nginx indexes, Node/npm/npx/pm2 and custom mysqldump discovery, exact runtime-permission diagnostics, and redaction assertions.
+- `npm.cmd run test:deploy` PASS with explicit exit 0. Coverage includes LF enforcement, minimal `.env` defaults, runtime endpoint redaction, normal activation, backup/migration, rollback, first-release failure, PM2 collision, and safe stop.
+- Follow-up review identified one existing-server compatibility risk: a custom PM2 home must be discovered before advising removal of all `DEPLOY_*` values. Added sibling PM2-home discovery and regression coverage before finalizing docs.
+- Final validation PASS: local Markdown links, exactly two active `.env.example` keys, `git diff --check`, architecture, typecheck, deployment regression (exit 0), and Next.js 15.5.23 production build (exit 0). Build retained only the existing `<img>` optimization warnings.
+- The real Rocky Linux host was not mutated or freshly exercised from this workspace. The remaining deployment acceptance step is to rotate exposed credentials, reduce the server `.env` with a backup, and run `bash scripts/deploy.sh --check` there before any release.
+
+
 ## 2026-08-15 faction-cohesive tactic colors
 
 - Phase X completed from user feedback that one faction must not use colors with excessive hue differences.

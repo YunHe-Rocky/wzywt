@@ -43,6 +43,15 @@ Goal: implement the first release described by `docs/王者演武堂_下一阶�
 - [completed] Phase V: audit and repair the complete connection chain (browser/client, Next.js API, Session, Prisma/MySQL, Redis, OCR/media integrations, cron, health/deploy), add deterministic failure/recovery tests, and rerun production-grade validation
 - [completed] Phase W: repair tactic-board pointer responsiveness and interaction flow; enforce private participant annotations until the owner completes match-data submission, then unlock read-only team viewing
 - [completed] Phase X: replace cross-spectrum member colors with cohesive red-side and blue-side palettes while preserving per-member distinction
+- [completed] Phase Y: simplify production deployment into a short, reliable operator path; move stable defaults into code, replace duplicated instructions with authoritative links, and verify docs against the actual scripts
+
+## Phase Y acceptance criteria
+
+- A normal Rocky Linux deployment has one clear prerequisite path, one small `.env`, one preflight command, and one deploy command.
+- Stable project facts and derived paths are built into or auto-detected by scripts instead of being copied into `.env`.
+- Nginx, TLS, database, rollback, and troubleshooting details each have one authoritative location; the main deploy guide links to them instead of duplicating them.
+- Existing safety properties remain intact: clean source, backup before migration, production `prisma migrate deploy`, project-owned PM2 processes, release-aware health verification, and rollback.
+- Documentation examples, environment-variable inventory, script behavior, syntax checks, and repository validation agree.
 
 ## Phase X acceptance criteria
 
@@ -67,6 +76,11 @@ Goal: implement the first release described by `docs/王者演武堂_下一阶�
 - Pass architecture, typecheck, core/domain/integration tests, lint, production build, browser E2E, and connection-specific regression tests; report any production-only checks not actually performed.
 
 ## Errors Encountered
+
+| Initial sandboxed reads of the installed skill and Chinese workspace failed while applying managed deny-read ACLs | 1 | Switched to narrowly scoped read-only escalation; no workspace data or process state was changed |
+| First four generated planning patches hit invalid hunk structure, line-count, or mixed-line-ending matching failures | 4 | Used verified anchors with a zero-context patch, then checked the resulting diff |
+| Direct workspace `apply_patch` and the first exact code patch could not match files under the managed Chinese-path ACL/line-ending combination | 2 | Built desired copies from apply-patched artifacts, generated Git diffs against exact baselines, and required `git apply --check` before each application |
+| First `git diff --output=(Join-Path ...)` call passed an empty output argument | 1 | Assigned the resolved output path to a variable and passed the quoted variable on the retry |
 
 | Phase V first typecheck: removed `ServiceError` import still used by multipart validation; SSE cleanup inferred `() => undefined` | 1 | Restored the import and explicitly typed cleanup as `() => void` before rerunning typecheck |
 

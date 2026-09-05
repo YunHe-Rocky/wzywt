@@ -512,11 +512,10 @@ cp -- "$SCRIPT_DIR/deploy.sh" "$SCRIPT_DIR/deploy-env.mjs" "$SCRIPT_DIR/verify-d
   "$SCRIPT_DIR/inspect-deploy-host.mjs" "$SCRIPT_DIR/inspect-runtime-services.mjs" "$ordinary_root/scripts/"
 printf '{"name":"ordinary-root"}\n' >"$ordinary_root/package.json"
 cat >"$ordinary_root/.env" <<ENV
-PORT=18081
-HOST=127.0.0.1
 DATABASE_URL=mysql://app:password@127.0.0.1:$SERVICE_PORT/app
 SESSION_SECRET=ordinary-test-secret-not-for-production
 ENV
+mkdir -p -- "${ordinary_root}-pm2/pids"
 printf '[]\n' >"$ordinary_root/pm2-state.json"
 : >"$ordinary_root/commands.log"
 if ! (
@@ -536,10 +535,17 @@ if ! (
 fi
 assert_not_contains "$ordinary_root/.env" "DEPLOY_"
 assert_contains "$ordinary_root/check.log" "project=ordinary-root package=ordinary-root source=$ordinary_root base=${ordinary_root}-runtime"
-assert_contains "$ordinary_root/check.log" "listen=127.0.0.1:18081"
+assert_contains "$ordinary_root/check.log" "listen=127.0.0.1:8001"
+assert_contains "$ordinary_root/check.log" "PM2=$FAKE_BIN/pm2 home=${ordinary_root}-pm2"
 assert_contains "$ordinary_root/check.log" "ref=refs/remotes/origin/main"
 assert_contains "$ordinary_root/check.log" "[runtime-services] database 127.0.0.1:$SERVICE_PORT"
+assert_contains "$ordinary_root/check.log" "media=${ordinary_root}-runtime/shared/media"
 assert_contains "$ordinary_root/check.log" "preflight check passed; no release was created or activated"
+assert_not_contains "$ordinary_root/check.log" "mysql://"
+assert_not_contains "$ordinary_root/check.log" "password"
+assert_not_contains "$ordinary_root/check.log" "ordinary-test-secret"
+assert_contains "$SCRIPT_DIR/deploy.sh" "/opt/runtime/NodeJS/node-v*-linux-x64/bin/node"
+assert_contains "$SCRIPT_DIR/deploy.sh" "/opt/middleware/Mysql/mysql/bin/mysqldump"
 assert_contains "$SCRIPT_DIR/../.gitignore" "/*.zip"
 
 dirty_case="$(prepare_case dirty-source)"

@@ -174,7 +174,7 @@ resolve_optional_command() {
 }
 
 resolve_pm2() {
-  local explicit="$1" npm_bin="$2" npm_prefix="" candidate="" resolved=""
+  local explicit="$1" npm_bin="$2" node_bin_dir="$3" npm_prefix="" candidate="" resolved=""
   if [[ -n "$explicit" ]]; then
     resolve_command "pm2" "$explicit"
     return
@@ -186,6 +186,7 @@ resolve_pm2() {
   fi
   npm_prefix="$($npm_bin prefix -g 2>/dev/null || true)"
   for candidate in \
+    "$node_bin_dir/pm2" \
     "$npm_prefix/bin/pm2" \
     "$npm_prefix/lib/node_modules/pm2/bin/pm2" \
     "/usr/local/bin/pm2" \
@@ -205,7 +206,42 @@ new_temp_file() {
   printf -v "$variable_name" '%s' "$file"
 }
 
-NODE_BIN="$(resolve_command node "${DEPLOY_NODE_BIN:-}" /usr/local/bin/node /usr/bin/node)"
+nearest_existing_parent() {
+  local candidate="$1"
+  while [[ ! -e "$candidate" && "$candidate" != "/" ]]; do
+    candidate="${candidate%/*}"
+    [[ -n "$candidate" ]] || candidate="/"
+  done
+  printf '%s\n' "$candidate"
+}
+
+check_runtime_permissions() {
+  local parent path
+  if [[ -e "$BASE_DIR" && ! -d "$BASE_DIR" ]]; then
+    fail "runtime path exists but is not a directory: $BASE_DIR"
+  fi
+
+  if [[ ! -e "$BASE_DIR" ]]; then
+    parent="$(nearest_existing_parent "$BASE_DIR")"
+    [[ -d "$parent" && -w "$parent" ]] || fail "runtime directory cannot be created by $ACTUAL_RUN_USER: $BASE_DIR. Ask an administrator to run once: sudo install -d -m 0750 -o '$ACTUAL_RUN_USER' -g '$ACTUAL_RUN_GROUP' '$BASE_DIR'"
+  elif [[ ! -w "$BASE_DIR" ]]; then
+    fail "runtime directory is not writable by $ACTUAL_RUN_USER: $BASE_DIR. Fix this exact runtime directory; do not chmod/chown the source tree or all of /opt recursively"
+  fi
+
+  for path in "$RELEASES_DIR" "$SHARED_DIR" "$BACKUP_DIR" "$DEPLOY_LOG_DIR" "$MEDIA_STORAGE_DIR" "$AVATAR_DIR"; do
+    if [[ -e "$path" ]]; then
+      [[ -d "$path" ]] || fail "deployment path exists but is not a directory: $path"
+      [[ -w "$path" ]] || fail "deployment path is not writable by $ACTUAL_RUN_USER: $path"
+    fi
+  done
+}
+
+NODE_BIN="$(resolve_command node "${DEPLOY_NODE_BIN:-}" \
+  /usr/local/bin/node /usr/bin/node \
+  /opt/runtime/NodeJS/bin/node \
+  /opt/runtime/NodeJS/node-v*-linux-x64/bin/node \
+  /opt/middleware/NodeJS/bin/node \
+  /opt/middleware/NodeJS/node-v*-linux-x64/bin/node)"
 MKTEMP_BIN="$(resolve_command mktemp "${DEPLOY_MKTEMP_BIN:-}" /usr/bin/mktemp)"
 REALPATH_BIN="$(resolve_command realpath "${DEPLOY_REALPATH_BIN:-}" /usr/bin/realpath)"
 
@@ -328,10 +364,14 @@ DEPLOY_ACTUAL_USER="$ACTUAL_RUN_USER"
 DEPLOY_ACTUAL_GROUP="$ACTUAL_RUN_GROUP"
 export DEPLOY_ACTUAL_USER DEPLOY_ACTUAL_GROUP
 
+LEGACY_PM2_HOME="${SOURCE_DIR}-pm2"
 if [[ -n "${DEPLOY_PM2_HOME:-}" ]]; then
   PM2_HOME="$DEPLOY_PM2_HOME"
 elif [[ -n "${PM2_HOME:-}" ]]; then
   PM2_HOME="$PM2_HOME"
+elif [[ -d "$LEGACY_PM2_HOME" \
+  && ( -f "$LEGACY_PM2_HOME/dump.pm2" || -d "$LEGACY_PM2_HOME/pids" || -d "$LEGACY_PM2_HOME/logs" ) ]]; then
+  PM2_HOME="$LEGACY_PM2_HOME"
 elif [[ -n "${HOME:-}" ]]; then
   PM2_HOME="$HOME/.pm2"
 else
@@ -383,14 +423,25 @@ for app_name in "$PM2_WEB_NAME" "$PM2_CRON_NAME"; do
 done
 [[ "$PM2_WEB_NAME" != "$PM2_CRON_NAME" ]] || fail "web and cron PM2 names must differ"
 
-NODE_BIN="$(resolve_command node "${DEPLOY_NODE_BIN:-$NODE_BIN}" /usr/local/bin/node /usr/bin/node)"
+NODE_BIN="$(resolve_command node "${DEPLOY_NODE_BIN:-$NODE_BIN}" \
+  "$NODE_BIN" /usr/local/bin/node /usr/bin/node \
+  /opt/runtime/NodeJS/bin/node \
+  /opt/runtime/NodeJS/node-v*-linux-x64/bin/node \
+  /opt/middleware/NodeJS/bin/node \
+  /opt/middleware/NodeJS/node-v*-linux-x64/bin/node)"
+NODE_BIN_DIR="${NODE_BIN%/*}"
+case ":${PATH:-}:" in
+  *":$NODE_BIN_DIR:"*) ;;
+  *) PATH="$NODE_BIN_DIR${PATH:+:$PATH}" ;;
+esac
+export PATH
 TAR_BIN="$(resolve_command tar "${DEPLOY_TAR_BIN:-}" /usr/bin/tar /usr/local/bin/tar)"
-NPM_BIN="$(resolve_command npm "${DEPLOY_NPM_BIN:-}" /usr/bin/npm /usr/local/bin/npm)"
-NPX_BIN="$(resolve_command npx "${DEPLOY_NPX_BIN:-}" /usr/bin/npx /usr/local/bin/npx)"
+NPM_BIN="$(resolve_command npm "${DEPLOY_NPM_BIN:-}" "$NODE_BIN_DIR/npm" /usr/bin/npm /usr/local/bin/npm)"
+NPX_BIN="$(resolve_command npx "${DEPLOY_NPX_BIN:-}" "$NODE_BIN_DIR/npx" /usr/bin/npx /usr/local/bin/npx)"
 CURL_BIN="$(resolve_command curl "${DEPLOY_CURL_BIN:-}" /usr/bin/curl /usr/local/bin/curl)"
 FLOCK_BIN="$(resolve_command flock "${DEPLOY_FLOCK_BIN:-}" /usr/bin/flock)"
-PM2_BIN="$(resolve_pm2 "${DEPLOY_PM2_BIN:-}" "$NPM_BIN")"
-MYSQLDUMP_BIN="$(resolve_command mysqldump "${DEPLOY_MYSQLDUMP_BIN:-${MYSQLDUMP_BIN:-}}" /usr/bin/mysqldump /usr/local/bin/mysqldump /opt/mysql/bin/mysqldump /opt/Mysql/mysql/bin/mysqldump)"
+PM2_BIN="$(resolve_pm2 "${DEPLOY_PM2_BIN:-}" "$NPM_BIN" "$NODE_BIN_DIR")"
+MYSQLDUMP_BIN="$(resolve_command mysqldump "${DEPLOY_MYSQLDUMP_BIN:-${MYSQLDUMP_BIN:-}}" /usr/bin/mysqldump /usr/local/bin/mysqldump /opt/mysql/bin/mysqldump /opt/Mysql/mysql/bin/mysqldump /opt/middleware/Mysql/mysql/bin/mysqldump /opt/middleware/mysql/mysql/bin/mysqldump)"
 export MYSQLDUMP_BIN
 
 if [[ -n "${DEPLOY_REQUIRED_COMMANDS:-}" || -n "${DEPLOY_REQUIRED_SYSTEMD_SERVICES:-}" \
@@ -487,6 +538,7 @@ check_pm2_ownership() {
 }
 
 check_source_clean "preflight"
+check_runtime_permissions
 "$GIT_BIN" -C "$SOURCE_DIR" check-ref-format --branch "$BRANCH" >/dev/null \
   || fail "DEPLOY_BRANCH is not a valid branch name"
 "$GIT_BIN" -C "$SOURCE_DIR" remote get-url "$REMOTE" >/dev/null \
