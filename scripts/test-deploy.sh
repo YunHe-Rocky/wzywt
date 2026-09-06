@@ -317,7 +317,19 @@ SH
 
 cat >"$FAKE_BIN/mysqldump" <<'SH'
 #!/usr/bin/env bash
-printf 'mysqldump  Ver 8.4.0 for Linux on x86_64 (fake)\n'
+if [[ "${1:-}" == "--version" ]]; then
+  printf 'mysqldump  Ver 8.4.0 for Linux on x86_64 (fake)\n'
+  exit 0
+fi
+if [[ "${1:-}" == "--help" ]]; then
+  printf 'mysqldump fake help\n'
+  if [[ "${TEST_MYSQLDUMP_SUPPORTS_MASKING:-0}" == "1" ]]; then
+    printf '  --masking-policies  Dump masking policies\n'
+    printf '  (Defaults to on; use --skip-masking-policies to disable.)\n'
+  fi
+  exit 0
+fi
+printf '%s\n' "$*" >>"$TEST_MYSQLDUMP_LOG"
 SH
 cat >"$FAKE_BIN/nginx" <<'SH'
 #!/usr/bin/env bash
@@ -329,6 +341,30 @@ if [[ "${1:-}" == "--version" ]]; then printf 'flock from util-linux 2.39.0\n'; 
 exit 0
 SH
 chmod +x -- "$FAKE_BIN"/*
+
+run_backup_capability_case() {
+  local name="$1" supports_masking="$2" case_dir log_file
+  case_dir="$TEST_ROOT/$name"
+  log_file="$case_dir/mysqldump.log"
+  mkdir -p -- "$case_dir"
+  DATABASE_URL=mysql://app:password@127.0.0.1:3306/app \
+  DEPLOY_PROJECT_NAME="$name" \
+  MYSQLDUMP_BIN="$FAKE_BIN/mysqldump" \
+  TEST_MYSQLDUMP_LOG="$log_file" \
+  TEST_MYSQLDUMP_SUPPORTS_MASKING="$supports_masking" \
+    node "$SCRIPT_DIR/db-backup.mjs" "$case_dir/backups" >/dev/null
+  printf '%s\n' "$log_file"
+}
+
+if [[ "$(node -p 'process.platform')" == "win32" ]]; then
+  printf '[test-deploy] SKIP: mysqldump process capability cases require a Unix executable host\n'
+else
+  masking_log="$(run_backup_capability_case backup-mysql-97 1)"
+  assert_contains "$masking_log" "--skip-masking-policies"
+
+  legacy_log="$(run_backup_capability_case backup-mysql-84 0)"
+  assert_not_contains "$legacy_log" "--skip-masking-policies"
+fi
 
 prepare_case() {
   local name="$1" case_dir base source archive old_process_cwd
