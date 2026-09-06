@@ -8,11 +8,11 @@ export interface UIConfig {
 
 export const UI_CONFIG: Record<string, UIConfig> = {
   yanwu: {
-    name: "厚玻璃",
-    headerNav: "compact",
+    name: "演武 · 峡谷之夜",
+    headerNav: "full",
     mobileNav: "dock",
     dock: true,
-    headerHeight: 34,
+    headerHeight: 80,
   },
 };
 

@@ -1,5 +1,7 @@
 "use client";
 
+import { ArenaIcon } from "@/web/components/arena/ArenaIcon";
+
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
@@ -213,9 +215,11 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
   const switchHref = mode === "login" ? "/register" : "/login";
 
   return (
-    <div className="flex items-center justify-center min-h-[calc(100vh-56px)] px-4 px-6">
+    <div className="auth-scene">
+      <Link href="/" className="auth-brand-link"><ArenaIcon name="crest" />王者演武堂</Link>
+      <div className="auth-intro"><div className="arena-eyebrow"><span />王者荣耀 · 好友内战</div><h2>老朋友，<br /><span>新对手。</span></h2><p>昨天还是双排搭子，今天试试对线。<br />登录后，把朋友都喊来。</p><small>YANWU ARENA / HONOR OF KINGS</small></div>
       {checking ? (
-        <div className="skeleton rounded-lg w-[420px] h-[400px]" />
+        <div className="skeleton rounded-lg w-full max-w-[420px] h-[400px]" />
       ) : (
         <div className="auth-card w-full max-w-[420px] px-9 py-10 rounded-xl relative overflow-hidden animate-slide-up"
           style={{ background: "var(--bg-card)", border: "1px solid var(--border)", boxShadow: "0 4px 24px rgba(0,0,0,0.25)" }}>
@@ -235,7 +239,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
 
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             <div>
-              <label className={labelClass}>召唤师名称</label>
+              <label htmlFor="username" className={labelClass}>召唤师名称</label>
               <input type="text" id="username" name="username" autoComplete="username" placeholder="请输入召唤师名称" value={username}
                 onChange={e => setUsername(e.target.value)} required minLength={2} className={inputClass} />
             </div>
@@ -243,7 +247,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
             {mode === "register" && (
               <>
                 <div>
-                  <label className={labelClass}>安全问题</label>
+                  <label htmlFor="security-question" className={labelClass}>安全问题</label>
                   <select id="security-question" name="security-question" value={securityQuestion} onChange={e => setSecurityQuestion(e.target.value)} required className={`${inputClass} cursor-pointer`}>
                     <option value="">请选择安全问题</option>
                     {PRESET_QUESTIONS.map(q => <option key={q} value={q}>{q}</option>)}
@@ -252,13 +256,13 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
                 </div>
                 {securityQuestion === "__custom__" && (
                   <div>
-                    <label className={labelClass}>自定义问题</label>
+                    <label htmlFor="custom-question" className={labelClass}>自定义问题</label>
                     <input id="custom-question" name="custom-question" placeholder="请输入你的安全问题" value={customQuestion}
                       onChange={e => setCustomQuestion(e.target.value)} className={inputClass + " border-gold/30"} />
                   </div>
                 )}
                 <div>
-                  <label className={labelClass}>安全答案</label>
+                  <label htmlFor="security-answer-reg" className={labelClass}>安全答案</label>
                   <input id="security-answer-reg" name="security-answer" autoComplete="off" placeholder="请输入答案" value={securityAnswer}
                     onChange={e => setSecurityAnswer(e.target.value)} required className={inputClass} />
                   <span className="block text-[10px] text-text-muted/60 mt-1">用于找回密码和注销账号验证</span>
@@ -268,7 +272,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
 
             {/* Password */}
             <div>
-              <label className={labelClass}>密码</label>
+              <label htmlFor={mode === "register" ? "new-password" : "password"} className={labelClass}>密码</label>
               <div className="relative">
                 <input type={showPassword ? "text" : "password"} id={mode === "register" ? "new-password" : "password"}
                   name={mode === "register" ? "new-password" : "password"}
@@ -285,7 +289,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
 
             {mode === "register" && (
               <div>
-                <label className={labelClass}>确认密码</label>
+                <label htmlFor="confirm-password" className={labelClass}>确认密码</label>
                 <div className="relative">
                   <input type={showPassword ? "text" : "password"} id="confirm-password" name="confirm-password" autoComplete="new-password"
                     placeholder="再次输入密码" value={confirmPassword}

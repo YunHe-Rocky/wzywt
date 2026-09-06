@@ -4,14 +4,13 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/features/auth/client";
-import { useAnnouncements } from "@/features/announcements/client";
+import { ArenaIcon } from "@/web/components/arena/ArenaIcon";
 import { SecurityQuestionModal } from "@/web/components/auth/SecurityQuestionModal";
 import { DeleteAccountModal } from "@/web/components/auth/DeleteAccountModal";
 import { getCurrentUser } from "@/features/auth/client/api";
 
 export function Header() {
   const { user, loaded, logout } = useAuth();
-  const { latestVersion } = useAnnouncements(false);
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -50,8 +49,8 @@ export function Header() {
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [menuOpen]);
 
-  const version = latestVersion || "V2.0.1";
-  const pathIsM = pathname.startsWith("/m");
+  const pathIsM = /^\/m(?:\/|$)/.test(pathname);
+  const basePath = pathname.replace(/^\/m(?=\/|$)/, "") || "/";
   const route = (path: string) => pathIsM ? `/m${path}` : path;
 
   return (
@@ -60,16 +59,12 @@ export function Header() {
       <div className="header-inner-alt flex items-center gap-4">
         {/* Brand */}
         <Link href={pathIsM ? "/m" : "/"} className="header-brand-link flex items-center gap-2 shrink-0 no-underline">
-          <span className="text-[11px] font-bold tracking-wider text-[#777]">
-            王者演武堂
-          </span>
-          <span className="text-xs font-semibold tracking-wider rounded px-1.5 leading-4 text-gold/70 border border-gold/10">
-            {version}
-          </span>
+          <span className="arena-brand-mark"><ArenaIcon name="crest" /></span>
+          <span className="arena-brand-type"><strong>王者演武堂</strong><small>YANWU ARENA</small></span>
         </Link>
 
         <nav className="header-primary-nav" aria-label="主导航">
-          <Link href={route("/tournaments")} aria-current={pathname.startsWith(route("/tournaments")) ? "page" : undefined}>赛事</Link>
+          {[{ path: "/", label: "演武首页" }, { path: "/tournaments", label: "赛事大厅" }, { path: "/heroes", label: "英雄图鉴" }, { path: "/equipment", label: "装备图鉴" }, { path: "/me", label: "我的" }].map(item => <Link key={item.path} href={route(item.path)} aria-current={(item.path === "/" ? basePath === "/" : basePath.startsWith(item.path)) ? "page" : undefined}>{item.label}</Link>)}
           {mounted && loaded && user && <Link href={route("/combat")} aria-current={pathname.startsWith(route("/combat")) ? "page" : undefined}>演武动态</Link>}
         </nav>
 
@@ -93,7 +88,7 @@ export function Header() {
                   }}
                 />
               ) : null}
-                    <span className={`rounded-full flex items-center justify-center font-bold transition-shadow w-6 h-6 text-xs bg-blue/8 text-[#4488f0] border border-blue/15 ${user.avatar ? "hidden" : ""}`}>
+                    <span className={`rounded-full flex items-center justify-center font-bold transition-shadow w-6 h-6 text-xs arena-avatar border ${user.avatar ? "hidden" : ""}`}>
                 {user.username[0]}
               </span>
               <svg className={`w-3 h-3 transition-transform text-[#aaa] ${menuOpen ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -102,14 +97,7 @@ export function Header() {
             </button>
 
             {menuOpen && (
-              <div id="header-user-menu" className="header-user-menu absolute right-0 top-full mt-2 w-48 py-1 animate-slide-up rounded-2xl" aria-label="用户操作"
-                style={{
-                  background: "rgba(255,255,255,0.7)",
-                  backdropFilter: "blur(28px)",
-                  WebkitBackdropFilter: "blur(28px)",
-                  border: "1px solid rgba(255,255,255,0.7)",
-                  boxShadow: "0 4px 24px rgba(0,0,0,0.08), 0 8px 48px rgba(0,0,0,0.04)",
-                }}>
+              <div id="header-user-menu" className="header-user-menu absolute right-0 top-full mt-2 w-48 py-1 animate-slide-up rounded-2xl" aria-label="用户操作">
                 <div className="px-4 py-3 border-b border-border-light">
                   <div className="flex items-center gap-2.5">
                     {user.avatar ? (
@@ -122,7 +110,7 @@ export function Header() {
                         }}
                       />
                     ) : null}
-                    <span className={`rounded-full flex items-center justify-center font-bold shrink-0 w-8 h-8 text-sm bg-blue/8 text-[#4488f0] ${user.avatar ? "hidden" : ""}`}>
+                    <span className={`rounded-full flex items-center justify-center font-bold shrink-0 w-8 h-8 text-sm arena-avatar ${user.avatar ? "hidden" : ""}`}>
                       {user.username[0]}
                     </span>
                     <div className="min-w-0">
@@ -131,6 +119,7 @@ export function Header() {
                     </div>
                   </div>
                 </div>
+                <Link href={route("/combat")} onClick={() => setMenuOpen(false)} className="header-menu-action w-full flex items-center gap-2 px-4 text-sm text-text-secondary hover:bg-hover"><ArenaIcon name="news" width="16" height="16" />演武动态</Link>
                 {user.role === "admin" && (
                   <button onClick={() => { setMenuOpen(false); router.push(route("/admin")); }}
                     className="header-menu-action w-full text-left flex items-center gap-2 px-4 text-sm transition-colors text-gold hover:bg-gold/5">
@@ -139,7 +128,7 @@ export function Header() {
                   </button>
                 )}
                 <button onClick={() => { setMenuOpen(false); setShowPwd(true); }}
-                  className="header-menu-action w-full text-left flex items-center gap-2 px-4 text-sm transition-colors text-[#666] hover:bg-black/3 hover:text-[#333]">
+                  className="header-menu-action w-full text-left flex items-center gap-2 px-4 text-sm transition-colors text-text-secondary hover:bg-hover">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4" strokeLinecap="round" strokeWidth={2}/></svg>
                   修改密码
                 </button>
@@ -162,7 +151,7 @@ export function Header() {
         ) : (
           <Link href={route("/login")} aria-label="登录"
             className="header-login-link flex items-center justify-center rounded-full bg-blue/10 text-[#4488f0] text-sm font-bold no-underline hover:bg-blue/15 transition-colors">
-            ?
+            <ArenaIcon name="user" width="16" height="16" />登录
           </Link>
         )}
       </div>

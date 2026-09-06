@@ -1,0 +1,32 @@
+import assert from 'node:assert/strict';
+import { chromium } from 'playwright';
+const base=process.env.E2E_BASE_URL||'http://localhost:8001';
+const browser=await chromium.launch({headless:true,executablePath:process.env.E2E_BROWSER_PATH||'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe'});
+try {
+  const context=await browser.newContext({viewport:{width:1440,height:900},reducedMotion:'no-preference'});
+  const page=await context.newPage();
+  await page.goto(base,{waitUntil:'domcontentloaded'});
+  const intro=page.getByRole('dialog',{name:'演武堂开场动画'});
+  await intro.waitFor({timeout:10000});
+  assert.equal(await page.locator('main').evaluate(el=>el.inert),true,'Background is inert during intro');
+  await page.waitForTimeout(1100);
+  await page.screenshot({path:'.cache/arena-redesign/intro-stars.png'});
+  await intro.waitFor({state:'detached',timeout:6000});
+  assert.equal(await page.locator('main').evaluate(el=>el.inert),false,'Background interaction restored');
+  await page.reload({waitUntil:'domcontentloaded'}); await page.waitForTimeout(300);
+  assert.equal(await intro.count(),0,'Intro plays only once per tab');
+  await page.getByRole('button',{name:'重播开场'}).click(); await intro.waitFor();
+  await page.keyboard.press('Escape'); await intro.waitFor({state:'detached'});
+  assert.equal(await page.getByRole('button',{name:'重播开场'}).evaluate(el=>el===document.activeElement),true,'Replay restores keyboard focus');
+  await page.setViewportSize({width:375,height:812}); await page.getByRole('button',{name:'重播开场'}).click(); await intro.waitFor();
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+  await page.getByRole('button',{name:'跳过开场动画'}).click(); await intro.waitFor({state:'detached'});
+  await context.close();
+  const reduced=await browser.newContext({reducedMotion:'reduce'}); const still=await reduced.newPage();
+  await still.goto(base,{waitUntil:'domcontentloaded'}); await still.waitForTimeout(300);
+  assert.equal(await still.getByRole('dialog',{name:'演武堂开场动画'}).count(),0,'Reduced motion skips intro');
+  await still.getByRole('button',{name:'重播开场'}).click(); await still.waitForTimeout(100);
+  assert.equal(await still.getByRole('dialog',{name:'演武堂开场动画'}).count(),0,'Replay respects reduced motion');
+  await reduced.close();
+  console.log('Arena motion passed: convergence intro, automatic end, once per tab, replay, Escape, touch skip, focus restoration and reduced motion.');
+} finally {await browser.close();}

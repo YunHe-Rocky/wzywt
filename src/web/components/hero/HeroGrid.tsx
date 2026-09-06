@@ -1,5 +1,7 @@
 "use client";
 
+import { PageHeading } from "@/web/components/arena/PageHeading";
+
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useHeroes } from "@/features/heroes/client";
@@ -191,17 +193,18 @@ export function HeroGrid() {
 
   // SSE: auto-refresh when hero data changes
   useEffect(() => {
+    if (loading || fetchError) return;
     const es = new EventSource("/api/heroes/watch");
     es.onmessage = (e) => {
       try {
         const msg = JSON.parse(e.data);
         if (msg.type === "heroes-updated") {
-          refetch();
+          void refetch();
         }
       } catch {}
     };
     return () => es.close();
-  }, [refetch]);
+  }, [fetchError, loading, refetch]);
 
   // 只隐藏被本命英雄明确指向的命格记录，避免依赖名称推断。
   const minggeFormIds = new Set(
@@ -219,23 +222,16 @@ export function HeroGrid() {
     ));
 
   return (
-    <div className="stagger-enter page-shell page-shell--medium">
+    <div className="stagger-enter page-shell page-shell--wide arena-catalog-page">
       {/* Header */}
-      <div style={{ marginBottom: 32 }}>
-        <h1 style={{ fontSize: 28, fontWeight: 700, color: "var(--text)", margin: "0 0 8px" }}>
-          英雄图鉴
-        </h1>
-        <p style={{ fontSize: 14, color: "var(--text-secondary)", margin: 0 }}>
-          共 {heroes.length} 位英雄 · 浏览详情与技能
-        </p>
-      </div>
+      <PageHeading eyebrow="分路 · 技能 · 命格" title="英雄图鉴" description={`共 ${heroes.length} 位英雄 · 搜搜本命，或按分路找个新选择。`} icon="crest" />
 
       {/* Filters */}
-      <div style={{ marginBottom: 24 }}>
+      <div className="arena-filter-panel">
         {/* Search */}
         <input
           type="text"
-          placeholder="搜索英雄名称..."
+          aria-label="搜索英雄名称" placeholder="搜索英雄名称..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           style={{ maxWidth: 260, marginBottom: 16 }}
@@ -285,7 +281,7 @@ export function HeroGrid() {
       {fetchError && (
         <div className="card" style={{ textAlign: "center", padding: "48px 24px" }}>
           <p style={{ color: "var(--text-secondary)", marginBottom: 16 }}>加载失败，请检查网络后重试</p>
-          <button className="btn-primary" onClick={() => setRoleFilter(roleFilter)} style={{ fontSize: 13 }}>
+          <button type="button" className="btn-primary" onClick={() => void refetch()} style={{ fontSize: 13 }}>
             重新加载
           </button>
         </div>

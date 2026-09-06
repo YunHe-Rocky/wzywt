@@ -10,8 +10,8 @@ function isPublicPath(path: string): boolean {
 function isProtectedPath(path: string): boolean {
   return PROTECTED_PREFIXES.some((p) => path.startsWith(p));
 }
-const PUBLIC_API = ["/api/health", "/api/auth", "/api/official-news", "/api/announcements", "/api/changelog", "/api/tournaments/public", "/api/heroes", "/api/equipment"];
-const STATIC_PREFIXES = ["/_next", "/favicon", "/public", "/robots.txt", "/sitemap.xml"];
+const PUBLIC_API = ["/api/health", "/api/auth", "/api/official-news", "/api/announcements", "/api/changelog", "/api/tournaments/public", "/api/heroes", "/api/equipment", "/api/resources"];
+const STATIC_PREFIXES = ["/_next", "/favicon", "/public", "/art/", "/robots.txt", "/sitemap.xml"];
 const SESSION_COOKIE = "wzyt_session";
 
 const MOBILE_UA = /Android|iPhone|iPad|iPod|webOS|BlackBerry|Windows Phone|Mobile/i;
@@ -52,6 +52,12 @@ export function middleware(req: NextRequest) {
     return NextResponse.redirect(mobileUrl);
   }
 
+  if (!mobile && alreadyMobile) {
+    const desktopUrl = req.nextUrl.clone();
+    desktopUrl.pathname = pathname.slice(2) || "/";
+    return NextResponse.redirect(desktopUrl);
+  }
+
   // ── Auth check ──
   const basePath = alreadyMobile ? pathname.replace(/^\/m/, "") || "/" : pathname;
 
@@ -75,5 +81,5 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:ico|png|jpg|svg|css|js)).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:ico|png|jpg|jpeg|webp|avif|svg|css|js)).*)"],
 };

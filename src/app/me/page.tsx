@@ -1,5 +1,7 @@
 "use client";
 
+import { PageHeading } from "@/web/components/arena/PageHeading";
+
 import { useEffect, useState } from "react";
 import { useAuth } from "@/features/auth/client";
 import { RolePreferenceEditor } from "@/web/components/me/RolePreferenceEditor";
@@ -18,17 +20,18 @@ export default function MePage() {
   return (
     <div className="page-shell page-shell--narrow flex flex-col gap-6">
       <PageEntrance>
-        <h1 className="text-[28px] font-extrabold text-gold-light tracking-wider m-0">个人空间</h1>
+        <PageHeading eyebrow="我的档案" title="个人空间" description="告诉队友你擅长什么。填好分路偏好和英雄战力，分队时更合拍。" icon="user" />
       </PageEntrance>
 
       <PageEntrance stagger={0.15}>
-        <div className="flex justify-center py-4">
+        <div className="arena-profile-summary">
           <AvatarUpload
             avatar={avatar}
             username={user?.username || "?"}
             size={96}
             onUpdated={setAvatar}
           />
+          <div><h2>{user?.username || "召唤师"}</h2><p>今天想走哪一路？先把拿手的位置告诉队友。</p></div>
         </div>
       </PageEntrance>
 
