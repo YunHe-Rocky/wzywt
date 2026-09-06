@@ -1,5 +1,7 @@
 "use client";
 
+import { PageHeading } from "@/web/components/arena/PageHeading";
+
 import { useState, useMemo } from "react";
 import { useEquipment } from "@/features/equipment/client";
 import { PageEntrance } from "@/web/components/layout/PageEntrance";
@@ -16,7 +18,7 @@ function matchesFilter(item: any, tier: number, charTag: string): boolean {
 }
 
 export default function EquipmentPage() {
-  const { items, loading } = useEquipment();
+  const { items, loading, error, refetch } = useEquipment();
   const [tier, setTier] = useState(0);
   const [charTag, setCharTag] = useState("");
   const [search, setSearch] = useState("");
@@ -32,32 +34,38 @@ export default function EquipmentPage() {
   if (loading) {
     return (
       <PageEntrance>
-      <div className="stagger-enter page-shell page-shell--medium">
+      <div className="stagger-enter page-shell page-shell--wide arena-equipment-page">
         <div className="skeleton" style={{ height: 400 }} />
       </div>
       </PageEntrance>
     );
   }
 
+  if (error) {
+    return (
+      <PageEntrance>
+        <div className="stagger-enter page-shell page-shell--wide arena-equipment-page">
+          <div className="card" role="alert" style={{ textAlign: "center", padding: "48px 24px" }}>
+            <p style={{ color: "var(--text-secondary)", marginBottom: 16 }}>装备数据加载失败，请检查网络后重试</p>
+            <button type="button" className="btn-primary" onClick={() => void refetch()}>重新加载</button>
+          </div>
+        </div>
+      </PageEntrance>
+    );
+  }
+
   return (
     <PageEntrance>
-    <div className="stagger-enter page-shell page-shell--medium">
+    <div className="stagger-enter page-shell page-shell--wide arena-equipment-page">
       {/* Header */}
-      <div style={{ marginBottom: 32 }}>
-        <h1 style={{ fontSize: 28, fontWeight: 700, color: "var(--text)", margin: "0 0 8px" }}>
-          装备图鉴
-        </h1>
-        <p style={{ fontSize: 14, color: "var(--text-secondary)", margin: 0 }}>
-          共 {items.length} 件装备 · {tier > 0 ? TIER_LABELS[tier] : "全部等级"}{charTag ? ` · ${charTag}` : ""}
-        </p>
-      </div>
+      <PageHeading eyebrow="属性 · 合成 · 出装" title="装备图鉴" description={`共 ${items.length} 件装备 · 查属性、看合成，为这局挑一套。`} icon="swords" />
 
       {/* Filters */}
-      <div style={{ marginBottom: 24 }}>
+      <div className="arena-filter-panel">
         {/* Search */}
         <input
           type="text"
-          placeholder="搜索装备名称..."
+          aria-label="搜索装备名称" placeholder="搜索装备名称..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           style={{ maxWidth: 260, marginBottom: 16 }}
@@ -124,7 +132,7 @@ export default function EquipmentPage() {
           {search ? `未找到匹配"${search}"的装备` : "没有匹配的装备"}
         </p>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <div className="arena-equipment-grid" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {filtered.map((item) => {
             const effects = item.effects ?? [];
             const tier = item.meta?.tier;

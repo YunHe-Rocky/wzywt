@@ -1,0 +1,52 @@
+.arena-intro { position: fixed; inset: 0; z-index: var(--layer-transition); overflow: hidden; background: radial-gradient(ellipse at 50% 42%,#14202b 0,#080f17 62%); animation: arena-intro-exit .56s ease 2.55s both; }
+.arena-intro canvas { position: absolute; inset: 0; pointer-events: none; }
+.arena-intro-caption { position: absolute; top: calc(43% + 150px); left: 20px; right: 20px; text-align: center; animation: arena-intro-title .8s ease 1.15s both; }
+.arena-intro-caption p { margin: 0; font-size: clamp(24px,3vw,34px); font-weight: 700; letter-spacing: .24em; color: #edd7aa; }
+.arena-intro-caption span { display: block; margin-top: 16px; font-size: 12px; color: #9fb0bf; letter-spacing: .3em; }
+.arena-intro-caption small { display: block; margin-top: 22px; font-size: 12px; letter-spacing: .48em; color: #778c9b; }
+.arena-intro-skip { position: absolute; right: max(24px,env(safe-area-inset-right)); top: max(24px,env(safe-area-inset-top)); min-height: 44px; min-width: 80px; display: flex; justify-content: center; align-items: center; gap: 15px; border: 1px solid var(--border-gold); border-radius: 5px; color: var(--text-secondary); font-size: 12px; background: #0c1723; }
+.arena-intro-skip:hover { color: var(--gold-light); border-color: var(--gold-dim); }
+.arena-intro-progress { position: absolute; bottom: 0; left: 0; height: 1px; width: 100%; background: linear-gradient(90deg,transparent,var(--gold),transparent); transform-origin: left; animation: arena-intro-progress 3.1s linear both; }
+.arena-footer button { min-height: 44px; font-size: 12px; color: var(--text-muted); }
+.arena-footer button:hover { color: var(--gold-light); }
+.arena-hero-art { transition: transform 1.4s cubic-bezier(.16,1,.3,1); }
+@media (hover:hover) {
+  .arena-hero:hover .arena-hero-art { transform: scale(1.022); }
+  .arena-room:hover { transform: translateY(-3px); box-shadow: 0 12px 32px #0003; }
+  .arena-catalog-card:hover { transform: translateY(-3px); }
+  .arena-text-link:hover svg, .arena-secondary-cta:hover svg, .arena-room:hover .arena-room-footer svg { transform: translateX(3px); }
+}
+.arena-room, .arena-catalog-card { transition: transform .28s cubic-bezier(.16,1,.3,1),border-color .25s,box-shadow .25s,background .25s; }
+.arena-text-link svg, .arena-secondary-cta svg, .arena-room-footer svg { transition: transform .25s; }
+.arena-player-slots .is-filled { animation: arena-slot-in .45s ease both; }
+.arena-player-slots .is-filled:nth-child(2n) { animation-delay: .06s; }
+.arena-player-slots .is-filled:nth-child(3n) { animation-delay: .12s; }
+.arena-home > section, .arena-home > .arena-intel-grid, .arena-home > .arena-principles { animation: arena-rise .7s cubic-bezier(.16,1,.3,1) both; }
+.arena-home > :nth-child(2) { animation-delay: .08s; }
+.arena-home > :nth-child(3) { animation-delay: .14s; }
+.arena-home > :nth-child(4) { animation-delay: .2s; }
+.arena-home > :nth-child(5) { animation-delay: .26s; }
+.arena-hero-sparks { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: -1; }
+.arena-hero-sparks i { position: absolute; width: 2px; height: 2px; border-radius: 50%; background: #e8cf9c; box-shadow: 0 0 8px #ddb968; opacity: 0; animation: arena-ember 7s ease-in-out infinite; }
+.arena-hero-sparks i:nth-child(1) { left: 54%; top: 72%; animation-delay: .4s; }
+.arena-hero-sparks i:nth-child(2) { left: 78%; top: 61%; animation-delay: 1.8s; }
+.arena-hero-sparks i:nth-child(3) { left: 88%; top: 77%; animation-delay: 3s; }
+.arena-hero-sparks i:nth-child(4) { left: 61%; top: 48%; animation-delay: 4.2s; }
+.arena-hero-sparks i:nth-child(5) { left: 43%; top: 63%; animation-delay: 2.6s; }
+.arena-hero-sparks i:nth-child(6) { left: 92%; top: 36%; animation-delay: 5.1s; }
+.arena-hero-sparks i:nth-child(7) { left: 71%; top: 81%; animation-delay: .8s; }
+.arena-hero-sparks i:nth-child(8) { left: 82%; top: 45%; animation-delay: 3.7s; }
+@keyframes arena-intro-title { from { opacity: 0; transform: translateY(9px); filter: blur(5px); } to { opacity: 1; transform: translateY(0); filter: blur(0); } }
+@keyframes arena-intro-exit { from { opacity: 1; } to { opacity: 0; visibility: hidden; } }
+@keyframes arena-intro-progress { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@keyframes arena-rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes arena-slot-in { from { opacity: .3; } to { opacity: 1; } }
+@keyframes arena-ember { 0%,100% { opacity: 0; transform: translate(0,8px); } 35% { opacity: .6; } 70% { opacity: .25; } 95% { opacity: 0; transform: translate(-18px,-52px); } }
+@keyframes page-enter-alt { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+@media (max-width:640px) { .arena-intro-caption { top: calc(43% + 122px); } .arena-intro-caption p { font-size: 25px; } .arena-intro-caption span { font-size: 12px; } }
+@media (max-height:480px) { .arena-intro-caption { top: auto; bottom: 26px; } .arena-intro-caption p { font-size: 20px; } .arena-intro-caption span,.arena-intro-caption small { display: none; } }
+@media (prefers-reduced-motion:reduce) {
+  .arena-intro, .arena-hero-sparks { display: none; }
+  .arena-home > section,.arena-home > .arena-intel-grid,.arena-home > .arena-principles { animation: none; opacity: 1; transform: none; }
+  .arena-hero:hover .arena-hero-art,.arena-room:hover,.arena-catalog-card:hover { transform: none; }
+}

@@ -19,18 +19,18 @@ export const DUR_PAGE = "0.4s";
 // === 毛玻璃卡片 ===
 
 export const GLASS_CARD: CSSProperties = {
-  background: "rgba(255,255,255,0.5)",
+  background: "var(--bg-card-glass)",
   backdropFilter: "blur(40px)",
   WebkitBackdropFilter: "blur(40px)",
-  border: "1px solid rgba(0,0,0,0.06)",
+  border: "1px solid var(--border-top)",
 };
 
 export const GLASS_SHADOW_TOP: CSSProperties = {
-  boxShadow: "inset 0 1px 0 rgba(255,255,255,0.5), 0 1px 3px rgba(0,0,0,0.04), 0 4px 20px rgba(0,0,0,0.04)",
+  boxShadow: "var(--glass-shadow)",
 };
 
 export const GLASS_SHADOW_BOTTOM: CSSProperties = {
-  boxShadow: "inset 0 1px 0 rgba(255,255,255,0.5), 0 -1px 3px rgba(0,0,0,0.04), 0 4px 20px rgba(0,0,0,0.06), 0 8px 40px rgba(0,0,0,0.04)",
+  boxShadow: "var(--glass-shadow)",
 };
 
 // === 列表卡片错峰入场 ===
@@ -63,7 +63,7 @@ export function childStagger(
 
 export function pageEnter(stagger: number = 0): CSSProperties {
   return {
-    animation: `page-enter-alt ${DUR_PAGE} ${EASE_BOUNCE} ${stagger}s both`,
+    animation: `page-enter-alt .55s cubic-bezier(.22,1,.36,1) ${stagger}s both`,
   };
 }
 

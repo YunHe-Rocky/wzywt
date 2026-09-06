@@ -7,6 +7,7 @@ function GlassEntrance({ onDone }: { onDone: () => void }) {
   const [phase, setPhase] = useState<"frost" | "fade" | "done">("frost");
 
   useEffect(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) { onDone(); return; }
     const t1 = setTimeout(() => setPhase("fade"), 100);
     const t2 = setTimeout(() => setPhase("done"), 800);
     const t3 = setTimeout(onDone, 900);
@@ -18,7 +19,7 @@ function GlassEntrance({ onDone }: { onDone: () => void }) {
   return (
     <div style={{
       position: "fixed", inset: 0, zIndex: "var(--layer-transition)", pointerEvents: "none",
-      background: "rgba(255,255,255,0.6)",
+      background: "var(--bg-root)",
       backdropFilter: phase === "fade" ? "blur(0px)" : "blur(16px)",
       WebkitBackdropFilter: phase === "fade" ? "blur(0px)" : "blur(16px)",
       opacity: phase === "fade" ? 0 : 1,

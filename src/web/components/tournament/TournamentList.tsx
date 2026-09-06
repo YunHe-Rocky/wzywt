@@ -1,7 +1,12 @@
 "use client";
 
+import { PageHeading } from "@/web/components/arena/PageHeading";
+import { ArenaIcon } from "@/web/components/arena/ArenaIcon";
+
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import Link from "next/link";
+import { useAuth } from "@/features/auth/client";
 import { CalendarModal } from "@/web/components/ui/CalendarModal";
 import {
   createTournament,
@@ -16,10 +21,28 @@ interface Tournament {
   id: number; name: string; code: string; deadline: string; status: string;
   _count: { players: number };
   admins: { userId: number; role: string }[];
-  splitResult?: unknown;
+
 }
 
 export function TournamentList() {
+  const { user, loaded } = useAuth();
+  const pathname = usePathname();
+  const prefix = /^\/m(?:\/|$)/.test(pathname) ? "/m" : "";
+  if (!loaded) return <div className="page-shell page-shell--wide" role="status" aria-label="正在加载赛事大厅"><div className="skeleton" style={{ height: 300 }} /></div>;
+  if (!user) return <div className="page-shell page-shell--wide">
+    <PageHeading eyebrow="好友内战" title="赛事大厅" description="开个房间，或输入朋友发来的房间号。人齐之后，分队开打。" />
+    <section className="arena-lobby-gate">
+      <div className="arena-empty-emblem"><ArenaIcon name="swords" /></div>
+      <div className="arena-eyebrow">朋友组的局，在这里碰头</div>
+      <h2>先登录，再入队。</h2><p>登录后就能开房间、加入好友，<br />你的分路偏好和对局记录也会留在这里。</p>
+      <Link className="btn-primary" href={`${prefix}/login?redirect=${encodeURIComponent(pathname)}`}>登录并进入<ArenaIcon name="arrow" /></Link>
+      <Link className="arena-text-link" href={prefix || "/"}>返回首页查看公开房间</Link>
+    </section>
+  </div>;
+  return <AuthenticatedTournamentList />;
+}
+
+function AuthenticatedTournamentList() {
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [publicTournaments, setPublicTournaments] = useState<Tournament[]>([]);
   const [name, setName] = useState("");
@@ -98,31 +121,22 @@ export function TournamentList() {
   }
 
   return (
-    <div className="stagger-enter tournament-list page-shell page-shell--medium">
+    <div className="stagger-enter tournament-list page-shell page-shell--wide">
 
       {/* ============ PAGE HEADER ============ */}
-      <div style={{ marginBottom: 24 }}>
-        <h1 style={{ fontSize: 28, fontWeight: 700, color: "var(--text)", margin: "0 0 4px" }}>
-          赛事大厅
-        </h1>
-        <p style={{ fontSize: 13, color: "var(--text-muted)", margin: 0 }}>
-          Honor of Kings · 荣耀战场
-        </p>
-      </div>
+      <PageHeading eyebrow="好友内战" title="赛事大厅" description="开个房间，或输入朋友发来的房间号。人齐之后，分队开打。" />
 
       {/* ============ TWO CARDS: JOIN + CREATE ============ */}
-      <div className="lobby-cards" style={{
+      <div className="lobby-cards arena-lobby-cards" style={{
         display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 24,
       }}>
         {/* Quick join card */}
-        <div className="card" style={{ padding: "18px 20px" }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)", marginBottom: 10 }}>
-            🔢 快速加入
-          </div>
+        <div id="join-room" className="card" style={{ padding: "18px 20px" }}>
+          <h2 className="arena-lobby-card-title"><ArenaIcon name="users" />快速加入</h2>
           <div style={{ display: "flex", gap: 8 }}>
             <input
               type="text"
-              placeholder="6 位房间号"
+              aria-label="6 位房间号" placeholder="6 位房间号"
               value={joinCode}
               onChange={(e) => setJoinCode(e.target.value)}
               onKeyDown={(event) => {
@@ -142,12 +156,10 @@ export function TournamentList() {
         </div>
 
         {/* Create card */}
-        <div className="card" style={{ padding: "18px 20px", borderColor: "var(--gold)" }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: "var(--gold)", marginBottom: 10 }}>
-            ⚔️ 创建赛事
-          </div>
+        <div id="create-room" className="card" style={{ padding: "18px 20px", borderColor: "var(--border-gold)" }}>
+          <h2 className="arena-lobby-card-title"><ArenaIcon name="plus" />创建赛事</h2>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            <input type="text" placeholder="赛事名称" value={name} onChange={(e) => setName(e.target.value)} />
+            <input type="text" aria-label="赛事名称" placeholder="赛事名称" value={name} onChange={(e) => setName(e.target.value)} />
             <div style={{ display: "flex", gap: 8 }}>
               <button type="button" onClick={() => setShowCalendar(!showCalendar)}
                 style={{
@@ -183,7 +195,7 @@ export function TournamentList() {
           {/* Expanded options */}
           {showMore && (
             <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 4, animation: "slide-up 0.15s ease-out" }}>
-              <textarea placeholder="公告（可选）" value={announcement} onChange={(e) => setAnnouncement(e.target.value)}
+              <textarea aria-label="房间公告" placeholder="公告（可选）" value={announcement} onChange={(e) => setAnnouncement(e.target.value)}
                 style={{ minHeight: 60, background: "var(--bg-input)", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", color: "var(--text)", fontSize: 13, padding: "8px 12px", resize: "vertical", outline: "none", width: "100%", boxSizing: "border-box" }} />
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                 <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text)" }}>公开赛事</span>
@@ -235,9 +247,9 @@ export function TournamentList() {
               <div style={{ marginBottom: 12 }}>
                 <h3 style={{ fontSize: 15, fontWeight: 700, color: "var(--text)" }}>我的赛事</h3>
               </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 24 }}>
+              <div className="arena-room-list" style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 24 }}>
                 {tournaments.map((t, i) => {
-                  const isSplit2 = t.status === "completed" && t.splitResult;
+                  const isSplit2 = t.status === "completed";
                   const isFull2 = t._count.players >= 10;
                   const isCapacityLocked = isFull2 && t.status === "locked";
                   const statusText = isSplit2 ? "已分队" : isCapacityLocked ? "满员已截止" : t.status === "recruiting" ? "报名中" : "报名已截止";
@@ -280,7 +292,7 @@ export function TournamentList() {
               <div style={{ marginBottom: 12 }}>
                 <h3 style={{ fontSize: 15, fontWeight: 700, color: "var(--text)" }}>公开赛事</h3>
               </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <div className="arena-room-list" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 {publicTournaments.map((t, i) => (
                   <button key={t.id} onClick={() => router.push(`/tournaments/${t.id}`)}
                     className="card" style={{

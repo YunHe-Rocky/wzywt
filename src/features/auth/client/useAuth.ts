@@ -27,6 +27,7 @@ export function useAuth() {
 
   const logout = useCallback(async () => {
     await logoutRequest();
+    window.dispatchEvent(new Event("wzywt:auth-identity-changed"));
     setUser(null);
     router.push("/login"); router.refresh();
   }, [router]);
