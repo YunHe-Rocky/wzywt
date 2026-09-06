@@ -6,6 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useToast } from "@/web/components/ui/Toast";
 import { ROLE_LABELS } from "@/core/game";
 import { TeamBuilder } from "@/web/components/tournament/TeamBuilder";
+import { SplitExplanation } from "@/web/components/tournament/SplitExplanation";
 import { MatchArchivePanel } from "@/web/MatchArchivePanel";
 import { getCurrentUser } from "@/features/auth/client/api";
 import {
@@ -53,6 +54,10 @@ interface SplitResult {
     laneStrengthDiffSum: number; rankDiff: number; maxLaneStrengthDiff: number;
   };
   playerDetails: { userId: number; username: string }[];
+  explanation?: {
+    algorithmVersion: string; policy: string; caveat: string;
+    unknownStrengthCount: number; unknownStrengthRatio: number;
+  };
 }
 
 
@@ -89,9 +94,12 @@ function LineupPanel({
           return (
             <div key={p.userId} className="flex items-center justify-between py-2.5 border-b border-white/5">
               <span className="text-[15px] font-semibold text-text min-w-[80px]">{detail?.username || "?"}</span>
-              <span className="text-xs font-semibold px-2.5 py-1 rounded-md border" style={{ background: accentBg, color: accentText, borderColor: accentBorder }}>
-                {ROLE_LABELS[p.roleType]}
-              </span>
+              <div className="flex items-center gap-2">
+                <small className="text-text-muted">{p.preferenceRank && p.preferenceRank <= 5 ? `第 ${p.preferenceRank} 志愿` : "全局补位"}</small>
+                <span className="text-xs font-semibold px-2.5 py-1 rounded-md border" style={{ background: accentBg, color: accentText, borderColor: accentBorder }}>
+                  {ROLE_LABELS[p.roleType]}
+                </span>
+              </div>
             </div>
           );
         })}
@@ -939,6 +947,7 @@ export function TournamentDetail() {
               </div>
             </div>
           </div>
+          <SplitExplanation explanation={splitResult.explanation} summary={splitResult.balanceSummary} />
         </div>
         }
         {splitTab === "builder" && (

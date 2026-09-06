@@ -2,6 +2,12 @@ import { randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { redis, warnRedisFailure } from "@/lib/redis";
+import {
+  assertTaskWriteAllowed,
+  runWithTaskWriteFence,
+  TaskWriteFenceError,
+  type TaskWriteFence,
+} from "@/lib/task-write-fence";
 
 const runningTasks = new Set<string>();
 const RELEASE_LOCK_SCRIPT = `
@@ -17,6 +23,11 @@ interface DatabaseLease {
   expiresAt: number;
 }
 
+export interface ExclusiveTaskContext {
+  readonly signal: AbortSignal;
+  assertOwnership(): Promise<void>;
+}
+
 function parseLease(value: string): DatabaseLease | null {
   try {
     const parsed = JSON.parse(value) as Partial<DatabaseLease>;
@@ -28,30 +39,31 @@ function parseLease(value: string): DatabaseLease | null {
   }
 }
 
-async function acquireDatabaseLock(name: string, token: string, ttlMs: number): Promise<boolean> {
+async function acquireDatabaseLock(name: string, token: string, ttlMs: number): Promise<number | null> {
   const key = `${DB_LOCK_PREFIX}${name}`;
   for (let attempt = 0; attempt < 5; attempt++) {
     const row = await prisma.kvCache.findUnique({ where: { key } });
     const lease = row ? parseLease(row.value) : null;
-    if (row && lease && lease.expiresAt > Date.now()) return false;
-    const value = JSON.stringify({ token, expiresAt: Date.now() + ttlMs } satisfies DatabaseLease);
+    if (row && lease && lease.expiresAt > Date.now()) return null;
+    const expiresAt = Date.now() + ttlMs;
+    const value = JSON.stringify({ token, expiresAt } satisfies DatabaseLease);
     if (row) {
       const updated = await prisma.kvCache.updateMany({
         where: { key, value: row.value },
         data: { value },
       });
-      if (updated.count === 1) return true;
+      if (updated.count === 1) return expiresAt;
       continue;
     }
     try {
       await prisma.kvCache.create({ data: { key, value } });
-      return true;
+      return expiresAt;
     } catch (error) {
       const collision = error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
       if (!collision) throw error;
     }
   }
-  return false;
+  return null;
 }
 
 async function releaseDatabaseLock(name: string, token: string): Promise<void> {
@@ -61,22 +73,29 @@ async function releaseDatabaseLock(name: string, token: string): Promise<void> {
   await prisma.kvCache.deleteMany({ where: { key, value: row.value } });
 }
 
-async function renewDatabaseLock(name: string, token: string, ttlMs: number): Promise<boolean> {
+async function renewDatabaseLock(name: string, token: string, ttlMs: number): Promise<number | null> {
   const key = `${DB_LOCK_PREFIX}${name}`;
   const row = await prisma.kvCache.findUnique({ where: { key } });
-  if (!row || parseLease(row.value)?.token !== token) return false;
-  const value = JSON.stringify({ token, expiresAt: Date.now() + ttlMs } satisfies DatabaseLease);
+  if (!row || parseLease(row.value)?.token !== token) return null;
+  const expiresAt = Date.now() + ttlMs;
+  const value = JSON.stringify({ token, expiresAt } satisfies DatabaseLease);
   const updated = await prisma.kvCache.updateMany({
     where: { key, value: row.value },
     data: { value },
   });
-  return updated.count === 1;
+  return updated.count === 1 ? expiresAt : null;
+}
+
+async function ownsDatabaseLock(name: string, token: string): Promise<boolean> {
+  const row = await prisma.kvCache.findUnique({ where: { key: `${DB_LOCK_PREFIX}${name}` } });
+  const lease = row ? parseLease(row.value) : null;
+  return lease?.token === token && lease.expiresAt > Date.now();
 }
 
 export async function runExclusiveTask(
   name: string,
   ttlMs: number,
-  operation: () => Promise<void>,
+  operation: (context: ExclusiveTaskContext) => Promise<void>,
 ): Promise<boolean> {
   if (runningTasks.has(name)) {
     console.warn(`[cron:${name}] skipped because the previous local run is still active`);
@@ -104,31 +123,53 @@ export async function runExclusiveTask(
       }
     }
 
-    // The database lease remains canonical even while Redis is healthy, so a
-    // Redis recovery cannot overlap a task that started during an outage.
-    databaseLockAcquired = await acquireDatabaseLock(name, token, ttlMs);
-    if (!databaseLockAcquired) {
+    const expiresAt = await acquireDatabaseLock(name, token, ttlMs);
+    if (expiresAt === null) {
       console.warn(`[cron:${name}] skipped because another process owns the database lease`);
       return false;
     }
+    databaseLockAcquired = true;
+    const controller = new AbortController();
+    const fence: TaskWriteFence = { name, token, expiresAt, signal: controller.signal };
+    const markLeaseLost = (reason: string) => {
+      if (!controller.signal.aborted) controller.abort(new TaskWriteFenceError(name, reason));
+      if (databaseRenewalTimer) clearInterval(databaseRenewalTimer);
+    };
+    const context: ExclusiveTaskContext = {
+      signal: controller.signal,
+      async assertOwnership() {
+        assertTaskWriteAllowed();
+        if (!await ownsDatabaseLock(name, token)) {
+          markLeaseLost("TASK_LEASE_OWNERSHIP_LOST");
+          throw controller.signal.reason;
+        }
+      },
+    };
     const renewalIntervalMs = Math.max(1_000, Math.min(60_000, Math.floor(ttlMs / 3)));
     databaseRenewalTimer = setInterval(() => {
       if (databaseRenewalPending) return;
       databaseRenewalPending = true;
       databaseRenewalInFlight = (async () => {
-        const renewed = await renewDatabaseLock(name, token, ttlMs);
-        if (!renewed) {
+        const renewedUntil = await renewDatabaseLock(name, token, ttlMs);
+        if (renewedUntil === null) {
           console.error(`[cron:${name}] lost the database lease while running`);
-          if (databaseRenewalTimer) clearInterval(databaseRenewalTimer);
+          markLeaseLost("TASK_LEASE_RENEWAL_REJECTED");
+          return;
         }
+        fence.expiresAt = renewedUntil;
       })().catch((error: unknown) => {
         console.error(`[cron:${name}] database lease renewal failed`, error instanceof Error ? error.message : error);
+        markLeaseLost("TASK_LEASE_RENEWAL_FAILED");
       }).finally(() => {
         databaseRenewalPending = false;
       });
     }, renewalIntervalMs);
+    databaseRenewalTimer.unref();
 
-    await operation();
+    await runWithTaskWriteFence(fence, async () => {
+      await operation(context);
+      await context.assertOwnership();
+    });
     return true;
   } finally {
     if (distributedLockAcquired && redis) {

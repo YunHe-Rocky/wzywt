@@ -28,12 +28,17 @@ jobs:
     env:
       DATABASE_URL: mysql://root:ci-password@127.0.0.1:3306/yanwutang_ci
       SESSION_SECRET: ci-only-session-secret-at-least-32-characters
+      ALLOW_INTEGRATION_TEST_DATABASE: "1"
+      E2E_ALLOW_TEST_DATABASE: "1"
+      PUBLIC_ORIGIN: https://localhost:8443
+      MEDIA_STORAGE_DIR: /tmp/wzywt-ci-media
+      AVATAR_DIR: /tmp/wzywt-ci-avatars
 
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
       - run: npm ci
       - run: npx prisma generate
@@ -41,14 +46,58 @@ jobs:
       - run: npx prisma migrate deploy
       - run: npm run check:shell-eol
       - run: bash -n scripts/*.sh
-      - run: node --check scripts/check-shell-line-endings.mjs && node --check scripts/deploy-env.mjs && node --check scripts/inspect-deploy-host.mjs && node --check scripts/inspect-runtime-services.mjs && node --check scripts/run-deploy-tests.mjs && node --check scripts/verify-deploy-state.mjs
+      - run: node --check scripts/check-shell-line-endings.mjs && node --check scripts/deploy-env.mjs && node --check scripts/inspect-deploy-host.mjs && node --check scripts/inspect-runtime-services.mjs && node --check scripts/run-deploy-tests.mjs && node --check scripts/verify-deploy-state.mjs && node --check scripts/media-manifest.mjs
       - run: npm run test:deploy
       - run: npm run check:architecture
       - run: npm run typecheck
       - run: npm run test:core
+      - run: npm run test:split-worker
+      - run: npm run test:entry
       - run: npm run test:markdown
       - run: npm run test:next-stage
       - run: npm run test:connections
       - run: npm run test:integration
       - run: npm run lint
       - run: npm run build
+      - run: npx playwright install --with-deps chromium webkit
+      - name: Install isolated HTTPS proxy dependency
+        run: sudo apt-get update && sudo apt-get install -y nginx openssl
+      - name: HTTPS Nginx login and private resources (desktop, Android, WebKit)
+        run: npm run test:e2e:proxy
+
+  database-compatibility:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        mysql: ["8.0", "8.4"]
+    services:
+      mysql:
+        image: mysql:${{ matrix.mysql }}
+        env:
+          MYSQL_ROOT_PASSWORD: ci-password
+          MYSQL_DATABASE: yanwutang_ci
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -pci-password"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+    env:
+      DATABASE_URL: mysql://root:ci-password@127.0.0.1:3306/yanwutang_ci
+      SESSION_SECRET: ci-only-session-secret-at-least-32-characters
+      ALLOW_INTEGRATION_TEST_DATABASE: "1"
+      MEDIA_STORAGE_DIR: /tmp/wzywt-db-matrix-media
+      AVATAR_DIR: /tmp/wzywt-db-matrix-avatars
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx prisma generate
+      - run: npx prisma migrate deploy
+      - run: npm run test:integration

@@ -37,6 +37,7 @@ module.exports = {
       cwd: appDir,
       env: {
         NODE_ENV: "production",
+        PUBLIC_ORIGIN: process.env.PUBLIC_ORIGIN || "",
         APP_RELEASE_ID: process.env.APP_RELEASE_ID || "",
         DEPLOY_PROJECT_NAME: projectName,
         DEPLOY_WEB_HOST: webHost,

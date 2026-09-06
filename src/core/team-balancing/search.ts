@@ -1,4 +1,4 @@
-import { ROLES } from "@/core/game/constants";
+import { ROLES } from "../game/constants";
 import { compareCandidate, comparePreferenceSummary, createMetricMatrix, createPreferenceSummary } from "./metrics";
 import type {
   Assignment, BalanceScore, Player, PlayerRoleMetric, PreferenceSummary,
@@ -23,6 +23,7 @@ function createCandidate(
   let laneStrengthDiffSum = 0;
   let maxLaneStrengthDiff = 0;
   let rankCoverage = 0;
+  let strengthCoverage = 0;
 
   for (let roleIndex = 0; roleIndex < ROLE_COUNT; roleIndex++) {
     const role = ROLES[roleIndex];
@@ -43,6 +44,7 @@ function createCandidate(
     redRank += redMetric.roleRank;
     blueRank += blueMetric.roleRank;
     rankCoverage += Number(redMetric.hasKnownRank) + Number(blueMetric.hasKnownRank);
+    strengthCoverage += Number(redMetric.hasKnownStrength) + Number(blueMetric.hasKnownStrength);
     const laneDiff = Math.abs(redMetric.strength - blueMetric.strength);
     laneStrengthDiffSum += laneDiff;
     maxLaneStrengthDiff = Math.max(maxLaneStrengthDiff, laneDiff);
@@ -55,7 +57,7 @@ function createCandidate(
     maxLaneStrengthDiff,
   };
   const signature = assignments.map(({ userId, role, team }) => `${userId}:${role}:${team}`).join("|");
-  return { assignments, preference, balance, redStrength, blueStrength, rankCoverage, signature };
+  return { assignments, preference, balance, redStrength, blueStrength, rankCoverage, strengthCoverage, signature };
 }
 
 function toTeamMember(assignment: Assignment, metrics: PlayerRoleMetric[][]): TeamMember {
@@ -88,6 +90,7 @@ function toResult(candidate: TeamCandidate, metrics: PlayerRoleMetric[][]): Spli
     preferenceScore,
     rankDiff: candidate.balance.rankDiff,
     rankCoverage: candidate.rankCoverage,
+    strengthCoverage: candidate.strengthCoverage,
   };
 }
 

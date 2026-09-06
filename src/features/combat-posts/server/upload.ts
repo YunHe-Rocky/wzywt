@@ -3,6 +3,7 @@ import { Readable, Transform } from "node:stream";
 import type { ReadableStream as NodeReadableStream } from "node:stream/web";
 import { pipeline } from "node:stream/promises";
 import busboy from "busboy";
+import { attachMediaReservation } from "@/features/media/server/quota";
 import {
   cleanOriginalFilename,
   detectVideo,
@@ -17,6 +18,7 @@ const UPLOAD_IDLE_TIMEOUT_MS = 30_000;
 const ALLOWED_FIELDS = new Set(["title", "content", "matchId", "tournamentId"]);
 
 export interface StreamedCombatVideo {
+  reservationId: string;
   key: string;
   size: number;
   sha256: string;
@@ -45,7 +47,12 @@ function assertDeclaredSize(request: Request): void {
   }
 }
 
-export async function readCombatPostUpload(request: Request): Promise<CombatPostUpload> {
+export async function readCombatPostUpload(
+  request: Request,
+  reservationId: string,
+  userId: number,
+  attachReservation: typeof attachMediaReservation = attachMediaReservation,
+): Promise<CombatPostUpload> {
   assertDeclaredSize(request);
   if (!request.body) throw new ServiceError("VALIDATION_ERROR", "multipart 请求体不能为空");
 
@@ -118,7 +125,14 @@ export async function readCombatPostUpload(request: Request): Promise<CombatPost
         await storage.delete(stored.key);
         throw new ServiceError("UNSUPPORTED_MEDIA_TYPE", "仅支持真实的 MP4 或 WebM 视频");
       }
+      try {
+        await attachReservation(reservationId, userId, stored.key, stored.size);
+      } catch (error) {
+        await storage.delete(stored.key).catch(() => undefined);
+        throw error;
+      }
       storedVideo = {
+        reservationId,
         key: stored.key,
         size: stored.size,
         sha256: stored.sha256,

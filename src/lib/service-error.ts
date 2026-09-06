@@ -7,6 +7,7 @@ export type ServiceErrorCode =
   | "BUSINESS_VALIDATION_FAILED"
   | "TOO_MANY_REQUESTS"
   | "REQUEST_TIMEOUT"
+  | "GATEWAY_TIMEOUT"
   | "SERVICE_UNAVAILABLE";
 
 const STATUS_BY_CODE: Record<ServiceErrorCode, number> = {
@@ -18,6 +19,7 @@ const STATUS_BY_CODE: Record<ServiceErrorCode, number> = {
   BUSINESS_VALIDATION_FAILED: 422,
   TOO_MANY_REQUESTS: 429,
   REQUEST_TIMEOUT: 408,
+  GATEWAY_TIMEOUT: 504,
   SERVICE_UNAVAILABLE: 503,
 };
 

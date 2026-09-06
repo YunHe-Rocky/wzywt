@@ -6,6 +6,8 @@ import { prisma } from "@/lib/db";
 import { authenticate, verifyPassword } from "@/lib/auth";
 import { deleteUserAndOwnedTournaments } from "@/features/users/server/deleteUser";
 import { tryReadJsonRequest } from "@/lib/request-validation";
+import { apiErrorResponse } from "@/lib/api-errors";
+import { resourceScheduler } from "@/features/resource-scheduler/server/registry";
 
 export async function GET() {
   const session = await getSession();
@@ -27,11 +29,12 @@ export async function GET() {
       isTemporary: true,
       banned: true,
       sessionVersion: true,
+      deletedAt: true,
     },
   });
   // 只读检查只返回未登录，不销毁 Cookie。旧标签页的失效响应可能晚于
   // 新登录响应到达；若在这里清 Cookie，会误删浏览器共享的新会话。
-  if (!user || user.isTemporary || session.sessionVersion !== user.sessionVersion) {
+  if (!user || user.isTemporary || user.deletedAt || session.sessionVersion !== user.sessionVersion) {
     return NextResponse.json({ user: null }, {
       headers: { "Cache-Control": "no-store, no-cache, must-revalidate", "Pragma": "no-cache", "Expires": "0" },
     });
@@ -86,11 +89,13 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: "安全答案错误" }, { status: 403 });
   }
 
-  await deleteUserAndOwnedTournaments(userId);
-
-  // 清除 session
-  const session = await getSession();
-  session.destroy();
-
-  return NextResponse.json({ ok: true });
+  try {
+    const deletion = await deleteUserAndOwnedTournaments(userId);
+    resourceScheduler.releaseUserLeases(userId);
+    const session = await getSession();
+    session.destroy();
+    return NextResponse.json({ ok: true, accountState: deletion.mode });
+  } catch (error) {
+    return apiErrorResponse(error);
+  }
 }

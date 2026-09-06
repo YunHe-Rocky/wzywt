@@ -4,9 +4,11 @@
 
 ## 技术栈
 
-Next.js、TypeScript、Tailwind CSS、Prisma/MySQL、Redis、iron-session、PM2、node-cron。
+Next.js 15、TypeScript、Tailwind CSS、Prisma/MySQL、Redis、iron-session、PM2、node-cron。
 
 ## 本地启动
+
+统一使用 Node.js 24（见 `.nvmrc`）；MySQL 8.0/8.4 由 CI migration + integration 矩阵验证。依赖安装以 `package-lock.json` 为准。
 
 ```bash
 npm ci
@@ -23,16 +25,18 @@ npm run dev
 
 - `DATABASE_URL`：MySQL 连接字符串。
 - `SESSION_SECRET`：至少 32 字符；生产缺失时应用拒绝启动。
+- `PUBLIC_ORIGIN`：批准的 HTTPS 站点地址（如 `https://game.example.com`），供设备/登录跳转和公网发布验收使用，须与 Nginx/TLS 站点一致。
 
 可选项：
 
 - `REDIS_URL` / `REDIS_REQUIRED`：Redis 与是否作为强制健康依赖。
 - `MATCH_OCR_ENDPOINT` / `MATCH_OCR_TOKEN`：六图 OCR；未配置时识别入口 fail-closed。
+- `HEALTH_DETAILS_TOKEN`：可选内部 readiness 指标令牌，只通过请求头发送。
 - `HOST` / `PORT`：仅在不用默认 `127.0.0.1:8001` 时设置。
 - `MEDIA_STORAGE_DIR` / `AVATAR_DIR`：本地开发可覆盖；生产部署脚本自动指向 runtime 的持久化 shared 目录。
 - `SEED_ADMIN_*` / `SEED_USER_PASSWORD`：仅开发 seed，禁止进入生产 `.env`。
 
-部署路径、Git、PM2、命令位置、备份和 Nginx/TLS 不是普通应用 `.env` 必填项。完整说明见 [部署指南](docs/deploy.md)。
+部署路径、Git、PM2、命令位置、备份和 Nginx/TLS 不是普通应用 `.env` 必填项。完整说明见 [部署指南](docs/operations/deploy.md)。
 
 ## 数据库 Migration
 
@@ -47,20 +51,23 @@ npx prisma migrate deploy
 ## 验证
 
 ```bash
-npm run check:architecture
-npm run typecheck
-npm run test:core
-npm run test:next-stage
-npm run test:connections
+npm run check
 npm run lint
 npm run build
 ```
 
+`test:integration` 只允许本机且库名以 `_ci`/`_test` 结尾的隔离库；完整门槛、数据库矩阵和日志/恢复路径见维护指南。
+
 ## 架构与部署
 
-- [代码分层架构](docs/code-architecture.md)
-- [部署说明](docs/deploy.md)
-- [Nginx 与 SSL/TLS](docs/nginx-configuration.md)
+- [维护者权威入口](docs/operations/maintenance.md)
+- [代码分层架构](docs/architecture/code-architecture.md)
+- [房间、比赛与分队规则](docs/product/product-rules.md)
+- [依赖与 overrides](docs/operations/dependencies.md)
+- [部署说明](docs/operations/deploy.md)
+- [健康检查与告警](docs/operations/observability.md)
+- [Nginx 与 SSL/TLS](docs/operations/nginx-configuration.md)
+- [安全问题报告](SECURITY.md)
 
 服务器已有代码和最小 `.env` 后，日常发布只有：
 
@@ -73,4 +80,4 @@ bash scripts/deploy.sh
 
 ## License
 
-当前仓库未声明开源许可证。是否开源及采用何种许可证由项目 Owner 决定。
+当前仓库未声明开源许可证。公开可见不等于允许复制、修改或再分发；是否开源及采用何种许可证由项目 Owner 决定。外部贡献前请先阅读 [贡献指南](CONTRIBUTING.md)，游戏素材与第三方数据的使用条件需单独核实。

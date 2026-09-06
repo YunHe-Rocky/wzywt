@@ -4,7 +4,7 @@ export const runtime = "nodejs";
 import { Readable } from "node:stream";
 import { NextRequest, NextResponse } from "next/server";
 import { isMatchScreenshotType } from "@/features/matches/model";
-import { getMatchScreenshotForAdmin, uploadMatchScreenshot } from "@/features/matches/server/draft";
+import { authorizeMatchScreenshotUpload, getMatchScreenshotForAdmin, uploadMatchScreenshot } from "@/features/matches/server/draft";
 import { apiErrorResponse } from "@/lib/api-errors";
 import { MAX_MATCH_SCREENSHOT_SIZE } from "@/lib/media-validation";
 import { parseRouteId, readFormDataRequest } from "@/lib/request-validation";
@@ -20,10 +20,11 @@ function parseParams(params: Awaited<Context["params"]>) {
 export async function POST(request: NextRequest, context: Context) {
   try {
     const ids = parseParams(await context.params);
+    const authorization = await authorizeMatchScreenshotUpload(ids.tournamentId, ids.matchId);
     const form = await readFormDataRequest(request, MAX_MATCH_SCREENSHOT_SIZE + 1024 * 1024);
     const file = form.get("file");
     if (!(file instanceof File)) throw new ServiceError("VALIDATION_ERROR", "请选择截图文件");
-    return NextResponse.json({ screenshot: await uploadMatchScreenshot(ids.tournamentId, ids.matchId, ids.type, file) });
+    return NextResponse.json({ screenshot: await uploadMatchScreenshot(authorization, ids.type, file) });
   } catch (error) {
     return apiErrorResponse(error);
   }

@@ -20,6 +20,7 @@
 
 # production
 /build
+/.runtime-workers/
 
 # deployment transport archives kept beside a production checkout
 /*.zip

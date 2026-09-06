@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from "crypto";
+import { isIP } from "node:net";
 import { Prisma } from "@prisma/client";
 import { prisma } from "./db";
 
@@ -17,13 +18,17 @@ function hash(value: string): string {
   return createHash("sha256").update(value).digest("hex");
 }
 
-function normalizeIp(value: string | null): string {
-  const first = value?.split(",", 1)[0]?.trim();
-  return first && first.length <= 64 ? first : "unknown";
+export function normalizeRequestIp(value: string | null): string {
+  const candidate = value?.trim().toLowerCase();
+  if (!candidate || candidate.length > 64 || candidate.includes(",")) return "unknown";
+  if (candidate.startsWith("::ffff:") && isIP(candidate.slice(7)) === 4) return candidate.slice(7);
+  return isIP(candidate) ? candidate : "unknown";
 }
 
 export function getRequestIp(headers: Headers): string {
-  return normalizeIp(headers.get("x-forwarded-for") ?? headers.get("x-real-ip"));
+  // The production app is loopback-only and trusts the single edge Nginx to
+  // overwrite X-Real-IP. Never select a client-controlled left-most XFF value.
+  return normalizeRequestIp(headers.get("x-real-ip"));
 }
 
 async function consumeLimit(scope: string, key: string, maxAttempts: number): Promise<void> {
@@ -66,6 +71,35 @@ async function consumeLimit(scope: string, key: string, maxAttempts: number): Pr
   }
 
   if (retryAfterSeconds > 0) throw new RateLimitError(retryAfterSeconds);
+}
+
+export async function consumeLoginLimits(username: string, ip: string): Promise<void> {
+  await consumeLimit("login_account", username.trim().toLowerCase(), 8);
+  await consumeLimit("login_ip", ip, 30);
+}
+
+export async function clearLoginLimits(username: string, ip: string): Promise<void> {
+  const keys = [["login_account", username.trim().toLowerCase()], ["login_ip", ip]] as const;
+  await prisma.authRateLimit.deleteMany({
+    where: { OR: keys.map(([scope, value]) => ({ scope, keyHash: hash(`${scope}:${value}`) })) },
+  });
+}
+
+export async function consumeRegistrationLimits(ip: string): Promise<void> {
+  await consumeLimit("registration_ip", ip, 5);
+  await consumeLimit("registration_global", "global", 100);
+}
+
+export async function consumePasswordResetCompletionLimits(tokenHash: string, ip: string): Promise<void> {
+  await consumeLimit("reset_complete_token", tokenHash, 5);
+  await consumeLimit("reset_complete_ip", ip, 20);
+}
+
+export async function clearPasswordResetCompletionLimits(tokenHash: string, ip: string): Promise<void> {
+  const keys = [["reset_complete_token", tokenHash], ["reset_complete_ip", ip]] as const;
+  await prisma.authRateLimit.deleteMany({
+    where: { OR: keys.map(([scope, value]) => ({ scope, keyHash: hash(`${scope}:${value}`) })) },
+  });
 }
 
 export async function consumePasswordResetLimits(username: string, ip: string): Promise<void> {

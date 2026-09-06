@@ -1,10 +1,10 @@
 # 王者演武堂开发指南
 
-王者荣耀 5v5 内战分队系统，基于 Next.js 14、TypeScript、Prisma/MySQL、Redis 与 PM2。
+王者荣耀 5v5 内战分队系统，基于 Next.js 15、TypeScript、Prisma/MySQL、Redis 与 PM2。
 
 ## 架构边界
 
-唯一权威说明：[docs/code-architecture.md](docs/code-architecture.md)。
+唯一权威说明：[docs/architecture/code-architecture.md](docs/architecture/code-architecture.md)。
 
 依赖方向：
 
@@ -32,7 +32,7 @@ npx prisma generate
 npx prisma migrate dev
 ```
 
-开发端口固定为 `8001`。
+开发端口固定为 `8001`。统一运行时为 Node.js 24；数据库兼容门槛由 CI 的 MySQL 8.0/8.4 矩阵验证。
 
 ## 验证命令
 
@@ -60,4 +60,4 @@ npm run build
 
 - dirty production tree 必须人工处理，禁止自动 stash。
 - Hero Sync 与发布解耦。
-- Nginx/证书细节见 [docs/deploy.md](docs/deploy.md)。
+- Nginx/证书细节见 [docs/operations/deploy.md](docs/operations/deploy.md)。

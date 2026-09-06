@@ -53,6 +53,8 @@ const matchFixture = {
     blueTotalKills: 40,
     consistencyStatus: "PASS",
     consistencyDetails: {},
+    evidenceRevision: 1,
+    recordRevision: 1,
     updatedAt: now,
     players,
     screenshots: ["DATA", "OUTPUT", "SURVIVAL", "DEVELOPMENT", "KDA", "TEAM"].map((type, index) => ({
@@ -65,7 +67,7 @@ const matchFixture = {
     recognition: { status: "COMPLETED", normalizedResult: {}, warnings: [], errorCode: null },
     disputes: [],
   },
-  access: { canManage: true, isSuperAdmin: true },
+  access: { canManage: true, isSuperAdmin: true, currentUserId: 1 },
   eligibleMembers: players.map((player) => ({ id: player.id, username: `user${player.id}`, gameNickname: player.gameNickname })),
 };
 const tacticsFixture = {
@@ -166,7 +168,7 @@ async function inspectPage(page, label) {
     const visible = (element) => {
       const style = getComputedStyle(element);
       const rect = element.getBoundingClientRect();
-      return style.visibility !== "hidden" && style.display !== "none" && Number.parseFloat(style.opacity) > 0.01 && !element.closest('[aria-hidden="true"]') && rect.width > 0 && rect.height > 0;
+      return style.visibility !== "hidden" && style.display !== "none" && Number.parseFloat(style.opacity) > 0.01 && !element.closest('[aria-hidden="true"]') && !element.closest(".sr-only") && rect.width > 0 && rect.height > 0;
     };
     const selector = 'a[href],button,input:not([type="hidden"]),select,textarea,summary,[role="tab"],[tabindex]:not([tabindex="-1"])';
     const controls = [...document.querySelectorAll(selector)].filter(visible);
@@ -243,7 +245,7 @@ try {
     ["mobile-tactic", "/m/tournaments/1/matches/1/tactics/red"],
     ["mobile-combat", "/m/combat"],
     ["mobile-combat-detail", "/m/combat/1"],
-    ["mobile-monitor", "/monitor"],
+    ["mobile-monitor", "/m/monitor"],
   ];
   for (const [label, pathname] of pages) {
     await page.goto(`${baseUrl}${pathname}`, { waitUntil: "domcontentloaded", timeout: 60_000 });
@@ -254,6 +256,22 @@ try {
 
   await page.goto(`${baseUrl}/m/tournaments/1/matches/1`, { waitUntil: "domcontentloaded", timeout: 60_000 });
   await waitReady(page);
+  const mobileResultPanel = page.locator(".match-result-table-wrap");
+  assert.ok(await mobileResultPanel.evaluate((element) => element.scrollWidth - element.clientWidth <= 1), "mobile result panel must not require horizontal scrolling");
+  assert.equal(await page.locator(".match-result-table tbody tr:not(.match-result-team-heading)").first().evaluate((element) => getComputedStyle(element).display), "grid", "mobile result rows must use the adaptive record layout");
+  const currentWorkflowStep = page.locator('[aria-current="step"]');
+  assert.match((await currentWorkflowStep.innerText()).replace(/\s+/g, " "), /提交/, "confirmed match must highlight submit as the next step");
+  const nicknameInput = page.getByLabel("红方 1游戏昵称");
+  await nicknameInput.fill("刷新恢复测试");
+  await page.waitForTimeout(700);
+  const storedDraft = await page.evaluate(() => window.localStorage.getItem("wzywt:match-draft:v1:1:1"));
+  assert.ok(storedDraft?.includes("刷新恢复测试"), "edited match fields must be saved to the account-scoped draft");
+  assert.equal(await page.evaluate(() => window.localStorage.getItem("wzywt:match-draft:v1:2:1")), null, "another account key must not receive this draft");
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await waitReady(page);
+  assert.equal(await page.getByLabel("红方 1游戏昵称").inputValue(), "刷新恢复测试", "refresh must restore a compatible local draft");
+  assert.match(await page.getByRole("status").filter({ hasText: "已恢复" }).first().innerText(), /已恢复/, "draft restoration must be announced");
+
   const firstTab = page.getByRole("tab").first();
   await firstTab.focus();
   await page.keyboard.press("ArrowRight");

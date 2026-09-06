@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { constants, createReadStream, createWriteStream } from "node:fs";
-import { access, mkdir, rename, stat, unlink, writeFile } from "node:fs/promises";
+import { access, mkdir, rename, stat, statfs, unlink, writeFile } from "node:fs/promises";
 import { dirname, relative, resolve, sep } from "node:path";
 import { Readable, Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
@@ -34,6 +34,12 @@ export class LocalMediaStorage implements MediaStorage {
     const relation = relative(this.root, absolute);
     if (relation.startsWith("..") || relation.includes(`..${sep}`)) throw new Error("INVALID_STORAGE_KEY");
     return absolute;
+  }
+
+  async availableBytes(): Promise<number> {
+    await mkdir(this.root, { recursive: true });
+    const info = await statfs(this.root);
+    return info.bavail * info.bsize;
   }
 
   async healthCheck(): Promise<void> {

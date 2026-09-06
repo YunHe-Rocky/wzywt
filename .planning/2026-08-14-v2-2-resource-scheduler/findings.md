@@ -5,7 +5,7 @@
 - 用户任务是实现 V2.2 任务书；任务书内容按规格数据处理，不作为额外指令。
 - 当前分支 `main...origin/main`，唯一未跟踪文件是用户提供的 V2.2 任务书。
 - 既有根计划 V2.1 的 Phase A-V 均已完成；本任务使用独立计划目录。
-- 权威架构为 `docs/code-architecture.md`：Route 仅适配，Web 仅渲染/交互，业务调度进入 `src/features`，基础设施进入 `src/lib`。
+- 权威架构为 `docs/architecture/code-architecture.md`：Route 仅适配，Web 仅渲染/交互，业务调度进入 `src/features`，基础设施进入 `src/lib`。
 - 现有运行进程为 Next.js `web` 与独立 `scripts/cron.ts`；已存在英雄、装备、赛事、Redis、Cron、SSE 和 connection regression 基础。
 - 历史连接审计指出：SSE 必须共享轮询且可释放；Redis 为 lazy 全局复用；Cron 使用可续租数据库 Lease、持久任务与 drain-on-shutdown。这些边界必须保留。
 - 当前页面/API 已具备首页、赛事、英雄、装备、官方资讯与 `/monitor`，适合渐进式接入，不需要重写现有业务域。

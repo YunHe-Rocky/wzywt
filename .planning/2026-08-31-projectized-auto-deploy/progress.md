@@ -40,7 +40,7 @@
 - Aggregate `npm run check` PASS, including the new LF gate, architecture, typecheck, core, Markdown, next-stage, connections and resource scheduling.
 - ESLint PASS with 0 errors and 17 existing `<img>` warnings; production `next build` PASS.
 - Final audit PASS: every current deployment Shell file has CR=0; `git diff --check` passed; new files have no trailing whitespace; package and CI wiring match; actual `.env` remains unmodified and untracked Secret content was not inspected or printed.
-- Git emitted a non-fatal pre-existing warning that `docs/spec.md` may be converted to CRLF on a future checkout; it is outside the Shell deployment-entrypoint scope and did not fail `git diff --check`.
+- Git emitted a non-fatal pre-existing warning that `docs/product/spec.md` may be converted to CRLF on a future checkout; it is outside the Shell deployment-entrypoint scope and did not fail `git diff --check`.
 - No real production backup, migration, PM2 switch, systemd mutation or Nginx reload was performed in this local repair.
 
 - Verified all 33 currently tracked `scripts` files use Git mode 100644. Corrected the server recovery text to restore top-level script files to 0644 because deployment is invoked through Bash; LF gate and `git diff --check` remained PASS.
@@ -61,7 +61,7 @@
 - Existing explicit override, renamed project, version rejection, PID/lock, activation, rollback, first release and PM2 ownership coverage remained PASS.
 
 - Replaced the deployment-heavy `.env.example` with ordinary HOST/PORT/database/session/Redis/storage/OCR settings only; advanced overrides remain supported but are absent from the normal template.
-- Rewrote `docs/deploy.md` to lead with `cd <project>`, `bash scripts/deploy.sh --check`, and `bash scripts/deploy.sh`; documented automatic facts, safety transaction, optional advanced overrides, stop and CRLF recovery in plain language.
+- Rewrote `docs/operations/deploy.md` to lead with `cd <project>`, `bash scripts/deploy.sh --check`, and `bash scripts/deploy.sh`; documented automatic facts, safety transaction, optional advanced overrides, stop and CRLF recovery in plain language.
 - Updated CI syntax coverage and the technical spec to use ordinary PORT and automatic runtime/systemd discovery.
 
 - Final formal matrix PASS: ordinary `.env` auto-discovery, pwd/source identity, renamed projects, command versions, runtime/systemd evidence, activation, rollback and PM2 ownership.
@@ -124,7 +124,7 @@
 - Confirmed production Secure Cookie over plain HTTP blocks session persistence, live heroes are populated, live equipment is empty, and equipment has no initial Cron bootstrap.
 - Phases 29-31 started to add an explicit secure-cookie override, empty-only equipment bootstrap and regression coverage while preserving secure production defaults.- Implemented secure-by-default session cookie resolution with an explicit `SESSION_COOKIE_SECURE=0` escape hatch for trusted HTTP-only LAN deployments; invalid values fail closed.
 - Added empty-only equipment bootstrap ten seconds after Cron startup, protected by the existing distributed/database task lock; non-empty databases log a skip instead of resyncing on every restart.
-- Added pure configuration/bootstrap policy tests and documented the HTTP-versus-HTTPS boundary in `.env.example` and `docs/deploy.md`.
+- Added pure configuration/bootstrap policy tests and documented the HTTP-versus-HTTPS boundary in `.env.example` and `docs/operations/deploy.md`.
 - Initial typecheck found the project `ProcessEnv` declaration made a `Pick` field required; replaced it with an explicit optional interface. A generated documentation transform interpreted PowerShell backtick-zero as NUL; removed the byte, restored UTF-8 text, and `git diff --check` passed.
 - Targeted architecture, typecheck and connection tests PASS; Phase 31 full validation is in progress.- Phase 31 final validation PASS: aggregate check, full deployment matrix, architecture, typecheck, connection/resource/business tests, ESLint with zero errors, production Next.js build and diff checks.
 - Live production evidence remains read-only: `/api/heroes` is populated, `/api/equipment` is empty, and protected resource access is anonymous until the new cookie configuration is deployed. No user account, password, production row or credential was read or mutated.

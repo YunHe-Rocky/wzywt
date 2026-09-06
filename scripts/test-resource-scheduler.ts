@@ -50,14 +50,14 @@ async function testSingleFlightAndLifecycle(): Promise<void> {
   assert.equal(snapshot.leases, 2);
   assert.equal(snapshot.sharedLoads, 1);
 
-  await scheduler.releaseLease(leaseA.lease.id);
+  await scheduler.releaseLease(leaseA.lease.id, null);
   assert.equal(scheduler.snapshots().resources[0].state, "HOT");
-  await scheduler.releaseLease(leaseB.lease.id);
+  await scheduler.releaseLease(leaseB.lease.id, null);
   assert.equal(scheduler.snapshots().resources[0].state, "IDLE");
   now += 31;
   await scheduler.sweep();
   snapshot = scheduler.snapshots().resources[0];
-  assert.equal(snapshot.state, "EVICTED");
+  assert.equal(snapshot.state, "COLD");
   assert.equal(snapshot.evictions, 1);
   assert.equal(disposals, 1);
 
@@ -80,14 +80,14 @@ async function testLeaseRenewalAndExpiry(): Promise<void> {
   scheduler.registerPage({ name: "live", requiresAuth: false, resources: [{ name: "realtime", mode: "immediate" }] });
   const result = await scheduler.acquirePage("live", null);
   now += 80;
-  scheduler.renewLease(result.lease.id);
+  scheduler.renewLease(result.lease.id, null);
   now += 20;
   await scheduler.sweep();
   assert.equal(scheduler.snapshots().leases.length, 1, "renewed lease must remain active");
   now += 71;
   await scheduler.sweep();
   assert.equal(scheduler.snapshots().leases.length, 0, "abandoned lease must expire");
-  assert.equal(scheduler.snapshots().resources[0].state, "EVICTED");
+  assert.equal(scheduler.snapshots().resources[0].state, "COLD");
   scheduler.close();
 }
 
@@ -125,8 +125,19 @@ async function testUserIsolationAndAccessControl(): Promise<void> {
   assert.deepEqual(third.immediate["private.lobby"].data, { userId: 8 });
   await assert.rejects(() => scheduler.acquirePage("lobby", null), (error) =>
     error instanceof ResourceSchedulerError && error.code === "AUTH_REQUIRED");
-  await assert.rejects(() => scheduler.getResource(first.lease.id, "not-on-page"), (error) =>
+  const actor7 = { userId: 7 };
+  const actor8 = { userId: 8 };
+  await assert.rejects(() => scheduler.getResource(first.lease.id, "not-on-page", actor7), (error) =>
     error instanceof ResourceSchedulerError && error.code === "RESOURCE_NOT_ALLOWED");
+  await assert.rejects(() => scheduler.getResource(first.lease.id, "private.lobby", actor8), (error) =>
+    error instanceof ResourceSchedulerError && error.code === "LEASE_FORBIDDEN");
+  assert.throws(() => scheduler.renewLease(first.lease.id, actor8), (error) =>
+    error instanceof ResourceSchedulerError && error.code === "LEASE_FORBIDDEN");
+  assert.throws(() => scheduler.releaseLease(first.lease.id, null), (error) =>
+    error instanceof ResourceSchedulerError && error.code === "LEASE_FORBIDDEN");
+  assert.equal(scheduler.releaseLease(first.lease.id, actor7), true);
+  assert.equal(scheduler.releaseUserLeases(7), 1);
+  assert.equal(scheduler.releaseUserLeases(8), 1);
   scheduler.close();
 }
 
@@ -148,13 +159,50 @@ async function testStaleWhileRevalidate(): Promise<void> {
   });
   const page = await scheduler.acquirePage("versioned-page", null);
   now += 11;
-  const stale = await scheduler.getResource(page.lease.id, "versioned");
+  const stale = await scheduler.getResource(page.lease.id, "versioned", null);
   assert.equal(stale.data, "value-1", "expired data should be served without blocking");
   await Promise.resolve();
   await Promise.resolve();
-  const fresh = await scheduler.getResource(page.lease.id, "versioned");
+  const fresh = await scheduler.getResource(page.lease.id, "versioned", null);
   assert.equal(fresh.data, "value-2");
   assert.equal(scheduler.snapshots().resources[0].staleHits, 1);
+  scheduler.close();
+}
+
+async function testLeaseBudgets(): Promise<void> {
+  let now = 5_000;
+  let sequence = 0;
+  const scheduler = new ResourceScheduler({
+    autoSweep: false,
+    now: () => now,
+    createId: () => `budget-${++sequence}`,
+    leaseTtlMs: 50,
+    maxLeaseLifetimeMs: 100,
+    maxActiveLeases: 1,
+  });
+  scheduler.registerResource({
+    name: "bounded.public",
+    scope: "public",
+    maxAgeMs: 100,
+    idleTtlMs: 0,
+    loader: async () => ({ data: true, version: "1" }),
+  });
+  scheduler.registerPage({ name: "bounded", requiresAuth: false, resources: [{ name: "bounded.public", mode: "immediate" }] });
+  const first = await scheduler.acquirePage("bounded", null);
+  await assert.rejects(() => scheduler.acquirePage("bounded", null), (error) =>
+    error instanceof ResourceSchedulerError && error.code === "CAPACITY_EXCEEDED");
+  now += 49;
+  const renewed = scheduler.renewLease(first.lease.id, null);
+  assert.equal(renewed.expiresAt, new Date(5_099).toISOString());
+  now += 51;
+  assert.throws(() => scheduler.renewLease(first.lease.id, null), (error) =>
+    error instanceof ResourceSchedulerError && error.code === "LEASE_NOT_FOUND");
+  await scheduler.sweep();
+  const snapshot = scheduler.snapshots();
+  assert.equal(snapshot.leases.length, 0);
+  assert.equal(snapshot.resources.length, 1, "evicted per-visitor metadata must be removed");
+  assert.equal(snapshot.resources[0].state, "COLD");
+  assert.equal(snapshot.resources[0].evictions, 1);
   scheduler.close();
 }
 
@@ -163,6 +211,7 @@ async function main(): Promise<void> {
   await testLeaseRenewalAndExpiry();
   await testUserIsolationAndAccessControl();
   await testStaleWhileRevalidate();
+  await testLeaseBudgets();
   console.log("Resource scheduler tests passed");
 }
 

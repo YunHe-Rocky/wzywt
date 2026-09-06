@@ -1,0 +1,24 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "allowJs": false,
+    "declaration": false,
+    "incremental": false,
+    "isolatedModules": false,
+    "lib": ["ES2022"],
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "noEmit": false,
+    "outDir": ".runtime-workers",
+    "rootDir": "src",
+    "sourceMap": false,
+    "target": "ES2022"
+  },
+  "include": [
+    "src/workers/team-balancing-worker.ts",
+    "src/core/team-balancing/search.ts",
+    "src/core/team-balancing/metrics.ts",
+    "src/core/team-balancing/types.ts",
+    "src/core/game/constants.ts"
+  ]
+}

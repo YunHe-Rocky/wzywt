@@ -6,6 +6,10 @@ export interface ResourceContext {
   userId: number | null;
 }
 
+export interface ResourceActor {
+  userId: number;
+}
+
 export interface ResourcePayload<T = unknown> {
   data: T;
   version: string;
@@ -68,7 +72,7 @@ export interface LeaseResult {
 
 export class ResourceSchedulerError extends Error {
   constructor(
-    public readonly code: "UNKNOWN_PAGE" | "UNKNOWN_RESOURCE" | "AUTH_REQUIRED" | "LEASE_NOT_FOUND" | "RESOURCE_NOT_ALLOWED",
+    public readonly code: "UNKNOWN_PAGE" | "UNKNOWN_RESOURCE" | "AUTH_REQUIRED" | "LEASE_NOT_FOUND" | "LEASE_FORBIDDEN" | "RESOURCE_NOT_ALLOWED" | "CAPACITY_EXCEEDED",
     message: string,
   ) {
     super(message);

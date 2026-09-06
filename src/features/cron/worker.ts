@@ -8,6 +8,7 @@ import { runExclusiveTask } from "@/features/cron/task-lock";
 import { recordCronHeartbeat } from "@/features/cron/heartbeat";
 import { lockExpiredTournaments } from "@/features/tournaments/server/lockExpiredTournaments";
 import { processPendingMediaCleanup } from "@/features/media/server/storage-cleanup";
+import { runQueuedMatchRecognitions } from "@/features/matches/server/recognition";
 import { prisma } from "@/lib/db";
 import { getMediaStorage } from "@/lib/storage";
 import { syncItems } from "@/features/equipment/server/sync";
@@ -97,11 +98,20 @@ export async function runDeadlineCheck(): Promise<void> {
   }
 }
 
+async function runMatchOcr(): Promise<void> {
+  await runExclusiveTask("match-ocr", 3 * 60 * 1000, async (lease) => {
+    const result = await runQueuedMatchRecognitions(1, { signal: lease.signal });
+    if (result.recovered > 0 || result.processed > 0) {
+      console.log(`[match-ocr] recovered=${result.recovered} processed=${result.processed}`);
+    }
+  });
+}
+
 async function runMediaCleanup(): Promise<void> {
   await runExclusiveTask("media-cleanup", 4 * 60 * 1000, async () => {
     const result = await processPendingMediaCleanup(getMediaStorage());
-    if (result.processed > 0 || result.failed > 0) {
-      console.log(`[media-cleanup] processed=${result.processed} failed=${result.failed}`);
+    if (result.processed > 0 || result.failed > 0 || result.expiredReservations > 0) {
+      console.log(`[media-cleanup] processed=${result.processed} expiredReservations=${result.expiredReservations} failed=${result.failed}`);
     }
   });
 }
@@ -133,11 +143,13 @@ export function startCronWorker(): CronWorker {
     cron.schedule("*/10 * * * * *", () => schedule("monitor:queued", runQueuedMonitorCycle)),
     cron.schedule("* * * * *", () => schedule("deadline", runDeadlineCheck)),
     cron.schedule("*/10 * * * * *", () => schedule("hero-sync:queued", runQueuedHeroSync)),
+    cron.schedule("*/10 * * * * *", () => schedule("match-ocr", runMatchOcr)),
     cron.schedule("*/30 * * * * *", () => schedule("heartbeat", recordCronHeartbeat)),
     cron.schedule("*/5 * * * *", () => schedule("media-cleanup", runMediaCleanup)),
   ];
 
   void track("heartbeat:initial", recordCronHeartbeat);
+  void track("match-ocr:initial", runMatchOcr);
   const initialMonitor = track("monitor:initial", runMonitorCycle);
   void track("official-news-sync:initial", runOfficialNewsSync);
   const initialSyncTimer = setTimeout(

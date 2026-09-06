@@ -8,6 +8,7 @@ import Link from "next/link";
 import { useToast } from "@/web/components/ui/Toast";
 import { FeaturePortal } from "@/web/components/ui/FeaturePortal";
 import { GlassShatter } from "./GlassShatter";
+import { loginTransitionRedirect, safeAuthRedirect } from "@/features/auth/redirect";
 import {
   getCurrentUser,
   getSecurityQuestion,
@@ -46,9 +47,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
   const searchParams = useSearchParams();
   const { success } = useToast();
   const requestedRedirect = searchParams.get("redirect");
-  const redirect = requestedRedirect?.startsWith("/") && !requestedRedirect.startsWith("//")
-    ? requestedRedirect
-    : "/";
+  const redirect = safeAuthRedirect(requestedRedirect);
 
   const [checking, setChecking] = useState(true);
   const [username, setUsername] = useState("");
@@ -171,9 +170,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
 
       if (mode === "register") success("欢迎加入王者演武堂！");
       if (mode === "login") {
-        const dest = redirect;
-        const sep = dest.includes("?") ? "&" : "?";
-        setShatterRedirect(dest + sep + "_from=login");
+        setShatterRedirect(loginTransitionRedirect(redirect));
       } else {
         router.replace(redirect);
       }

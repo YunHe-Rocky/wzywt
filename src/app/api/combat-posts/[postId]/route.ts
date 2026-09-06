@@ -7,10 +7,10 @@ import { parseRouteId, readJsonRequest } from "@/lib/request-validation";
 
 type Context = { params: Promise<{ postId: string }> };
 
-export async function GET(_request: NextRequest, context: Context) {
+export async function GET(request: NextRequest, context: Context) {
   try {
     const { postId } = await context.params;
-    return NextResponse.json(await getCombatPost(parseRouteId(postId, "动态 ID")));
+    return NextResponse.json(await getCombatPost(parseRouteId(postId, "动态 ID"), request.nextUrl.searchParams.get("commentCursor")));
   } catch (error) {
     return apiErrorResponse(error);
   }

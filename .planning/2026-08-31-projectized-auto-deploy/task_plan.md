@@ -154,7 +154,7 @@
 | The generated ecosystem test block retained diff-style leading plus signs | 1 | Scanned all line-start plus markers and removed the nine exact accidental prefixes |
 | New runtime inspector could not execute an extensionless fake systemctl directly on Windows | 1 | Passed the resolved Git Bash path from the npm launcher and used it only for Windows extensionless fixtures |
 | Built-in Node pattern initially allowed 20/22/24 but the validated host runs Node 26 | 1 | Added Node 26 after syntax, tests and the existing production build demonstrated compatibility |
-| A multi-line docs/spec transform did not match the file's mixed line endings | 1 | Replaced the seven exact table rows independently and preserved surrounding content |
+| A multi-line docs/product/spec transform did not match the file's mixed line endings | 1 | Replaced the seven exact table rows independently and preserved surrounding content |
 | First spec update command interpolated `$count:` as an invalid PowerShell variable reference | 1 | Used `${count}:` and completed the already-validated exact replacements |
 
 ### Dirty-tree errors

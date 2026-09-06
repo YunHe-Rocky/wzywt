@@ -24,8 +24,12 @@ export interface JoinRoomPreview {
   error?: string;
 }
 
-export const listTournaments = (): Promise<ApiResult<TournamentResponse>> =>
-  apiRequest("/api/tournaments");
+export const listTournaments = (cursors: { tournaments?: number | null; publicTournaments?: number | null } = {}): Promise<ApiResult<TournamentResponse>> => {
+  const params = new URLSearchParams();
+  if (cursors.tournaments) params.set("tournamentCursor", String(cursors.tournaments));
+  if (cursors.publicTournaments) params.set("publicTournamentCursor", String(cursors.publicTournaments));
+  return apiRequest(`/api/tournaments${params.size ? `?${params}` : ""}`);
+};
 
 export const createTournament = (body: {
   name: string;

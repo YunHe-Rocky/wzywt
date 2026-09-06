@@ -48,7 +48,7 @@ async function readBoundedJson(response: Response): Promise<unknown> {
   }
 }
 
-export async function recognizeMatchScreenshots(files: RecognitionProviderFile[]): Promise<unknown> {
+export function getRecognitionProviderUrl(): URL {
   const endpoint = process.env.MATCH_OCR_ENDPOINT?.trim();
   if (!endpoint) {
     throw new ServiceError("SERVICE_UNAVAILABLE", "尚未配置 MATCH_OCR_ENDPOINT，无法启动 OCR");
@@ -62,6 +62,11 @@ export async function recognizeMatchScreenshots(files: RecognitionProviderFile[]
   if (process.env.NODE_ENV === "production" && url.protocol !== "https:") {
     throw new ServiceError("SERVICE_UNAVAILABLE", "生产环境 MATCH_OCR_ENDPOINT 必须使用 HTTPS");
   }
+  return url;
+}
+
+export async function recognizeMatchScreenshots(files: RecognitionProviderFile[], signal?: AbortSignal): Promise<unknown> {
+  const url = getRecognitionProviderUrl();
   const form = new FormData();
   for (const file of files) {
     form.append("screenshots", new Blob([Uint8Array.from(file.data)], { type: file.mimeType }), file.filename);
@@ -74,10 +79,13 @@ export async function recognizeMatchScreenshots(files: RecognitionProviderFile[]
       method: "POST",
       headers: token ? { Authorization: `Bearer ${token}` } : undefined,
       body: form,
-      signal: AbortSignal.timeout(90_000),
+      signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(90_000)]) : AbortSignal.timeout(90_000),
       redirect: "error",
     });
   } catch (error) {
+    if (signal?.aborted) {
+      throw signal.reason instanceof Error ? signal.reason : new ServiceError("SERVICE_UNAVAILABLE", "OCR 任务租约已失效");
+    }
     const timedOut = error instanceof DOMException && error.name === "TimeoutError";
     throw new ServiceError("SERVICE_UNAVAILABLE", timedOut ? "OCR 请求超时" : "OCR 服务连接失败");
   }

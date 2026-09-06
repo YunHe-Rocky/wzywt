@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type {
+  ResourceActor,
   LeaseResult,
   LeaseSnapshot,
   PageDefinition,
@@ -31,12 +32,16 @@ interface LeaseEntry {
   id: string;
   page: PageDefinition;
   context: ResourceContext;
+  createdAt: number;
   expiresAt: number;
+  protectedLease: boolean;
   resourceKeys: Map<string, string>;
 }
 
 export interface ResourceSchedulerOptions {
   leaseTtlMs?: number;
+  maxLeaseLifetimeMs?: number;
+  maxActiveLeases?: number;
   sweepIntervalMs?: number;
   now?: () => number;
   createId?: () => string;
@@ -57,13 +62,20 @@ export class ResourceScheduler {
   private readonly pages = new Map<string, PageDefinition>();
   private readonly entries = new Map<string, ResourceEntry>();
   private readonly leases = new Map<string, LeaseEntry>();
+  private readonly archivedMetrics = new Map<string, ResourceMetrics>();
   private readonly leaseTtlMs: number;
+  private readonly maxLeaseLifetimeMs: number;
+  private readonly maxActiveLeases: number;
   private readonly now: () => number;
   private readonly createId: () => string;
   private readonly sweepTimer: ReturnType<typeof setInterval> | null;
 
   constructor(options: ResourceSchedulerOptions = {}) {
     this.leaseTtlMs = options.leaseTtlMs ?? 90_000;
+    this.maxLeaseLifetimeMs = options.maxLeaseLifetimeMs ?? 15 * 60_000;
+    this.maxActiveLeases = options.maxActiveLeases ?? 2_048;
+    if (!Number.isSafeInteger(this.maxActiveLeases) || this.maxActiveLeases <= 0) throw new Error("maxActiveLeases must be a positive integer");
+    if (!Number.isFinite(this.maxLeaseLifetimeMs) || this.maxLeaseLifetimeMs < this.leaseTtlMs) throw new Error("maxLeaseLifetimeMs must be at least leaseTtlMs");
     this.now = options.now ?? Date.now;
     this.createId = options.createId ?? randomUUID;
     if (options.autoSweep === false) {
@@ -95,12 +107,23 @@ export class ResourceScheduler {
     await this.sweep();
     const page = this.pages.get(pageName);
     if (!page) throw new ResourceSchedulerError("UNKNOWN_PAGE", "页面资源清单不存在");
-    if (page.requiresAuth && userId === null) throw new ResourceSchedulerError("AUTH_REQUIRED", "该页面需要登录");
+    const protectedLease = page.requiresAuth || page.resources.some(({ name }) => this.resources.get(name)?.scope === "user");
+    if (protectedLease && userId === null) throw new ResourceSchedulerError("AUTH_REQUIRED", "该页面需要登录");
+    if (this.leases.size >= this.maxActiveLeases) throw new ResourceSchedulerError("CAPACITY_EXCEEDED", "页面资源租约繁忙，请稍后重试");
 
     const id = this.createId();
-    const context = { userId };
+    const createdAt = this.now();
+    const context = { userId: protectedLease ? userId : null };
     const resourceKeys = new Map<string, string>();
-    const lease: LeaseEntry = { id, page, context, resourceKeys, expiresAt: this.now() + this.leaseTtlMs };
+    const lease: LeaseEntry = {
+      id,
+      page,
+      context,
+      createdAt,
+      expiresAt: Math.min(createdAt + this.leaseTtlMs, createdAt + this.maxLeaseLifetimeMs),
+      protectedLease,
+      resourceKeys,
+    };
     this.leases.set(id, lease);
 
     for (const item of page.resources) {
@@ -116,44 +139,47 @@ export class ResourceScheduler {
       const values = await Promise.all(immediateEntries.map(async (item) => [item.name, await this.readEntry(this.requireEntry(lease, item.name))] as const));
       return { lease: this.toLeaseSnapshot(lease), immediate: Object.fromEntries(values) };
     } catch (error) {
-      await this.releaseLease(id);
+      this.releaseLeaseUnchecked(lease);
       throw error;
     }
   }
 
-  async getResource(leaseId: string, resourceName: string, refresh = false): Promise<ResourcePayload> {
+  async getResource(leaseId: string, resourceName: string, actor: ResourceActor | null, refresh = false): Promise<ResourcePayload> {
     await this.sweep();
     const lease = this.leases.get(leaseId);
     if (!lease) throw new ResourceSchedulerError("LEASE_NOT_FOUND", "页面租约不存在或已过期");
+    this.assertLeaseAccess(lease, actor);
     const entry = this.requireEntry(lease, resourceName);
     return this.readEntry(entry, refresh);
   }
 
-  renewLease(leaseId: string): LeaseSnapshot {
+  renewLease(leaseId: string, actor: ResourceActor | null): LeaseSnapshot {
     const lease = this.leases.get(leaseId);
-    if (!lease || lease.expiresAt <= this.now()) {
-      if (lease) void this.releaseLease(leaseId);
+    const now = this.now();
+    if (!lease || lease.expiresAt <= now) {
+      if (lease) this.releaseLeaseUnchecked(lease);
       throw new ResourceSchedulerError("LEASE_NOT_FOUND", "页面租约不存在或已过期");
     }
-    lease.expiresAt = this.now() + this.leaseTtlMs;
+    this.assertLeaseAccess(lease, actor);
+    const maximumExpiresAt = lease.createdAt + this.maxLeaseLifetimeMs;
+    lease.expiresAt = Math.min(now + this.leaseTtlMs, maximumExpiresAt);
     return this.toLeaseSnapshot(lease);
   }
 
-  async releaseLease(leaseId: string): Promise<boolean> {
+  releaseLease(leaseId: string, actor: ResourceActor | null): boolean {
     const lease = this.leases.get(leaseId);
     if (!lease) return false;
-    this.leases.delete(leaseId);
-    const now = this.now();
-    for (const key of lease.resourceKeys.values()) {
-      const entry = this.entries.get(key);
-      if (!entry) continue;
-      entry.leases.delete(leaseId);
-      if (entry.leases.size === 0 && entry.state !== "COLD" && entry.state !== "EVICTED") {
-        entry.state = "IDLE";
-        entry.idleSince = now;
-      }
+    this.assertLeaseAccess(lease, actor);
+    return this.releaseLeaseUnchecked(lease);
+  }
+
+  releaseUserLeases(userId: number): number {
+    let released = 0;
+    for (const lease of [...this.leases.values()]) {
+      if (!lease.protectedLease || lease.context.userId !== userId) continue;
+      if (this.releaseLeaseUnchecked(lease)) released++;
     }
-    return true;
+    return released;
   }
 
   async invalidate(resourceName: string, userId?: number): Promise<void> {
@@ -167,7 +193,7 @@ export class ResourceScheduler {
   async sweep(): Promise<void> {
     const now = this.now();
     const expired = [...this.leases.values()].filter((lease) => lease.expiresAt <= now);
-    await Promise.all(expired.map((lease) => this.releaseLease(lease.id)));
+    for (const lease of expired) this.releaseLeaseUnchecked(lease);
 
     for (const entry of this.entries.values()) {
       if (entry.state !== "IDLE" || entry.loading || entry.idleSince === null) continue;
@@ -179,6 +205,8 @@ export class ResourceScheduler {
       entry.idleSince = null;
       entry.state = "EVICTED";
       entry.metrics.evictions++;
+      this.archiveMetrics(entry);
+      this.entries.delete(entry.key);
     }
   }
 
@@ -198,7 +226,7 @@ export class ResourceScheduler {
         expiresAt: null,
         idleSince: null,
         lastError: null,
-        ...EMPTY_METRICS(),
+        ...(this.archivedMetrics.get(definition.name) ?? EMPTY_METRICS()),
       });
     }
     return {
@@ -231,7 +259,7 @@ export class ResourceScheduler {
       expiresAt: null,
       idleSince: null,
       lastError: null,
-      metrics: EMPTY_METRICS(),
+      metrics: this.takeArchivedMetrics(name),
     };
     this.entries.set(key, entry);
     return entry;
@@ -293,6 +321,48 @@ export class ResourceScheduler {
       });
     entry.loading = loading;
     return loading;
+  }
+
+  private assertLeaseAccess(lease: LeaseEntry, actor: ResourceActor | null): void {
+    if (!lease.protectedLease) return;
+    if (!actor || actor.userId !== lease.context.userId) {
+      throw new ResourceSchedulerError("LEASE_FORBIDDEN", "无权访问该页面租约");
+    }
+  }
+
+  private releaseLeaseUnchecked(lease: LeaseEntry): boolean {
+    if (!this.leases.delete(lease.id)) return false;
+    const now = this.now();
+    for (const key of lease.resourceKeys.values()) {
+      const entry = this.entries.get(key);
+      if (!entry) continue;
+      entry.leases.delete(lease.id);
+      if (entry.leases.size === 0 && entry.state !== "COLD" && entry.state !== "EVICTED") {
+        entry.state = "IDLE";
+        entry.idleSince = now;
+      }
+    }
+    return true;
+  }
+
+  private archiveMetrics(entry: ResourceEntry): void {
+    const previous = this.archivedMetrics.get(entry.definition.name) ?? EMPTY_METRICS();
+    const current = entry.metrics;
+    this.archivedMetrics.set(entry.definition.name, {
+      loads: previous.loads + current.loads,
+      sharedLoads: previous.sharedLoads + current.sharedLoads,
+      cacheHits: previous.cacheHits + current.cacheHits,
+      staleHits: previous.staleHits + current.staleHits,
+      evictions: previous.evictions + current.evictions,
+      loadErrors: previous.loadErrors + current.loadErrors,
+    });
+  }
+
+  private takeArchivedMetrics(resourceName: string): ResourceMetrics {
+    const metrics = this.archivedMetrics.get(resourceName);
+    if (!metrics) return EMPTY_METRICS();
+    this.archivedMetrics.delete(resourceName);
+    return { ...metrics };
   }
 
   private toLeaseSnapshot(lease: LeaseEntry): LeaseSnapshot {

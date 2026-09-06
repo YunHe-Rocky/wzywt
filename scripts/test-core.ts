@@ -173,6 +173,7 @@ assert.equal(canViewTournamentMemberIdentity("player"), false);
 assert.equal(shouldDeleteTournament({ activePlayerCount: 0, ownerCount: 1 }), true);
 assert.equal(shouldDeleteTournament({ activePlayerCount: 1, ownerCount: 0 }), true);
 assert.equal(shouldDeleteTournament({ activePlayerCount: 1, ownerCount: 1 }), false);
+assert.equal(shouldDeleteTournament({ activePlayerCount: 0, ownerCount: 1, hasHistory: true }), false);
 assert.deepEqual(
   normalizeGameProfile({ gameNickname: "  演武堂主 ", gameId: " 123 456 " }),
   { gameNickname: "演武堂主", gameId: "123 456" },
@@ -300,6 +301,7 @@ function candidate(first: number, totalStrengthDiff: number, signature: string):
     redStrength: 0,
     blueStrength: 0,
     rankCoverage: 10,
+    strengthCoverage: 10,
     signature,
   };
 }
@@ -315,6 +317,7 @@ const missingData = players.map((player, index) => index < 2
   : player);
 const missingResult = splitTeams(missingData);
 assert.ok(missingResult);
+assert.equal(missingResult.strengthCoverage, 8);
 assert.equal(JSON.stringify(missingResult).includes("null"), false);
 for (const value of Object.values(missingResult.balanceSummary)) assert.equal(Number.isFinite(value), true);
 

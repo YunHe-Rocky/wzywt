@@ -8,19 +8,20 @@ datasource db {
 }
 
 model User {
-  id                 Int      @id @default(autoincrement())
-  username           String   @unique @db.VarChar(32)
-  passwordHash       String   @map("password_hash") @db.VarChar(255)
-  securityQuestion   String?  @map("security_question") @db.VarChar(255)
-  securityAnswerHash String?  @map("security_answer_hash") @db.VarChar(255)
-  role               String   @default("user") @db.VarChar(16) // user | admin
-  avatar             String?  @db.VarChar(255) // 头像文件名
-  gameNickname       String?  @map("game_nickname") @db.VarChar(32)
-  gameId             String?  @map("game_id") @db.VarChar(64)
-  isTemporary        Boolean  @default(false) @map("is_temporary")
-  banned             Boolean  @default(false) // 封禁标记
-  sessionVersion     Int      @default(1) @map("session_version")
-  createdAt          DateTime @default(now()) @map("created_at")
+  id                 Int       @id @default(autoincrement())
+  username           String    @unique @db.VarChar(32)
+  passwordHash       String    @map("password_hash") @db.VarChar(255)
+  securityQuestion   String?   @map("security_question") @db.VarChar(255)
+  securityAnswerHash String?   @map("security_answer_hash") @db.VarChar(255)
+  role               String    @default("user") @db.VarChar(16) // user | admin
+  avatar             String?   @db.VarChar(255) // 头像文件名
+  gameNickname       String?   @map("game_nickname") @db.VarChar(32)
+  gameId             String?   @map("game_id") @db.VarChar(64)
+  isTemporary        Boolean   @default(false) @map("is_temporary")
+  banned             Boolean   @default(false) // 封禁标记
+  sessionVersion     Int       @default(1) @map("session_version")
+  deletedAt          DateTime? @map("deleted_at")
+  createdAt          DateTime  @default(now()) @map("created_at")
 
   rolePreferences      RolePreference[]
   heroPowers           HeroPower[]
@@ -28,23 +29,24 @@ model User {
   tournamentAdmins     TournamentAdmin[]
   adminOperations      AdminOperation[]
   tempApplications     TempPlayerApplication[]
-  matchesCreated       InternalMatch[]         @relation("InternalMatchCreatedBy")
-  matchesSubmitted     InternalMatch[]         @relation("InternalMatchSubmittedBy")
-  matchPlayers         MatchPlayer[]           @relation("MatchPlayerMember")
-  matchConfirmations   MatchPlayer[]           @relation("MatchPlayerConfirmedBy")
-  matchStatsConfirmed  MatchPlayerStat[]       @relation("MatchStatConfirmedBy")
+  matchesCreated       InternalMatch[]          @relation("InternalMatchCreatedBy")
+  matchesSubmitted     InternalMatch[]          @relation("InternalMatchSubmittedBy")
+  matchPlayers         MatchPlayer[]            @relation("MatchPlayerMember")
+  matchConfirmations   MatchPlayer[]            @relation("MatchPlayerConfirmedBy")
+  matchStatsConfirmed  MatchPlayerStat[]        @relation("MatchStatConfirmedBy")
   screenshotsUploaded  MatchScreenshot[]
   recognitionsStarted  MatchRecognition[]
-  disputesCreated      MatchDispute[]          @relation("MatchDisputeCreatedBy")
-  disputesHandled      MatchDispute[]          @relation("MatchDisputeHandledBy")
-  combatPosts          CombatPost[]            @relation("CombatPostAuthor")
-  combatPostsModerated CombatPost[]            @relation("CombatPostModeratedBy")
+  disputesCreated      MatchDispute[]           @relation("MatchDisputeCreatedBy")
+  disputesHandled      MatchDispute[]           @relation("MatchDisputeHandledBy")
+  combatPosts          CombatPost[]             @relation("CombatPostAuthor")
+  combatPostsModerated CombatPost[]             @relation("CombatPostModeratedBy")
   combatPostLikes      CombatPostLike[]
-  combatPostComments   CombatPostComment[]     @relation("CombatPostCommentAuthor")
-  commentsModerated    CombatPostComment[]     @relation("CombatPostCommentModeratedBy")
+  combatPostComments   CombatPostComment[]      @relation("CombatPostCommentAuthor")
+  commentsModerated    CombatPostComment[]      @relation("CombatPostCommentModeratedBy")
   tacticLayersCreated  TacticLayer[]
   tacticRoutes         TacticRoute[]
   tacticMarkers        TacticMarker[]
+  mediaReservations    MediaUploadReservation[]
 
   @@map("users")
 }
@@ -269,6 +271,24 @@ model KvCache {
   @@map("kv_cache")
 }
 
+model MediaUploadReservation {
+  id         String   @id @db.VarChar(36)
+  userId     Int      @map("user_id")
+  kind       String   @db.VarChar(32)
+  bytes      BigInt   @db.UnsignedBigInt
+  state      String   @default("RESERVED") @db.VarChar(16)
+  storageKey String?  @unique @map("storage_key") @db.VarChar(255)
+  expiresAt  DateTime @map("expires_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([state, expiresAt])
+  @@index([userId, state, createdAt])
+  @@map("media_upload_reservations")
+}
+
 model Announcement {
   id        Int      @id @default(autoincrement())
   title     String   @db.VarChar(128)
@@ -318,20 +338,23 @@ model TournamentPick {
 }
 
 model InternalMatch {
-  id                 Int       @id @default(autoincrement())
-  tournamentId       Int       @unique @map("tournament_id")
-  playedAt           DateTime  @default(now()) @map("played_at")
-  status             String    @default("DRAFT") @db.VarChar(24)
-  winnerSide         String?   @map("winner_side") @db.VarChar(4)
-  redTotalKills      Int?      @map("red_total_kills") @db.UnsignedSmallInt
-  blueTotalKills     Int?      @map("blue_total_kills") @db.UnsignedSmallInt
-  consistencyStatus  String    @default("PENDING") @map("consistency_status") @db.VarChar(16)
-  consistencyDetails Json?     @map("consistency_details")
-  createdById        Int       @map("created_by")
-  submittedById      Int?      @map("submitted_by")
-  submittedAt        DateTime? @map("submitted_at")
-  createdAt          DateTime  @default(now()) @map("created_at")
-  updatedAt          DateTime  @updatedAt @map("updated_at")
+  id                  Int       @id @default(autoincrement())
+  tournamentId        Int       @unique @map("tournament_id")
+  playedAt            DateTime  @default(now()) @map("played_at")
+  status              String    @default("DRAFT") @db.VarChar(24)
+  winnerSide          String?   @map("winner_side") @db.VarChar(4)
+  redTotalKills       Int?      @map("red_total_kills") @db.UnsignedSmallInt
+  blueTotalKills      Int?      @map("blue_total_kills") @db.UnsignedSmallInt
+  consistencyStatus   String    @default("PENDING") @map("consistency_status") @db.VarChar(16)
+  consistencyDetails  Json?     @map("consistency_details")
+  evidenceRevision    Int       @default(0) @map("evidence_revision")
+  activeRecognitionId Int?      @map("active_recognition_id")
+  recordRevision      Int       @default(1) @map("record_revision")
+  createdById         Int       @map("created_by")
+  submittedById       Int?      @map("submitted_by")
+  submittedAt         DateTime? @map("submitted_at")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
 
   tournament   Tournament         @relation(fields: [tournamentId], references: [id], onDelete: Restrict)
   createdBy    User               @relation("InternalMatchCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
@@ -419,6 +442,7 @@ model MatchScreenshot {
   mimeType           String   @map("mime_type") @db.VarChar(64)
   size               Int      @db.UnsignedInt
   sha256             String   @db.Char(64)
+  revision           Int      @default(1)
   uploadedById       Int      @map("uploaded_by")
   recognitionStatus  String   @default("PENDING") @map("recognition_status") @db.VarChar(16)
   recognitionPayload Json?    @map("recognition_payload")
@@ -438,11 +462,16 @@ model MatchRecognition {
   matchId          Int       @map("match_id")
   status           String    @default("PENDING") @db.VarChar(16)
   engine           String    @db.VarChar(64)
+  evidenceRevision Int       @default(0) @map("evidence_revision")
+  inputSnapshot    Json?     @map("input_snapshot")
   startedById      Int       @map("started_by")
   rawResult        Json?     @map("raw_result")
   normalizedResult Json?     @map("normalized_result")
   warnings         Json?
   errorCode        String?   @map("error_code") @db.VarChar(64)
+  attemptCount     Int       @default(0) @map("attempt_count")
+  availableAt      DateTime  @default(now()) @map("available_at")
+  heartbeatAt      DateTime? @map("heartbeat_at")
   startedAt        DateTime? @map("started_at")
   finishedAt       DateTime? @map("finished_at")
   createdAt        DateTime  @default(now()) @map("created_at")
@@ -452,6 +481,8 @@ model MatchRecognition {
   startedBy User          @relation(fields: [startedById], references: [id], onDelete: Restrict)
 
   @@index([matchId, createdAt])
+  @@index([matchId, status, evidenceRevision])
+  @@index([status, availableAt])
   @@map("match_recognitions")
 }
 
@@ -541,6 +572,7 @@ model CombatPostComment {
   moderatedBy User?      @relation("CombatPostCommentModeratedBy", fields: [moderatedById], references: [id], onDelete: Restrict)
 
   @@index([postId, status, createdAt])
+  @@index([authorId, createdAt])
   @@map("combat_post_comments")
 }
 

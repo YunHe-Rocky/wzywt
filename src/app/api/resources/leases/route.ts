@@ -24,7 +24,10 @@ export async function PATCH(request: NextRequest) {
     const body = await tryReadJsonRequest<{ leaseId?: unknown }>(request);
     if (!body.ok) return body.response;
     if (typeof body.value.leaseId !== "string") return NextResponse.json({ error: "租约 ID 无效" }, { status: 400 });
-    return NextResponse.json({ lease: resourceScheduler.renewLease(body.value.leaseId) });
+    const auth = await authenticate();
+    if (!auth.ok && auth.code === "BANNED") return NextResponse.json({ error: "账户已被封禁" }, { status: 403 });
+    const actor = auth.ok ? { userId: auth.user.userId } : null;
+    return NextResponse.json({ lease: resourceScheduler.renewLease(body.value.leaseId, actor) });
   } catch (error) {
     return resourceSchedulerErrorResponse(error);
   }
@@ -35,7 +38,10 @@ export async function DELETE(request: NextRequest) {
     const body = await tryReadJsonRequest<{ leaseId?: unknown }>(request);
     if (!body.ok) return body.response;
     if (typeof body.value.leaseId !== "string") return NextResponse.json({ error: "租约 ID 无效" }, { status: 400 });
-    await resourceScheduler.releaseLease(body.value.leaseId);
+    const auth = await authenticate();
+    if (!auth.ok && auth.code === "BANNED") return NextResponse.json({ error: "账户已被封禁" }, { status: 403 });
+    const actor = auth.ok ? { userId: auth.user.userId } : null;
+    resourceScheduler.releaseLease(body.value.leaseId, actor);
     return NextResponse.json({ ok: true });
   } catch (error) {
     return resourceSchedulerErrorResponse(error);

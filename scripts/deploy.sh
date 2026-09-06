@@ -402,16 +402,33 @@ WEB_PORT="${DEPLOY_WEB_PORT:-${PORT:-8001}}"
   || fail "resolved application PORT must be between 1 and 65535: $WEB_PORT"
 HEALTH_URL="${DEPLOY_HEALTH_URL:-http://$WEB_HOST:$WEB_PORT/api/health}"
 [[ "$HEALTH_URL" == http://* || "$HEALTH_URL" == https://* ]] || fail "DEPLOY_HEALTH_URL must use http or https"
+[[ -n "${PUBLIC_ORIGIN:-}" ]] || fail "PUBLIC_ORIGIN is required; set the approved HTTPS site origin in .env"
 
 HEALTH_ATTEMPTS="${DEPLOY_HEALTH_ATTEMPTS:-30}"
 HEALTH_INTERVAL_SECONDS="${DEPLOY_HEALTH_INTERVAL_SECONDS:-2}"
-HEALTH_TIMEOUT_SECONDS="${DEPLOY_HEALTH_TIMEOUT_SECONDS:-3}"
+HEALTH_TIMEOUT_SECONDS="${DEPLOY_HEALTH_TIMEOUT_SECONDS:-4}"
 for numeric_value in HEALTH_ATTEMPTS HEALTH_INTERVAL_SECONDS HEALTH_TIMEOUT_SECONDS; do
   [[ "${!numeric_value}" =~ ^[1-9][0-9]*$ ]] || fail "$numeric_value must be a positive integer"
 done
 ((HEALTH_ATTEMPTS <= 120)) || fail "DEPLOY_HEALTH_ATTEMPTS must not exceed 120"
 ((HEALTH_INTERVAL_SECONDS <= 30)) || fail "DEPLOY_HEALTH_INTERVAL_SECONDS must not exceed 30"
 ((HEALTH_TIMEOUT_SECONDS <= 30)) || fail "DEPLOY_HEALTH_TIMEOUT_SECONDS must not exceed 30"
+
+MIN_FREE_BYTES="${DEPLOY_MIN_FREE_BYTES:-2147483648}"
+[[ "$MIN_FREE_BYTES" =~ ^[0-9]+$ ]] || fail "DEPLOY_MIN_FREE_BYTES must be a non-negative integer"
+
+check_deploy_disk_space() {
+  local parent available
+  parent="$(nearest_existing_parent "$BASE_DIR")"
+  available="$($NODE_BIN -e '
+const fs = require("node:fs");
+const stats = fs.statfsSync(process.argv[1], { bigint: true });
+process.stdout.write(String(stats.bavail * stats.bsize));
+' "$parent")" || fail "could not inspect available disk space for $parent"
+  [[ "$available" =~ ^[0-9]+$ ]] || fail "disk-space check returned an invalid value"
+  ((available >= MIN_FREE_BYTES)) || fail "insufficient free space on $parent: available=$available required=$MIN_FREE_BYTES"
+  log "disk-space available=$available required=$MIN_FREE_BYTES path=$parent"
+}
 
 PM2_CONFIG="${DEPLOY_PM2_CONFIG:-ecosystem.config.js}"
 [[ "$PM2_CONFIG" != /* && "$PM2_CONFIG" != ".." && "$PM2_CONFIG" != ../* && "$PM2_CONFIG" != */../* ]] \
@@ -465,7 +482,7 @@ add_host_core() {
     || fail "version pattern for $name must be a single line without tabs"
   HOST_CORE_ARGS+=(--core "$name" "$path" "$pattern")
 }
-add_host_core node "$NODE_BIN" "${DEPLOY_NODE_VERSION_PATTERN:-^v(20|22|24|26)\.}"
+add_host_core node "$NODE_BIN" "${DEPLOY_NODE_VERSION_PATTERN:-^v24\.}"
 add_host_core npm "$NPM_BIN" "${DEPLOY_NPM_VERSION_PATTERN:-}"
 add_host_core npx "$NPX_BIN" "${DEPLOY_NPX_VERSION_PATTERN:-}"
 add_host_core git "$GIT_BIN" "${DEPLOY_GIT_VERSION_PATTERN:-}"
@@ -546,7 +563,11 @@ check_runtime_permissions
 
 resolve_current_target
 inspect_host
+PUBLIC_ORIGIN="$("$NODE_BIN" "$SCRIPT_DIR/public-entry-smoke.mjs" "$PUBLIC_ORIGIN" --validate-origin)" \
+  || fail "PUBLIC_ORIGIN is invalid"
+export PUBLIC_ORIGIN
 check_pm2_ownership
+check_deploy_disk_space
 
 log "project=$PROJECT_NAME package=$PACKAGE_NAME source=$SOURCE_DIR base=$BASE_DIR"
 log "run-user=$ACTUAL_RUN_USER group=$ACTUAL_RUN_GROUP env=$ENV_FILE ref=$TARGET_REF"
@@ -570,6 +591,7 @@ check_source_clean "deployment-lock recheck"
 resolve_current_target
 inspect_host
 check_pm2_ownership
+check_deploy_disk_space
 
 log "fetch $REMOTE/$BRANCH"
 "$GIT_BIN" -C "$SOURCE_DIR" fetch --prune "$REMOTE" "+refs/heads/$BRANCH:$TARGET_REF"
@@ -605,6 +627,7 @@ run_migrations() {
   "$NPX_BIN" --no-install prisma migrate deploy 2>&1 | tee "$MIGRATION_LOG"
 }
 
+log "database migrations are forward-only; application rollback never imports or reverses a backup automatically"
 log "apply database migrations"
 if ! run_migrations; then
   if grep -q 'P3005' "$MIGRATION_LOG" && [[ "${ALLOW_MIGRATION_BASELINE:-0}" == "1" ]]; then
@@ -764,6 +787,8 @@ atomic_switch "$RELEASE_DIR" || rollback_release "could not switch the current r
 log "activate the project through PM2"
 reload_release "$CURRENT_LINK" || rollback_release "PM2 start/reload or release ownership verification failed"
 wait_for_health "$RELEASE_ID" || rollback_release "release-aware health check did not pass"
+"$NODE_BIN" "$SCRIPT_DIR/public-entry-smoke.mjs" "$PUBLIC_ORIGIN" "$RELEASE_ID" \
+  || rollback_release "public release and redirect smoke did not pass"
 "$PM2_BIN" save || rollback_release "PM2 state could not be saved for reboot recovery"
 
 DEPLOY_SUCCEEDED=1

@@ -6,8 +6,9 @@ export function listCombatPosts<T>(page = 1) {
   return apiRequest<T>(`/api/combat-posts?page=${page}`);
 }
 
-export function getCombatPost<T>(postId: string | number) {
-  return apiRequest<T>(`/api/combat-posts/${postId}`);
+export function getCombatPost<T>(postId: string | number, commentCursor?: number | null) {
+  const query = commentCursor ? `?commentCursor=${commentCursor}` : "";
+  return apiRequest<T>(`/api/combat-posts/${postId}${query}`);
 }
 
 export function publishCombatPost<T>(input: { title: string; content: string; video: File; matchId?: string; tournamentId?: string }) {

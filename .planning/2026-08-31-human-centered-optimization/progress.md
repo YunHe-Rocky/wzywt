@@ -6,7 +6,7 @@
 - 恢复已完成的根 V2.1 计划与 V2.2 资源调度计划；会话 catch-up 无未同步输出。
 - 新建独立的人因优化计划，不覆盖历史工作。
 - Phase 1 进行中：下一步读取权威架构、设计 tokens、Git 状态、最近提交与最新页面/组件入口。
-- 已完整读取 `docs/code-architecture.md`，确认分层与语义层级约束。
+- 已完整读取 `docs/architecture/code-architecture.md`，确认分层与语义层级约束。
 - 已盘点 Git、最近提交、全站页面/组件与样式入口；锁定新功能和公共 UI 的优先审计文件。
 - 已读取 UI 系统、主题布局、Tailwind token 与 `globals.css` 基线，发现移动字号、重复 gutter、溢出掩盖和文档漂移等待验证风险。
 - 已运行 UI/UX 设计系统查询；保留人因检查项，拒绝其不适合本项目且自报可访问性较差的 3D 风格建议。
@@ -39,7 +39,7 @@
 - 最终 `npm.cmd run check` PASS：architecture、typecheck、core、markdown、next-stage、connections、resource scheduler 全部通过。
 - 全站 lint 初次完成为 0 error、18 warning；已安全消除 `HeroDetail` 的复杂依赖表达式 warning，残余 17 条均为既有 `<img>` 性能建议，未关闭规则。Markdown 外链、用户头像和英雄资源回退需要先确定 Next Image 远程域名/缓存策略，未机械替换。
 - 最终 `npm.cmd run build` PASS：Next 15.5.23 production 编译、lint/type、40/40 静态页面、build traces 全部完成；`/monitor` 首载 107 kB。
-- `docs/ui-system.md` 已从已失效的 hash 双主题/34px Header 说明纠偏为当前 V2.2.1 单主题、人因基线和最新功能边界。
+- `docs/design/ui-system.md` 已从已失效的 hash 双主题/34px Header 说明纠偏为当前 V2.2.1 单主题、人因基线和最新功能边界。
 - 最终 production 服务由 `next start -p 8001` 验收后用 Ctrl+C 正常结束；端口 8001 已确认无监听。
 - 未执行 `tests/e2e/next-stage-regression.mjs` 的真实数据库写入链，因为当前 `DATABASE_URL` 未确认指向隔离测试库；测试步骤已兼容新确认弹窗，但不虚报数据库 E2E PASS。
 - 截图与 JSON 报告保存在 `.cache/test-artifacts/human-factors-regression`；宿主图片查看 ACL 始终失败，因此本轮证据为真实 Chrome DOM/计算样式/截图文件，不声称模型侧视觉看图验收。

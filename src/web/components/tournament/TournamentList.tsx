@@ -10,6 +10,7 @@ import { useAuth } from "@/features/auth/client";
 import { CalendarModal } from "@/web/components/ui/CalendarModal";
 import {
   createTournament,
+  listTournaments,
   joinTournament,
   joinTournamentByCode,
   type JoinRoomPreview,
@@ -55,6 +56,8 @@ function AuthenticatedTournamentList() {
   const [showMore, setShowMore] = useState(false);
   const [joinPreview, setJoinPreview] = useState<JoinRoomPreview | null>(null);
   const [joining, setJoining] = useState(false);
+  const [nextCursors, setNextCursors] = useState<{ tournaments: number | null; publicTournaments: number | null }>({ tournaments: null, publicTournaments: null });
+  const [loadingMore, setLoadingMore] = useState<"tournaments" | "publicTournaments" | null>(null);
   const router = useRouter();
   const { immediate, loading, error: resourceError, loadResource } = usePageResources("tournaments");
 
@@ -62,18 +65,39 @@ function AuthenticatedTournamentList() {
     const data = immediate["tournaments.lobby"]?.data as {
       tournaments?: Tournament[];
       publicTournaments?: Tournament[];
+      nextCursors?: { tournaments: number | null; publicTournaments: number | null };
     } | undefined;
     if (data?.tournaments) setTournaments(data.tournaments);
     if (data?.publicTournaments) setPublicTournaments(data.publicTournaments);
+    if (data?.nextCursors) setNextCursors(data.nextCursors);
   }, [immediate]);
 
   async function refresh() {
     const data = await loadResource<{
       tournaments?: Tournament[];
       publicTournaments?: Tournament[];
+      nextCursors?: { tournaments: number | null; publicTournaments: number | null };
     }>("tournaments.lobby", true);
     if (data.tournaments) setTournaments(data.tournaments);
     if (data.publicTournaments) setPublicTournaments(data.publicTournaments);
+    if (data.nextCursors) setNextCursors(data.nextCursors);
+  }
+
+  async function loadMore(kind: "tournaments" | "publicTournaments") {
+    const cursor = nextCursors[kind];
+    if (!cursor || loadingMore) return;
+    setLoadingMore(kind);
+    try {
+      const { ok, data } = await listTournaments({ [kind]: cursor });
+      if (!ok) { setError(data.error || "加载更多赛事失败"); return; }
+      const items = Array.isArray(data[kind]) ? data[kind] as Tournament[] : [];
+      if (kind === "tournaments") setTournaments((current) => [...current, ...items]);
+      else setPublicTournaments((current) => [...current, ...items]);
+      const returned = data.nextCursors as { tournaments?: number | null; publicTournaments?: number | null } | undefined;
+      setNextCursors((current) => ({ ...current, [kind]: returned?.[kind] ?? null }));
+    } finally {
+      setLoadingMore(null);
+    }
   }
 
   async function create() {
@@ -283,6 +307,7 @@ function AuthenticatedTournamentList() {
                   );
                 })}
               </div>
+              {nextCursors.tournaments && <button className="btn-subtle" disabled={Boolean(loadingMore)} onClick={() => void loadMore("tournaments")}>{loadingMore === "tournaments" ? "加载中…" : "加载更多我的赛事"}</button>}
             </>
           )}
 
@@ -318,6 +343,7 @@ function AuthenticatedTournamentList() {
                   </button>
                 ))}
               </div>
+              {nextCursors.publicTournaments && <button className="btn-subtle" disabled={Boolean(loadingMore)} onClick={() => void loadMore("publicTournaments")}>{loadingMore === "publicTournaments" ? "加载中…" : "加载更多公开赛事"}</button>}
             </>
           )}
         </>

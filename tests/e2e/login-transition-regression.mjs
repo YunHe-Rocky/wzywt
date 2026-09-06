@@ -1,11 +1,11 @@
 import { chromium } from "playwright";
 import assert from "node:assert/strict";
 
-const BASE_URL = "http://127.0.0.1:8001";
-const CHROME_PATH = "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe";
+// Visual fixtures only; real proxy/session checks live in ci-auth-resource-regression.mjs.
+const BASE_URL = process.env.E2E_BASE_URL || "http://localhost:8001";
 
 async function verifyTransition(browser, reducedMotion) {
-  const context = await browser.newContext({ reducedMotion });
+  const context = await browser.newContext({ reducedMotion, ignoreHTTPSErrors: true });
   const page = await context.newPage();
   page.setDefaultTimeout(5_000);
   const errors = [];
@@ -62,7 +62,7 @@ async function verifyTransition(browser, reducedMotion) {
   } else {
     assert.ok(elapsed >= 900 && elapsed < 2_000, `animation navigation took ${elapsed}ms`);
   }
-  await page.getByRole("link", { name: "我的", exact: true }).click();
+  await page.getByRole("navigation", { name: "主导航" }).getByRole("link", { name: "我的", exact: true }).click();
   await page.waitForURL(/\/me$/, { timeout: 5_000 });
   await page.getByRole("heading", { name: "个人空间", exact: true }).waitFor();
   assert.equal(new URL(page.url()).pathname, "/me");
@@ -72,7 +72,7 @@ async function verifyTransition(browser, reducedMotion) {
 }
 
 async function verifyRejectedMissingSession(browser) {
-  const context = await browser.newContext();
+  const context = await browser.newContext({ ignoreHTTPSErrors: true });
   const page = await context.newPage();
   page.setDefaultTimeout(10_000);
   let meRequests = 0;
@@ -104,7 +104,7 @@ async function verifyRejectedMissingSession(browser) {
 
 const browser = await chromium.launch({
   headless: true,
-  executablePath: CHROME_PATH,
+  executablePath: process.env.E2E_BROWSER_PATH || undefined,
 });
 
 try {
