@@ -1,11 +1,11 @@
 import { chromium } from "playwright";
 import assert from "node:assert/strict";
 
-const BASE_URL = "http://127.0.0.1:8001";
-const CHROME_PATH = "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe";
+// Visual fixtures only; real proxy/session checks live in ci-auth-resource-regression.mjs.
+const BASE_URL = process.env.E2E_BASE_URL || "http://localhost:8001";
 
 async function verifyTransition(browser, reducedMotion) {
-  const context = await browser.newContext({ reducedMotion });
+  const context = await browser.newContext({ reducedMotion, ignoreHTTPSErrors: true });
   const page = await context.newPage();
   page.setDefaultTimeout(5_000);
   const errors = [];
@@ -62,7 +62,7 @@ async function verifyTransition(browser, reducedMotion) {
   } else {
     assert.ok(elapsed >= 900 && elapsed < 2_000, `animation navigation took ${elapsed}ms`);
   }
-  await page.getByRole("link", { name: "我的", exact: true }).click();
+  await page.getByRole("navigation", { name: "主导航" }).getByRole("link", { name: "我的", exact: true }).click();
   await page.waitForURL(/\/me$/, { timeout: 5_000 });
   await page.getByRole("heading", { name: "个人空间", exact: true }).waitFor();
   assert.equal(new URL(page.url()).pathname, "/me");
@@ -72,7 +72,7 @@ async function verifyTransition(browser, reducedMotion) {
 }
 
 async function verifyRejectedMissingSession(browser) {
-  const context = await browser.newContext();
+  const context = await browser.newContext({ ignoreHTTPSErrors: true });
   const page = await context.newPage();
   page.setDefaultTimeout(10_000);
   let meRequests = 0;
@@ -102,15 +102,50 @@ async function verifyRejectedMissingSession(browser) {
   await context.close();
 }
 
+async function verifyRejectedStaleSession(browser) {
+  const context = await browser.newContext({ ignoreHTTPSErrors: true });
+  await context.addCookies([{
+    name: "wzyt_session",
+    value: "stale-session",
+    url: BASE_URL,
+  }]);
+  const page = await context.newPage();
+  page.setDefaultTimeout(10_000);
+  const errors = [];
+  let protectedProfileRequests = 0;
+  page.on("pageerror", (error) => errors.push(error.message));
+
+  await page.route("**/api/auth/me", (route) => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({ user: null }),
+  }));
+  await page.route("**/api/users/me/**", (route) => {
+    protectedProfileRequests += 1;
+    return route.fulfill({
+      status: 401,
+      contentType: "application/json",
+      body: JSON.stringify({ error: "请先登录" }),
+    });
+  });
+
+  await page.goto(`${BASE_URL}/me`, { waitUntil: "domcontentloaded", timeout: 10_000 });
+  await page.waitForURL(/\/login\?redirect=%2Fme$/, { timeout: 5_000 });
+  assert.equal(protectedProfileRequests, 0, "profile APIs must not load before authentication is confirmed");
+  assert.deepEqual(errors, []);
+  await context.close();
+}
+
 const browser = await chromium.launch({
   headless: true,
-  executablePath: CHROME_PATH,
+  executablePath: process.env.E2E_BROWSER_PATH || undefined,
 });
 
 try {
   const normal = await verifyTransition(browser, "no-preference");
   const reduced = await verifyTransition(browser, "reduce");
   await verifyRejectedMissingSession(browser);
+  await verifyRejectedStaleSession(browser);
   console.log(`Login transition passed: normal=${normal}ms reduced=${reduced}ms`);
 } finally {
   await browser.close();

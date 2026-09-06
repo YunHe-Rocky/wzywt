@@ -1,15 +1,12 @@
 import Redis from "ioredis";
+import { redisConnectionOptions } from "./redis-options";
+export { redisRetryDelay } from "./redis-options";
 
 const REDIS_URL = process.env.REDIS_URL || "";
 
 const globalForRedis = globalThis as unknown as { redis?: Redis | null };
 const lastWarningAt = new Map<string, number>();
 const WARNING_INTERVAL_MS = 60_000;
-
-export function redisRetryDelay(times: number): number {
-  const exponent = Math.min(Math.max(times - 1, 0), 5);
-  return Math.min(250 * (2 ** exponent), 5_000);
-}
 
 export function warnRedisFailure(operation: string, error: unknown): void {
   const now = Date.now();
@@ -22,20 +19,7 @@ export function warnRedisFailure(operation: string, error: unknown): void {
 function createRedis(): Redis | null {
   if (!REDIS_URL) return null;
   try {
-    const redis = new Redis(REDIS_URL, {
-      lazyConnect: true,
-      maxRetriesPerRequest: 1,
-      retryStrategy: redisRetryDelay,
-      connectTimeout: 5000,
-      commandTimeout: 5000,
-      enableReadyCheck: true,
-      // The first real command starts the lazy connection and may wait for one
-      // bounded retry. This avoids both build-time I/O and cold-start false failures.
-      enableOfflineQueue: true,
-      reconnectOnError(error) {
-        return error.message.includes("READONLY") ? 2 : false;
-      },
-    });
+    const redis = new Redis(REDIS_URL, redisConnectionOptions());
     redis.on("error", (error) => warnRedisFailure("connection", error));
     return redis;
   } catch (error) {

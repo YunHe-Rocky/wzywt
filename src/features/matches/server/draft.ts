@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { Prisma } from "@prisma/client";
-import { parseSplitSnapshot, type MatchScreenshotType } from "@/features/matches/model";
+import { MATCH_SCREENSHOT_TYPES, parseSplitSnapshot, type MatchScreenshotType } from "@/features/matches/model";
+import { attachMediaReservation, consumeMediaReservation, releaseMediaReservation, reserveMediaUpload } from "@/features/media/server/quota";
 import { deleteOrQueueMedia } from "@/features/media/server/storage-cleanup";
 import { requireAuth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
@@ -143,8 +144,8 @@ export async function getMatchDetail(tournamentId: number, matchId: number) {
           stats: true,
         },
       },
-      screenshots: { orderBy: { type: "asc" }, select: { id: true, type: true, originalFilename: true, mimeType: true, size: true, sha256: true, recognitionStatus: true, createdAt: true } },
-      recognitions: { orderBy: { createdAt: "desc" }, take: 1, select: { id: true, status: true, engine: true, normalizedResult: true, warnings: true, errorCode: true, createdAt: true, finishedAt: true } },
+      screenshots: { orderBy: { type: "asc" }, select: { id: true, type: true, originalFilename: true, mimeType: true, size: true, sha256: true, revision: true, recognitionStatus: true, createdAt: true } },
+      recognitions: { orderBy: { createdAt: "desc" }, take: 1, select: { id: true, status: true, engine: true, evidenceRevision: true, normalizedResult: true, warnings: true, errorCode: true, attemptCount: true, availableAt: true, heartbeatAt: true, createdAt: true, finishedAt: true } },
       disputes: { where: { createdById: user.userId }, orderBy: { createdAt: "desc" }, take: 20 },
     },
   });
@@ -162,6 +163,8 @@ export async function getMatchDetail(tournamentId: number, matchId: number) {
       blueTotalKills: match.blueTotalKills,
       consistencyStatus: match.consistencyStatus,
       consistencyDetails: match.consistencyDetails,
+      evidenceRevision: match.evidenceRevision,
+      recordRevision: match.recordRevision,
       submittedAt: match.submittedAt,
       updatedAt: match.updatedAt,
       players: match.players.map((player) => ({
@@ -202,7 +205,7 @@ export async function getMatchDetail(tournamentId: number, matchId: number) {
       recognition: match.recognitions[0] ?? null,
       disputes: match.disputes,
     },
-    access: { canManage, isSuperAdmin: user.role === "admin" },
+    access: { canManage, isSuperAdmin: user.role === "admin", currentUserId: user.userId },
     eligibleMembers: match.tournament.players.map(({ userId, user: member }) => ({
       id: userId,
       username: member.username,
@@ -211,66 +214,119 @@ export async function getMatchDetail(tournamentId: number, matchId: number) {
   };
 }
 
-export async function uploadMatchScreenshot(
+export interface MatchScreenshotUploadAuthorization {
+  tournamentId: number;
+  matchId: number;
+  actorUserId: number;
+  expectedEvidenceRevision: number;
+}
+
+export async function authorizeMatchScreenshotUpload(
   tournamentId: number,
   matchId: number,
+): Promise<MatchScreenshotUploadAuthorization> {
+  const actor = await requireMatchManager(tournamentId, matchId);
+  const match = await prisma.internalMatch.findFirst({
+    where: { id: matchId, tournamentId },
+    select: { status: true, evidenceRevision: true },
+  });
+  if (!match) throw new ServiceError("NOT_FOUND", "比赛不存在");
+  if (!["DRAFT", "UPLOADED", "WAITING_CONFIRMATION"].includes(match.status)) {
+    throw new ServiceError("CONFLICT", "已确认或正式提交的比赛档案不能替换原始截图");
+  }
+  return { tournamentId, matchId, actorUserId: actor.userId, expectedEvidenceRevision: match.evidenceRevision };
+}
+
+export async function uploadMatchScreenshot(
+  authorization: MatchScreenshotUploadAuthorization,
   type: MatchScreenshotType,
   file: File,
 ) {
-  const actor = await requireMatchManager(tournamentId, matchId);
-  const currentMatch = await prisma.internalMatch.findUnique({ where: { id: matchId }, select: { status: true } });
-  if (!currentMatch) throw new ServiceError("NOT_FOUND", "比赛不存在");
-  if (currentMatch.status === "SUBMITTED") throw new ServiceError("CONFLICT", "正式比赛档案不能替换原始截图");
+  const { tournamentId, matchId, actorUserId, expectedEvidenceRevision } = authorization;
   const media = await validateScreenshotFile(file);
   const storage = getMediaStorage();
-  const stored = await storage.save({ namespace: "match-screenshots", extension: media.extension, data: media.data });
-  const sha256 = createHash("sha256").update(media.data).digest("hex");
-  const previous = await prisma.matchScreenshot.findUnique({
-    where: { matchId_type: { matchId, type } },
-    select: { storageKey: true },
-  });
+  const reservation = await reserveMediaUpload(actorUserId, "match-screenshot", media.data.byteLength);
+  let stored: { key: string; size: number } | null = null;
   try {
+    stored = await storage.save({ namespace: "match-screenshots", extension: media.extension, data: media.data });
+    const saved = stored;
+    await attachMediaReservation(reservation.id, actorUserId, saved.key, saved.size);
+    const sha256 = createHash("sha256").update(media.data).digest("hex");
     const result = await prisma.$transaction(async (tx) => {
+      const claimed = await tx.internalMatch.updateMany({
+        where: {
+          id: matchId,
+          tournamentId,
+          evidenceRevision: expectedEvidenceRevision,
+          status: { in: ["DRAFT", "UPLOADED", "WAITING_CONFIRMATION"] },
+        },
+        data: {
+          evidenceRevision: { increment: 1 },
+          activeRecognitionId: null,
+          consistencyStatus: "PENDING",
+          consistencyDetails: Prisma.DbNull,
+        },
+      });
+      if (claimed.count !== 1) throw new ServiceError("CONFLICT", "截图或比赛状态已变化，请刷新后重试");
+      const previous = await tx.matchScreenshot.findUnique({
+        where: { matchId_type: { matchId, type } },
+        select: { storageKey: true },
+      });
       const screenshot = await tx.matchScreenshot.upsert({
         where: { matchId_type: { matchId, type } },
         create: {
           matchId,
           type,
-          storageKey: stored.key,
+          storageKey: saved.key,
           originalFilename: media.originalFilename,
           mimeType: media.mimeType,
-          size: stored.size,
+          size: saved.size,
           sha256,
-          uploadedById: actor.userId,
+          uploadedById: actorUserId,
           recognitionStatus: "PENDING",
         },
         update: {
-          storageKey: stored.key,
+          storageKey: saved.key,
           originalFilename: media.originalFilename,
           mimeType: media.mimeType,
-          size: stored.size,
+          size: saved.size,
           sha256,
-          uploadedById: actor.userId,
+          uploadedById: actorUserId,
+          revision: { increment: 1 },
           recognitionStatus: "PENDING",
           recognitionPayload: Prisma.DbNull,
         },
-        select: { id: true, type: true, originalFilename: true, mimeType: true, size: true, sha256: true, recognitionStatus: true, createdAt: true },
+        select: { id: true, type: true, originalFilename: true, mimeType: true, size: true, sha256: true, revision: true, recognitionStatus: true, createdAt: true },
+      });
+      await tx.matchRecognition.updateMany({
+        where: { matchId, status: { in: ["QUEUED", "RUNNING"] } },
+        data: { status: "SUPERSEDED", errorCode: "EVIDENCE_REPLACED", heartbeatAt: null, finishedAt: new Date() },
+      });
+      await tx.matchScreenshot.updateMany({
+        where: { matchId },
+        data: { recognitionStatus: "PENDING", recognitionPayload: Prisma.DbNull },
       });
       const count = await tx.matchScreenshot.count({ where: { matchId } });
       await tx.internalMatch.update({
         where: { id: matchId },
-        data: { status: count === 6 ? "UPLOADED" : "DRAFT", consistencyStatus: "PENDING", consistencyDetails: Prisma.DbNull },
+        data: { status: count === MATCH_SCREENSHOT_TYPES.length ? "UPLOADED" : "DRAFT" },
       });
-      return screenshot;
-    });
-    if (previous && previous.storageKey !== stored.key) await deleteOrQueueMedia(storage, previous.storageKey, "screenshot-replaced");
-    return result;
+      await consumeMediaReservation(tx, reservation.id, actorUserId, saved.key, saved.size);
+      return { screenshot, previousStorageKey: previous?.storageKey ?? null };
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    if (result.previousStorageKey && result.previousStorageKey !== saved.key) {
+      await deleteOrQueueMedia(storage, result.previousStorageKey, "screenshot-replaced");
+    }
+    return result.screenshot;
   } catch (error) {
-    await deleteOrQueueMedia(storage, stored.key, "screenshot-database-failure");
+    await releaseMediaReservation(reservation.id, actorUserId).catch(() => undefined);
+    if (stored) await deleteOrQueueMedia(storage, stored.key, "screenshot-database-failure");
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034") {
+      throw new ServiceError("CONFLICT", "并发截图上传冲突，请刷新后重试");
+    }
     throw error;
   }
 }
-
 export async function getMatchScreenshotForAdmin(tournamentId: number, matchId: number, type: MatchScreenshotType) {
   const user = await requireAuth();
   if (user.role !== "admin") throw new PermissionError();

@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { parseByteRange } from "@/features/combat-posts/model";
 import type { StreamedCombatVideo } from "@/features/combat-posts/server/upload";
+import { consumeMediaReservation } from "@/features/media/server/quota";
 import { deleteOrQueueMedia } from "@/features/media/server/storage-cleanup";
 import { requireAuth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
@@ -49,20 +50,24 @@ export async function createCombatPost(
       const exists = await prisma.tournament.count({ where: { id: tournamentId } });
       if (!exists) throw new ServiceError("NOT_FOUND", "关联赛事不存在");
     }
-    return await prisma.combatPost.create({
-      data: {
-        tournamentId,
-        matchId,
-        authorId: user.userId,
-        title,
-        content,
-        videoStorageKey: media.key,
-        originalFilename: media.originalFilename,
-        mimeType: media.mimeType,
-        size: media.size,
-        sha256: media.sha256,
-      },
-      select: { id: true, title: true, status: true, createdAt: true },
+    return await prisma.$transaction(async (tx) => {
+      const post = await tx.combatPost.create({
+        data: {
+          tournamentId,
+          matchId,
+          authorId: user.userId,
+          title,
+          content,
+          videoStorageKey: media.key,
+          originalFilename: media.originalFilename,
+          mimeType: media.mimeType,
+          size: media.size,
+          sha256: media.sha256,
+        },
+        select: { id: true, title: true, status: true, createdAt: true },
+      });
+      await consumeMediaReservation(tx, media.reservationId, user.userId, media.key, media.size);
+      return post;
     });
   } catch (error) {
     await deleteOrQueueMedia(storage, media.key, "combat-post-create-failure");
@@ -107,7 +112,14 @@ export async function listCombatPosts(pageValue: unknown = 1) {
   };
 }
 
-export async function getCombatPost(postId: number) {
+function parseCommentCursor(value: unknown): number | undefined {
+  if (value === undefined || value === null || value === "") return undefined;
+  const cursor = typeof value === "number" ? value : Number(value);
+  if (!Number.isSafeInteger(cursor) || cursor <= 0) throw new ServiceError("VALIDATION_ERROR", "评论游标无效");
+  return cursor;
+}
+
+export async function getCombatPost(postId: number, cursorValue?: unknown) {
   const user = await requireAuth();
   const post = await prisma.combatPost.findUnique({
     where: { id: postId },
@@ -124,18 +136,28 @@ export async function getCombatPost(postId: number) {
       authorId: true,
       author: { select: { id: true, username: true, avatar: true } },
       likes: { where: { userId: user.userId }, select: { id: true } },
-      comments: {
-        where: { status: "active" },
-        orderBy: { createdAt: "asc" },
-        select: { id: true, content: true, createdAt: true, updatedAt: true, authorId: true, author: { select: { id: true, username: true, avatar: true } } },
-      },
+
       _count: { select: { likes: true, comments: { where: { status: "active" } } } },
     },
   });
   if (!post) throw new ServiceError("NOT_FOUND", "动态不存在");
   if (post.status !== "published" && user.role !== "admin" && post.authorId !== user.userId) throw new ServiceError("NOT_FOUND", "动态不存在");
+  const cursor = parseCommentCursor(cursorValue);
+  const rows = await prisma.combatPostComment.findMany({
+    where: { postId, status: "active" },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+    take: 21,
+    select: { id: true, content: true, createdAt: true, updatedAt: true, authorId: true, author: { select: { id: true, username: true, avatar: true } } },
+  });
+  const hasMore = rows.length > 20;
+  const comments = rows.slice(0, 20);
   const { likes, ...rest } = post;
-  return { post: { ...rest, likedByMe: likes.length > 0, videoUrl: `/api/combat-posts/${post.id}/video` }, access: { canModerate: user.role === "admin", canEditOwnComments: true } };
+  return {
+    post: { ...rest, comments, likedByMe: likes.length > 0, videoUrl: `/api/combat-posts/${post.id}/video` },
+    commentPage: { hasMore, nextCursor: hasMore ? comments.at(-1)?.id ?? null : null },
+    access: { canModerate: user.role === "admin", canEditOwnComments: true },
+  };
 }
 
 async function requirePublishedPost(postId: number) {
@@ -167,14 +189,27 @@ export async function createCombatPostComment(postId: number, input: unknown) {
   await requirePublishedPost(postId);
   if (!isRecord(input)) throw new ServiceError("VALIDATION_ERROR", "评论数据格式错误");
   const content = parseText(input.content, "评论", 1, 1000);
-  const recent = await prisma.combatPostComment.count({
-    where: { authorId: user.userId, createdAt: { gte: new Date(Date.now() - 60 * 60 * 1000) } },
-  });
-  if (recent >= 20) throw new ServiceError("TOO_MANY_REQUESTS", "评论过于频繁，请稍后再试");
-  return prisma.combatPostComment.create({
-    data: { postId, authorId: user.userId, content },
-    select: { id: true, content: true, createdAt: true, authorId: true, author: { select: { id: true, username: true, avatar: true } } },
-  });
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      return await prisma.$transaction(async (tx) => {
+        const post = await tx.combatPost.findUnique({ where: { id: postId }, select: { status: true } });
+        if (!post) throw new ServiceError("NOT_FOUND", "动态不存在");
+        if (post.status !== "published") throw new ServiceError("CONFLICT", "动态当前不可互动");
+        const recent = await tx.combatPostComment.count({
+          where: { authorId: user.userId, createdAt: { gte: new Date(Date.now() - 60 * 60 * 1000) } },
+        });
+        if (recent >= 20) throw new ServiceError("TOO_MANY_REQUESTS", "评论过于频繁，请稍后再试");
+        return tx.combatPostComment.create({
+          data: { postId, authorId: user.userId, content },
+          select: { id: true, content: true, createdAt: true, authorId: true, author: { select: { id: true, username: true, avatar: true } } },
+        });
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    } catch (error) {
+      const retry = error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034";
+      if (!retry || attempt === 2) throw error;
+    }
+  }
+  throw new ServiceError("CONFLICT", "评论提交发生并发冲突，请重试");
 }
 
 export async function deleteCombatPostComment(postId: number, commentId: number) {

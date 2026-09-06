@@ -67,16 +67,16 @@ export function MatchArchivePanel({ tournamentId, canManage }: { tournamentId: n
         <div>
           <p className="feature-kicker">MATCH ARCHIVE</p>
           <h3 id="match-archive-title">永久比赛档案</h3>
-          <p>六类原图、人工复核与战术室共同固化为一场比赛。</p>
+          <p>比赛结果、原始截图、人工复核与战术复盘统一留存在这里。</p>
         </div>
-        {canManage && (
+        {canManage && matches.length === 0 && (
           <button className="btn-primary feature-action" disabled={creating} onClick={createDraft}>
-            {creating ? "创建中…" : matches.length ? "新建下一场档案" : "创建比赛档案"}
+            {creating ? "创建中…" : "建立比赛档案"}
           </button>
         )}
       </div>
       {loading ? <div className="feature-empty">正在读取档案…</div> : matches.length === 0 ? (
-        <div className="feature-empty">尚无比赛档案。完成分队后由赛事管理员创建。</div>
+        <div className="feature-empty">还没有比赛档案。完成分队后，可由赛事管理员建立。</div>
       ) : (
         <div className="match-archive-list">
           {matches.map((match) => (
@@ -84,7 +84,7 @@ export function MatchArchivePanel({ tournamentId, canManage }: { tournamentId: n
               <div className={`match-side-mark match-side-mark--${match.winnerSide || "pending"}`} aria-hidden="true" />
               <div className="match-archive-main">
                 <div className="feature-meta-row">
-                  <strong>第 {match.id} 场</strong>
+                  <strong>比赛 #{String(match.id).padStart(3, "0")}</strong>
                   <span className="feature-status">{MATCH_STATUS_LABELS[match.status] || match.status}</span>
                   <span>{new Date(match.playedAt).toLocaleString("zh-CN")}</span>
                 </div>
@@ -94,7 +94,7 @@ export function MatchArchivePanel({ tournamentId, canManage }: { tournamentId: n
                 <small>原图 {match._count.screenshots}/6 · 选手 {match._count.players}/10 · 动态 {match._count.combatPosts} · 一致性 {CONSISTENCY_LABELS[match.consistencyStatus] || match.consistencyStatus}</small>
               </div>
               <div className="feature-row-actions">
-                <Link className="btn-subtle" href={`${routePrefix}/tournaments/${tournamentId}/matches/${match.id}`}>查看档案</Link>
+                <Link className="btn-subtle" href={`${routePrefix}/tournaments/${tournamentId}/matches/${match.id}`}>打开档案</Link>
                 <Link className="btn-subtle" href={`${routePrefix}/tournaments/${tournamentId}/matches/${match.id}/tactics/red`}>红方战术</Link>
                 <Link className="btn-subtle" href={`${routePrefix}/tournaments/${tournamentId}/matches/${match.id}/tactics/blue`}>蓝方战术</Link>
               </div>

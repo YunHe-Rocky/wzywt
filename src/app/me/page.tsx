@@ -2,20 +2,43 @@
 
 import { PageHeading } from "@/web/components/arena/PageHeading";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/features/auth/client";
+import { protectedPageLoginRedirect } from "@/features/auth/redirect";
 import { RolePreferenceEditor } from "@/web/components/me/RolePreferenceEditor";
 import { AvatarUpload } from "@/web/components/me/AvatarUpload";
 import { GameProfileEditor } from "@/web/components/me/GameProfileEditor";
 import { PageEntrance } from "@/web/components/layout/PageEntrance";
 
 export default function MePage() {
-  const { user } = useAuth();
+  const { user, loaded } = useAuth();
+  const pathname = usePathname();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [avatar, setAvatar] = useState<string | null | undefined>(user?.avatar);
+  const returnPath = useMemo(() => {
+    const query = searchParams.toString();
+    return `${pathname}${query ? `?${query}` : ""}`;
+  }, [pathname, searchParams]);
+
+  useEffect(() => {
+    if (loaded && !user) {
+      router.replace(protectedPageLoginRedirect(returnPath));
+    }
+  }, [loaded, returnPath, router, user]);
 
   useEffect(() => {
     if (user?.avatar !== undefined) setAvatar(user.avatar);
   }, [user?.avatar]);
+
+  if (!loaded || !user) {
+    return (
+      <div className="page-shell page-shell--narrow" role="status" aria-label="正在验证登录状态">
+        <div className="skeleton" style={{ height: 300 }} />
+      </div>
+    );
+  }
 
   return (
     <div className="page-shell page-shell--narrow flex flex-col gap-6">

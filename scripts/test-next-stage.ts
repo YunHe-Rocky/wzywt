@@ -89,10 +89,14 @@ async function main() {
   assert.equal(clearedBuff?.nextAt, 130);
   assert.equal(getTacticTimeline(1200).find(({ id }) => id === "tempest")?.state, "ready");
 
-  const png = new File([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00])], "../unsafe.png", { type: "image/png" });
+  const pngBytes = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64");
+  const png = new File([pngBytes], "../unsafe.png", { type: "image/png" });
   const validPng = await validateScreenshotFile(png as unknown as globalThis.File);
   assert.equal(validPng.extension, "png");
   assert.equal(validPng.originalFilename.includes(".."), false);
+  const oversizedPng = Buffer.from(pngBytes);
+  oversizedPng.writeUInt32BE(9_000, 16);
+  await assert.rejects(() => validateScreenshotFile(new File([oversizedPng], "huge.png", { type: "image/png" }) as unknown as globalThis.File), /像素尺寸/);
   await assert.rejects(() => validateScreenshotFile(new File([Buffer.from("fake")], "fake.png", { type: "image/png" }) as unknown as globalThis.File), /真实的/);
   const mp4 = Buffer.alloc(12); mp4.write("ftyp", 4, "ascii");
   assert.equal((await validateCombatVideo(new File([mp4], "clip.mp4", { type: "video/mp4" }) as unknown as globalThis.File)).mimeType, "video/mp4");

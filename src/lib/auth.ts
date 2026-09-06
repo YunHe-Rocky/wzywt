@@ -48,6 +48,7 @@ export async function requireAuth() {
       banned: true,
       isTemporary: true,
       sessionVersion: true,
+      deletedAt: true,
     },
   });
 

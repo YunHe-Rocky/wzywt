@@ -43,6 +43,12 @@ function resolveBash() {
 }
 
 try {
+  const redisTests = spawnSync(process.execPath, ["--test", "scripts/test-redis-deploy.mjs"], {
+    cwd: repoRoot, env: process.env, stdio: "inherit", shell: false, windowsHide: true,
+  });
+  if (redisTests.error) throw redisTests.error;
+  if (redisTests.status !== 0) process.exit(redisTests.status ?? 1);
+
   const interop = spawnSync(process.execPath, ["scripts/check-next-env-interop.mjs"], {
     cwd: repoRoot,
     env: process.env,

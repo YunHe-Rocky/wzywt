@@ -12,7 +12,7 @@
 - 最新三个产品提交依次集中于：比赛归档/战报/战术板（`46721b3`）、V2.2 资源调度监控（`4cd7714`）、战术板成员隐私与同阵营配色（`59e83b4`，提交标题误写 Navo 但实际改动属于本项目）。
 - 全站样式主要集中在 `src/app/globals.css`；最新业务 UI 主要为 `MatchArchivePanel.tsx`、`MatchWorkspace.tsx`、`CombatWall.tsx`、`CombatPostDetail.tsx`、`TacticBoard.tsx` 与 `/monitor`。
 - 现有浏览器回归覆盖较多，但本轮仍需重新检查公共组件和新功能的键盘/焦点/触控尺寸/文本缩放/reduced-motion，而不只检查无溢出和 console error。
-- `docs/ui-system.md` 记录的响应式基线与当前实现有漂移：文档称页面根级横向 padding 只由 `main-content` 提供，但 `/m` layout 又加了 `px-3 pt-3`；需在浏览器中确认是否造成重复 gutter。
+- `docs/design/ui-system.md` 记录的响应式基线与当前实现有漂移：文档称页面根级横向 padding 只由 `main-content` 提供，但 `/m` layout 又加了 `px-3 pt-3`；需在浏览器中确认是否造成重复 gutter。
 - 根布局在 `html/body` 上强制 `overflow-x: hidden`，这会掩盖页面级溢出来源；验收脚本应检测 `scrollWidth` 与越界元素，而不能只看是否出现滚动条。
 - 全局输入默认 `font-size: 14px`，iOS/移动端可能触发聚焦缩放，也低于本轮 16px 人因基线；现有大量 8-13px 辅助文案和 28-40px 控件需按语义逐项分类，不能机械全局放大。
 - UI 系统文档仍描述双主题/hash 切换，但当前 `ThemeProvider` 固定 `yanwu`；这属于文档/实现漂移，不在未确认产品意图前恢复旧主题。

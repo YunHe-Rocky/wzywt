@@ -5,6 +5,7 @@ export const DEPLOY_ENV_KEYS = Object.freeze([
   // Ordinary application settings used by the zero-config deployment path.
   "PORT",
   "HOST",
+  "PUBLIC_ORIGIN",
   // Optional advanced overrides. None are required for the normal path.
   "DEPLOY_PROJECT_NAME",
   "DEPLOY_BASE_DIR",
@@ -19,6 +20,7 @@ export const DEPLOY_ENV_KEYS = Object.freeze([
   "DEPLOY_HEALTH_ATTEMPTS",
   "DEPLOY_HEALTH_INTERVAL_SECONDS",
   "DEPLOY_HEALTH_TIMEOUT_SECONDS",
+  "DEPLOY_MIN_FREE_BYTES",
   "DEPLOY_PM2_HOME",
   "DEPLOY_PM2_BIN",
   "DEPLOY_PM2_CONFIG",
@@ -153,6 +155,15 @@ export function readDeployEnv(filePath) {
 
 export function readRuntimeEnv(filePath) {
   return parseRuntimeEnv(readFileSync(filePath, "utf8"));
+}
+
+// Redis settings in the selected release file are authoritative, including removal.
+export function readRedisEnv(filePath) {
+  const values = readRuntimeEnv(filePath);
+  return {
+    REDIS_URL: values.get("REDIS_URL")?.trim() || "",
+    REDIS_REQUIRED: values.get("REDIS_REQUIRED") || "0",
+  };
 }
 
 function writeNullDelimited(entries) {

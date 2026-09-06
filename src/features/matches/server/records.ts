@@ -305,9 +305,18 @@ function parseCorrectionValue(field: string, value: unknown): string | number {
   return parseInteger(value, field);
 }
 
+export interface MatchCorrectionActor {
+  userId: number;
+  role: string;
+}
+
 export async function correctMatchRecord(matchId: number, input: unknown) {
   const user = await requireAuth();
-  if (user.role !== "admin") throw new PermissionError();
+  return applyMatchCorrection(user, matchId, input);
+}
+
+export async function applyMatchCorrection(actor: MatchCorrectionActor, matchId: number, input: unknown) {
+  if (actor.role !== "admin") throw new PermissionError();
   if (!isRecord(input)) throw new ServiceError("VALIDATION_ERROR", "纠错数据格式错误");
   const matchPlayerId = parseInteger(input.matchPlayerId, "玩家记录 ID", Number.MAX_SAFE_INTEGER);
   const field = parseText(input.field, "字段", 1, 64);
@@ -315,18 +324,33 @@ export async function correctMatchRecord(matchId: number, input: unknown) {
   const value = parseCorrectionValue(field, input.value);
   const reason = parseText(input.reason, "修改原因", 5, 500);
   const expectedUpdatedAt = parseDate(input.expectedUpdatedAt, "记录版本");
+  const expectedMatchRevision = parseInteger(input.expectedMatchRevision, "比赛修订号", Number.MAX_SAFE_INTEGER);
+  if (expectedMatchRevision <= 0) throw new ServiceError("VALIDATION_ERROR", "比赛修订号无效");
   const disputeId = input.disputeId === null || input.disputeId === undefined ? null : parseInteger(input.disputeId, "异议 ID", Number.MAX_SAFE_INTEGER);
   return prisma.$transaction(async (tx) => {
     const player = await tx.matchPlayer.findFirst({
       where: { id: matchPlayerId, matchId },
-      include: { stats: true, match: { select: { tournamentId: true, status: true } } },
+      include: {
+        stats: true,
+        hero: { select: { name: true } },
+        match: { select: { tournamentId: true, status: true, recordRevision: true } },
+      },
     });
     if (!player) throw new ServiceError("NOT_FOUND", "比赛玩家不存在");
     if (player.match.status !== "SUBMITTED") throw new ServiceError("BUSINESS_VALIDATION_FAILED", "只能纠正正式比赛档案");
+    if (player.match.recordRevision !== expectedMatchRevision) throw new ServiceError("CONFLICT", "整场比赛已被其他管理员修改，请刷新后重试");
     const isStat = MATCH_STAT_FIELDS.includes(field as MatchStatField);
     const version = isStat ? player.stats?.updatedAt : player.updatedAt;
     if (!version || version.getTime() !== expectedUpdatedAt.getTime()) throw new ServiceError("CONFLICT", "记录已被其他管理员修改，请刷新后重试");
+
+    const matchClaim = await tx.internalMatch.updateMany({
+      where: { id: matchId, status: "SUBMITTED", recordRevision: expectedMatchRevision },
+      data: { recordRevision: { increment: 1 } },
+    });
+    if (matchClaim.count !== 1) throw new ServiceError("CONFLICT", "整场比赛已被其他管理员修改，请刷新后重试");
+
     let oldValue: unknown;
+    let teamTotalKills: number | null = null;
     if (isStat) {
       if (!player.stats) throw new ServiceError("NOT_FOUND", "玩家战绩不存在");
       oldValue = (player.stats as unknown as Record<string, unknown>)[field];
@@ -335,11 +359,22 @@ export async function correctMatchRecord(matchId: number, input: unknown) {
         data: { [field]: value },
       });
       if (updated.count !== 1) throw new ServiceError("CONFLICT", "记录已被其他管理员修改，请刷新后重试");
+      if (field === "kills") {
+        const aggregate = await tx.matchPlayerStat.aggregate({
+          where: { matchPlayer: { matchId, side: player.side } },
+          _sum: { kills: true },
+        });
+        teamTotalKills = aggregate._sum.kills ?? 0;
+        await tx.internalMatch.update({
+          where: { id: matchId },
+          data: player.side === "red" ? { redTotalKills: teamTotalKills } : { blueTotalKills: teamTotalKills },
+        });
+      }
     } else {
-      oldValue = (player as unknown as Record<string, unknown>)[field];
+      oldValue = field === "heroName" ? player.hero?.name ?? player.heroName : (player as unknown as Record<string, unknown>)[field];
       const updated = await tx.matchPlayer.updateMany({
         where: { id: player.id, updatedAt: expectedUpdatedAt },
-        data: { [field]: value },
+        data: field === "heroName" ? { heroId: null, heroName: String(value) } : { [field]: value },
       });
       if (updated.count !== 1) throw new ServiceError("CONFLICT", "记录已被其他管理员修改，请刷新后重试");
     }
@@ -348,19 +383,28 @@ export async function correctMatchRecord(matchId: number, input: unknown) {
       if (!dispute) throw new ServiceError("VALIDATION_ERROR", "异议单不属于该比赛");
       await tx.matchDispute.update({
         where: { id: disputeId },
-        data: { status: "resolved", handledById: user.userId, handledAt: new Date(), resolution: reason },
+        data: { status: "resolved", handledById: actor.userId, handledAt: new Date(), resolution: reason },
       });
     }
+    const nextMatchRevision = expectedMatchRevision + 1;
     await tx.adminOperation.create({
       data: {
         tournamentId: player.match.tournamentId,
         matchId,
-        adminId: user.userId,
+        adminId: actor.userId,
         action: "correct_match",
         targetId: player.id,
-        details: { field, oldValue: auditScalar(oldValue), newValue: value, reason, disputeId },
+        details: {
+          field,
+          oldValue: auditScalar(oldValue),
+          newValue: value,
+          reason,
+          disputeId,
+          matchRevision: nextMatchRevision,
+          ...(teamTotalKills === null ? {} : { side: player.side, teamTotalKills }),
+        },
       },
     });
-    return { ok: true };
+    return { ok: true, matchRevision: nextMatchRevision, teamTotalKills };
   }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 }

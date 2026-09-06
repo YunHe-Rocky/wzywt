@@ -27,6 +27,10 @@ export function startRecognition<T>(tournamentId: string | number, matchId: stri
   return jsonRequest<T>(`${matchBase(tournamentId, matchId)}/recognitions`, "POST");
 }
 
+export function cancelRecognition<T>(tournamentId: string | number, matchId: string | number) {
+  return apiRequest<T>(`${matchBase(tournamentId, matchId)}/recognitions`, { method: "DELETE" });
+}
+
 export function confirmMatch<T>(tournamentId: string | number, matchId: string | number, input: unknown) {
   return jsonRequest<T>(`${matchBase(tournamentId, matchId)}/confirmation`, "PUT", input);
 }

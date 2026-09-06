@@ -82,7 +82,7 @@ async function testStreamingCombatUpload(): Promise<void> {
     form.set("title", "测试视频");
     form.set("content", "流式上传内容");
     form.set("video", new File([mp4], "clip.mp4", { type: "video/mp4" }));
-    const upload = await readCombatPostUpload(new Request("http://localhost/upload", { method: "POST", body: form }));
+    const upload = await readCombatPostUpload(new Request("http://localhost/upload", { method: "POST", body: form }), "test-reservation", 1, async () => undefined);
     assert.equal(upload.fields.title, "测试视频");
     assert.equal(upload.video.size, mp4.length);
     assert.equal(await storage.exists(upload.video.key), true);
@@ -93,7 +93,7 @@ async function testStreamingCombatUpload(): Promise<void> {
     invalid.set("content", "流式上传内容");
     invalid.set("video", new File([Buffer.from("not-a-video")], "fake.mp4", { type: "video/mp4" }));
     await assert.rejects(
-      () => readCombatPostUpload(new Request("http://localhost/upload", { method: "POST", body: invalid })),
+      () => readCombatPostUpload(new Request("http://localhost/upload", { method: "POST", body: invalid }), "test-reservation", 1, async () => undefined),
       (error: unknown) => error instanceof ServiceError && error.code === "UNSUPPORTED_MEDIA_TYPE",
     );
     const files = await readdir(root, { recursive: true, withFileTypes: true });

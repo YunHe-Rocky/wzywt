@@ -146,8 +146,11 @@ if printf '[{"name":"verify-web","pm2_env":{"pm_cwd":"%s","status":"online","APP
 fi
 
 mkdir -p -- "$TEST_ROOT/symlink-target"
-ln -s -- "$TEST_ROOT/symlink-target" "$TEST_ROOT/symlink-probe"
-if [[ ! -L "$TEST_ROOT/symlink-probe" ]]; then
+if ! ln -s -- "$TEST_ROOT/symlink-target" "$TEST_ROOT/symlink-probe" || [[ ! -L "$TEST_ROOT/symlink-probe" ]]; then
+  case "$(uname -s)" in
+    MINGW*|MSYS*|CYGWIN*) ;;
+    *) fail "native Unix symlink support is required for release activation tests" ;;
+  esac
   printf '[test-deploy] PASS: env parser and deploy-state verifiers\n'
   printf '[test-deploy] SKIP: full release activation requires native Unix symlink semantics\n'
   exit 0
@@ -155,6 +158,20 @@ fi
 
 FAKE_BIN="$TEST_ROOT/fake-bin"
 mkdir -p -- "$FAKE_BIN"
+TEST_REAL_NODE="$(command -v node)"
+export TEST_REAL_NODE
+
+cat >"$FAKE_BIN/node" <<'SH'
+#!/usr/bin/env bash
+set -Eeuo pipefail
+if [[ "${1:-}" == "--version" ]]; then printf "%s\n" "${TEST_NODE_VERSION:-v24.20.0}"; exit 0; fi
+if [[ "${1:-}" == */public-entry-smoke.mjs && "${3:-}" != "--validate-origin" ]]; then
+  printf 'public-entry %s %s\n' "$2" "$3" >>"$TEST_COMMAND_LOG"
+  [[ "${TEST_FAIL_PUBLIC_SMOKE:-0}" != "1" ]] || exit 1
+  exit 0
+fi
+exec "$TEST_REAL_NODE" "$@"
+SH
 
 cat >"$FAKE_BIN/git" <<'SH'
 #!/usr/bin/env bash
@@ -300,7 +317,19 @@ SH
 
 cat >"$FAKE_BIN/mysqldump" <<'SH'
 #!/usr/bin/env bash
-printf 'mysqldump  Ver 8.4.0 for Linux on x86_64 (fake)\n'
+if [[ "${1:-}" == "--version" ]]; then
+  printf 'mysqldump  Ver 8.4.0 for Linux on x86_64 (fake)\n'
+  exit 0
+fi
+if [[ "${1:-}" == "--help" ]]; then
+  printf 'mysqldump fake help\n'
+  if [[ "${TEST_MYSQLDUMP_SUPPORTS_MASKING:-0}" == "1" ]]; then
+    printf '  --masking-policies  Dump masking policies\n'
+    printf '  (Defaults to on; use --skip-masking-policies to disable.)\n'
+  fi
+  exit 0
+fi
+printf '%s\n' "$*" >>"$TEST_MYSQLDUMP_LOG"
 SH
 cat >"$FAKE_BIN/nginx" <<'SH'
 #!/usr/bin/env bash
@@ -312,6 +341,30 @@ if [[ "${1:-}" == "--version" ]]; then printf 'flock from util-linux 2.39.0\n'; 
 exit 0
 SH
 chmod +x -- "$FAKE_BIN"/*
+
+run_backup_capability_case() {
+  local name="$1" supports_masking="$2" case_dir log_file
+  case_dir="$TEST_ROOT/$name"
+  log_file="$case_dir/mysqldump.log"
+  mkdir -p -- "$case_dir"
+  DATABASE_URL=mysql://app:password@127.0.0.1:3306/app \
+  DEPLOY_PROJECT_NAME="$name" \
+  MYSQLDUMP_BIN="$FAKE_BIN/mysqldump" \
+  TEST_MYSQLDUMP_LOG="$log_file" \
+  TEST_MYSQLDUMP_SUPPORTS_MASKING="$supports_masking" \
+    node "$SCRIPT_DIR/db-backup.mjs" "$case_dir/backups" >/dev/null
+  printf '%s\n' "$log_file"
+}
+
+if [[ "$(node -p 'process.platform')" == "win32" ]]; then
+  printf '[test-deploy] SKIP: mysqldump process capability cases require a Unix executable host\n'
+else
+  masking_log="$(run_backup_capability_case backup-mysql-97 1)"
+  assert_contains "$masking_log" "--skip-masking-policies"
+
+  legacy_log="$(run_backup_capability_case backup-mysql-84 0)"
+  assert_not_contains "$legacy_log" "--skip-masking-policies"
+fi
 
 prepare_case() {
   local name="$1" case_dir base source archive old_process_cwd
@@ -340,12 +393,20 @@ prepare_case() {
     nginx_json="$(cygpath -m "$FAKE_BIN/nginx")"
   fi
   mkdir -p -- "$source/.git" "$source/scripts" "$base/shared/pm2" "$base/releases/old-release" "$archive/scripts"
+  mkdir -p -- "$source/src/lib"
+  cp -- "$REPO_ROOT/src/lib/public-origin.ts" "$source/src/lib/"
+  cp -- "$SCRIPT_DIR/public-entry-smoke.mjs" "$source/scripts/"
   cp -- "$SCRIPT_DIR/deploy.sh" "$SCRIPT_DIR/deploy-env.mjs" "$SCRIPT_DIR/verify-deploy-state.mjs" \
     "$SCRIPT_DIR/inspect-deploy-host.mjs" "$SCRIPT_DIR/inspect-runtime-services.mjs" \
     "$SCRIPT_DIR/stop.sh" "$source/scripts/"
   printf '{"name":"renamed-package-%s"}\n' "$name" >"$source/package.json"
   printf 'module.exports = { apps: [] };\n' >"$base/releases/old-release/ecosystem.config.js"
   printf 'module.exports = { apps: [] };\n' >"$archive/ecosystem.config.js"
+  cat >"$archive/scripts/redis-doctor.mjs" <<'JS'
+import { appendFileSync } from "node:fs";
+appendFileSync(process.env.TEST_COMMAND_LOG, "redis authentication check\n");
+if (process.env.TEST_REDIS_AUTH_FAILURE === "1") process.exit(1);
+JS
   cat >"$archive/scripts/db-backup.mjs" <<'JS'
 import { writeFileSync } from "node:fs";
 writeFileSync(process.env.TEST_BACKUP_MARKER, "backup-ok\n");
@@ -390,6 +451,7 @@ DEPLOY_BRANCH=main
 DEPLOY_WEB_HOST=127.0.0.1
 DEPLOY_WEB_PORT=18081
 DEPLOY_HEALTH_URL=http://127.0.0.1:18081/api/health
+PUBLIC_ORIGIN=https://arena.example
 DEPLOY_HEALTH_ATTEMPTS=2
 DEPLOY_HEALTH_INTERVAL_SECONDS=1
 DEPLOY_HEALTH_TIMEOUT_SECONDS=1
@@ -427,7 +489,8 @@ ENV
 }
 
 run_deploy() {
-  local case_dir="$1" fail_pm2=0 fail_health=0 pm2_version=6.0.0 argument
+  local case_dir="$1" fail_pm2=0 fail_health=0 fail_public=0 pm2_version=6.0.0 argument
+  local fail_redis=0
   local git_status="" git_diff_summary=""
   local web_pid_json="$case_dir/web.pid" cron_pid_json="$case_dir/cron.pid"
   local -a deploy_args=()
@@ -436,6 +499,8 @@ run_deploy() {
     case "$argument" in
       TEST_FAIL_PM2_NEW=1) fail_pm2=1 ;;
       TEST_FAIL_HEALTH_NEW=1) fail_health=1 ;;
+      TEST_FAIL_PUBLIC_SMOKE=1) fail_public=1 ;;
+      TEST_REDIS_AUTH_FAILURE=1) fail_redis=1 ;;
       TEST_PM2_VERSION=*) pm2_version="${argument#*=}" ;;
       TEST_GIT_STATUS=*) git_status="${argument#*=}" ;;
       TEST_GIT_DIFF_SUMMARY=*) git_diff_summary="${argument#*=}" ;;
@@ -453,6 +518,8 @@ run_deploy() {
       PATH="$FAKE_BIN:$PATH" \
       TEST_FAIL_PM2_NEW="$fail_pm2" \
       TEST_FAIL_HEALTH_NEW="$fail_health" \
+      TEST_FAIL_PUBLIC_SMOKE="$fail_public" \
+      TEST_REDIS_AUTH_FAILURE="$fail_redis" \
       TEST_PM2_VERSION="$pm2_version" \
       TEST_GIT_STATUS="$git_status" \
       TEST_GIT_DIFF_SUMMARY="$git_diff_summary" \
@@ -508,12 +575,16 @@ assert_contains "$success_case/check.log" "[runtime-services] database 127.0.0.1
 
 ordinary_root="$TEST_ROOT/ordinary-root"
 mkdir -p -- "$ordinary_root/.git" "$ordinary_root/scripts"
+mkdir -p -- "$ordinary_root/src/lib"
+cp -- "$REPO_ROOT/src/lib/public-origin.ts" "$ordinary_root/src/lib/"
+cp -- "$SCRIPT_DIR/public-entry-smoke.mjs" "$ordinary_root/scripts/"
 cp -- "$SCRIPT_DIR/deploy.sh" "$SCRIPT_DIR/deploy-env.mjs" "$SCRIPT_DIR/verify-deploy-state.mjs" \
   "$SCRIPT_DIR/inspect-deploy-host.mjs" "$SCRIPT_DIR/inspect-runtime-services.mjs" "$ordinary_root/scripts/"
 printf '{"name":"ordinary-root"}\n' >"$ordinary_root/package.json"
 cat >"$ordinary_root/.env" <<ENV
 DATABASE_URL=mysql://app:password@127.0.0.1:$SERVICE_PORT/app
 SESSION_SECRET=ordinary-test-secret-not-for-production
+PUBLIC_ORIGIN=https://arena.example
 ENV
 mkdir -p -- "${ordinary_root}-pm2/pids"
 printf '[]\n' >"$ordinary_root/pm2-state.json"
@@ -544,6 +615,13 @@ assert_contains "$ordinary_root/check.log" "preflight check passed; no release w
 assert_not_contains "$ordinary_root/check.log" "mysql://"
 assert_not_contains "$ordinary_root/check.log" "password"
 assert_not_contains "$ordinary_root/check.log" "ordinary-test-secret"
+if (
+  cd -- "$ordinary_root"
+  env PATH="$FAKE_BIN:$PATH" HOME="$ordinary_root/home" TEST_NODE_VERSION=v26.6.0 TEST_PM2_STATE="$ordinary_root/pm2-state.json" TEST_COMMAND_LOG="$ordinary_root/commands.log" TEST_FAKE_BIN="$FAKE_BIN" TEST_SERVICE_PID="$SERVICE_PID" TEST_SERVICE_USER="$SERVICE_USER" bash scripts/deploy.sh --check
+) >"$ordinary_root/wrong-node.log" 2>&1; then
+  fail "default preflight accepted non-canonical Node 26"
+fi
+assert_contains "$ordinary_root/wrong-node.log" "node version does not match ^v24\\."
 assert_contains "$SCRIPT_DIR/deploy.sh" "/opt/runtime/NodeJS/node-v*-linux-x64/bin/node"
 assert_contains "$SCRIPT_DIR/deploy.sh" "/opt/middleware/Mysql/mysql/bin/mysqldump"
 assert_contains "$SCRIPT_DIR/../.gitignore" "/*.zip"
@@ -580,7 +658,29 @@ assert_contains "$success_case/deploy.log" "command pm2 ->"
 assert_contains "$success_case/deploy.log" "(6.7.1)"
 assert_not_contains "$success_case/deploy.log" "(-------------)"
 assert_contains "$success_case/commands.log" "pm2 save"
+assert_contains "$success_case/commands.log" "public-entry https://arena.example"
 assert_not_contains "$success_case/commands.log" "systemctl start"
+assert_contains "$success_case/commands.log" "redis authentication check"
+
+redis_failure_case="$(prepare_case redis-auth-failure)"
+if run_deploy "$redis_failure_case" TEST_REDIS_AUTH_FAILURE=1 >"$redis_failure_case/deploy.log" 2>&1; then
+  fail "Redis authentication failure unexpectedly deployed"
+fi
+assert_current_is_old "$redis_failure_case"
+assert_contains "$redis_failure_case/commands.log" "redis authentication check"
+assert_not_contains "$redis_failure_case/commands.log" "npm run build"
+assert_not_contains "$redis_failure_case/commands.log" "prisma migrate deploy"
+assert_not_contains "$redis_failure_case/commands.log" "pm2 startOrReload"
+[[ ! -e "$redis_failure_case/backup.marker" ]] || fail "Redis authentication failure reached database backup"
+
+stale_case="$(prepare_case stale-release)"
+rm -- "$stale_case/archive/scripts/redis-doctor.mjs"
+if run_deploy "$stale_case" >"$stale_case/deploy.log" 2>&1; then
+  fail "target branch without the deployment fix unexpectedly deployed"
+fi
+assert_current_is_old "$stale_case"
+assert_contains "$stale_case/deploy.log" "lacks the Redis deployment fix"
+assert_not_contains "$stale_case/commands.log" "npm ci"
 host_snapshot="$(find "$success_case/app/shared/host-snapshots" -maxdepth 1 -type f -name '*-host-*.json' -print -quit)"
 [[ -n "$host_snapshot" ]] || fail "successful deployment did not persist a host snapshot"
 node --input-type=module - "$host_snapshot" <<'NODE'
@@ -596,6 +696,15 @@ const pm2 = snapshot.commands.find((entry) => entry.name === "pm2");
 assert.equal(pm2.versionLine, "6.7.1");
 assert.match(pm2.versionOutput, /-------------/);
 NODE
+
+public_failure_case="$(prepare_case public-failure)"
+if run_deploy "$public_failure_case" TEST_FAIL_PUBLIC_SMOKE=1 >"$public_failure_case/deploy.log" 2>&1; then
+  fail "public smoke failure unexpectedly succeeded"
+fi
+assert_current_is_old "$public_failure_case"
+assert_contains "$public_failure_case/deploy.log" "public release and redirect smoke did not pass"
+assert_contains "$public_failure_case/deploy.log" "was rolled back"
+assert_not_contains "$public_failure_case/deploy.log" "is active and healthy"
 
 pm2_failure_case="$(prepare_case pm2-failure)"
 if run_deploy "$pm2_failure_case" TEST_FAIL_PM2_NEW=1 >"$pm2_failure_case/deploy.log" 2>&1; then

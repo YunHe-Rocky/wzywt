@@ -13,12 +13,15 @@ function generateCode(): string {
   return String(randomInt(100_000, 1_000_000));
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const auth = await authenticate();
   if (!auth.ok) return NextResponse.json({ error: auth.code === "BANNED" ? "账户已被封禁" : "请先登录" }, { status: auth.code === "BANNED" ? 403 : 401 });
   const { userId } = auth.user;
 
-  return NextResponse.json(await listTournamentLobbyForUser(userId));
+  return NextResponse.json(await listTournamentLobbyForUser(userId, {
+    tournaments: req.nextUrl.searchParams.get("tournamentCursor"),
+    publicTournaments: req.nextUrl.searchParams.get("publicTournamentCursor"),
+  }));
 }
 
 export async function POST(req: NextRequest) {

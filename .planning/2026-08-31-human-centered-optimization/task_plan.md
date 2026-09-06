@@ -12,7 +12,7 @@
 
 ## Constraints
 
-- 服从 `docs/code-architecture.md` 的 `app/web -> features -> core/lib` 依赖方向。
+- 服从 `docs/architecture/code-architecture.md` 的 `app/web -> features -> core/lib` 依赖方向。
 - 保留工作区内全部用户改动；不覆盖已完成的 V2.1/V2.2 计划。
 - 触控目标原则上不小于 44x44 CSS px，相邻目标保持可避免误触的间距。
 - 正文移动端原则上不小于 16px；交互不能只依赖 hover、颜色或精确手势。

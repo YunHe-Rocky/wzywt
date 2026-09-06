@@ -1,17 +1,22 @@
 export const dynamic = "force-dynamic";
 
-import { NextResponse } from "next/server";
+import { timingSafeEqual } from "node:crypto";
+import { NextRequest, NextResponse } from "next/server";
 import {
   CRON_HEARTBEAT_KEY,
   CRON_HEARTBEAT_MAX_AGE_MS,
   parseCronHeartbeat,
 } from "@/features/cron/heartbeat";
+import { getMediaMinimumFreeBytes } from "@/features/media/server/quota";
+import { checkAvatarStorageHealth } from "@/features/profile/server/avatar-storage";
 import { prisma } from "@/lib/db";
 import { redis } from "@/lib/redis";
 import { getMediaStorage } from "@/lib/storage";
-import { checkAvatarStorageHealth } from "@/features/profile/server/avatar-storage";
 
 type CheckState = "ok" | "degraded" | "failed" | "skipped";
+type CheckName = "database" | "mediaStorage" | "avatarStorage" | "cron" | "redis";
+const CHECK_TIMEOUT_MS = 1_800;
+
 let databaseCheckInFlight: Promise<unknown> | null = null;
 let redisCheckInFlight: Promise<unknown> | null = null;
 
@@ -36,7 +41,7 @@ function checkRedis(): Promise<unknown> {
   return tracked;
 }
 
-async function withTimeout<T>(operation: Promise<T>, timeoutMs: number): Promise<T> {
+async function withTimeout<T>(operation: Promise<T>, timeoutMs = CHECK_TIMEOUT_MS): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     return await Promise.race([
@@ -50,73 +55,87 @@ async function withTimeout<T>(operation: Promise<T>, timeoutMs: number): Promise
   }
 }
 
-export async function GET() {
-  const checks: Record<"database" | "mediaStorage" | "avatarStorage" | "cron" | "redis", CheckState> = {
-    database: "failed",
-    mediaStorage: "skipped",
-    avatarStorage: "skipped",
-    cron: "skipped",
-    redis: "skipped",
-  };
-  const releaseId = process.env.APP_RELEASE_ID?.trim() || "development";
-  let healthy = true;
-
+async function stateOf(operation: () => Promise<unknown>, failure: CheckState = "failed"): Promise<CheckState> {
   try {
-    await withTimeout(checkDatabase(), 2_000);
-    checks.database = "ok";
+    await withTimeout(operation());
+    return "ok";
   } catch {
-    healthy = false;
+    return failure;
+  }
+}
+
+function tokenMatches(request: NextRequest): boolean {
+  const expected = process.env.HEALTH_DETAILS_TOKEN?.trim();
+  const provided = request.headers.get("x-health-details-token")?.trim();
+  if (!expected || !provided) return false;
+  const expectedBytes = Buffer.from(expected);
+  const providedBytes = Buffer.from(provided);
+  return expectedBytes.length === providedBytes.length && timingSafeEqual(expectedBytes, providedBytes);
+}
+
+export async function GET(request: NextRequest) {
+  const releaseId = process.env.APP_RELEASE_ID?.trim() || "development";
+  if (request.nextUrl.searchParams.get("mode") === "live") {
+    return NextResponse.json(
+      { ok: true, releaseId, mode: "liveness" },
+      { headers: { "Cache-Control": "no-store" } },
+    );
   }
 
-  if (process.env.NODE_ENV === "production" || process.env.MEDIA_STORAGE_DIR?.trim()) {
-    try {
-      const storage = getMediaStorage();
-      if (!storage.healthCheck) throw new Error("MEDIA_STORAGE_HEALTH_UNSUPPORTED");
-      await withTimeout(storage.healthCheck(), 2_000);
-      checks.mediaStorage = "ok";
-    } catch {
-      checks.mediaStorage = "failed";
-      healthy = false;
-    }
-    try {
-      await withTimeout(checkAvatarStorageHealth(), 2_000);
-      checks.avatarStorage = "ok";
-    } catch {
-      checks.avatarStorage = "failed";
-      healthy = false;
-    }
-  }
-
-  if (process.env.APP_RELEASE_ID?.trim() && checks.database === "ok") {
-    try {
-      const row = await withTimeout(
-        prisma.kvCache.findUnique({ where: { key: CRON_HEARTBEAT_KEY } }),
-        2_000,
-      );
-      const heartbeat = row ? parseCronHeartbeat(row.value) : null;
-      const fresh = heartbeat && Date.now() - heartbeat.timestamp <= CRON_HEARTBEAT_MAX_AGE_MS;
-      if (!fresh || heartbeat.releaseId !== releaseId) throw new Error("CRON_HEARTBEAT_STALE");
-      checks.cron = "ok";
-    } catch {
-      checks.cron = "failed";
-      healthy = false;
-    }
-  }
-
+  const mediaRequired = process.env.NODE_ENV === "production" || Boolean(process.env.MEDIA_STORAGE_DIR?.trim());
   const redisConfigured = Boolean(process.env.REDIS_URL?.trim());
   const redisRequired = process.env.REDIS_REQUIRED === "1";
-  if (redisConfigured) {
-    try {
-      await withTimeout(checkRedis(), 1_500);
-      checks.redis = "ok";
-    } catch {
-      checks.redis = redisRequired ? "failed" : "degraded";
-      if (redisRequired) healthy = false;
-    }
-  }
+  const minimumFreeBytes = getMediaMinimumFreeBytes();
+  let mediaAvailableBytes: number | null = null;
 
-  return NextResponse.json(
-    { ok: healthy, releaseId, checks },
-    { status: healthy ? 200 : 503, headers: { "Cache-Control": "no-store" } },
-  );
+  const databasePromise = stateOf(checkDatabase);
+  const mediaPromise: Promise<CheckState> = mediaRequired ? stateOf(async () => {
+    const storage = getMediaStorage();
+    if (!storage.healthCheck) throw new Error("MEDIA_STORAGE_HEALTH_UNSUPPORTED");
+    await storage.healthCheck();
+    if (storage.availableBytes) {
+      mediaAvailableBytes = await storage.availableBytes();
+      if (mediaAvailableBytes < minimumFreeBytes) throw new Error("MEDIA_STORAGE_LOW_SPACE");
+    }
+  }) : Promise.resolve("skipped");
+  const avatarPromise: Promise<CheckState> = mediaRequired
+    ? stateOf(checkAvatarStorageHealth)
+    : Promise.resolve("skipped");
+  const cronPromise: Promise<CheckState> = process.env.APP_RELEASE_ID?.trim() ? stateOf(async () => {
+    const row = await prisma.kvCache.findUnique({ where: { key: CRON_HEARTBEAT_KEY } });
+    const heartbeat = row ? parseCronHeartbeat(row.value) : null;
+    const fresh = heartbeat && Date.now() - heartbeat.timestamp <= CRON_HEARTBEAT_MAX_AGE_MS;
+    if (!fresh || heartbeat.releaseId !== releaseId) throw new Error("CRON_HEARTBEAT_STALE");
+  }) : Promise.resolve("skipped");
+  const redisPromise: Promise<CheckState> = !redisConfigured
+    ? Promise.resolve(redisRequired ? "failed" : "skipped")
+    : stateOf(checkRedis, redisRequired ? "failed" : "degraded");
+  const metricsPromise = withTimeout(Promise.all([
+    prisma.mediaUploadReservation.count({ where: { state: "RESERVED", expiresAt: { gt: new Date() } } }),
+    prisma.matchRecognition.count({ where: { status: { in: ["QUEUED", "RUNNING"] } } }),
+  ])).catch(() => [null, null] as const);
+
+  const [database, mediaStorage, avatarStorage, cron, redisState, metrics] = await Promise.all([
+    databasePromise,
+    mediaPromise,
+    avatarPromise,
+    cronPromise,
+    redisPromise,
+    metricsPromise,
+  ]);
+  const checks: Record<CheckName, CheckState> = { database, mediaStorage, avatarStorage, cron, redis: redisState };
+  const healthy = Object.values(checks).every((state) => state !== "failed");
+  const body: Record<string, unknown> = { ok: healthy, releaseId, mode: "readiness", checks };
+  if (tokenMatches(request)) {
+    body.metrics = {
+      mediaAvailableBytes,
+      mediaMinimumFreeBytes: minimumFreeBytes,
+      activeMediaReservations: metrics[0],
+      activeRecognitions: metrics[1],
+    };
+  }
+  return NextResponse.json(body, {
+    status: healthy ? 200 : 503,
+    headers: { "Cache-Control": "no-store" },
+  });
 }

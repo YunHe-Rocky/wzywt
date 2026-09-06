@@ -1,4 +1,6 @@
 const { isAbsolute, resolve } = require("node:path");
+const { existsSync } = require("node:fs");
+const { readRedisEnv } = require("./scripts/deploy-env.mjs");
 const packageJson = require("./package.json");
 
 function safeProjectName(value) {
@@ -9,6 +11,11 @@ function safeProjectName(value) {
 }
 
 const appDir = process.env.APP_DIR || resolve(__dirname);
+const redisEnvFile = resolve(appDir, ".env");
+const redisEnv = existsSync(redisEnvFile) ? readRedisEnv(redisEnvFile) : {
+  REDIS_URL: process.env.REDIS_URL || "",
+  REDIS_REQUIRED: process.env.REDIS_REQUIRED || "0",
+};
 const projectName = process.env.DEPLOY_PROJECT_NAME || safeProjectName(packageJson.name);
 const webName = process.env.DEPLOY_PM2_WEB_NAME || `${projectName}-web`;
 const cronName = process.env.DEPLOY_PM2_CRON_NAME || `${projectName}-cron`;
@@ -36,7 +43,9 @@ module.exports = {
       args: `start -H ${webHost} -p ${webPort}`,
       cwd: appDir,
       env: {
+        ...redisEnv,
         NODE_ENV: "production",
+        PUBLIC_ORIGIN: process.env.PUBLIC_ORIGIN || "",
         APP_RELEASE_ID: process.env.APP_RELEASE_ID || "",
         DEPLOY_PROJECT_NAME: projectName,
         DEPLOY_WEB_HOST: webHost,
@@ -54,6 +63,7 @@ module.exports = {
       args: "scripts/cron.ts",
       cwd: appDir,
       env: {
+        ...redisEnv,
         NODE_ENV: "production",
         APP_RELEASE_ID: process.env.APP_RELEASE_ID || "",
         DEPLOY_PROJECT_NAME: projectName,

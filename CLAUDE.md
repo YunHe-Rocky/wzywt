@@ -4,7 +4,7 @@
 
 ## 架构边界
 
-唯一权威说明：[docs/code-architecture.md](docs/code-architecture.md)。
+唯一权威说明：[docs/architecture/code-architecture.md](docs/architecture/code-architecture.md)。
 
 依赖方向：
 
@@ -60,4 +60,4 @@ npm run build
 
 - dirty production tree 必须人工处理，禁止自动 stash。
 - Hero Sync 与发布解耦。
-- Nginx/证书细节见 [docs/deploy.md](docs/deploy.md)。
+- Nginx/证书细节见 [docs/operations/deploy.md](docs/operations/deploy.md)。

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { parsePublicOrigin } from "@/lib/public-origin";
 
 const PUBLIC_PATHS = ["/login", "/register", "/heroes", "/tournaments", "/changelog", "/monitor", "/debug", "/equipment"];
 const PROTECTED_PREFIXES = ["/me", "/admin"];
@@ -19,6 +20,26 @@ const MOBILE_UA = /Android|iPhone|iPad|iPod|webOS|BlackBerry|Windows Phone|Mobil
 function isMobile(req: NextRequest): boolean {
   const ua = req.headers.get("user-agent") || "";
   return MOBILE_UA.test(ua);
+}
+
+function externalRedirect(req: NextRequest, pathname: string, login = false): NextResponse {
+  try {
+    const configured = process.env.PUBLIC_ORIGIN;
+    const production = process.env.NODE_ENV === "production";
+    if (production && !configured) throw new Error("PUBLIC_ORIGIN is required");
+    // Forwarding headers are deliberately not an authority for redirects.
+    const origin = parsePublicOrigin(configured || req.nextUrl.origin, production);
+    const url = new URL(origin);
+    url.pathname = pathname;
+    if (login) url.searchParams.set("redirect", req.nextUrl.pathname + req.nextUrl.search);
+    else url.search = req.nextUrl.search;
+    return NextResponse.redirect(url);
+  } catch {
+    return new NextResponse("站点地址配置暂不可用，请联系管理员。", {
+      status: 503,
+      headers: { "Cache-Control": "no-store" },
+    });
+  }
 }
 
 export function middleware(req: NextRequest) {
@@ -46,16 +67,11 @@ export function middleware(req: NextRequest) {
 
   if (mobile && !alreadyMobile) {
     const mobilePath = pathname === "/" ? "/m" : "/m" + pathname;
-    const mobileUrl = new URL(mobilePath, req.url);
-    mobileUrl.hash = req.nextUrl.hash;
-    mobileUrl.search = req.nextUrl.search;
-    return NextResponse.redirect(mobileUrl);
+    return externalRedirect(req, mobilePath);
   }
 
   if (!mobile && alreadyMobile) {
-    const desktopUrl = req.nextUrl.clone();
-    desktopUrl.pathname = pathname.slice(2) || "/";
-    return NextResponse.redirect(desktopUrl);
+    return externalRedirect(req, pathname.slice(2) || "/");
   }
 
   // ── Auth check ──
@@ -72,9 +88,7 @@ export function middleware(req: NextRequest) {
 
   if (!req.cookies.has(SESSION_COOKIE)) {
     const loginPath = alreadyMobile ? "/m/login" : "/login";
-    const loginUrl = new URL(loginPath, req.url);
-    loginUrl.searchParams.set("redirect", pathname);
-    return NextResponse.redirect(loginUrl);
+    return externalRedirect(req, loginPath, true);
   }
 
   return NextResponse.next();

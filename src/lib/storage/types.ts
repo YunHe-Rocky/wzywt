@@ -29,6 +29,7 @@ export interface ObjectRange {
 
 export interface MediaStorage {
   healthCheck?(): Promise<void>;
+  availableBytes?(): Promise<number>;
   save(input: SaveObjectInput): Promise<StoredObjectInfo>;
   saveStream?(input: SaveStreamObjectInput): Promise<StreamStoredObjectInfo>;
   stat(key: string): Promise<StoredObjectInfo | null>;

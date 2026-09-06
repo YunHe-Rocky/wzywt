@@ -6,7 +6,7 @@ import { PrismaClient } from "@prisma/client";
 import { chromium } from "playwright";
 
 const prisma = new PrismaClient();
-const baseUrl = "http://localhost:8001";
+const baseUrl = process.env.E2E_BASE_URL || "http://localhost:8001";
 const browserPath = process.env.E2E_BROWSER_PATH;
 if (!browserPath) throw new Error("E2E_BROWSER_PATH is required");
 const artifactDir = path.resolve(".cache/test-artifacts/next-stage");
@@ -112,7 +112,7 @@ try {
   await waitReady(page);
   assert.ok(Number.isSafeInteger(matchId) && matchId > 0);
 
-  const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00]);
+  const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64");
   for (let index = 0; index < 6; index += 1) {
     const input = page.locator('.screenshot-slot input[type="file"]').nth(index);
     const uploadResponse = page.waitForResponse((response) => response.url().includes("/screenshots/") && response.request().method() === "POST");
@@ -258,6 +258,9 @@ try {
   assert.equal(await redPage.locator(".match-result-table").count(), 1, "mobile result must use one semantic table");
   assert.equal(await redPage.locator(".match-result-table tbody").count(), 2, "result table must preserve red and blue groups");
   assert.equal(await redPage.locator(".match-result-table tbody tr:not(.match-result-team-heading)").count(), 10, "result table must contain ten players");
+const mobileResultPanel = redPage.locator(".match-result-table-wrap");
+assert.ok(await mobileResultPanel.evaluate((element) => element.scrollWidth - element.clientWidth <= 1), "mobile result panel must not require horizontal scrolling");
+assert.equal(await redPage.locator(".match-result-table tbody tr:not(.match-result-team-heading)").first().evaluate((element) => getComputedStyle(element).display), "grid", "mobile result rows must use the adaptive record layout");
   assert.equal(await redPage.locator(".match-evidence-disclosure").getAttribute("open"), null, "submitted evidence should be collapsed by default");
   await redPage.screenshot({ path: path.join(artifactDir, "match-mobile.png"), fullPage: true });
   await redContext.close();

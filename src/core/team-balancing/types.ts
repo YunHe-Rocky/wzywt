@@ -57,6 +57,7 @@ export interface TeamCandidate {
   redStrength: number;
   blueStrength: number;
   rankCoverage: number;
+  strengthCoverage: number;
   signature: string;
 }
 
@@ -79,4 +80,5 @@ export interface SplitResult {
   preferenceScore: number;
   rankDiff: number;
   rankCoverage: number;
+  strengthCoverage: number;
 }

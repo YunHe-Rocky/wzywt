@@ -1,5 +1,5 @@
 import { closeSync, mkdirSync, openSync, readFileSync, unlinkSync } from "node:fs";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { resolve } from "node:path";
 import { createRequire } from "node:module";
 
@@ -13,6 +13,16 @@ if (url.protocol !== "mysql:") throw new Error("DATABASE_URL must use the mysql 
 
 const database = decodeURIComponent(url.pathname.replace(/^\//, ""));
 if (!database) throw new Error("DATABASE_URL must include a database name");
+
+const mysqldumpBin = process.env.MYSQLDUMP_BIN || "mysqldump";
+const helpResult = spawnSync(mysqldumpBin, ["--help"], {
+  encoding: "utf8",
+  shell: false,
+  windowsHide: true,
+});
+const helpOutput = `${helpResult.stdout || ""}\n${helpResult.stderr || ""}`;
+const supportsSkipMaskingPolicies =
+  helpResult.status === 0 && /--skip-masking-policies\b/.test(helpOutput);
 
 function projectSlug() {
   let value = process.env.DEPLOY_PROJECT_NAME;
@@ -41,6 +51,7 @@ const args = [
   "--skip-lock-tables",
   "--set-gtid-purged=OFF",
   "--no-tablespaces",
+  ...(supportsSkipMaskingPolicies ? ["--skip-masking-policies"] : []),
   "--routines",
   "--triggers",
   "--events",
@@ -48,7 +59,7 @@ const args = [
   database,
 ];
 
-const child = spawn(process.env.MYSQLDUMP_BIN || "mysqldump", args, {
+const child = spawn(mysqldumpBin, args, {
   stdio: ["ignore", "inherit", "inherit"],
   shell: false,
   env: {
