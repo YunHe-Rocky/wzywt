@@ -157,6 +157,15 @@ export function readRuntimeEnv(filePath) {
   return parseRuntimeEnv(readFileSync(filePath, "utf8"));
 }
 
+// Redis settings in the selected release file are authoritative, including removal.
+export function readRedisEnv(filePath) {
+  const values = readRuntimeEnv(filePath);
+  return {
+    REDIS_URL: values.get("REDIS_URL")?.trim() || "",
+    REDIS_REQUIRED: values.get("REDIS_REQUIRED") || "0",
+  };
+}
+
 function writeNullDelimited(entries) {
   for (const key of DEPLOY_ENV_KEYS) {
     if (!entries.has(key)) continue;

@@ -607,6 +607,8 @@ mkdir -- "$RELEASE_DIR"
 
 log "prepare release $RELEASE_ID from $TARGET_REF"
 "$GIT_BIN" -C "$SOURCE_DIR" archive --format=tar "$TARGET_REF" | "$TAR_BIN" -xf - -C "$RELEASE_DIR"
+[[ -f "$RELEASE_DIR/scripts/redis-doctor.mjs" ]] \
+  || fail "target $TARGET_REF ($TARGET_COMMIT) lacks the Redis deployment fix; merge the fix into the selected deployment branch first"
 [[ -f "$RELEASE_DIR/$PM2_CONFIG" ]] || fail "PM2 config is missing from release: $PM2_CONFIG"
 [[ ! -e "$RELEASE_DIR/.env" && ! -L "$RELEASE_DIR/.env" ]] || fail "release unexpectedly contains .env"
 ln -s -- "$ENV_FILE" "$RELEASE_DIR/.env"
@@ -614,6 +616,8 @@ ln -s -- "$ENV_FILE" "$RELEASE_DIR/.env"
 cd -- "$RELEASE_DIR"
 log "install locked dependencies"
 "$NPM_BIN" ci
+log "verify Redis authentication with the release environment before build"
+"$NODE_BIN" scripts/redis-doctor.mjs --env-file "$ENV_FILE"
 "$NPX_BIN" --no-install prisma generate
 "$NPX_BIN" --no-install prisma validate
 

@@ -402,6 +402,11 @@ prepare_case() {
   printf '{"name":"renamed-package-%s"}\n' "$name" >"$source/package.json"
   printf 'module.exports = { apps: [] };\n' >"$base/releases/old-release/ecosystem.config.js"
   printf 'module.exports = { apps: [] };\n' >"$archive/ecosystem.config.js"
+  cat >"$archive/scripts/redis-doctor.mjs" <<'JS'
+import { appendFileSync } from "node:fs";
+appendFileSync(process.env.TEST_COMMAND_LOG, "redis authentication check\n");
+if (process.env.TEST_REDIS_AUTH_FAILURE === "1") process.exit(1);
+JS
   cat >"$archive/scripts/db-backup.mjs" <<'JS'
 import { writeFileSync } from "node:fs";
 writeFileSync(process.env.TEST_BACKUP_MARKER, "backup-ok\n");
@@ -485,6 +490,7 @@ ENV
 
 run_deploy() {
   local case_dir="$1" fail_pm2=0 fail_health=0 fail_public=0 pm2_version=6.0.0 argument
+  local fail_redis=0
   local git_status="" git_diff_summary=""
   local web_pid_json="$case_dir/web.pid" cron_pid_json="$case_dir/cron.pid"
   local -a deploy_args=()
@@ -494,6 +500,7 @@ run_deploy() {
       TEST_FAIL_PM2_NEW=1) fail_pm2=1 ;;
       TEST_FAIL_HEALTH_NEW=1) fail_health=1 ;;
       TEST_FAIL_PUBLIC_SMOKE=1) fail_public=1 ;;
+      TEST_REDIS_AUTH_FAILURE=1) fail_redis=1 ;;
       TEST_PM2_VERSION=*) pm2_version="${argument#*=}" ;;
       TEST_GIT_STATUS=*) git_status="${argument#*=}" ;;
       TEST_GIT_DIFF_SUMMARY=*) git_diff_summary="${argument#*=}" ;;
@@ -512,6 +519,7 @@ run_deploy() {
       TEST_FAIL_PM2_NEW="$fail_pm2" \
       TEST_FAIL_HEALTH_NEW="$fail_health" \
       TEST_FAIL_PUBLIC_SMOKE="$fail_public" \
+      TEST_REDIS_AUTH_FAILURE="$fail_redis" \
       TEST_PM2_VERSION="$pm2_version" \
       TEST_GIT_STATUS="$git_status" \
       TEST_GIT_DIFF_SUMMARY="$git_diff_summary" \
@@ -652,6 +660,27 @@ assert_not_contains "$success_case/deploy.log" "(-------------)"
 assert_contains "$success_case/commands.log" "pm2 save"
 assert_contains "$success_case/commands.log" "public-entry https://arena.example"
 assert_not_contains "$success_case/commands.log" "systemctl start"
+assert_contains "$success_case/commands.log" "redis authentication check"
+
+redis_failure_case="$(prepare_case redis-auth-failure)"
+if run_deploy "$redis_failure_case" TEST_REDIS_AUTH_FAILURE=1 >"$redis_failure_case/deploy.log" 2>&1; then
+  fail "Redis authentication failure unexpectedly deployed"
+fi
+assert_current_is_old "$redis_failure_case"
+assert_contains "$redis_failure_case/commands.log" "redis authentication check"
+assert_not_contains "$redis_failure_case/commands.log" "npm run build"
+assert_not_contains "$redis_failure_case/commands.log" "prisma migrate deploy"
+assert_not_contains "$redis_failure_case/commands.log" "pm2 startOrReload"
+[[ ! -e "$redis_failure_case/backup.marker" ]] || fail "Redis authentication failure reached database backup"
+
+stale_case="$(prepare_case stale-release)"
+rm -- "$stale_case/archive/scripts/redis-doctor.mjs"
+if run_deploy "$stale_case" >"$stale_case/deploy.log" 2>&1; then
+  fail "target branch without the deployment fix unexpectedly deployed"
+fi
+assert_current_is_old "$stale_case"
+assert_contains "$stale_case/deploy.log" "lacks the Redis deployment fix"
+assert_not_contains "$stale_case/commands.log" "npm ci"
 host_snapshot="$(find "$success_case/app/shared/host-snapshots" -maxdepth 1 -type f -name '*-host-*.json' -print -quit)"
 [[ -n "$host_snapshot" ]] || fail "successful deployment did not persist a host snapshot"
 node --input-type=module - "$host_snapshot" <<'NODE'

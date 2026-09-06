@@ -47,6 +47,8 @@ bash scripts/deploy.sh
 
 `--check` 只检查，不创建 release、不备份、不迁移、不重启 PM2。它通过后再运行第二条命令。
 
+端口预检通过不等于密码正确。正式发布在 `npm ci` 后、build/备份/migration/切换前，用本次 release 的 ioredis 执行认证和 `PING`。`REDIS_REQUIRED=1` 时失败立即终止并报告 `WRONGPASS`、`NOAUTH`、`NOPERM` 等原因。Web 与 Cron 均从所选 `.env` 明确注入 Redis 配置，覆盖 PM2 缓存的旧值；移除配置也会清除旧值。
+
 ## 2. 现有服务器怎样精简 `.env`
 
 保留这些真实应用配置：
@@ -141,3 +143,19 @@ node scripts/public-entry-smoke.mjs https://你的域名 预期的完整releaseI
 - 数据库 migration 的回滚边界、release 保留和空环境恢复决策：看 [发布兼容与恢复手册](recovery-and-release.md)。
 
 高级覆盖不是第二张必填表。只有自动发现错了一个事实，才覆盖那一个事实。
+
+### Redis 命令行 PONG，但应用 WRONGPASS
+
+这说明手输凭据可用，而应用使用的用户名/密码被拒绝。可用项目工具隐藏输入原始密码，自动 URL 编码并验证，只有收到 `PONG` 才原子更新 `.env` 中的 `REDIS_URL`（保留其他配置与 `.env` 符号链接）。默认账户使用 `--username default`，ACL 账户替换为实际用户名。工具不会修改 Redis 服务端密码，也不会降低 `REDIS_REQUIRED`。
+
+```bash
+node scripts/redis-doctor.mjs --env-file .env --set-password --username default
+```
+
+源码目录没有 `node_modules` 时，加 `--dependencies` 指向已安装依赖的完整 release 目录，可以使用保留的失败 release；不要假设回滚后的 `current` 就是失败版本。只运行诊断时去掉 `--set-password --username default`。工具不回显密码或完整连接串。
+
+```bash
+node scripts/redis-doctor.mjs --env-file .env --dependencies /absolute/path/to/installed/release --set-password --username default
+```
+
+修复配置后重跑发布以更新 PM2。若 releaseId 中的 commit 一直没变，检查 `[deploy] ref=` / `fetch` 所指分支：把修复推送到开发分支不等于部署分支已包含修复。先合并到部署分支并更新源码；新部署脚本会在构建前拒绝缺少 Redis 检查工具的旧 release。
