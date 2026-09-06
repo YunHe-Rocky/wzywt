@@ -19,3 +19,10 @@ export function loginTransitionRedirect(requested: string | null): string {
   url.searchParams.set("_from", "login");
   return url.pathname + url.search + url.hash;
 }
+
+export function protectedPageLoginRedirect(requested: string | null): string {
+  const target = safeAuthRedirect(requested);
+  const targetUrl = new URL(target, PARSING_ORIGIN);
+  const loginPath = /^\/m(?:\/|$)/.test(targetUrl.pathname) ? "/m/login" : "/login";
+  return `${loginPath}?redirect=${encodeURIComponent(target)}`;
+}
