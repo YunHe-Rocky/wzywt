@@ -21,6 +21,24 @@ function isMobile(req: NextRequest): boolean {
   return MOBILE_UA.test(ua);
 }
 
+function externalRedirectUrl(req: NextRequest, pathname: string): URL {
+  const url = req.nextUrl.clone();
+  const host = req.headers.get("host")?.trim();
+  const forwardedProto = req.headers.get("x-forwarded-proto")?.split(",", 1)[0]?.trim();
+  const protocol = forwardedProto === "http" || forwardedProto === "https"
+    ? forwardedProto
+    : url.protocol.slice(0, -1);
+
+  if (host) {
+    const publicOrigin = new URL(`${protocol}://${host}`);
+    url.protocol = publicOrigin.protocol;
+    url.hostname = publicOrigin.hostname;
+    url.port = publicOrigin.port;
+  }
+  url.pathname = pathname;
+  return url;
+}
+
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
@@ -46,15 +64,12 @@ export function middleware(req: NextRequest) {
 
   if (mobile && !alreadyMobile) {
     const mobilePath = pathname === "/" ? "/m" : "/m" + pathname;
-    const mobileUrl = new URL(mobilePath, req.url);
-    mobileUrl.hash = req.nextUrl.hash;
-    mobileUrl.search = req.nextUrl.search;
+    const mobileUrl = externalRedirectUrl(req, mobilePath);
     return NextResponse.redirect(mobileUrl);
   }
 
   if (!mobile && alreadyMobile) {
-    const desktopUrl = req.nextUrl.clone();
-    desktopUrl.pathname = pathname.slice(2) || "/";
+    const desktopUrl = externalRedirectUrl(req, pathname.slice(2) || "/");
     return NextResponse.redirect(desktopUrl);
   }
 
