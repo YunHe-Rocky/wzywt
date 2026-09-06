@@ -78,6 +78,7 @@ const content = `
   HOST=127.0.0.2
   DEPLOY_BASE_DIR = "/opt/example" # comment
   DEPLOY_BRANCH='release/test'
+  DEPLOY_DB_BACKUP_DIR='/opt/backups/example'
   DATABASE_URL=$(touch /tmp/should-not-run)
 `;
 const parsed = parseDeployEnv(content);
@@ -86,6 +87,7 @@ assert.equal(parsed.get("PORT"), "19001");
 assert.equal(parsed.get("HOST"), "127.0.0.2");
 assert.equal(parsed.get("DEPLOY_BASE_DIR"), "/opt/example");
 assert.equal(parsed.get("DEPLOY_BRANCH"), "release/test");
+assert.equal(parsed.get("DEPLOY_DB_BACKUP_DIR"), "/opt/backups/example");
 assert.equal(parsed.has("DATABASE_URL"), false);
 assert.equal(runtime.get("DATABASE_URL"), "$(touch /tmp/should-not-run)");
 assert.throws(
@@ -443,6 +445,7 @@ JSON
   cat >"$case_dir/project.env" <<ENV
 DEPLOY_PROJECT_NAME=$name
 DEPLOY_BASE_DIR='$base'
+DEPLOY_DB_BACKUP_DIR='$case_dir/database-backups'
 DEPLOY_SOURCE_DIR="$source"
 DEPLOY_RUN_USER=$SERVICE_USER
 DEPLOY_RUN_GROUP=$SERVICE_GROUP
@@ -571,6 +574,7 @@ assert_contains "$success_case/check.log" "command nginx ->"
 assert_contains "$success_case/check.log" "service mysql -> mysql.service pid=$SERVICE_PID user=$SERVICE_USER"
 assert_contains "$success_case/check.log" "preflight check passed; no release was created or activated"
 assert_contains "$success_case/check.log" "[runtime-services] database 127.0.0.1:$SERVICE_PORT"
+assert_contains "$success_case/check.log" "database-backups=$success_case/database-backups"
 [[ ! -e "$success_case/app/shared/host-snapshots" ]] || fail "check-only persisted a host snapshot"
 
 ordinary_root="$TEST_ROOT/ordinary-root"

@@ -36,6 +36,7 @@ REDIS_REQUIRED=0
 - 使用 Nginx/HTTPS 时不需要写 `HOST`、`PORT` 或 `SESSION_COOKIE_SECURE`；默认监听 `127.0.0.1:8001`，生产 Cookie 默认启用 Secure。
 - `PUBLIC_ORIGIN` 必须与实际公网域名、证书和 Nginx 站点一致；包含非默认端口（如有），不含路径、查询参数或账号信息。设备与登录跳转只使用它，忽略请求中的 Host/转发头。生产环境缺失或格式错误时，需要重定向的页面返回 503；先补齐配置再发布。
 - 媒体目录无需填写；部署脚本自动使用相邻 runtime 目录中的 `shared/media`，不会放进随发布替换的 release。容量门槛、媒体清单、异地备份与空目录恢复见 [媒体容量、备份与恢复](media-operations.md)。
+- 数据库备份默认写入 `<runtime>/shared/mysql-bak`；若要使用独立磁盘目录，按[高级部署覆盖](deploy-advanced.md#自动发现与可选覆盖)设置 `DEPLOY_DB_BACKUP_DIR`，并确保部署用户拥有该目录。
 - `.env` 是纯文本赋值文件，URL 直接写 `https://...`，不能写成 `[https://...](https://...)`。
 
 然后执行：

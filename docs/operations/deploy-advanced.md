@@ -76,7 +76,7 @@ find "$(pwd -P)-runtime" -maxdepth 2 -printf '%M %u:%g %p\n'
 
 | 类别 | 可选覆盖 | 何时使用 |
 |---|---|---|
-| 身份/目录 | `DEPLOY_PROJECT_NAME`, `DEPLOY_BASE_DIR`, `DEPLOY_SOURCE_DIR`, `DEPLOY_RUN_USER`, `DEPLOY_RUN_GROUP` | 历史 PM2 名必须保留，或 runtime 不在默认相邻目录 |
+| 身份/目录 | `DEPLOY_PROJECT_NAME`, `DEPLOY_BASE_DIR`, `DEPLOY_SOURCE_DIR`, `DEPLOY_DB_BACKUP_DIR`, `DEPLOY_RUN_USER`, `DEPLOY_RUN_GROUP` | 历史 PM2 名必须保留、runtime 不在默认相邻目录，或数据库备份需要写入独立挂载目录 |
 | Git | `DEPLOY_REMOTE`, `DEPLOY_BRANCH` | detached HEAD、非 upstream 发布分支 |
 | Web | `DEPLOY_WEB_HOST`, `DEPLOY_WEB_PORT`, `DEPLOY_HEALTH_URL` | 确实不用默认的 `127.0.0.1:8001` |
 | Health | `DEPLOY_HEALTH_ATTEMPTS`, `DEPLOY_HEALTH_INTERVAL_SECONDS`, `DEPLOY_HEALTH_TIMEOUT_SECONDS` | 冷启动经过实测确实更慢 |
@@ -86,6 +86,18 @@ find "$(pwd -P)-runtime" -maxdepth 2 -printf '%M %u:%g %p\n'
 | 宿主证据 | `DEPLOY_HOST_MANIFEST` | 自定义 unit、PID/lock 文件或额外命令验证 |
 
 媒体路径也支持 `MEDIA_STORAGE_DIR` / `AVATAR_DIR`，但必须位于项目 runtime 的 `shared` 内。普通部署不要设置；默认值已经是持久化安全路径。
+
+数据库备份默认写入 `<runtime>/shared/mysql-bak`。需要改到独立磁盘时，先由管理员创建只对部署用户开放的目录，再设置绝对路径；不要给整个 `/opt` 递归改权限：
+
+```bash
+sudo install -d -m 0700 -o project -g project /opt/middleware/Mysql/mysql/bakup/yanwutang
+```
+
+```dotenv
+DEPLOY_DB_BACKUP_DIR=/opt/middleware/Mysql/mysql/bakup/yanwutang
+```
+
+`bash scripts/deploy.sh --check` 会打印 `database-backups=...` 并在目录不存在或不可写时提前拒绝发布。
 
 `DEPLOY_REQUIRED_COMMANDS`、`DEPLOY_REQUIRED_SYSTEMD_SERVICES`、`DEPLOY_AUTO_START_SERVICES` 是已禁用的危险旧设置，脚本会主动拒绝。
 

@@ -232,6 +232,9 @@ check_runtime_permissions() {
     if [[ -e "$path" ]]; then
       [[ -d "$path" ]] || fail "deployment path exists but is not a directory: $path"
       [[ -w "$path" ]] || fail "deployment path is not writable by $ACTUAL_RUN_USER: $path"
+    else
+      parent="$(nearest_existing_parent "$path")"
+      [[ -d "$parent" && -w "$parent" ]] || fail "deployment path cannot be created by $ACTUAL_RUN_USER: $path. Ask an administrator to create and assign this exact directory"
     fi
   done
 }
@@ -315,7 +318,9 @@ BASE_DIR="$($REALPATH_BIN -m -- "$BASE_DIR")"
 RELEASES_DIR="$BASE_DIR/releases"
 SHARED_DIR="$BASE_DIR/shared"
 CURRENT_LINK="$BASE_DIR/current"
-BACKUP_DIR="$SHARED_DIR/mysql-bak"
+BACKUP_DIR="${DEPLOY_DB_BACKUP_DIR:-$SHARED_DIR/mysql-bak}"
+BACKUP_DIR="$($REALPATH_BIN -m -- "$BACKUP_DIR")"
+[[ "$BACKUP_DIR" == /* && "$BACKUP_DIR" != "/" ]] || fail "DEPLOY_DB_BACKUP_DIR must be an absolute non-root path"
 DEPLOY_LOG_DIR="$SHARED_DIR/deploy-logs"
 
 MEDIA_STORAGE_DIR="${MEDIA_STORAGE_DIR:-$SHARED_DIR/media}"
@@ -573,7 +578,7 @@ log "project=$PROJECT_NAME package=$PACKAGE_NAME source=$SOURCE_DIR base=$BASE_D
 log "run-user=$ACTUAL_RUN_USER group=$ACTUAL_RUN_GROUP env=$ENV_FILE ref=$TARGET_REF"
 log "PM2=$PM2_BIN home=$PM2_HOME apps=$PM2_WEB_NAME,$PM2_CRON_NAME listen=$WEB_HOST:$WEB_PORT"
 log "health=$HEALTH_URL host-manifest=$HOST_MANIFEST"
-log "mysqldump=$MYSQLDUMP_BIN media=$MEDIA_STORAGE_DIR"
+log "mysqldump=$MYSQLDUMP_BIN database-backups=$BACKUP_DIR media=$MEDIA_STORAGE_DIR"
 
 if [[ "$CHECK_ONLY" == "1" ]]; then
   log "preflight check passed; no release was created or activated"
