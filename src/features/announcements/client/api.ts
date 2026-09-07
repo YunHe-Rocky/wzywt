@@ -37,6 +37,16 @@ export interface AnnouncementWriteInput {
   published?: boolean;
 }
 
+export function createAnnouncementDetailApiPath(routeSlug: string): string {
+  let slug = routeSlug;
+  try {
+    slug = decodeURIComponent(routeSlug);
+  } catch {
+    // Preserve malformed route input so the API can return a normal not-found response.
+  }
+  return `/api/changelog?slug=${encodeURIComponent(slug)}`;
+}
+
 export const listAdminAnnouncements = (): Promise<ApiResult<AnnouncementListResponse>> =>
   apiRequest("/api/admin/announcements");
 

@@ -11,6 +11,7 @@ import {
   createAnnouncementSlug,
   normalizeAnnouncementDraft,
 } from "@/features/announcements/model";
+import { createAnnouncementDetailApiPath } from "@/features/announcements/client/api";
 import {
   canViewTournamentMemberIdentity,
   normalizeTournamentDraft,
@@ -83,6 +84,10 @@ assert.equal(
   "支持精确截止时间",
 );
 assert.equal(createAnnouncementSlug("2.1.0", "房间体验升级"), "v2-1-0-房间体验升级");
+assert.equal(
+  createAnnouncementDetailApiPath("v4-0-0-%E7%8E%8B%E8%80%85%E6%BC%94%E6%AD%A6%E5%A0%82%E4%B8%8A%E7%BA%BF"),
+  "/api/changelog?slug=v4-0-0-%E7%8E%8B%E8%80%85%E6%BC%94%E6%AD%A6%E5%A0%82%E4%B8%8A%E7%BA%BF",
+);
 assert.throws(
   () => normalizeAnnouncementDraft({ version: "", title: "主题", content: "内容" }),
   /版本号不能为空/,

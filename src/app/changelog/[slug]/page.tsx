@@ -8,6 +8,7 @@ import {
   MarkdownContent,
 } from "@/web/components/content/MarkdownContent";
 import { apiRequest } from "@/features/shared/client/api";
+import { createAnnouncementDetailApiPath } from "@/features/announcements/client";
 
 export default function ChangelogDetailPage() {
   const { slug } = useParams<{ slug: string }>();
@@ -17,7 +18,7 @@ export default function ChangelogDetailPage() {
 
   useEffect(() => {
     const controller = new AbortController();
-    void apiRequest<{ content?: string; error?: string }>(`/api/changelog?slug=${encodeURIComponent(slug)}`, { signal: controller.signal })
+    void apiRequest<{ content?: string; error?: string }>(createAnnouncementDetailApiPath(slug), { signal: controller.signal })
       .then(({ data }) => { if (!controller.signal.aborted) setMdContent(data.error ? "" : data.content || ""); })
       .catch(() => { if (!controller.signal.aborted) setMdContent(""); })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
