@@ -422,6 +422,11 @@ done
 MIN_FREE_BYTES="${DEPLOY_MIN_FREE_BYTES:-2147483648}"
 [[ "$MIN_FREE_BYTES" =~ ^[0-9]+$ ]] || fail "DEPLOY_MIN_FREE_BYTES must be a non-negative integer"
 
+RELEASE_RETENTION="${DEPLOY_RELEASE_RETENTION:-5}"
+[[ "$RELEASE_RETENTION" =~ ^[0-9]+$ ]] \
+  && ((RELEASE_RETENTION >= 2 && RELEASE_RETENTION <= 50)) \
+  || fail "DEPLOY_RELEASE_RETENTION must be an integer between 2 and 50"
+
 check_deploy_disk_space() {
   local parent available
   parent="$(nearest_existing_parent "$BASE_DIR")"
@@ -790,6 +795,50 @@ rollback_release() {
   fail "first release activation failed and no previous release exists: $reason"
 }
 
+prune_old_releases() {
+  local releases_root current_target directory candidate_target name total excess removed=0 remaining
+  local -a release_directories=()
+
+  releases_root="$(readlink -f -- "$RELEASES_DIR" 2>/dev/null || true)"
+  [[ -n "$releases_root" && -d "$releases_root" ]] || return 1
+  current_target="$(readlink -f -- "$CURRENT_LINK" 2>/dev/null || true)"
+  [[ -n "$current_target" && -d "$current_target" ]] || return 1
+  [[ "${current_target%/*}" == "$releases_root" ]] || return 1
+
+  for directory in "$RELEASES_DIR"/*; do
+    [[ -d "$directory" && ! -L "$directory" ]] || continue
+    name="${directory##*/}"
+    [[ "$name" =~ ^[0-9]{14}-[0-9a-f]{7,40}-[0-9]+$ ]] || continue
+    candidate_target="$(readlink -f -- "$directory" 2>/dev/null || true)"
+    [[ -n "$candidate_target" && -d "$candidate_target" ]] || continue
+    [[ "${candidate_target%/*}" == "$releases_root" ]] || continue
+    release_directories+=("$candidate_target")
+  done
+  total="${#release_directories[@]}"
+  excess=$((total - RELEASE_RETENTION))
+  if ((excess <= 0)); then
+    log "release retention complete: kept=$total removed=0 limit=$RELEASE_RETENTION"
+    return 0
+  fi
+
+  for directory in "${release_directories[@]}"; do
+    ((excess > 0)) || break
+    [[ "$directory" != "$current_target" && "$directory" != "$PREVIOUS_TARGET" ]] || continue
+    [[ -d "$directory" && ! -L "$directory" ]] || return 1
+    candidate_target="$(readlink -f -- "$directory" 2>/dev/null || true)"
+    [[ "$candidate_target" == "$directory" && "${candidate_target%/*}" == "$releases_root" ]] || return 1
+    name="${directory##*/}"
+    [[ "$name" =~ ^[0-9]{14}-[0-9a-f]{7,40}-[0-9]+$ ]] || continue
+    rm -rf -- "$directory" || return 1
+    ((removed += 1))
+    ((excess -= 1))
+  done
+
+  ((excess == 0)) || return 1
+  remaining=$((total - removed))
+  log "release retention complete: kept=$remaining removed=$removed limit=$RELEASE_RETENTION"
+}
+
 PRESERVE_FAILED_RELEASE=1
 log "atomically switch current link to $RELEASE_ID"
 atomic_switch "$RELEASE_DIR" || rollback_release "could not switch the current release link"
@@ -801,5 +850,8 @@ wait_for_health "$RELEASE_ID" || rollback_release "release-aware health check di
 "$PM2_BIN" save || rollback_release "PM2 state could not be saved for reboot recovery"
 
 DEPLOY_SUCCEEDED=1
+if ! prune_old_releases; then
+  log "WARNING: release retention could not reach limit=$RELEASE_RETENTION; protected or unrecognized directories were left untouched"
+fi
 log "release $RELEASE_ID is active and healthy; completed in $(( $(date +%s) - START_TIME ))s"
 log "hero synchronization remains decoupled; cron or an administrator triggers it"

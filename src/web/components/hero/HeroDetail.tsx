@@ -328,14 +328,14 @@ export function HeroDetailView() {
               基础属性
             </h2>
             <div className="card" style={{ padding: "16px 20px", marginBottom: 28 }}>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px 24px" }}>
+              <div className="hero-stat-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px 24px" }}>
                 {stats.map(([label, v1, v15, color, unit]) => {
                   const rawGrowth = (v15 - v1) / 14;
                   const growth = rawGrowth % 1 === 0 ? Math.round(rawGrowth) : Math.round(rawGrowth * 10) / 10;
                   return (
-                    <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", padding: "4px 0", borderBottom: "1px solid var(--border)", fontSize: 13 }}>
+                    <div className="hero-stat-row" key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", padding: "4px 0", borderBottom: "1px solid var(--border)", fontSize: 13 }}>
                       <span style={{ color: "var(--text-secondary)", whiteSpace: "nowrap" }}>{label}</span>
-                      <span>
+                      <span className="hero-stat-values">
                         <span style={{ color, fontWeight: 600 }}>{v1}{unit}</span>
                         <span style={{ color: "var(--text-muted)", fontSize: 10, margin: "0 3px" }}>→</span>
                         <span style={{ color: "var(--gold)", fontWeight: 700 }}>{v15}{unit}</span>
@@ -392,6 +392,33 @@ export function HeroDetailView() {
             flex-direction: column !important;
             gap: 16px !important;
             align-items: center !important;
+          }
+          .hero-stat-grid {
+            grid-template-columns: minmax(0, 1fr) !important;
+            gap: 0 !important;
+          }
+          .hero-stat-row {
+            min-width: 0;
+            gap: 16px;
+          }
+          .hero-stat-values {
+            display: inline-flex;
+            min-width: 0;
+            align-items: baseline;
+            justify-content: flex-end;
+            white-space: nowrap;
+            font-variant-numeric: tabular-nums;
+          }
+        }
+        @media (max-width: 360px) {
+          .hero-stat-row {
+            align-items: flex-start !important;
+            flex-direction: column;
+            gap: 2px;
+          }
+          .hero-stat-values {
+            align-self: stretch;
+            justify-content: flex-start;
           }
         }
       `}</style>

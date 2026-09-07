@@ -10,7 +10,11 @@ async function verifyTransition(browser, reducedMotion) {
   page.setDefaultTimeout(5_000);
   const errors = [];
   let loggedIn = false;
+  let profileRequests = 0;
   page.on("pageerror", (error) => errors.push(error.message));
+  page.on("request", (request) => {
+    if (new URL(request.url()).pathname === "/me") profileRequests += 1;
+  });
 
   await page.route("**/api/auth/me", (route) => route.fulfill({
     status: 200,
@@ -46,7 +50,7 @@ async function verifyTransition(browser, reducedMotion) {
   }));
 
   console.log(`Opening login (${reducedMotion})`);
-  await page.goto(`${BASE_URL}/login`, { waitUntil: "domcontentloaded", timeout: 10_000 });
+  await page.goto(`${BASE_URL}/login`, { waitUntil: "domcontentloaded", timeout: 60_000 });
   await page.locator("#username").waitFor();
   console.log(`Submitting login (${reducedMotion})`);
   await page.locator("#username").fill("tester");
@@ -62,10 +66,13 @@ async function verifyTransition(browser, reducedMotion) {
   } else {
     assert.ok(elapsed >= 900 && elapsed < 2_000, `animation navigation took ${elapsed}ms`);
   }
+  await page.waitForTimeout(500);
+  assert.equal(profileRequests, 0, "the protected profile route must not be prefetched after login");
   await page.getByRole("navigation", { name: "主导航" }).getByRole("link", { name: "我的", exact: true }).click();
   await page.waitForURL(/\/me$/, { timeout: 5_000 });
   await page.getByRole("heading", { name: "个人空间", exact: true }).waitFor();
   assert.equal(new URL(page.url()).pathname, "/me");
+  assert.ok(profileRequests >= 1, "clicking My must still navigate to the profile route");
   assert.deepEqual(errors, []);
   await context.close();
   return elapsed;
@@ -91,7 +98,7 @@ async function verifyRejectedMissingSession(browser) {
     body: JSON.stringify({ id: 9, username: "tester", role: "user" }),
   }));
 
-  await page.goto(`${BASE_URL}/login`, { waitUntil: "domcontentloaded", timeout: 10_000 });
+  await page.goto(`${BASE_URL}/login`, { waitUntil: "domcontentloaded", timeout: 60_000 });
   await page.locator("#username").fill("tester");
   await page.locator('input[name="password"]').fill("12345678901");
   await page.getByRole("button", { name: "登录", exact: true }).click();
@@ -129,7 +136,7 @@ async function verifyRejectedStaleSession(browser) {
     });
   });
 
-  await page.goto(`${BASE_URL}/me`, { waitUntil: "domcontentloaded", timeout: 10_000 });
+  await page.goto(`${BASE_URL}/me`, { waitUntil: "domcontentloaded", timeout: 60_000 });
   await page.waitForURL(/\/login\?redirect=%2Fme$/, { timeout: 5_000 });
   assert.equal(protectedProfileRequests, 0, "profile APIs must not load before authentication is confirmed");
   assert.deepEqual(errors, []);

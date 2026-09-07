@@ -33,7 +33,10 @@ function externalRedirect(req: NextRequest, pathname: string, login = false): Ne
     url.pathname = pathname;
     if (login) url.searchParams.set("redirect", req.nextUrl.pathname + req.nextUrl.search);
     else url.search = req.nextUrl.search;
-    return NextResponse.redirect(url);
+    const response = NextResponse.redirect(url);
+    response.headers.set("Cache-Control", "private, no-store");
+    response.headers.set("Vary", "User-Agent");
+    return response;
   } catch {
     return new NextResponse("站点地址配置暂不可用，请联系管理员。", {
       status: 503,

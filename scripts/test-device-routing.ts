@@ -25,19 +25,28 @@ function proxiedResponse(path: string, ua: string) {
   }));
 }
 
+function assertUncacheableRedirect(response: Response, label: string) {
+  assert.equal(response.headers.get("cache-control"), "private, no-store", `${label} must not be cached`);
+  assert.match(response.headers.get("vary") || "", /(?:^|,\s*)User-Agent(?:\s*,|$)/i, `${label} must vary by device user agent`);
+}
+
 // Public redirects must use deployment configuration, never the internal URL or
 // client-controlled Host / forwarding headers. Reverting the auth branch to
 // new URL(loginPath, req.url) must fail these assertions.
 const previousOrigin = process.env.PUBLIC_ORIGIN;
 process.env.PUBLIC_ORIGIN = "https://ywt.yunhe.ink";
 try {
-  assert.equal(proxiedResponse("/me?tab=history", desktop).headers.get("location"),
+  const desktopAuthRedirect = proxiedResponse("/me?tab=history", desktop);
+  assert.equal(desktopAuthRedirect.headers.get("location"),
     "https://ywt.yunhe.ink/login?redirect=%2Fme%3Ftab%3Dhistory");
+  assertUncacheableRedirect(desktopAuthRedirect, "desktop auth redirect");
   assert.equal(proxiedResponse("/admin?section=users", desktop).headers.get("location"),
     "https://ywt.yunhe.ink/login?redirect=%2Fadmin%3Fsection%3Dusers");
   assert.equal(proxiedResponse("/m/me?tab=history", mobile).headers.get("location"),
     "https://ywt.yunhe.ink/m/login?redirect=%2Fm%2Fme%3Ftab%3Dhistory");
-  assert.equal(proxiedResponse("/?entry=home", mobile).headers.get("location"), "https://ywt.yunhe.ink/m?entry=home");
+  const mobileDeviceRedirect = proxiedResponse("/?entry=home", mobile);
+  assert.equal(mobileDeviceRedirect.headers.get("location"), "https://ywt.yunhe.ink/m?entry=home");
+  assertUncacheableRedirect(mobileDeviceRedirect, "mobile device redirect");
   assert.equal(proxiedResponse("/login", mobile).headers.get("location"), "https://ywt.yunhe.ink/m/login");
   assert.equal(proxiedResponse("/m/heroes?role=mid", desktop).headers.get("location"), "https://ywt.yunhe.ink/heroes?role=mid");
   for (const headers of [

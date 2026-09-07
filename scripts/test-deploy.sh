@@ -666,6 +666,51 @@ assert_contains "$success_case/commands.log" "public-entry https://arena.example
 assert_not_contains "$success_case/commands.log" "systemctl start"
 assert_contains "$success_case/commands.log" "redis authentication check"
 
+retention_case="$(prepare_case release-retention)"
+mkdir -p -- "$retention_case/app/releases/operator-notes"
+retention_outside="$retention_case/release-outside"
+mkdir -p -- "$retention_outside"
+printf 'keep\n' >"$retention_outside/marker"
+ln -s -- "$retention_outside" "$retention_case/app/releases/20260101000000-ffffffffffff-100"
+for release in \
+  20260101000001-aaaaaaaaaaaa-101 \
+  20260101000002-bbbbbbbbbbbb-102 \
+  20260101000003-cccccccccccc-103 \
+  20260101000004-dddddddddddd-104 \
+  20260101000005-eeeeeeeeeeee-105; do
+  mkdir -p -- "$retention_case/app/releases/$release"
+done
+if ! run_deploy "$retention_case" >"$retention_case/deploy.log" 2>&1; then
+  cat -- "$retention_case/deploy.log" >&2
+  fail "release retention scenario failed to deploy"
+fi
+[[ "$(find "$retention_case/app/releases" -mindepth 1 -maxdepth 1 -type d -name '[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]-*-*' | wc -l | tr -d ' ')" == "5" ]] \
+  || fail "successful deployment did not cap releases at the default retention count"
+[[ -d "$retention_case/app/releases/old-release" ]] || fail "release cleanup removed the rollback target"
+[[ -d "$retention_case/app/releases/operator-notes" ]] || fail "release cleanup removed an unknown directory"
+[[ -L "$retention_case/app/releases/20260101000000-ffffffffffff-100" ]] \
+  || fail "release cleanup removed a release-shaped directory symlink"
+[[ "$(cat -- "$retention_outside/marker")" == "keep" ]] || fail "release cleanup modified a symlink target"
+[[ ! -e "$retention_case/app/releases/20260101000001-aaaaaaaaaaaa-101" ]] \
+  || fail "release cleanup did not remove the oldest unprotected release"
+assert_contains "$retention_case/deploy.log" "release retention complete: kept=5"
+
+custom_retention_case="$(prepare_case custom-release-retention)"
+printf '\nDEPLOY_RELEASE_RETENTION=3\n' >>"$custom_retention_case/project.env"
+for release in \
+  20260101000001-aaaaaaaaaaaa-101 \
+  20260101000002-bbbbbbbbbbbb-102 \
+  20260101000003-cccccccccccc-103; do
+  mkdir -p -- "$custom_retention_case/app/releases/$release"
+done
+if ! run_deploy "$custom_retention_case" >"$custom_retention_case/deploy.log" 2>&1; then
+  cat -- "$custom_retention_case/deploy.log" >&2
+  fail "custom release retention scenario failed to deploy"
+fi
+[[ "$(find "$custom_retention_case/app/releases" -mindepth 1 -maxdepth 1 -type d -name '[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]-*-*' | wc -l | tr -d ' ')" == "3" ]] \
+  || fail "successful deployment did not honor the custom release retention count"
+assert_contains "$custom_retention_case/deploy.log" "release retention complete: kept=3"
+
 redis_failure_case="$(prepare_case redis-auth-failure)"
 if run_deploy "$redis_failure_case" TEST_REDIS_AUTH_FAILURE=1 >"$redis_failure_case/deploy.log" 2>&1; then
   fail "Redis authentication failure unexpectedly deployed"

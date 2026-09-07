@@ -38,7 +38,7 @@ export function Dock() {
   const selectedIndex = subOpen || /^\/(heroes|equipment)(\/|$)/.test(selectionPath) ? 2
     : selectionPath === "/" ? 0 : selectionPath.startsWith("/tournaments") ? 1 : selectionPath.startsWith("/me") ? 3 : -1;
   function navItem(item: typeof items[number]) {
-    return <Link key={item.path} href={`${prefix}${item.path}`} className={`arena-dock-item ${pendingPath === item.path ? "is-active" : ""}`} aria-current={active(item.path) ? "page" : undefined} onClick={() => { if (!active(item.path)) setPendingPath(item.path); setSubOpen(false); }}><ArenaIcon name={item.icon} /><span>{item.label}</span></Link>;
+    return <Link key={item.path} href={`${prefix}${item.path}`} prefetch={item.path === "/me" ? false : undefined} className={`arena-dock-item ${pendingPath === item.path ? "is-active" : ""}`} aria-current={active(item.path) ? "page" : undefined} onClick={() => { if (!active(item.path)) setPendingPath(item.path); setSubOpen(false); }}><ArenaIcon name={item.icon} /><span>{item.label}</span></Link>;
   }
   return <nav ref={root} className="dock-shell fixed bottom-0 left-0 right-0 flex-col items-center pointer-events-none" aria-label="底部导航" aria-busy={Boolean(pendingPath)}>
     {pendingPath && <div className="dock-route-progress" aria-hidden="true" />}

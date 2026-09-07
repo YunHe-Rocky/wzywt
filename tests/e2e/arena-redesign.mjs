@@ -3,9 +3,10 @@ import { chromium } from "playwright";
 import { mkdir } from "node:fs/promises";
 
 const base = process.env.E2E_BASE_URL || "http://localhost:8001";
-const artifacts = ".cache/arena-redesign";
+const artifacts = process.env.E2E_ARTIFACTS_DIR || ".cache/arena-redesign";
 await mkdir(artifacts, { recursive: true });
 const browser = await chromium.launch({ headless: true, executablePath: process.env.E2E_BROWSER_PATH || "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe" });
+const desktopUA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/140.0 Safari/537.36";
 const mobileUA = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148 Safari/604.1";
 const rooms = [
   { id: 101, name: "周末好友局 · 峡谷集结", code: "628319", announcement: "今晚八点准时开战，记得先填写分路偏好。", _count: { players: 7 }, deadline: "2099-09-06T12:00:00.000Z", status: "recruiting", admins: [] },
@@ -13,6 +14,11 @@ const rooms = [
   { id: 103, name: "老朋友，新对手", code: "372610", announcement: "势均力敌的较量，才值得全力以赴。", _count: { players: 10 }, deadline: "2099-09-06T14:00:00.000Z", status: "locked", admins: [] },
 ];
 const heroData = ["李白", "曜", "镜", "貂蝉", "孙尚香", "张飞"].map((name, i) => ({ id: 131+i, heroId: 131+i, name, title: ["青莲剑仙", "星辰之子", "破镜之刃", "绝世舞姬", "千金重弩", "禁血狂兽"][i], roleType: i < 3 ? "jungle" : "mid", heroType: i < 3 ? 4 : 2, heroType2: 0, imageUrl: "/art/arena.webp", skinsJson: "[]", mingge: false }));
+const heroDetail = {
+  ...heroData[0],
+  baseJson: { hp: 3200, mp: 450, atk: 170, ap: 0, def: 90, mdef: 50, atkSpeed: 0, moveSpeed: 380, hpPerLv: 210, mpPerLv: 45, atkPerLv: 13, apPerLv: 0, defPerLv: 18, mdefPerLv: 8, atkSpeedPerLv: 2 },
+  skills: [{ name: "侠客行", cd: "0", cost: "0", desc: "连续攻击后解除青莲剑歌限制。", skillIndex: 0 }],
+};
 const equipmentData = ["泣血之刃", "无尽战刃", "破军", "博学者之怒"].map((name,i) => ({ id: 1100+i, name, tags: [i === 3 ? "法术" : "物理"], meta: { tier: 3, price: 2100+i*100, imageUrl: "/art/arena.webp" }, stats: [{ stat: "physicalAttack", value: 100 }], effects: [{ name: "破势", desc: "对低生命值目标造成额外伤害。", unique: true }] }));
 const payload = data => ({ data, version: "arena-fixture" });
 async function fixtures(context, state = {}) {
@@ -23,6 +29,7 @@ async function fixtures(context, state = {}) {
       return route.fulfill({ json: { user: state.user || null } });
     }
     if (url.pathname === "/api/heroes/watch") return route.fulfill({ contentType: "text/event-stream", body: ": connected\n\n" });
+    if (url.pathname === "/api/heroes/131") return route.fulfill({ json: heroDetail });
     if (url.pathname === "/api/resources/leases") {
       if (route.request().method() !== "POST") return route.fulfill({ json: { ok: true } });
       const page = route.request().postDataJSON().page;
@@ -58,6 +65,7 @@ try {
  await fixtures(context,state);
  await context.addInitScript(() => { Object.defineProperty(navigator, "clipboard", {value:{writeText:async text=>{window.__copied=text;}}}); });
  const page=await context.newPage(); const errors=[]; page.on("pageerror",e=>errors.push(e.message));
+ page.setDefaultNavigationTimeout(60_000);
  await page.goto(base); await page.getByRole("heading", {name:rooms[0].name}).waitFor();
  assert.equal(await page.getByRole("navigation",{name:"底部导航"}).isVisible(),false);
  assert.equal(await page.getByRole("navigation",{name:"主导航"}).isVisible(),true);
@@ -76,6 +84,18 @@ try {
  }
  await page.setViewportSize({width:390,height:844});
  await capture(page,"home-mobile");
+ await page.setViewportSize({width:320,height:720});
+ await page.goto(base+"/heroes/131");
+ await page.getByRole("heading",{name:"基础属性",exact:true}).waitFor();
+ const statGrid=page.getByRole("heading",{name:"基础属性",exact:true}).locator("xpath=following-sibling::div[1]/div");
+ const statLayout=await statGrid.evaluate(node=>({columns:getComputedStyle(node).gridTemplateColumns,scrollWidth:node.scrollWidth,clientWidth:node.clientWidth}));
+ assert.equal(statLayout.columns.trim().split(/\s+/).length,1,`Mobile hero stats must use one column: ${statLayout.columns}`);
+ assert.ok(statLayout.scrollWidth<=statLayout.clientWidth+1,`Mobile hero stats overflow: ${JSON.stringify(statLayout)}`);
+ const overlappingStatRows=await statGrid.locator(".hero-stat-row").evaluateAll(rows=>rows.filter(row=>{const [label,values]=row.children;const a=label.getBoundingClientRect();const b=values.getBoundingClientRect();return a.left<b.right-1&&a.right>b.left+1&&a.top<b.bottom-1&&a.bottom>b.top+1;}).length);
+ assert.equal(overlappingStatRows,0,"Mobile hero stat labels and values must not overlap at 320px");
+ await capture(page,"hero-detail-mobile");
+ await page.goto(base);
+ await page.getByRole("heading",{name:rooms[0].name}).waitFor();
  await page.locator('.arena-room').nth(1).scrollIntoViewIfNeeded();
  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
  await page.screenshot({path:`${artifacts}/rooms-mobile-viewport.png`});
@@ -124,5 +144,19 @@ try {
  await phone.getByRole("button",{name:"打开图鉴菜单"}).click(); await phone.locator("#dock-catalog-menu").getByRole("link",{name:"英雄",exact:true}).click();
  await phone.waitForURL("**/m/heroes"); await noOverflow(phone,"mobile redirected heroes");
  await mobile.close();
- console.log("Arena UI regression passed: 6 viewports, 5 feature screens, mobile redirect, navigation, clipboard, announcements, news retry, filters, password visibility, landscape calendar, guest lobby, loading state, long profile name and mobile account navigation.");
+ const switching=await browser.newContext({viewport:{width:390,height:844},reducedMotion:"reduce"});
+ await fixtures(switching,{empty:true}); const switchedPage=await switching.newPage();
+ const cdp=await switching.newCDPSession(switchedPage);
+ await cdp.send("Network.setUserAgentOverride",{userAgent:desktopUA});
+ await switchedPage.goto(`${base}/m?mode=desktop`); assert.equal(new URL(switchedPage.url()).pathname,"/");
+ await switchedPage.getByRole("link",{name:"创建房间",exact:true}).waitFor();
+ await cdp.send("Network.setUserAgentOverride",{userAgent:mobileUA});
+ await switchedPage.goto(`${base}/m?mode=desktop`); assert.equal(new URL(switchedPage.url()).pathname,"/m");
+ await switchedPage.getByRole("link",{name:"创建房间",exact:true}).waitFor();
+ await switchedPage.goto(`${base}/?mode=mobile`); assert.equal(new URL(switchedPage.url()).pathname,"/m");
+ await cdp.send("Network.setUserAgentOverride",{userAgent:desktopUA});
+ await switchedPage.goto(`${base}/?mode=mobile`); assert.equal(new URL(switchedPage.url()).pathname,"/");
+ await switchedPage.getByRole("link",{name:"创建房间",exact:true}).waitFor();
+ await switching.close();
+ console.log("Arena UI regression passed: 6 viewports, 5 feature screens, mobile redirect, same-context desktop/mobile switching, navigation, clipboard, announcements, news retry, filters, password visibility, landscape calendar, guest lobby, loading state, long profile name and mobile account navigation.");
 } finally { await browser.close(); }
