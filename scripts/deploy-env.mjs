@@ -119,6 +119,7 @@ function parseValue(rawValue, lineNumber, key) {
 
 function parseSelectedEnv(content, keys) {
   const allowedKeys = new Set(keys);
+  const urlKeys = new Set(["PUBLIC_ORIGIN", "DATABASE_URL", "REDIS_URL"]);
   const result = new Map();
   const lines = content.replace(/^\uFEFF/, "").split(/\r?\n/);
 
@@ -128,14 +129,25 @@ function parseSelectedEnv(content, keys) {
     if (!line.trim() || line.trimStart().startsWith("#")) continue;
 
     const assignment = line.match(/^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=([\s\S]*)$/);
-    if (!assignment) continue;
+    if (!assignment) {
+      throw new Error(`Invalid environment syntax on line ${lineNumber}; use plain KEY=value text without Markdown escapes`);
+    }
     const [, key, rawValue] = assignment;
     if (!allowedKeys.has(key)) continue;
     if (result.has(key)) throw new Error(`Duplicate environment key ${key} on line ${lineNumber}`);
+    if (urlKeys.has(key) && rawValue.includes("\\")) {
+      throw new Error(`Environment key ${key} URL must not contain backslash escapes on line ${lineNumber}`);
+    }
 
     const value = parseValue(rawValue, lineNumber, key);
     if (value.includes("\0") || value.includes("\n") || value.includes("\r")) {
       throw new Error(`Environment key ${key} must be a single-line value`);
+    }
+    if (/^\[[^\]]+\]\([^)]+\)$/.test(value)) {
+      throw new Error(`Environment key ${key} on line ${lineNumber} must be a plain value, not a Markdown link`);
+    }
+    if (urlKeys.has(key) && value.includes("\\")) {
+      throw new Error(`Environment key ${key} URL must not contain backslash escapes on line ${lineNumber}`);
     }
     result.set(key, value);
   }

@@ -94,6 +94,30 @@ assert.throws(
   () => parseDeployEnv("DEPLOY_WEB_PORT=8081\nDEPLOY_WEB_PORT=8082\n"),
   /Duplicate environment key/,
 );
+assert.throws(
+  () => parseDeployEnv("\\# copied comment\nPUBLIC_ORIGIN=https://arena.example\n"),
+  /Invalid environment syntax on line 1/,
+);
+assert.throws(
+  () => parseRuntimeEnv("DATABASE\\_URL=mysql:\/\/app:secret@127.0.0.1\/app\n"),
+  /Invalid environment syntax on line 1/,
+);
+assert.throws(
+  () => parseDeployEnv("PUBLIC_ORIGIN=[https:\/\/arena.example](https:\/\/arena.example)\n"),
+  /must be a plain value, not a Markdown link/,
+);
+assert.throws(
+  () => parseRuntimeEnv("REDIS_URL=redis:\/\/default:secret\\@127.0.0.1:6379\/0\n"),
+  /URL must not contain backslash escapes/,
+);
+for (const quotedUrl of [
+  'PUBLIC_ORIGIN="https\\:\/\/arena.example"\n',
+  'DATABASE_URL="mysql:\/\/app:secret\\@127.0.0.1\/app"\n',
+  'REDIS_URL="redis:\/\/default:secret\\@127.0.0.1:6379\/0"\n',
+]) {
+  const parser = quotedUrl.startsWith("PUBLIC_ORIGIN") ? parseDeployEnv : parseRuntimeEnv;
+  assert.throws(() => parser(quotedUrl), /URL must not contain backslash escapes/);
+}
 NODE
 
 APP_DIR="$TEST_ROOT/ecosystem-release" \
@@ -645,6 +669,15 @@ assert_contains "$dirty_case/check.log" "untracked paths detected"
 assert_contains "$dirty_case/check.log" "no stash, reset, checkout, or deletion was performed"
 assert_current_is_old "$dirty_case"
 [[ ! -e "$dirty_case/backup.marker" ]] || fail "dirty source reached the database backup step"
+
+broken_current_case="$(prepare_case broken-current)"
+rm -- "$broken_current_case/app/current"
+ln -s -- "$broken_current_case/app/releases/missing-release" "$broken_current_case/app/current"
+if run_deploy "$broken_current_case" --check >"$broken_current_case/check.log" 2>&1; then
+  fail "broken current symlink unexpectedly passed preflight"
+fi
+assert_contains "$broken_current_case/check.log" "current symlink target is missing:"
+assert_contains "$broken_current_case/check.log" "inspect PM2 ownership before repairing or removing the link"
 
 pm2_banner=$'-------------\n[PM2] Runtime Edition\n6.7.1'
 if ! run_deploy "$success_case" "TEST_PM2_VERSION=$pm2_banner" >"$success_case/deploy.log" 2>&1; then

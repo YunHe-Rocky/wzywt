@@ -546,11 +546,15 @@ inspect_host() {
 
 CURRENT_TARGET="-"
 resolve_current_target() {
+  local link_target=""
   CURRENT_TARGET="-"
   if [[ -e "$CURRENT_LINK" || -L "$CURRENT_LINK" ]]; then
     [[ -L "$CURRENT_LINK" ]] || fail "current path exists but is not a symlink: $CURRENT_LINK"
     CURRENT_TARGET="$(readlink -f -- "$CURRENT_LINK" 2>/dev/null || true)"
-    [[ -n "$CURRENT_TARGET" && -d "$CURRENT_TARGET" ]] || fail "current symlink target is missing"
+    if [[ -z "$CURRENT_TARGET" || ! -d "$CURRENT_TARGET" ]]; then
+      link_target="$(readlink -- "$CURRENT_LINK" 2>/dev/null || true)"
+      fail "current symlink target is missing: $CURRENT_LINK -> ${link_target:-<unreadable>}; inspect PM2 ownership before repairing or removing the link"
+    fi
     path_within "$CURRENT_TARGET" "$RELEASES_DIR" || fail "current symlink points outside the project releases directory"
   fi
 }
