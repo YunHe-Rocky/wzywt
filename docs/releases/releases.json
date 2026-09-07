@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "project": "wangzhe-yanwutang",
+  "releases": [
+    {
+      "version": "1.0.0",
+      "internalId": "WZYWT-REL-0001",
+      "releaseType": "major",
+      "releasedAt": "2026-09-07T16:46:59+08:00",
+      "timezone": "Asia/Shanghai",
+      "tag": "v1.0.0",
+      "previousVersion": null,
+      "sourceRange": {
+        "fromCommit": "59e83b4046d4a2c43b1143a95c7cf6b208ec7777",
+        "toCommit": "2db40d8de207dc8c57c3e6863b19ef268f2a2b17",
+        "compareUrl": "https://github.com/YunHe-Rocky/wzywt/compare/59e83b4046d4a2c43b1143a95c7cf6b208ec7777...2db40d8de207dc8c57c3e6863b19ef268f2a2b17"
+      },
+      "pullRequests": [
+        {
+          "number": 1,
+          "title": "feat(web): 重做王者演武堂前端体验",
+          "url": "https://github.com/YunHe-Rocky/wzywt/pull/1",
+          "mergeCommit": "4afbecbe13160383ed9e8ce705898849590dd041",
+          "scope": "演武场视觉、首页、移动导航与交互回归"
+        }
+      ],
+      "summary": [
+        "重做演武场视觉与核心页面交互",
+        "完善比赛识别、草稿恢复与记录冲突保护",
+        "强化页面资源调度、账号生命周期和媒体配额",
+        "将分队计算移入可控的 Worker 线程池",
+        "重建可备份、原子切换、验证和回滚的发布链路"
+      ],
+      "notes": "PR #1 覆盖前端重做；其余鉴权、调度、部署与运维变更以 sourceRange 中的直接 main 提交为准。本记录是新正式版本体系的起点，旧 CHANGELOG 编号不纳入新顺序。"
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 {
   "name": "wangzhe-yanwutang",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "engines": {
     "node": ">=24 <25",
@@ -23,6 +23,7 @@
     "test:core": "tsx scripts/test-core.ts",
     "test:split-worker": "npm run build:workers && tsx scripts/test-split-worker.ts",
     "test:auth-session": "tsx scripts/test-auth-session-contract.ts",
+    "test:release": "node scripts/test-release-registry.mjs",
     "test:markdown": "tsx scripts/test-markdown.ts",
     "test:integration": "tsx scripts/test-integration.ts",
     "test:next-stage": "tsx scripts/test-next-stage.ts",
@@ -44,7 +45,7 @@
     "test:e2e:proxy": "node tests/e2e/run-proxy-regression.mjs",
     "test:e2e:login-visual": "node tests/e2e/login-transition-regression.mjs",
     "audit:prod": "npm audit --omit=dev --audit-level=high",
-    "check": "npm run check:shell-eol && npm run check:architecture && npm run typecheck && npm run test:core && npm run test:split-worker && npm run test:entry && npm run test:markdown && npm run test:next-stage && npm run test:connections && npm run test:task-fence && npm run test:api-use-cases && npm run test:match-draft && npm run test:mobile-routes && npm run test:deploy",
+    "check": "npm run check:shell-eol && npm run test:release && npm run check:architecture && npm run typecheck && npm run test:core && npm run test:split-worker && npm run test:entry && npm run test:markdown && npm run test:next-stage && npm run test:connections && npm run test:task-fence && npm run test:api-use-cases && npm run test:match-draft && npm run test:mobile-routes && npm run test:deploy",
     "test:e2e:arena": "node tests/e2e/arena-redesign.mjs && node tests/e2e/arena-motion.mjs && node tests/e2e/arena-glass.mjs && node tests/e2e/hero-live-refresh.mjs"
   },
   "dependencies": {

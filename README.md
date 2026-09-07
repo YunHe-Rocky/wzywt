@@ -68,6 +68,7 @@ npm run build
 - [健康检查与告警](docs/operations/observability.md)
 - [Nginx 与 SSL/TLS](docs/operations/nginx-configuration.md)
 - [安全问题报告](SECURITY.md)
+- [正式版本登记](docs/releases/README.md)
 
 服务器已有代码和最小 `.env` 后，日常发布只有：
 
