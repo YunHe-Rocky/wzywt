@@ -19,6 +19,17 @@ export interface AdminAnnouncement {
   date: string;
 }
 
+export interface ChangelogEntry {
+  slug: string;
+  date: string;
+  title: string;
+  version: string | null;
+  desc: string;
+}
+
+export const listChangelogEntries = (signal?: AbortSignal): Promise<ApiResult<{ entries: ChangelogEntry[] }>> =>
+  apiRequest("/api/changelog", { signal, cache: "no-store" });
+
 interface AnnouncementListResponse {
   announcements: AdminAnnouncement[];
   error?: string;

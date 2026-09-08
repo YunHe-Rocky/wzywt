@@ -1,90 +1,63 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { PageEntrance } from "@/web/components/layout/PageEntrance";
-import {
-  extractMarkdownHeadings,
-  MarkdownContent,
-} from "@/web/components/content/MarkdownContent";
-import { apiRequest } from "@/features/shared/client/api";
+import { listChangelogEntries, type ChangelogEntry } from "@/features/announcements/client/api";
 
 export default function ChangelogPage() {
-  const [content, setContent] = useState("");
+  const pathname = usePathname();
+  const prefix = /^\/m(?:\/|$)/.test(pathname) ? "/m" : "";
+  const [entries, setEntries] = useState<ChangelogEntry[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeId, setActiveId] = useState("");
+  const [error, setError] = useState(false);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     const controller = new AbortController();
-    void apiRequest<{ content?: string }>("/api/changelog?type=features", { signal: controller.signal })
-      .then(({ data }) => { if (!controller.signal.aborted) setContent(data.content || ""); })
-      .catch(() => undefined)
+    setLoading(true);
+    setError(false);
+    void listChangelogEntries(controller.signal)
+      .then(({ ok, data }) => {
+        if (!ok || !Array.isArray(data.entries)) throw new Error("Invalid changelog response");
+        if (!controller.signal.aborted) setEntries(data.entries);
+      })
+      .catch(() => { if (!controller.signal.aborted) setError(true); })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
-  }, []);
-
-  const toc = useMemo(() => extractMarkdownHeadings(content, true), [content]);
-
-  useEffect(() => {
-    if (toc.length === 0) return;
-    const observer = new IntersectionObserver((entries) => {
-      for (const entry of entries) {
-        if (entry.isIntersecting) setActiveId(entry.target.id);
-      }
-    }, { rootMargin: "-80px 0px -60% 0px" });
-    toc.forEach(({ id }) => {
-      const element = document.getElementById(id);
-      if (element) observer.observe(element);
-    });
-    return () => observer.disconnect();
-  }, [toc]);
+  }, [attempt]);
 
   return (
     <PageEntrance>
-      <div className="page-shell page-shell--medium doc-layout">
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <Link href="/" style={{ fontSize: 13, color: "var(--text-muted)", textDecoration: "none", marginBottom: 24, display: "inline-block" }}>
-            ← 返回首页
-          </Link>
-
-          {loading ? (
-            <div className="card" style={{ padding: 24 }}>
-              <div className="skeleton" style={{ height: 28, width: "40%", marginBottom: 12 }} />
-              <div className="skeleton" style={{ height: 400 }} />
-            </div>
-          ) : (
-            <article className="card" style={{ padding: "28px 36px" }}>
-              <h1 style={{ fontSize: 28, fontWeight: 700, color: "var(--text)", margin: "0 0 6px" }}>
-                王者演武堂 — 功能说明
-              </h1>
-              <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 20 }}>面向选手与赛事组织者</p>
-              <MarkdownContent content={content} skipFirstHeading skipLeadingMetadata />
-            </article>
-          )}
-        </div>
-
-        {toc.length > 0 && (
-          <nav className="doc-sidebar">
-            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", marginBottom: 8, letterSpacing: 2, textTransform: "uppercase" }}>目录</div>
-            <div style={{ borderLeft: "2px solid var(--border)", paddingLeft: 12, display: "flex", flexDirection: "column", gap: 1 }}>
-              {toc.map((item) => (
-                <a
-                  key={item.id}
-                  href={`#${item.id}`}
-                  style={{
-                    fontSize: 12,
-                    textDecoration: "none",
-                    padding: "3px 0",
-                    paddingLeft: item.level === 3 ? 12 : 0,
-                    color: activeId === item.id ? "var(--gold)" : "var(--text-muted)",
-                    fontWeight: activeId === item.id ? 600 : 400,
-                  }}
-                >
-                  {item.text}
-                </a>
-              ))}
-            </div>
-          </nav>
+      <div className="page-shell page-shell--medium">
+        <Link href={prefix || "/"} className="arena-text-link">← 返回首页</Link>
+        <h1 style={{ margin: "24px 0 8px" }}>更新日志</h1>
+        <p style={{ color: "var(--text-muted)", marginBottom: 24 }}>查看已发布的版本更新与功能修复。</p>
+        {loading ? (
+          <div className="card" role="status" style={{ padding: 24 }}>正在加载更新日志…</div>
+        ) : error ? (
+          <div className="card" role="alert" style={{ padding: 24 }}>
+            <p>更新日志加载失败，请稍后重试。</p>
+            <button type="button" className="btn-ghost" onClick={() => setAttempt(value => value + 1)}>重新加载</button>
+          </div>
+        ) : entries.length === 0 ? (
+          <div className="card" style={{ padding: 24 }}>暂无已发布的更新日志</div>
+        ) : (
+          <div style={{ display: "grid", gap: 16 }}>
+            {entries.map(entry => (
+              <article className="card" key={entry.slug} style={{ padding: 24, minWidth: 0, overflowWrap: "anywhere" }}>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center", color: "var(--text-muted)", fontSize: 13 }}>
+                  <time dateTime={entry.date}>{entry.date}</time>
+                  {entry.version && <span className="badge badge-muted">{entry.version}</span>}
+                </div>
+                <h2 style={{ fontSize: 20, margin: "12px 0" }}>
+                  <Link href={`${prefix}/changelog/${encodeURIComponent(entry.slug)}`} style={{ color: "var(--text)", textDecoration: "none" }}>{entry.title}</Link>
+                </h2>
+                <p style={{ color: "var(--text-muted)", whiteSpace: "pre-wrap", margin: 0 }}>{entry.desc}</p>
+              </article>
+            ))}
+          </div>
         )}
       </div>
     </PageEntrance>

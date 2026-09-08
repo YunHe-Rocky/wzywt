@@ -8,7 +8,7 @@ const api = "/api/tournaments/71/matches/81/tactics/red";
 const stamp = "2026-09-08T00:00:00.000Z";
 const blank = (id, name) => ({ id, name, description: null, startTime: null, endTime: null, updatedAt: stamp, routes: [], markers: [] });
 
-async function fixture(browser, width, { denied = false, saved = false, empty = false, readonly = false, mapMissing = true } = {}) {
+async function fixture(browser, width, { denied = false, saved = false, empty = false, readonly = false, mapMissing = false } = {}) {
   const context = await browser.newContext({
     ignoreHTTPSErrors: new URL(base).hostname === "localhost",
     viewport: { width, height: 1000 }, reducedMotion: "reduce",
@@ -19,9 +19,8 @@ async function fixture(browser, width, { denied = false, saved = false, empty = 
   const page = await context.newPage();
   page.setDefaultTimeout(5000);
   page.on("pageerror", (error) => state.errors.push(error.message));
-  await page.route("**/images/tactic-map-source.jpg", (route) => mapMissing
-    ? route.fulfill({ status: 404, contentType: "text/plain", body: "Missing map fixture" })
-    : route.fulfill({ status: 200, contentType: "image/svg+xml", body: '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><rect width="10" height="10" fill="gray"/></svg>' }));
+  if (mapMissing) await page.route("**/images/tactic-map-source.jpg", (route) =>
+    route.fulfill({ status: 404, contentType: "text/plain", body: "Missing map fixture" }));
   await page.route("**/api/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
     const method = route.request().method();
@@ -64,6 +63,7 @@ async function fixture(browser, width, { denied = false, saved = false, empty = 
   if (!denied) {
     await page.getByRole("heading", { name: "红方战术推演", exact: true }).waitFor();
     if (!empty) await page.locator(".tactic-board").waitFor();
+    if (!empty && !mapMissing) await assertRealMap(page);
     assert.equal(await page.getByRole("link", { name: "赛事房间", exact: true }).getAttribute("href"), `${width < 600 ? "/m" : ""}/tournaments/71`);
     await page.getByText("图层与精确编辑", { exact: true }).click();
   }
@@ -71,6 +71,17 @@ async function fixture(browser, width, { denied = false, saved = false, empty = 
 }
 
 const draft = (page) => page.locator('.tactic-board polyline[stroke-dasharray]');
+async function assertRealMap(page) {
+  const href = await page.locator('.tactic-board image').getAttribute('href');
+  const dimensions = await page.evaluate(async (src) => {
+    const image = new Image();
+    image.src = src;
+    await image.decode();
+    return [image.naturalWidth, image.naturalHeight];
+  }, href);
+  assert.deepEqual(dimensions, [2816, 1280], 'the packaged canyon map must load, not a placeholder');
+  assert.equal(await page.locator('#tactic-map-status').count(), 0);
+}
 async function addPoint(page, x, y) {
   await page.getByLabel("X（0–1）").fill(String(x));
   await page.getByLabel("Y（0–1）").fill(String(y));
@@ -82,7 +93,7 @@ async function selected(page, name) {
 }
 
 const scenarios = [
-  ["missing map renders an honest coordinate grid that still accepts routes", {}, async ({ page }) => {
+  ["missing map renders an honest coordinate grid that still accepts routes", { mapMissing: true }, async ({ page }) => {
     await page.getByText("地图底图缺失，当前仅显示坐标网格，不代表真实峡谷地形", { exact: true }).waitFor();
     assert.equal(await page.locator('.tactic-board rect[fill="url(#tactic-coordinate-grid)"]').count(), 1);
     const board = page.locator(".tactic-board");
@@ -132,6 +143,7 @@ const scenarios = [
     await page.getByRole("button", { name: "新建图层", exact: true }).click();
     await page.locator(".tactic-layer-list button").filter({ hasText: "新建阶段" }).waitFor();
     await selected(page, "新建阶段");
+    await assertRealMap(page);
     assert.equal(await page.getByRole("button", { name: "手动阶段", exact: true }).getAttribute("aria-pressed"), "false");
     await addPoint(page, 0.25, 0.25);
     await addPoint(page, 0.75, 0.75);
@@ -142,6 +154,7 @@ const scenarios = [
     assert.deepEqual(routeWrite.input.geometry.points, [{ x: 0.25, y: 0.25 }, { x: 0.75, y: 0.75 }]);
     await select(page, "转线");
     await select(page, "新建阶段");
+    await assertRealMap(page);
     assert.equal(await draft(page).getAttribute("points"), "375,217.5 1125,652.5");
     await page.getByRole("button", { name: "删除图层", exact: true }).click();
     await page.getByRole("button", { name: "永久删除图层", exact: true }).click();
