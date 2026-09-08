@@ -50,6 +50,40 @@ bash scripts/deploy.sh
 
 端口预检通过不等于密码正确。正式发布在 `npm ci` 后、build/备份/migration/切换前，用本次 release 的 ioredis 执行认证和 `PING`。`REDIS_REQUIRED=1` 时失败立即终止并报告 `WRONGPASS`、`NOAUTH`、`NOPERM` 等原因。Web 与 Cron 均从所选 `.env` 明确注入 Redis 配置，覆盖 PM2 缓存的旧值；移除配置也会清除旧值。
 
+## 本地开发与虚拟机测试
+
+改代码时使用 `npm run dev`（同时运行定时任务则用 `npm run dev:all`），访问 `http://localhost:8001`。开发模式可以不设置 `PUBLIC_ORIGIN`，跳转会使用当前请求地址。
+
+在虚拟机中测试完整构建和发布流程时，使用同一个部署脚本，在 `.env` 中设置：
+
+```dotenv
+DEPLOY_ENVIRONMENT=local
+HOST=0.0.0.0
+PORT=8001
+PUBLIC_ORIGIN=http://192.168.1.73:8001
+```
+
+把示例 IP 换成虚拟机实际地址。`0.0.0.0` 是监听地址，不能填进 `PUBLIC_ORIGIN`。宿主机和手机需能访问虚拟机的 8001 端口；无需公网、域名、Nginx 或证书。获取 Git 源码和 npm 依赖仍需要网络。
+
+仍须配置独立测试用的 `DATABASE_URL` 和至少 32 字符的 `SESSION_SECRET`；使用 Redis 时也要与生产隔离。然后执行：
+
+```bash
+bash scripts/deploy.sh --check
+bash scripts/deploy.sh
+```
+
+`DEPLOY_ENVIRONMENT=local` 允许 localhost、IPv4 私网/回环、IPv6 回环/ULA 地址使用 HTTP；普通公网域名/IP 仍要求 HTTPS。正式构建继续使用 `NODE_ENV=production`。HTTP 登录 Cookie 自动不带 Secure，HTTPS 自动带 Secure；删除与协议冲突的旧 `SESSION_COOKIE_SECURE` 覆盖即可。
+
+内网发布同样执行数据库备份、migration、release 身份核对、桌面/手机跳转验收和失败回滚。此模式不会绕过脏源码检查，也不会执行测试 seed。需要单独复验入口时：
+
+```bash
+DEPLOY_ENVIRONMENT=local node scripts/public-entry-smoke.mjs http://192.168.1.73:8001 预期的完整releaseId
+```
+
+切回公网时，删除 `DEPLOY_ENVIRONMENT` 或设为 `production`，把 `PUBLIC_ORIGIN` 改为 HTTPS，并将监听地址按 Nginx 布局恢复为 `127.0.0.1`。配置优先级是当前命令环境高于所选 `.env`，切换前也要清理终端中旧的同名变量。
+
+自动化验证：`npm run test:local-deploy` 检查地址策略和 Cookie；`npm run test:deploy` 覆盖内网发布及验收失败回滚；`npm run test:e2e:local` 在构建后启动 HTTP 服务并运行真实浏览器登录/刷新/退出和桌面、手机回归。浏览器测试要求显式允许的本机 `_ci`/`_test` 数据库及 Playwright 浏览器，CI 已同时接入 HTTP 与 HTTPS 流程。
+
 ## 2. 现有服务器怎样精简 `.env`
 
 保留这些真实应用配置：
@@ -63,7 +97,7 @@ bash scripts/deploy.sh
 
 正常情况下可以从 `.env` 删除：
 
-- 全部 `DEPLOY_*`；脚本会按现场事实推导，也会识别既有的相邻 `<源码目录>-pm2`。删完先运行 `--check`，确认它打印的 PM2 home 和进程名仍指向当前应用；不一致时只保留对应的 `DEPLOY_PM2_HOME` 或进程名覆盖。
+- 自动发现无误时的高级 `DEPLOY_*` 覆盖；内网测试保留 `DEPLOY_ENVIRONMENT=local`。脚本也会识别既有的相邻 `<源码目录>-pm2`。删完先运行 `--check`，确认它打印的 PM2 home 和进程名仍指向当前应用；不一致时只保留对应的 `DEPLOY_PM2_HOME` 或进程名覆盖。
 - `MEDIA_STORAGE_DIR`、`AVATAR_DIR`；默认目录正是 `<runtime>/shared/media` 和其 `avatars` 子目录。
 - 除 `PUBLIC_ORIGIN` 以外的旧 `PUBLIC_*`、`NGINX_*`、`TLS_*`、`MYSQL_SERVICE`、`REDIS_SERVICE`、`PM2_SYSTEMD_SERVICE`、`MYSQL_BACKUP_*`；应用发布脚本不读取这些字段。
 - 空的 `SEED_*`；生产部署不运行测试 seed。
@@ -122,7 +156,7 @@ pm2 status
 readlink -f "$(pwd -P)-runtime/current"
 ```
 
-发布脚本只有在公网 health 的 releaseId 和桌面/手机 Location 全部匹配时才标记完成；公网探测失败会触发应用回滚。不会自动跟随重定向，也不会跳过 TLS 验证。可以单独重跑同一探测：
+发布脚本只有在站点 health 的 releaseId 和桌面/手机 Location 全部匹配时才标记完成；入口探测失败会触发应用回滚。不会自动跟随重定向，也不会跳过 TLS 验证。可以单独重跑同一探测：
 
 ```bash
 node scripts/public-entry-smoke.mjs https://你的域名 预期的完整releaseId

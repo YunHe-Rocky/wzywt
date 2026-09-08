@@ -68,6 +68,8 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y nginx openssl
       - name: HTTPS Nginx login and private resources (desktop, Android, WebKit)
         run: npm run test:e2e:proxy
+      - name: Local HTTP login and private resources (desktop, Android, WebKit)
+        run: npm run test:e2e:local
 
   database-compatibility:
     runs-on: ubuntu-22.04

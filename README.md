@@ -19,6 +19,8 @@ npm run dev
 
 开发服务固定使用 `http://127.0.0.1:8001`。先复制 `.env.example` 为 `.env`，再填写本地环境变量；禁止提交 `.env`。
 
+虚拟机也支持完整构建部署：设置 `DEPLOY_ENVIRONMENT=local`、`HOST=0.0.0.0` 和 `PUBLIC_ORIGIN=http://虚拟机私网IP:8001`，运行原有 `scripts/deploy.sh` 即可，无需公网或证书。使用独立测试数据库、Redis 和 Session Secret，详见[本地开发与虚拟机测试](docs/operations/deploy.md#本地开发与虚拟机测试)。
+
 ## 环境变量
 
 生产必填项只有：
@@ -29,6 +31,7 @@ npm run dev
 
 可选项：
 
+- `DEPLOY_ENVIRONMENT`：默认 `production`（HTTPS）；`local` 允许内网 HTTP，并按协议自动设置登录 Cookie。
 - `REDIS_URL` / `REDIS_REQUIRED`：Redis 与是否作为强制健康依赖。
 - `MATCH_OCR_ENDPOINT` / `MATCH_OCR_TOKEN`：六图 OCR；未配置时识别入口 fail-closed。
 - `HEALTH_DETAILS_TOKEN`：可选内部 readiness 指标令牌，只通过请求头发送。

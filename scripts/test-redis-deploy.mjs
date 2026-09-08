@@ -10,7 +10,7 @@ import { readRedisEnv } from "./deploy-env.mjs";
 
 const repo = resolve(import.meta.dirname, "..");
 
-function pm2RedisEnv(content) {
+function pm2RedisEnv(content, entryOverrides = {}) {
   const dir = mkdtempSync(join(tmpdir(), "wzywt-redis-env-"));
   try {
     writeFileSync(join(dir, ".env"), content);
@@ -18,7 +18,8 @@ function pm2RedisEnv(content) {
       cwd: repo,
       encoding: "utf8",
       windowsHide: true,
-      env: { ...process.env, APP_DIR: dir, REDIS_URL: "redis://:stale@127.0.0.1:6379/0", REDIS_REQUIRED: "1" },
+      env: { ...process.env, PUBLIC_ORIGIN: undefined, DEPLOY_ENVIRONMENT: undefined, SESSION_COOKIE_SECURE: undefined,
+        ...entryOverrides, APP_DIR: dir, REDIS_URL: "redis://:stale@127.0.0.1:6379/0", REDIS_REQUIRED: "1" },
     });
     assert.equal(result.status, 0, result.stderr);
     return JSON.parse(result.stdout);
@@ -26,6 +27,24 @@ function pm2RedisEnv(content) {
     rmSync(dir, { recursive: true, force: true });
   }
 }
+
+test("PM2 loads local entry settings and explicitly resets them when returning to production", () => {
+  for (const env of pm2RedisEnv("DEPLOY_ENVIRONMENT=local\nPUBLIC_ORIGIN=http://192.168.1.73:8001\n")) {
+    assert.equal(env.NODE_ENV, "production");
+    assert.equal(env.DEPLOY_ENVIRONMENT, "local");
+    assert.equal(env.PUBLIC_ORIGIN, "http://192.168.1.73:8001");
+    assert.equal(env.SESSION_COOKIE_SECURE, "");
+  }
+  for (const env of pm2RedisEnv("PUBLIC_ORIGIN=https://arena.example\n")) {
+    assert.equal(env.DEPLOY_ENVIRONMENT, "production");
+    assert.equal(env.PUBLIC_ORIGIN, "https://arena.example");
+    assert.equal(env.SESSION_COOKIE_SECURE, "");
+  }
+  for (const env of pm2RedisEnv("PUBLIC_ORIGIN=https://arena.example\n", { DEPLOY_ENVIRONMENT: "local", PUBLIC_ORIGIN: "http://10.0.0.2:8001" })) {
+    assert.equal(env.PUBLIC_ORIGIN, "http://10.0.0.2:8001", "preflight shell overrides must reach PM2 unchanged");
+    assert.equal(env.DEPLOY_ENVIRONMENT, "local");
+  }
+});
 
 test("web and cron replace stale inherited Redis credentials with the release .env", () => {
   const envs = pm2RedisEnv('REDIS_URL="redis://:new%24pass%23word@127.0.0.1:6379/0"\nREDIS_REQUIRED=1\n');

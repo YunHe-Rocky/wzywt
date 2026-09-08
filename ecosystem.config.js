@@ -1,6 +1,6 @@
 const { isAbsolute, resolve } = require("node:path");
 const { existsSync } = require("node:fs");
-const { readRedisEnv } = require("./scripts/deploy-env.mjs");
+const { readRedisEnv, readDeployEnv } = require("./scripts/deploy-env.mjs");
 const packageJson = require("./package.json");
 
 function safeProjectName(value) {
@@ -12,6 +12,13 @@ function safeProjectName(value) {
 
 const appDir = process.env.APP_DIR || resolve(__dirname);
 const redisEnvFile = resolve(appDir, ".env");
+const entryValues = existsSync(redisEnvFile) ? readDeployEnv(redisEnvFile) : new Map();
+// Explicit values also clear PM2's cached settings when changing deployment mode.
+const entryEnv = {
+  PUBLIC_ORIGIN: process.env.PUBLIC_ORIGIN ?? entryValues.get("PUBLIC_ORIGIN") ?? "",
+  DEPLOY_ENVIRONMENT: process.env.DEPLOY_ENVIRONMENT ?? entryValues.get("DEPLOY_ENVIRONMENT") ?? "production",
+  SESSION_COOKIE_SECURE: process.env.SESSION_COOKIE_SECURE ?? entryValues.get("SESSION_COOKIE_SECURE") ?? "",
+};
 const redisEnv = existsSync(redisEnvFile) ? readRedisEnv(redisEnvFile) : {
   REDIS_URL: process.env.REDIS_URL || "",
   REDIS_REQUIRED: process.env.REDIS_REQUIRED || "0",
@@ -44,8 +51,8 @@ module.exports = {
       cwd: appDir,
       env: {
         ...redisEnv,
+        ...entryEnv,
         NODE_ENV: "production",
-        PUBLIC_ORIGIN: process.env.PUBLIC_ORIGIN || "",
         APP_RELEASE_ID: process.env.APP_RELEASE_ID || "",
         DEPLOY_PROJECT_NAME: projectName,
         DEPLOY_WEB_HOST: webHost,
@@ -64,6 +71,7 @@ module.exports = {
       cwd: appDir,
       env: {
         ...redisEnv,
+        ...entryEnv,
         NODE_ENV: "production",
         APP_RELEASE_ID: process.env.APP_RELEASE_ID || "",
         DEPLOY_PROJECT_NAME: projectName,

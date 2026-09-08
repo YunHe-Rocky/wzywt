@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { once } from "node:events";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { verifyPublicEntry } from "./public-entry-smoke.mjs";
 import { parsePublicOrigin } from "../src/lib/public-origin.ts";
 
@@ -38,6 +40,13 @@ server.listen(0, "127.0.0.1");
 await once(server, "listening");
 origin = `http://127.0.0.1:${server.address().port}`;
 try {
+  const cli = await promisify(execFile)(process.execPath, ["scripts/public-entry-smoke.mjs", origin, "test-release"], {
+    windowsHide: true, env: { ...process.env, DEPLOY_ENVIRONMENT: "local", SESSION_COOKIE_SECURE: "" },
+  });
+  assert.match(cli.stdout, /redirects=ok/, "local CLI must perform the full entry smoke");
+  await assert.rejects(promisify(execFile)(process.execPath, ["scripts/public-entry-smoke.mjs", origin, "wrong-release"], {
+    windowsHide: true, env: { ...process.env, DEPLOY_ENVIRONMENT: "local", SESSION_COOKIE_SECURE: "" },
+  }), /activated release/, "local CLI must reject a stale release");
   const health = await verifyPublicEntry(origin, "test-release");
   assert.equal(health.checks.redis, "degraded", "optional Redis degradation remains visible");
   for (fault of ["not-ready", "stale-release", "internal-origin", "lost-query", "static-redirect"]) {

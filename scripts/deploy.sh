@@ -405,9 +405,18 @@ WEB_HOST="${DEPLOY_WEB_HOST:-${HOST:-127.0.0.1}}"
 WEB_PORT="${DEPLOY_WEB_PORT:-${PORT:-8001}}"
 [[ "$WEB_PORT" =~ ^[0-9]+$ ]] && ((WEB_PORT >= 1 && WEB_PORT <= 65535)) \
   || fail "resolved application PORT must be between 1 and 65535: $WEB_PORT"
-HEALTH_URL="${DEPLOY_HEALTH_URL:-http://$WEB_HOST:$WEB_PORT/api/health}"
+HEALTH_HOST="$WEB_HOST"
+case "$HEALTH_HOST" in
+  0.0.0.0) HEALTH_HOST=127.0.0.1 ;;
+  ::) HEALTH_HOST='[::1]' ;;
+  *:*) HEALTH_HOST="[$HEALTH_HOST]" ;;
+esac
+HEALTH_URL="${DEPLOY_HEALTH_URL:-http://$HEALTH_HOST:$WEB_PORT/api/health}"
 [[ "$HEALTH_URL" == http://* || "$HEALTH_URL" == https://* ]] || fail "DEPLOY_HEALTH_URL must use http or https"
-[[ -n "${PUBLIC_ORIGIN:-}" ]] || fail "PUBLIC_ORIGIN is required; set the approved HTTPS site origin in .env"
+[[ -n "${PUBLIC_ORIGIN:-}" ]] || fail "PUBLIC_ORIGIN is required; set the browser-facing site origin in .env"
+DEPLOY_ENVIRONMENT="${DEPLOY_ENVIRONMENT:-production}"
+SESSION_COOKIE_SECURE="${SESSION_COOKIE_SECURE:-}"
+export DEPLOY_ENVIRONMENT SESSION_COOKIE_SECURE
 
 HEALTH_ATTEMPTS="${DEPLOY_HEALTH_ATTEMPTS:-30}"
 HEALTH_INTERVAL_SECONDS="${DEPLOY_HEALTH_INTERVAL_SECONDS:-2}"
@@ -580,6 +589,7 @@ inspect_host
 PUBLIC_ORIGIN="$("$NODE_BIN" "$SCRIPT_DIR/public-entry-smoke.mjs" "$PUBLIC_ORIGIN" --validate-origin)" \
   || fail "PUBLIC_ORIGIN is invalid"
 export PUBLIC_ORIGIN
+log "environment=$DEPLOY_ENVIRONMENT origin=$PUBLIC_ORIGIN"
 check_pm2_ownership
 check_deploy_disk_space
 

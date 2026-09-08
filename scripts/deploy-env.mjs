@@ -6,6 +6,8 @@ export const DEPLOY_ENV_KEYS = Object.freeze([
   "PORT",
   "HOST",
   "PUBLIC_ORIGIN",
+  "DEPLOY_ENVIRONMENT",
+  "SESSION_COOKIE_SECURE",
   // Optional advanced overrides. None are required for the normal path.
   "DEPLOY_PROJECT_NAME",
   "DEPLOY_BASE_DIR",

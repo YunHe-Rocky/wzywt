@@ -42,7 +42,8 @@ async function login(page, prefix) {
   assert.equal(new URL(page.url()).searchParams.get("tab"), "history");
   assert.equal(new URL(page.url()).hash, "#recent");
   const cookie = (await page.context().cookies()).find((item) => item.name === "wzyt_session");
-  assert.ok(cookie?.secure && cookie.httpOnly, "real session must be stored as Secure + HttpOnly");
+  assert.ok(cookie?.httpOnly, "real session must be stored as HttpOnly");
+  assert.equal(cookie.secure, process.env.DEPLOY_ENVIRONMENT !== "local", "session Secure must match the tested deployment mode");
   await page.reload({ waitUntil: "networkidle" });
   assert.equal((await (await page.context().request.get(`${baseUrl}/api/auth/me`)).json()).user?.username, username,
     "session must survive a page refresh");
@@ -63,7 +64,7 @@ async function acquirePrivate(client) {
 }
 
 assertSafeTestDatabase();
-assert.equal(new URL(baseUrl).protocol, "https:", "real session regression requires HTTPS proxy");
+assert.equal(new URL(baseUrl).protocol, process.env.DEPLOY_ENVIRONMENT === "local" ? "http:" : "https:");
 try {
 for (const profile of selectedProfiles()) {
 username = `ci_e2e_${randomUUID().replaceAll("-", "").slice(0, 12)}`;

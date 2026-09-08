@@ -664,6 +664,27 @@ assert_contains "$SCRIPT_DIR/deploy.sh" "/opt/runtime/NodeJS/node-v*-linux-x64/b
 assert_contains "$SCRIPT_DIR/deploy.sh" "/opt/middleware/Mysql/mysql/bin/mysqldump"
 assert_contains "$SCRIPT_DIR/../.gitignore" "/*.zip"
 
+local_case="$(prepare_case local-http)"
+sed -i 's|PUBLIC_ORIGIN=https://arena.example|PUBLIC_ORIGIN=http://192.168.1.73:8001|' "$local_case/project.env"
+sed -i '/^DEPLOY_HEALTH_URL=/d; s/^DEPLOY_WEB_HOST=127.0.0.1/HOST=0.0.0.0/' "$local_case/project.env"
+printf '\nDEPLOY_ENVIRONMENT=local\n' >>"$local_case/project.env"
+if ! run_deploy "$local_case" >"$local_case/deploy.log" 2>&1; then
+  cat -- "$local_case/deploy.log" >&2
+  fail "local HTTP deployment failed"
+fi
+assert_contains "$local_case/deploy.log" "environment=local origin=http://192.168.1.73:8001"
+assert_contains "$local_case/deploy.log" "listen=0.0.0.0:18081"
+assert_contains "$local_case/deploy.log" "health=http://127.0.0.1:18081/api/health"
+assert_contains "$local_case/commands.log" "public-entry http://192.168.1.73:8001"
+[[ -f "$local_case/backup.marker" ]] || fail "local deployment skipped backup"
+local_failure="$(prepare_case local-http-smoke-failure)"
+sed -i 's|PUBLIC_ORIGIN=https://arena.example|PUBLIC_ORIGIN=http://192.168.1.73:8001|' "$local_failure/project.env"
+printf '\nDEPLOY_ENVIRONMENT=local\n' >>"$local_failure/project.env"
+if run_deploy "$local_failure" TEST_FAIL_PUBLIC_SMOKE=1 >"$local_failure/deploy.log" 2>&1; then
+  fail "local deployment ignored failed entry verification"
+fi
+assert_current_is_old "$local_failure"
+
 dirty_case="$(prepare_case dirty-source)"
 dirty_status=$' M scripts/deploy.sh\n?? release-bundle.zip\n'
 dirty_summary=$' mode change 100644 => 100755 scripts/deploy.sh\n'

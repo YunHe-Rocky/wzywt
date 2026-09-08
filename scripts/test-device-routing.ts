@@ -34,6 +34,8 @@ function assertUncacheableRedirect(response: Response, label: string) {
 // client-controlled Host / forwarding headers. Reverting the auth branch to
 // new URL(loginPath, req.url) must fail these assertions.
 const previousOrigin = process.env.PUBLIC_ORIGIN;
+const previousDeploymentEnvironment = process.env.DEPLOY_ENVIRONMENT;
+delete process.env.DEPLOY_ENVIRONMENT;
 process.env.PUBLIC_ORIGIN = "https://ywt.yunhe.ink";
 try {
   const desktopAuthRedirect = proxiedResponse("/me?tab=history", desktop);
@@ -69,6 +71,15 @@ try {
     assert.equal(proxiedResponse("/me", desktop).status, 503, "production fails closed without PUBLIC_ORIGIN");
     process.env.PUBLIC_ORIGIN = "http://arena.example";
     assert.equal(proxiedResponse("/me", desktop).status, 503, "production requires HTTPS");
+    process.env.DEPLOY_ENVIRONMENT = "local";
+    process.env.PUBLIC_ORIGIN = "http://192.168.1.73:8001";
+    assert.equal(proxiedResponse("/me?tab=history", desktop).headers.get("location"),
+      "http://192.168.1.73:8001/login?redirect=%2Fme%3Ftab%3Dhistory");
+    assert.equal(proxiedResponse("/?entry=home", mobile).headers.get("location"),
+      "http://192.168.1.73:8001/m?entry=home");
+    process.env.PUBLIC_ORIGIN = "http://arena.example";
+    assert.equal(proxiedResponse("/me", desktop).status, 503, "local HTTP requires a private address");
+    delete process.env.DEPLOY_ENVIRONMENT;
     Reflect.set(process.env, "NODE_ENV", "development");
     delete process.env.PUBLIC_ORIGIN;
     assert.equal(proxiedResponse("/me", desktop).headers.get("location"), "https://localhost:8001/login?redirect=%2Fme", "development ignores spoofable forwarding headers");
@@ -77,6 +88,8 @@ try {
     else Reflect.set(process.env, "NODE_ENV", previousMode);
   }
 } finally {
+  if (previousDeploymentEnvironment === undefined) delete process.env.DEPLOY_ENVIRONMENT;
+  else process.env.DEPLOY_ENVIRONMENT = previousDeploymentEnvironment;
   if (previousOrigin === undefined) delete process.env.PUBLIC_ORIGIN;
   else process.env.PUBLIC_ORIGIN = previousOrigin;
 }

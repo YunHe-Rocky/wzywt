@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { parsePublicOrigin } from "@/lib/public-origin";
+import { parsePublicOrigin, resolveDeploymentEntry } from "@/lib/public-origin";
 
 const PUBLIC_PATHS = ["/login", "/register", "/heroes", "/tournaments", "/changelog", "/monitor", "/debug", "/equipment"];
 const PROTECTED_PREFIXES = ["/me", "/admin"];
@@ -28,7 +28,9 @@ function externalRedirect(req: NextRequest, pathname: string, login = false): Ne
     const production = process.env.NODE_ENV === "production";
     if (production && !configured) throw new Error("PUBLIC_ORIGIN is required");
     // Forwarding headers are deliberately not an authority for redirects.
-    const origin = parsePublicOrigin(configured || req.nextUrl.origin, production);
+    const origin = production || process.env.DEPLOY_ENVIRONMENT
+      ? resolveDeploymentEntry(configured || "", process.env.DEPLOY_ENVIRONMENT, process.env.SESSION_COOKIE_SECURE).origin
+      : parsePublicOrigin(configured || req.nextUrl.origin);
     const url = new URL(origin);
     url.pathname = pathname;
     if (login) url.searchParams.set("redirect", req.nextUrl.pathname + req.nextUrl.search);
