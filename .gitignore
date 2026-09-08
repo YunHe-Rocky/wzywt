@@ -69,3 +69,7 @@ next-env.d.ts
 # development scripts & cache
 /verify_screenshots.py
 /.cache/
+
+# OCR Python environment and bytecode
+/.venv-ocr/
+**/__pycache__/

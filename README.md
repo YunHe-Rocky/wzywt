@@ -33,7 +33,7 @@ npm run dev
 
 - `DEPLOY_ENVIRONMENT`：默认 `production`（HTTPS）；`local` 允许内网 HTTP，并按协议自动设置登录 Cookie。
 - `REDIS_URL` / `REDIS_REQUIRED`：Redis 与是否作为强制健康依赖。
-- `MATCH_OCR_ENDPOINT` / `MATCH_OCR_TOKEN`：六图 OCR；未配置时识别入口 fail-closed。
+- `MATCH_OCR_ENDPOINT` / `MATCH_OCR_TOKEN`：六图 OCR；未配置时识别入口 fail-closed。自建 RapidOCR 的[单图预览服务与 Bash 启动说明](docs/operations/ocr.md)已提供，尚不可替代正式六图服务。
 - `HEALTH_DETAILS_TOKEN`：可选内部 readiness 指标令牌，只通过请求头发送。
 - `HOST` / `PORT`：仅在不用默认 `127.0.0.1:8001` 时设置。
 - `MEDIA_STORAGE_DIR` / `AVATAR_DIR`：本地开发可覆盖；生产部署脚本自动指向 runtime 的持久化 shared 目录。

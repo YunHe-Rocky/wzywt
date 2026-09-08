@@ -7,6 +7,10 @@
 - `web`：Next.js 页面和 API。
 - `cron`：`scripts/cron.ts` 启动的定时调度进程。
 
+可选的外部 OCR 预览服务位于 `services/ocr`，由 `bash scripts/deploy.sh --ocr`
+单独检查/启动，不属于上述两个网站进程，也不参与网站 release 切换。
+当前只支持 DATA 单图实验性解析，六图正式接入边界见 [OCR 说明](../operations/ocr.md)。
+
 源码按职责分为四层，避免把“运行进程”和“代码职责”混为一谈。
 
 ## 目录

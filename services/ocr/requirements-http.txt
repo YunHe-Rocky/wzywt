@@ -1,0 +1,6 @@
+# HTTP layer pins verified by the service test suite. OCR is installed separately
+# because RapidOCR declares opencv-python while this server uses headless cv2.
+fastapi==0.141.1
+uvicorn==0.52.4
+python-multipart==0.0.32
+Pillow==12.3.0
