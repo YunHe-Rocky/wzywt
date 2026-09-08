@@ -6,6 +6,8 @@ REPO_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"
 DEPLOY_SCRIPT="$SCRIPT_DIR/deploy.sh"
 PARSER_SCRIPT="$SCRIPT_DIR/deploy-env.mjs"
 
+bash "$SCRIPT_DIR/test-ocr-python.sh"
+
 TEST_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/wzywt-deploy-test.XXXXXX")"
 SERVICE_PID=""
 cleanup() {

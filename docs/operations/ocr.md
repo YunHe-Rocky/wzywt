@@ -8,6 +8,14 @@
 
 先把本次服务代码同步到目标机器的仓库，再运行下面的命令。仅安装 pip 包不会创建这些文件。
 
+已有 OCR 环境时，在仓库中直接执行 `bash scripts/deploy.sh --ocr --check` 即可。
+脚本自动按顺序尝试：项目 `.venv-ocr/bin/python`、已激活的 `VIRTUAL_ENV/bin/python`、
+`/opt/runtime/Python/python/bin/python`、`/opt/runtime/python/bin/python`、PATH 中的 `python3` 和 `python`。
+每个候选都验证实际 OCR 依赖导入，跳过缺包或 cv2 系统库不可用的环境，并打印最终选中的路径。
+若显式设置了 `OCR_PYTHON`，则严格使用该路径，错误时不悄悄切换。
+此脚本不读取网站 `.env`，不会自动安装依赖，也不改变目录权限。
+下面的 `export OCR_PYTHON=...` 是可选的明确指定方式；直接运行 Python 管理命令时仍需设置它。
+
 虚拟机：
 
 ```bash
@@ -71,6 +79,7 @@ curl --fail http://127.0.0.1:8010/health
 ```bash
 "$OCR_PYTHON" -m unittest discover -s services/ocr -p 'test_*.py' -v
 OCR_TEST_PYTHON="$OCR_PYTHON" node scripts/test-ocr-contract.mjs
+bash scripts/test-ocr-python.sh
 ```
 
 测试以合成文字坐标验证归组、数值、漏项、HTTP 鉴权、上传限制和并发，不代表真实 OCR 准确率。

@@ -9,13 +9,11 @@ if [[ $# -gt 1 || ( "$MODE" != "--check" && "$MODE" != "--serve" ) ]]; then
   printf 'Usage: bash scripts/deploy.sh --ocr [--check|--serve]\n' >&2
   exit 2
 fi
-PYTHON_BIN="${OCR_PYTHON:-$SOURCE_DIR/.venv-ocr/bin/python}"
-[[ "$PYTHON_BIN" == /* && -x "$PYTHON_BIN" ]] || {
-  printf 'Set OCR_PYTHON to the absolute executable in your installed OCR environment.\n' >&2
-  exit 1
-}
 export PYTHONDONTWRITEBYTECODE=1
-"$PYTHON_BIN" -c 'import cv2, fastapi, uvicorn, multipart, onnxruntime; from rapidocr import RapidOCR; print("OCR imports OK")'
+source "$SCRIPT_DIR/ocr-python.sh"
+mapfile -t PYTHON_CANDIDATES < <(ocr_python_candidates "$SOURCE_DIR")
+PYTHON_BIN="$(ocr_resolve_python "${PYTHON_CANDIDATES[@]}")" || exit 1
+printf '[ocr] Python=%s (OCR imports OK)\n' "$PYTHON_BIN"
 if [[ "$MODE" == "--check" ]]; then
   "$PYTHON_BIN" -c 'from rapidocr import RapidOCR; RapidOCR(); print("OCR models loaded; no service started")'
   exit 0
