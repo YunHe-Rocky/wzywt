@@ -9,7 +9,7 @@
 部署脚本不会安装或升级全局软件。服务器需要：
 
 - Git、tar、curl、flock、realpath、mktemp；
-- Node.js 24 与匹配的 npm/npx（默认预检拒绝其他大版本）；
+- Node.js 24 或更高版本与匹配的 npm/npx（默认预检仅限制最低 Node 版本，不设上限；CI 验证 24/26）；
 - PM2 6 或更高版本；
 - 可连接的 MySQL，以及与服务端兼容的 `mysqldump`；
 - 可选 Redis；

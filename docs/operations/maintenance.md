@@ -6,13 +6,13 @@
 
 | 层 | 仓库基线 | 验证位置 |
 | --- | --- | --- |
-| Node.js | 24.x；`.nvmrc`、`package.json.engines`、CI、部署预检一致 | CI `node-version: 24`，`deploy.sh --check` |
+| Node.js | 最低 24，不设上限；`.nvmrc` 默认选择 24 | CI Node 24/26 矩阵，`deploy.sh --check` |
 | npm | 10.x 或 11.x，且必须使用 lockfile | `package.json.engines`、`npm ci` |
 | Next.js | 15.x；精确安装版本由 lockfile 决定 | `package-lock.json`、build |
 | MySQL | 8.0 与 8.4 | CI migration + integration 矩阵 |
 | Redis | 可选；`REDIS_REQUIRED=1` 时缺配置/不可用均阻断 readiness | health 与连接测试 |
 
-Node.js 官方建议生产使用 LTS 版本；仓库因此以 24.x 为唯一默认，不把 Current 或 EOL 大版本留在生产白名单。升级 Node/Next/MySQL 时，应先修改本表、CI 矩阵和部署门禁，在测试通过后再更新生产宿主。
+Node.js 24 是开发默认版本；部署仅要求 Node >=24，不因更高大版本或 Current 状态拒绝部署。CI 覆盖 24/26；允许更高版本不代表所有未来版本均已验证，兼容性以依赖安装、测试、构建和健康检查结果为准。调整 Node/Next/MySQL 的验证范围时，同步更新本表和 CI 矩阵。
 
 ## 2. 权威来源
 
@@ -29,7 +29,7 @@ Node.js 官方建议生产使用 LTS 版本；仓库因此以 24.x 为唯一默�
 
 ## 3. 从空环境启动与验证
 
-安装 Node 24 与 MySQL 8.0/8.4，复制 `.env.example` 为未提交的 `.env`，填写隔离数据库和新生成的 Session Secret，然后：
+安装 Node 24 或更高版本与 MySQL 8.0/8.4，复制 `.env.example` 为未提交的 `.env`，填写隔离数据库和新生成的 Session Secret，然后：
 
 ```bash
 npm ci

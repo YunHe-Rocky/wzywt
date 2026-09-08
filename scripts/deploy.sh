@@ -492,7 +492,7 @@ add_host_core() {
     || fail "version pattern for $name must be a single line without tabs"
   HOST_CORE_ARGS+=(--core "$name" "$path" "$pattern")
 }
-add_host_core node "$NODE_BIN" "${DEPLOY_NODE_VERSION_PATTERN:-^v24\.}"
+add_host_core node "$NODE_BIN" "${DEPLOY_NODE_VERSION_PATTERN:-^v(2[4-9]|[3-9][0-9]|[1-9][0-9][0-9]+)\.}"
 add_host_core npm "$NPM_BIN" "${DEPLOY_NPM_VERSION_PATTERN:-}"
 add_host_core npx "$NPX_BIN" "${DEPLOY_NPX_VERSION_PATTERN:-}"
 add_host_core git "$GIT_BIN" "${DEPLOY_GIT_VERSION_PATTERN:-}"

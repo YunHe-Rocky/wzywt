@@ -32,7 +32,7 @@ npx prisma generate
 npx prisma migrate dev
 ```
 
-开发端口固定为 `8001`。统一运行时为 Node.js 24；数据库兼容门槛由 CI 的 MySQL 8.0/8.4 矩阵验证。
+开发端口固定为 `8001`。最低运行时为 Node.js 24，不设版本上限；`.nvmrc` 默认选择 24，CI 验证 Node 24/26。数据库兼容门槛由 CI 的 MySQL 8.0/8.4 矩阵验证。
 
 ## 验证命令
 

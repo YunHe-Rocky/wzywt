@@ -645,11 +645,21 @@ assert_not_contains "$ordinary_root/check.log" "password"
 assert_not_contains "$ordinary_root/check.log" "ordinary-test-secret"
 if (
   cd -- "$ordinary_root"
-  env PATH="$FAKE_BIN:$PATH" HOME="$ordinary_root/home" TEST_NODE_VERSION=v26.6.0 TEST_PM2_STATE="$ordinary_root/pm2-state.json" TEST_COMMAND_LOG="$ordinary_root/commands.log" TEST_FAKE_BIN="$FAKE_BIN" TEST_SERVICE_PID="$SERVICE_PID" TEST_SERVICE_USER="$SERVICE_USER" bash scripts/deploy.sh --check
+  env PATH="$FAKE_BIN:$PATH" HOME="$ordinary_root/home" TEST_NODE_VERSION=v23.11.0 TEST_PM2_STATE="$ordinary_root/pm2-state.json" TEST_COMMAND_LOG="$ordinary_root/commands.log" TEST_FAKE_BIN="$FAKE_BIN" TEST_SERVICE_PID="$SERVICE_PID" TEST_SERVICE_USER="$SERVICE_USER" bash scripts/deploy.sh --check
 ) >"$ordinary_root/wrong-node.log" 2>&1; then
-  fail "default preflight accepted non-canonical Node 26"
+  fail "default preflight accepted Node below 24"
 fi
-assert_contains "$ordinary_root/wrong-node.log" "node version does not match ^v24\\."
+assert_contains "$ordinary_root/wrong-node.log" "node version does not match"
+for supported_node in v24.0.0 v26.8.1 v30.0.0 v100.0.0; do
+  if ! (
+    cd -- "$ordinary_root"
+    env PATH="$FAKE_BIN:$PATH" HOME="$ordinary_root/home" TEST_NODE_VERSION="$supported_node" TEST_PM2_STATE="$ordinary_root/pm2-state.json" TEST_COMMAND_LOG="$ordinary_root/commands.log" TEST_FAKE_BIN="$FAKE_BIN" TEST_SERVICE_PID="$SERVICE_PID" TEST_SERVICE_USER="$SERVICE_USER" bash scripts/deploy.sh --check
+  ) >"$ordinary_root/supported-node.log" 2>&1; then
+    cat -- "$ordinary_root/supported-node.log" >&2
+    fail "default preflight rejected $supported_node"
+  fi
+  assert_contains "$ordinary_root/supported-node.log" "preflight check passed; no release was created or activated"
+done
 assert_contains "$SCRIPT_DIR/deploy.sh" "/opt/runtime/NodeJS/node-v*-linux-x64/bin/node"
 assert_contains "$SCRIPT_DIR/deploy.sh" "/opt/middleware/Mysql/mysql/bin/mysqldump"
 assert_contains "$SCRIPT_DIR/../.gitignore" "/*.zip"

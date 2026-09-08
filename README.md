@@ -8,7 +8,7 @@ Next.js 15、TypeScript、Tailwind CSS、Prisma/MySQL、Redis、iron-session、P
 
 ## 本地启动
 
-统一使用 Node.js 24（见 `.nvmrc`）；MySQL 8.0/8.4 由 CI migration + integration 矩阵验证。依赖安装以 `package-lock.json` 为准。
+最低使用 Node.js 24，不设版本上限（`.nvmrc` 默认选择 24，CI 验证 24/26）；MySQL 8.0/8.4 由 CI migration + integration 矩阵验证。依赖安装以 `package-lock.json` 为准。
 
 ```bash
 npm ci
