@@ -78,7 +78,7 @@ try {
  assert.equal(await page.getByRole("link",{name:/英雄调整与峡谷对局情报/}).getAttribute("target"),"_blank");
  await page.getByRole("button",{name:/演武堂全新启程/}).click();
  await capture(page,"home-desktop");
- for (const [width,height] of [[375,812],[390,844],[768,1024],[812,375],[1024,768],[1440,900]]) {
+ for (const [width,height] of [[320,720],[375,812],[390,844],[768,1024],[812,375],[1024,768],[1440,900]]) {
    await page.setViewportSize({width,height}); await noOverflow(page,`home ${width}x${height}`);
    assert.equal(await page.getByRole("navigation",{name:"底部导航"}).isVisible(),width<=900);
  }
@@ -105,7 +105,7 @@ try {
  for (const [route,title] of [["/tournaments","赛事大厅"],["/heroes","英雄图鉴"],["/equipment","装备图鉴"],["/login","登录"],["/register","注册"]]) {
    state.user = route === "/tournaments" ? { id: 7, username: "演武堂测试", role: "user", avatar: null } : null;
    await page.goto(base+route); await page.getByRole("heading",{name:title,exact:true}).waitFor(); await ready(page);
-   for (const [width,height] of [[375,812],[812,375],[1440,900]]) { await page.setViewportSize({width,height}); await noOverflow(page,`${route} ${width}x${height}`); }
+   for (const [width,height] of [[320,720],[375,812],[812,375],[1440,900]]) { await page.setViewportSize({width,height}); await noOverflow(page,`${route} ${width}x${height}`); }
    await capture(page,`${route.slice(1)}-desktop`);
    await page.setViewportSize({width:390,height:844}); await capture(page,`${route.slice(1)}-mobile`);
    if (route==="/tournaments") { await page.getByRole("button",{name:"截止时间",exact:true}).click(); const dialog=page.getByRole("dialog",{name:"设置报名截止时间"}); await dialog.waitFor(); await page.setViewportSize({width:812,height:375}); const box=await dialog.boundingBox(); assert.ok(box.y>=0 && box.y+box.height<=376, "Calendar fits landscape"); await page.getByRole("button",{name:"关闭日期时间选择器"}).click(); }
@@ -158,5 +158,5 @@ try {
  await switchedPage.goto(`${base}/?mode=mobile`); assert.equal(new URL(switchedPage.url()).pathname,"/");
  await switchedPage.getByRole("link",{name:"创建房间",exact:true}).waitFor();
  await switching.close();
- console.log("Arena UI regression passed: 6 viewports, 5 feature screens, mobile redirect, same-context desktop/mobile switching, navigation, clipboard, announcements, news retry, filters, password visibility, landscape calendar, guest lobby, loading state, long profile name and mobile account navigation.");
+ console.log("Arena UI regression passed: 7 viewports, 5 feature screens, mobile redirect, same-context desktop/mobile switching, navigation, clipboard, announcements, news retry, filters, password visibility, landscape calendar, guest lobby, loading state, long profile name and mobile account navigation.");
 } finally { await browser.close(); }

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
 import { chromium } from "playwright";
+import { auditWidths, assertViewportBounds } from './viewport-bounds.mjs';
 
 const base = process.env.E2E_BASE_URL || "http://localhost:8001";
 const browser = await chromium.launch({ headless: true, executablePath: process.env.E2E_BROWSER_PATH || undefined });
@@ -15,7 +16,7 @@ const players = Array.from({ length: 10 }, (_, i) => ({
 }));
 const split = { teamRed: players.slice(0, 5), teamBlue: players.slice(5), playerDetails: players.map(p => ({ userId: p.id, username: p.gameNickname })), strengthDiff: 100, preferenceScore: 25 };
 try {
-  for (const width of [1280, 390]) {
+  for (const width of auditWidths([1280, 390, 320])) {
     for (const manager of [false, true, "global"]) {
       const userId = manager ? 1 : 7, ownSide = manager ? "red" : "blue";
       let status = "DRAFT", denyDetail = false, detailRequests = 0;
@@ -37,6 +38,7 @@ try {
       const prefix = width < 640 ? "/m" : "";
       await page.goto(`${base}${prefix}/tournaments/101`);
       await page.getByRole("heading", { name: "分队与档案测试" }).waitFor();
+      assert.ok(await page.getByRole('heading', { name: '分队与档案测试' }).evaluate(el => el.scrollWidth <= el.clientWidth + 1), 'room title remains readable without clipping');
       assert.equal(await page.getByText(/账号：|UID：|游戏 ID：/).count(), 0, "room identity details must stay hidden, including managers");
       const own = page.getByRole("region", { name: "我的分队结果" });
       await own.waitFor();
@@ -45,6 +47,7 @@ try {
       const full = page.getByRole("heading", { name: "完整分队结果", exact: true });
       assert.ok((await own.boundingBox()).y < (await full.boundingBox()).y, "own team precedes full results");
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), "room fits viewport");
+      await assertViewportBounds(page, 'room-split');
       if (process.env.E2E_SCREENSHOT_DIR) {
         await mkdir(process.env.E2E_SCREENSHOT_DIR, { recursive: true });
         await page.screenshot({ path: `${process.env.E2E_SCREENSHOT_DIR}/room-${width}-${manager}.png` });
@@ -74,6 +77,7 @@ try {
       }
       assert.equal(await page.locator(`a[href$="/tactics/${ownSide === "red" ? "blue" : "red"}"]`).count(), 0, "workspace tactics only own side");
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), "archive fits viewport");
+      await assertViewportBounds(page, 'match-archive');
       if (process.env.E2E_SCREENSHOT_DIR) await page.screenshot({ path: `${process.env.E2E_SCREENSHOT_DIR}/archive-${width}-${manager}.png` });
       denyDetail = true;
       await page.reload();

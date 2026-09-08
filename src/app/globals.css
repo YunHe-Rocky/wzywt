@@ -590,6 +590,9 @@
     border: 1px solid var(--border-gold);
     box-shadow: 0 8px 32px rgba(0,0,0,0.4), 0 0 0 1px var(--gold-alpha-08);
     color: var(--text);
+    max-height: calc(100dvh - 32px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+    overflow-y: auto;
+    overscroll-behavior: contain;
   }
   .modal-glow {
     position: absolute; top: -40px; left: 50%; transform: translateX(-50%);
@@ -1097,6 +1100,10 @@
 .page-shell--narrow { width: min(100%, var(--content-narrow)); }
 .page-shell--medium { width: min(100%, var(--content-medium)); }
 .page-shell--wide { width: min(100%, var(--content-wide)); }
+
+/* User-authored logs and announcements may contain unbroken URLs or code. */
+.markdown-content { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
+.doc-layout > * { min-width: 0; }
 
 .page-heading {
   margin: 0;
@@ -1889,7 +1896,7 @@
 .tactic-shell { min-height: calc(100dvh - 56px); padding: clamp(14px, 3vw, 28px); background: color-mix(in srgb, var(--bg-root) 93%, #18302f); }
 .tactic-shell--red { --tactic-member-1: #ff4d5f; --tactic-member-2: #f76f7c; --tactic-member-3: #dc3548; --tactic-member-4: #ff8878; --tactic-member-5: #c62845; }
 .tactic-shell--blue { --tactic-member-1: #3b82f6; --tactic-member-2: #60a5fa; --tactic-member-3: #2563eb; --tactic-member-4: #38bdf8; --tactic-member-5: #1d4ed8; }
-.tactic-header { display: flex; justify-content: space-between; gap: 20px; max-width: 1500px; margin: 0 auto 18px; }.tactic-header h1 { margin: 0; }.tactic-header p { color: var(--text-muted); font-size: 12px; }
+.tactic-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; max-width: 1500px; margin: 0 auto 18px; }.tactic-header h1 { margin: 0; }.tactic-header p { color: var(--text-muted); font-size: 12px; }
 .tactic-privacy-notice { display: flex; align-items: center; gap: 12px; max-width: 1500px; min-height: 48px; margin: 0 auto 10px; padding: 9px 14px; border: 1px solid var(--gold-alpha-20); border-radius: var(--radius); background: var(--gold-alpha-08); color: var(--text-secondary); }
 .tactic-privacy-notice strong { flex: 0 0 auto; color: var(--gold); font-size: 12px; }.tactic-privacy-notice span { font-size: 12px; line-height: 1.55; }
 .tactic-privacy-notice[data-open="true"] { border-color: color-mix(in srgb, #2faf7e 34%, var(--border)); background: color-mix(in srgb, #2faf7e 9%, var(--bg-card)); }.tactic-privacy-notice[data-open="true"] strong { color: #2faf7e; }
@@ -1922,6 +1929,10 @@
   .tactic-accessible-editor { grid-template-columns: 1fr 1fr; }.tactic-accessible-editor > button, .tactic-accessible-editor > label:nth-child(3) { grid-column: 1 / -1; }
 }
   @media (max-width: 520px) {
+  .tactic-header { flex-direction: column; align-items: flex-start; gap: 10px; }
+  .tactic-header > div { min-width: 0; }
+  .tactic-header .feature-status { white-space: nowrap; align-self: flex-start; }
+  .tactic-stage-switcher .tactic-layer-list button { flex: 0 0 140px; min-width: 0; overflow-wrap: anywhere; }
   .header-primary-nav a:first-child { display: none; }
   .screenshot-grid, .combat-grid { grid-template-columns: 1fr; }
   .match-result-table { min-width: 860px; }
@@ -1931,6 +1942,13 @@
   .comment-form { grid-template-columns: 1fr; }.comment-form button { width: 100%; }
     .tactic-layer-manager { grid-template-columns: 1fr; }.tactic-layer-manager button { width: 100%; }.tactic-toolbar { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }.tactic-toolbar button { width: 100%; padding-inline: 6px; }.tactic-inline-text { grid-column: 1 / -1; width: 100%; }
   }
+
+/* Keep the drawing surface usable on narrow phones and short landscape screens. */
+@media (max-width: 520px), (max-width: 900px) and (max-height: 500px) {
+  .tactic-board { max-height: none; }
+  .tactic-board-caption { position: static; max-width: none; border-radius: 0; border-width: 1px 0 0; backdrop-filter: none; }
+  .tactic-board-caption strong, .tactic-board-caption span { white-space: normal; overflow-wrap: anywhere; }
+}
 
 /* ── Human factors and accessibility baseline ── */
 :where(a, button, summary, input, select, textarea, [role="button"], [role="tab"], [tabindex]):focus-visible {

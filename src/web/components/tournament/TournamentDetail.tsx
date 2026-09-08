@@ -276,9 +276,7 @@ export function TournamentDetail() {
               color: "var(--text)",
               margin: "0 0 10px 0",
               lineHeight: 1.3,
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap" as const,
+              overflowWrap: "anywhere",
             }}
           >
             {tournament.name}

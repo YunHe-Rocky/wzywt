@@ -133,13 +133,37 @@ async function main() {
   assert.equal((await initializedResponse.json()).layer.name, "基础图层");
   assert.equal(layerWrites, 2);
   await assert.rejects(() => tactics.initializeOwnTacticLayer(30, 20, "blue"), /FORBIDDEN/);
-  await assert.rejects(() => tactics.createTacticLayer(30, 20, "red", { name: "arbitrary" }), /FORBIDDEN/, "initialization does not grant ordinary layer management");
+  await assert.rejects(() => tactics.deleteTacticLayer(30, 20, "red", 51, timestamp.toISOString()), /FORBIDDEN/, "ordinary creation must not grant destructive layer management");
   status = "SUBMITTED";
   await assert.rejects(() => tactics.initializeOwnTacticLayer(30, 20, "red"), /只读复盘/);
   status = "DRAFT";
   submitBeforeTransaction = true;
   await assert.rejects(() => tactics.initializeOwnTacticLayer(30, 20, "red"), /只读复盘/, "submission between initial permission read and transaction must prevent writes");
   assert.equal(layerWrites, 2);
+  for (const [userId, side, opponent] of [[1, "red", "blue"], [6, "blue", "red"]] as const) {
+    actor.userId = userId;
+    status = "DRAFT";
+    const created = await tactics.createTacticLayer(30, 20, side, { name: "本队进攻", startTime: 120, endTime: 300 }) as { name: string; createdById: number };
+    assert.equal(created.name, "本队进攻");
+    assert.equal(created.createdById, userId);
+    assert.deepEqual(lastRoomQuery?.where, { matchId_side: { matchId: 20, side } });
+    await assert.rejects(() => tactics.createTacticLayer(30, 20, opponent, { name: "越权" }), /FORBIDDEN/);
+    await assert.rejects(() => tactics.updateTacticLayer(30, 20, side, 51, {}), /FORBIDDEN/);
+    await assert.rejects(() => tactics.deleteTacticLayer(30, 20, side, 51, timestamp.toISOString()), /FORBIDDEN/);
+    const createdResponse = await tacticRoute.POST(new Request("http://localhost/api/tactics", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: "新阶段" }) }), { params: Promise.resolve({ id: "30", matchId: "20", side }) }) as Response;
+    assert.equal(createdResponse.status, 201, `${side} ordinary teammates can create through POST`);
+    status = "SUBMITTED";
+    await assert.rejects(() => tactics.createTacticLayer(30, 20, side, { name: "已提交" }), /只读复盘/);
+    status = "DRAFT";
+    submitBeforeTransaction = true;
+    const before: number = layerWrites;
+    await assert.rejects(() => tactics.createTacticLayer(30, 20, side, { name: "并发提交" }), /只读复盘/);
+    assert.equal(layerWrites, before);
+  }
+  actor.userId = 99;
+  status = "DRAFT";
+  await assert.rejects(() => tactics.createTacticLayer(30, 20, "red", { name: "旁观者" }), /FORBIDDEN/);
+  actor.userId = 1;
   for (const unfinished of ["DRAFT", "UPLOADED", "WAITING_CONFIRMATION", "CONFIRMED"]) {
     status = unfinished;
     await assert.rejects(() => access.requireMatchViewer(30, 20), /FORBIDDEN/, `participants cannot open ${unfinished} archives`);

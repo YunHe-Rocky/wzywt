@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
 import { chromium } from "playwright";
+import { auditWidths, assertViewportBounds } from './viewport-bounds.mjs';
 
 const base = process.env.E2E_BASE_URL || "http://localhost:8001";
 const browser = await chromium.launch({ headless: true, executablePath: process.env.E2E_BROWSER_PATH || undefined });
@@ -12,7 +13,7 @@ const heroes = [
 ].map(h => ({ ...h, id: h.heroId, meta: { ...h, heroType: 1, heroType2: 0, mingge: null }, tags: [] }));
 const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><rect width="32" height="32" fill="gold"/></svg>';
 try {
-  for (const width of [1280, 390, 320]) {
+  for (const width of auditWidths([1280, 390, 320])) {
     const mobile = width <= 640;
     const context = await browser.newContext({ viewport: { width, height: 900 }, userAgent: mobile ? "Mozilla/5.0 iPhone Mobile" : "Mozilla/5.0 Windows Chrome/140", reducedMotion: "reduce", ignoreHTTPSErrors: new URL(base).hostname === "localhost" });
     const prefix = mobile ? "/m" : "";
@@ -68,7 +69,10 @@ try {
     const avatar = page.getByRole("img", { name: "test7的头像", exact: true });
     await avatar.waitFor();
     assert.ok(await avatar.evaluate(el => el.complete && el.naturalWidth > 0));
+    await assertViewportBounds(page, 'room-joined');
     await page.goto(`${base}${prefix}/me`);
+    await page.getByRole("button", { name: "打开英雄列表", exact: true }).waitFor();
+    await assertViewportBounds(page, 'profile');
     await page.getByRole("button", { name: "打开英雄列表", exact: true }).click();
     const search = page.getByRole("textbox", { name: "搜索英雄", exact: true });
     if (mobile) assert.equal(await search.evaluate(el => el === document.activeElement), false, "mobile picker must not summon keyboard");

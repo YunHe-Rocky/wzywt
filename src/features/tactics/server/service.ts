@@ -123,7 +123,8 @@ export async function initializeOwnTacticLayer(tournamentId: number, matchId: nu
 }
 
 export async function createTacticLayer(tournamentId: number, matchId: number, side: MatchSide, input: unknown) {
-  const access = await requireLayerManager(tournamentId, matchId, side);
+  const access = await getTacticAccess(tournamentId, matchId, side);
+  if (!access.canDraw) throw new ServiceError("CONFLICT", "比赛数据已提交，战术板已锁定为只读复盘");
   if (!isRecord(input)) throw new ServiceError("VALIDATION_ERROR", "图层数据格式错误");
   const name = parseText(input.name, "图层名称", 1, 64);
   const description = input.description === null || input.description === undefined || input.description === ""
@@ -135,6 +136,9 @@ export async function createTacticLayer(tournamentId: number, matchId: number, s
   const room = await prisma.tacticRoom.findUnique({ where: { matchId_side: { matchId, side } }, select: { id: true } });
   if (!room) throw new ServiceError("NOT_FOUND", "战术室不存在");
   return prisma.$transaction(async (tx) => {
+    const match = await tx.internalMatch.findFirst({ where: { id: matchId, tournamentId }, select: { status: true } });
+    if (!match) throw new ServiceError("NOT_FOUND", "比赛不存在");
+    if (canViewSharedTacticAnnotations(match.status)) throw new ServiceError("CONFLICT", "比赛数据已提交，战术板已锁定为只读复盘");
     const last = await tx.tacticLayer.findFirst({ where: { roomId: room.id }, orderBy: { sortOrder: "desc" }, select: { sortOrder: true } });
     return tx.tacticLayer.create({
       data: { roomId: room.id, name, description, startTime, endTime, sortOrder: (last?.sortOrder ?? -1) + 1, createdById: access.user.userId },

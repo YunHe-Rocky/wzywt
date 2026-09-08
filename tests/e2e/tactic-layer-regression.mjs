@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { chromium } from "playwright";
+import { auditWidths, assertViewportBounds } from './viewport-bounds.mjs';
 
 // Only HTTP is faked: the actual page, SVG, controls and React state run in Chromium.
 // All /api requests are intercepted; this test never contacts a database.
@@ -8,7 +9,8 @@ const api = "/api/tournaments/71/matches/81/tactics/red";
 const stamp = "2026-09-08T00:00:00.000Z";
 const blank = (id, name) => ({ id, name, description: null, startTime: null, endTime: null, updatedAt: stamp, routes: [], markers: [] });
 
-async function fixture(browser, width, { denied = false, saved = false, empty = false, readonly = false, mapMissing = false } = {}) {
+async function fixture(browser, width, { denied = false, saved = false, empty = false, readonly = false, mapMissing = false, member = false, side = "red" } = {}) {
+  const api = `/api/tournaments/71/matches/81/tactics/${side}`;
   const context = await browser.newContext({
     ignoreHTTPSErrors: new URL(base).hostname === "localhost",
     viewport: { width, height: 1000 }, reducedMotion: "reduce",
@@ -30,13 +32,12 @@ async function fixture(browser, width, { denied = false, saved = false, empty = 
     if (path === api && method === "GET") {
       state.reads++;
       if (state.denied) return reply({ error: "仅可访问自己所属队伍的战术室" }, 403);
-      return reply({ room: { id: 1, matchId: 81, side: "red", layers: state.layers }, access: { userId: 9, canManageLayers: !empty && !readonly, canDraw: !readonly, ownColorKey: "crimson", sharedAnnotationsVisible: readonly } });
+      return reply({ room: { id: 1, matchId: 81, side, layers: state.layers }, access: { userId: 9, canManageLayers: !member && !empty && !readonly, canDraw: !readonly, ownColorKey: "crimson", sharedAnnotationsVisible: readonly } });
     }
     if (path.startsWith(api)) {
       const input = route.request().postDataJSON();
       state.writes.push({ path, method, input });
       if (path === api && method === "POST") {
-        if (empty && input.action !== "initialize") return reply({ error: "普通队员只能初始化空图层" }, 403);
         if (input.action === "initialize") {
           if (readonly) return reply({ error: "只读战术室不能初始化" }, 403);
           const layer = state.layers[0] || blank(99, "本队战术");
@@ -59,13 +60,14 @@ async function fixture(browser, width, { denied = false, saved = false, empty = 
     state.unexpected.push(`${method} ${path}`);
     return reply({ error: "Unmocked request" }, 500);
   });
-  await page.goto(`${base}${width < 600 ? "/m" : ""}/tournaments/71/matches/81/tactics/red`, { waitUntil: "domcontentloaded", timeout: 60000 });
+  await page.goto(`${base}${width < 600 ? "/m" : ""}/tournaments/71/matches/81/tactics/${side}`, { waitUntil: "domcontentloaded", timeout: 60000 });
   if (!denied) {
-    await page.getByRole("heading", { name: "红方战术推演", exact: true }).waitFor();
+    await page.getByRole("heading", { name: `${side === "red" ? "红" : "蓝"}方战术推演`, exact: true }).waitFor();
     if (!empty) await page.locator(".tactic-board").waitFor();
     if (!empty && !mapMissing) await assertRealMap(page);
     assert.equal(await page.getByRole("link", { name: "赛事房间", exact: true }).getAttribute("href"), `${width < 600 ? "/m" : ""}/tournaments/71`);
     await page.getByText("图层与精确编辑", { exact: true }).click();
+    await assertViewportBounds(page, 'tactics-expanded');
   }
   return { context, page, state };
 }
@@ -93,6 +95,33 @@ async function selected(page, name) {
 }
 
 const scenarios = [
+  ["mobile layout boundaries and landscape confirmation", {}, async ({ page }) => {
+    if (page.viewportSize().width <= 520) {
+      const board = await page.locator('.tactic-board').boundingBox();
+      const caption = await page.locator('.tactic-board-caption').boundingBox();
+      assert.ok(caption.y >= board.y + board.height - 1, 'mobile caption must not cover the canyon drawing surface');
+    }
+    await page.setViewportSize({ width: 844, height: 320 });
+    const landscapeBoard = await page.locator('.tactic-board').boundingBox();
+    assert.ok(Math.abs(landscapeBoard.height / landscapeBoard.width - 870 / 1500) < 0.01, 'landscape keeps the map aspect ratio instead of squeezing it into a short strip');
+    await page.getByRole('button', { name: '删除图层', exact: true }).click();
+    await page.getByRole('alertdialog').waitFor();
+    await assertViewportBounds(page, 'tactics-landscape-dialog');
+    await page.getByRole('button', { name: '取消', exact: true }).click();
+  }],
+  ...["red", "blue"].map(side => [`${side} ordinary teammate creates own-team layers without manager rights`, { member: true, side }, async ({ page, state }) => {
+    assert.equal(await page.getByRole("button", { name: "删除图层", exact: true }).count(), 0);
+    assert.equal(await page.getByRole("button", { name: "保存时间", exact: true }).count(), 0);
+    await page.getByPlaceholder("新图层名称").fill("本队进攻");
+    await page.getByRole("button", { name: "新建图层", exact: true }).click();
+    await selected(page, "本队进攻");
+    await assertRealMap(page);
+    await addPoint(page, 0.2, 0.3);
+    await addPoint(page, 0.7, 0.8);
+    await page.getByRole("button", { name: "保存路线", exact: true }).click();
+    await page.getByText("路线已保存", { exact: true }).waitFor();
+    assert.equal(state.writes.find(write => write.method === "PUT").path, `/api/tournaments/71/matches/81/tactics/${side}/layers/99/route`);
+  }]),
   ["missing map renders an honest coordinate grid that still accepts routes", { mapMissing: true }, async ({ page }) => {
     await page.getByText("地图底图缺失，当前仅显示坐标网格，不代表真实峡谷地形", { exact: true }).waitFor();
     assert.equal(await page.locator('.tactic-board rect[fill="url(#tactic-coordinate-grid)"]').count(), 1);
@@ -112,7 +141,7 @@ const scenarios = [
     assert.equal(await page.locator('.tactic-board rect[fill="url(#tactic-coordinate-grid)"]').count(), 0);
   }],
   ["ordinary teammate initializes an empty room then draws and saves", { empty: true }, async ({ page, state }) => {
-    assert.equal(await page.getByRole("button", { name: "新建图层", exact: true }).count(), 0);
+    assert.equal(await page.getByRole("button", { name: "新建图层", exact: true }).count(), 1);
     await page.getByRole("button", { name: "初始化本队图层", exact: true }).click();
     await page.locator(".tactic-board").waitFor();
     await selected(page, "本队战术");
@@ -125,6 +154,7 @@ const scenarios = [
     assert.equal(state.writes.find((write) => write.method === "PUT").path, `${api}/layers/99/route`);
   }],
   ["read-only empty room cannot initialize or draw", { empty: true, readonly: true }, async ({ page }) => {
+    assert.equal(await page.getByRole("button", { name: "新建图层", exact: true }).count(), 0);
     assert.equal(await page.getByRole("button", { name: "初始化本队图层", exact: true }).count(), 0);
     assert.equal(await page.getByRole("button", { name: "保存路线", exact: true }).isDisabled(), true);
     assert.equal(await page.getByRole("button", { name: "按坐标添加", exact: true }).isDisabled(), true);
@@ -192,7 +222,7 @@ const scenarios = [
 const browser = await chromium.launch({ headless: true, executablePath: process.env.E2E_BROWSER_PATH || undefined });
 const failures = [];
 try {
-  for (const width of [1440, 390]) for (const [name, options, test] of scenarios) {
+  for (const width of auditWidths([1440, 390, 320])) for (const [name, options, test] of scenarios.filter(([name]) => !process.env.E2E_SCENARIO || name.includes(process.env.E2E_SCENARIO))) {
     let current;
     try {
       current = await fixture(browser, width, options);

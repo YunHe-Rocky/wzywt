@@ -195,6 +195,6 @@ export function MarkdownContent({
   }
 
   return nodes.length > 0
-    ? <div>{nodes}</div>
+    ? <div className="markdown-content">{nodes}</div>
     : <p style={{ color: "var(--text-muted)", fontSize: 13 }}>正文预览将在这里显示</p>;
 }
