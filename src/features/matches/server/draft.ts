@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { MATCH_SCREENSHOT_TYPES, parseSplitSnapshot, type MatchScreenshotType } from "@/features/matches/model";
+import { getMatchVisibility } from "@/features/matches/visibility";
 import { attachMediaReservation, consumeMediaReservation, releaseMediaReservation, reserveMediaUpload } from "@/features/media/server/quota";
 import { deleteOrQueueMedia } from "@/features/media/server/storage-cleanup";
 import { requireAuth } from "@/lib/auth";
@@ -73,7 +74,10 @@ export async function createMatchDraft(tournamentId: number, playedAt?: unknown)
         playedAt: parsePlayedAt(playedAt),
         createdById: actor.userId,
         players: { create: playerCreates },
-        tacticRooms: { create: [{ side: "red" }, { side: "blue" }] },
+        tacticRooms: { create: ["red", "blue"].map((side) => ({
+          side,
+          layers: { create: { name: "基础图层", sortOrder: 0, createdById: actor.userId } },
+        })) },
       },
       select: { id: true, tournamentId: true, status: true, playedAt: true, createdAt: true },
     });
@@ -89,14 +93,14 @@ export async function listTournamentMatches(tournamentId: number) {
   const user = await requireAuth();
   const tournament = await prisma.tournament.findUnique({
     where: { id: tournamentId },
-    select: { admins: { where: { userId: user.userId }, select: { id: true } } },
+    select: { admins: { where: { userId: user.userId }, select: { role: true } } },
   });
   if (!tournament) throw new ServiceError("NOT_FOUND", "赛事不存在");
-  const privileged = user.role === "admin" || tournament.admins.length > 0;
-  return prisma.internalMatch.findMany({
+  const privileged = user.role === "admin" || tournament.admins.some(({ role }) => role === "owner" || role === "co_owner");
+  const matches = await prisma.internalMatch.findMany({
     where: {
       tournamentId,
-      ...(privileged ? {} : { OR: [{ status: "SUBMITTED" }, { players: { some: { memberId: user.userId } } }] }),
+      ...(privileged ? {} : { players: { some: { memberId: user.userId } } }),
     },
     orderBy: { playedAt: "desc" },
     select: {
@@ -108,8 +112,18 @@ export async function listTournamentMatches(tournamentId: number) {
       blueTotalKills: true,
       consistencyStatus: true,
       submittedAt: true,
+      players: { where: { memberId: user.userId }, select: { memberId: true, side: true } },
       _count: { select: { screenshots: true, players: true, combatPosts: true } },
     },
+  });
+  return matches.map(({ players, ...match }) => {
+    const { ownSide, canViewArchive } = getMatchVisibility(user, { ...match, players, tournament });
+    if (!canViewArchive) {
+      return { id: match.id, playedAt: match.playedAt, status: match.status, ownSide, canViewArchive,
+        winnerSide: null, redTotalKills: null, blueTotalKills: null, consistencyStatus: "PENDING",
+        submittedAt: null, _count: { screenshots: 0, players: 0, combatPosts: 0 } };
+    }
+    return { ...match, ownSide, canViewArchive };
   });
 }
 
@@ -150,7 +164,8 @@ export async function getMatchDetail(tournamentId: number, matchId: number) {
     },
   });
   if (!match) throw new ServiceError("NOT_FOUND", "比赛不存在");
-  const canManage = user.role === "admin" || match.tournament.admins.some(({ role }) => role === "owner" || role === "co_owner");
+  const { canManage, ownSide, canViewArchive } = getMatchVisibility(user, match);
+  if (!canViewArchive) throw new PermissionError();
   return {
     match: {
       id: match.id,
@@ -162,12 +177,12 @@ export async function getMatchDetail(tournamentId: number, matchId: number) {
       redTotalKills: match.redTotalKills,
       blueTotalKills: match.blueTotalKills,
       consistencyStatus: match.consistencyStatus,
-      consistencyDetails: match.consistencyDetails,
+      consistencyDetails: canManage ? match.consistencyDetails : null,
       evidenceRevision: match.evidenceRevision,
       recordRevision: match.recordRevision,
       submittedAt: match.submittedAt,
       updatedAt: match.updatedAt,
-      players: match.players.map((player) => ({
+      players: match.players.filter((player) => canManage || player.side === ownSide).map((player) => ({
         id: player.id,
         side: player.side,
         slot: player.slot,
@@ -201,16 +216,18 @@ export async function getMatchDetail(tournamentId: number, matchId: number) {
         } : null,
         updatedAt: player.updatedAt,
       })),
-      screenshots: match.screenshots,
-      recognition: match.recognitions[0] ?? null,
-      disputes: match.disputes,
+      screenshots: canManage ? match.screenshots : [],
+      recognition: canManage ? match.recognitions[0] ?? null : null,
+      disputes: canManage ? match.disputes : match.disputes
+        .filter((dispute) => dispute.matchPlayerId === null || match.players.some((player) => player.id === dispute.matchPlayerId && player.side === ownSide))
+        .map((dispute) => dispute.matchPlayerId === null ? { ...dispute, currentValue: null } : dispute),
     },
-    access: { canManage, isSuperAdmin: user.role === "admin", currentUserId: user.userId },
-    eligibleMembers: match.tournament.players.map(({ userId, user: member }) => ({
+    access: { canManage, ownSide, isSuperAdmin: user.role === "admin", currentUserId: user.userId },
+    eligibleMembers: canManage ? match.tournament.players.map(({ userId, user: member }) => ({
       id: userId,
       username: member.username,
       gameNickname: member.gameNickname,
-    })),
+    })) : [],
   };
 }
 

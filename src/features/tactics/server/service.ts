@@ -49,7 +49,7 @@ async function getTacticAccess(tournamentId: number, matchId: number, requestedS
   });
   if (!match) throw new ServiceError("NOT_FOUND", "比赛不存在");
   const ownSlot = match.players.find(({ memberId }) => memberId === user.userId);
-  if (user.role !== "admin" && ownSlot?.side !== requestedSide) throw new PermissionError();
+  if (ownSlot?.side !== requestedSide) throw new PermissionError();
   const owner = user.role === "admin" || match.tournament.admins.some(({ role }) => role === "owner");
   const sharedAnnotationsVisible = canViewSharedTacticAnnotations(match.status);
   return { user, side: requestedSide, ownSlot, canManageLayers: owner, canDraw: Boolean(ownSlot) && !sharedAnnotationsVisible, sharedAnnotationsVisible };
@@ -97,6 +97,29 @@ export async function getTacticRoom(tournamentId: number, matchId: number, side:
       sharedAnnotationsVisible: access.sharedAnnotationsVisible,
     },
   };
+}
+
+export async function initializeOwnTacticLayer(tournamentId: number, matchId: number, side: MatchSide) {
+  const access = await getTacticAccess(tournamentId, matchId, side);
+  if (!access.canDraw) throw new ServiceError("CONFLICT", "比赛数据已提交，战术板已锁定为只读复盘");
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      return await prisma.$transaction(async (tx) => {
+        const match = await tx.internalMatch.findFirst({ where: { id: matchId, tournamentId }, select: { status: true } });
+        if (!match) throw new ServiceError("NOT_FOUND", "比赛不存在");
+        if (canViewSharedTacticAnnotations(match.status)) throw new ServiceError("CONFLICT", "比赛数据已提交，战术板已锁定为只读复盘");
+        const room = await tx.tacticRoom.findUnique({ where: { matchId_side: { matchId, side } }, select: { id: true } });
+        if (!room) throw new ServiceError("NOT_FOUND", "战术室不存在");
+        const existing = await tx.tacticLayer.findFirst({ where: { roomId: room.id }, orderBy: { sortOrder: "asc" } });
+        if (existing) return existing;
+        return tx.tacticLayer.create({ data: { roomId: room.id, name: "基础图层", sortOrder: 0, createdById: access.user.userId } });
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    } catch (error) {
+      if (!(error instanceof Prisma.PrismaClientKnownRequestError) || !["P2002", "P2034"].includes(error.code)) throw error;
+      if (attempt === 1) throw new ServiceError("CONFLICT", "战术图层正在初始化，请刷新后重试");
+    }
+  }
+  throw new ServiceError("CONFLICT", "战术图层正在初始化，请刷新后重试");
 }
 
 export async function createTacticLayer(tournamentId: number, matchId: number, side: MatchSide, input: unknown) {

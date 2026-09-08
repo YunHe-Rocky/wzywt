@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useParams, usePathname } from "next/navigation";
 import { PointerEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { createLayer, createMarker, deleteLayer, deleteMarker, deleteRoute, getTactics, saveRoute, updateLayer } from "@/features/tactics/client/api";
+import { createLayer, createMarker, deleteLayer, deleteMarker, deleteRoute, getTactics, initializeLayer, saveRoute, updateLayer } from "@/features/tactics/client/api";
 import { type TacticColorKey, type TacticPoint } from "@/features/tactics/model";
 import {
   TACTIC_CLOCK_MAX_SECONDS,
@@ -39,8 +39,11 @@ export function TacticBoard() {
   const svgRef = useRef<SVGSVGElement>(null);
   const activePointerRef = useRef<number | null>(null);
   const draftRef = useRef<TacticPoint[]>([]);
+  const draftSourceRef = useRef<string | null>(null);
   const [data, setData] = useState<RoomData | null>(null);
-  const [activeIndex, setActiveIndex] = useState(0);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [mapMissing, setMapMissing] = useState(false);
+  const [activeLayerId, setActiveLayerId] = useState<number | null>(null);
   const [followClock, setFollowClock] = useState(true);
   const [clockSeconds, setClockSeconds] = useState(0);
   const [playing, setPlaying] = useState(false);
@@ -58,19 +61,27 @@ export function TacticBoard() {
   const [confirmation, setConfirmation] = useState<TacticConfirmation>(null);
   const { success, error } = useToast();
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (preferredLayerId?: number) => {
     try {
       const result = await getTactics<RoomData>(tournamentId, matchId, side);
-      if (!result.ok) return error(apiMessage(result.data, "战术室加载失败或无权访问"));
+      if (!result.ok) {
+        setLoadError(apiMessage(result.data, "战术室加载失败或无权访问"));
+        return;
+      }
+      setLoadError(null);
       setData(result.data);
-      setActiveIndex((index) => Math.min(index, Math.max(0, result.data.room.layers.length - 1)));
+      setActiveLayerId((currentId) => {
+        const selectedId = preferredLayerId ?? currentId;
+        return result.data.room.layers.some((layer) => layer.id === selectedId) ? selectedId : result.data.room.layers[0]?.id ?? null;
+      });
     } catch (cause) {
-      error(cause instanceof Error ? cause.message : "战术室加载失败，请检查网络后重试");
+      setLoadError(cause instanceof Error ? cause.message : "战术室加载失败，请检查网络后重试");
     }
-  }, [error, matchId, side, tournamentId]);
+  }, [matchId, side, tournamentId]);
   useEffect(() => { void load(); }, [load]);
 
   const layers = useMemo(() => data?.room.layers || [], [data?.room.layers]);
+  const activeIndex = layers.findIndex((layer) => layer.id === activeLayerId);
   const activeLayer = layers[activeIndex] || null;
   const visibleLayers = useMemo(() => layers.map((layer, index) => ({ layer, index })).filter(({ index }) => Math.abs(index - activeIndex) <= 1), [activeIndex, layers]);
   const ownRoute = data?.access.canDraw ? activeLayer?.routes.find((route) => route.canEdit) : undefined;
@@ -96,13 +107,19 @@ export function TacticBoard() {
     const matching = layers.map((layer, index) => ({ layer, index })).filter(({ layer }) => layerContainsTime(layer, clockSeconds));
     if (matching.length === 0) return;
     matching.sort((a, b) => (b.layer.startTime ?? -1) - (a.layer.startTime ?? -1));
-    setActiveIndex(matching[0].index);
+    setActiveLayerId(matching[0].layer.id);
   }, [clockSeconds, followClock, layers]);
 
   useEffect(() => {
+    // A refresh creates new route objects even when the saved route is unchanged.
+    // Reset on a layer/revision change, including switches between two empty layers.
+    const source = `${tournamentId}:${matchId}:${side}:${activeLayer?.id ?? "none"}:${ownRoute?.id ?? "none"}:${ownRoute?.revision ?? 0}`;
+    if (draftSourceRef.current === source) return;
+    draftSourceRef.current = source;
+    activePointerRef.current = null;
     const points = ownRoute?.geometry.points || [];
     draftRef.current = points; setDraft(points); setHistory([]); setFuture([]);
-  }, [ownRoute]);
+  }, [activeLayer?.id, matchId, ownRoute, side, tournamentId]);
   useEffect(() => {
     setLayerStart(activeLayer?.startTime === null || activeLayer?.startTime === undefined ? "" : formatTacticTime(activeLayer.startTime));
     setLayerEnd(activeLayer?.endTime === null || activeLayer?.endTime === undefined ? "" : formatTacticTime(activeLayer.endTime));
@@ -218,14 +235,29 @@ export function TacticBoard() {
     if (startTime !== null && endTime !== null && endTime < startTime) { error("图层结束时间不能早于开始时间"); return null; }
     return { startTime, endTime };
   }
+  async function initializeOwnLayer() {
+    if (!data?.access.canDraw || data.access.sharedAnnotationsVisible || layers.length > 0 || busy) return;
+    setBusy(true);
+    try {
+      const result = await initializeLayer<{ layer: { id: number } }>(tournamentId, matchId, side);
+      if (!result.ok) return error(apiMessage(result.data, "图层初始化失败，请重试"));
+      setFollowClock(false);
+      success("本队图层已就绪"); await load(result.data.layer.id);
+    } catch (cause) {
+      error(cause instanceof Error ? cause.message : "图层初始化失败，请检查网络后重试");
+    } finally {
+      setBusy(false);
+    }
+  }
   async function addLayer() {
     if (!layerName.trim()) return;
     const range = parseLayerRange(); if (!range) return;
     setBusy(true);
     try {
-      const result = await createLayer(tournamentId, matchId, side, { name: layerName.trim(), description: null, ...range });
+      const result = await createLayer<{ layer: { id: number } }>(tournamentId, matchId, side, { name: layerName.trim(), description: null, ...range });
       if (!result.ok) return error(apiMessage(result.data, "图层创建失败，请重试"));
-      setLayerName(""); success("图层已创建"); await load(); setActiveIndex(layers.length);
+      setFollowClock(false);
+      setLayerName(""); success("图层已创建"); await load(result.data.layer.id);
     } catch (cause) {
       error(cause instanceof Error ? cause.message : "图层创建失败，请检查网络后重试");
     } finally {
@@ -269,9 +301,10 @@ export function TacticBoard() {
   }
   function recordClear(resourceId: keyof TacticClearRecords) { setClearRecords((current) => ({ ...current, [resourceId]: clockSeconds })); }
 
+  if (loadError) return <main className="tactic-shell"><div className="feature-empty" role="alert"><p>{loadError}</p><button className="btn-subtle" onClick={() => void load()}>重试</button><Link href={`${routePrefix}/tournaments/${tournamentId}`}>返回赛事房间</Link></div></main>;
   if (!data) return <main className="tactic-shell"><div className="feature-empty">正在验证战术室权限…</div></main>;
   return <main className={`tactic-shell tactic-shell--${side}`}>
-    <header className="tactic-header"><div><nav className="feature-breadcrumb" aria-label="面包屑"><Link href={`${routePrefix}/tournaments/${tournamentId}/matches/${matchId}`}>比赛档案 #{matchId}</Link><span>/</span><span>{side === "red" ? "红方" : "蓝方"}战术室</span></nav><h1>{side === "red" ? "红方" : "蓝方"}战术推演</h1><p>一个比赛时钟同时驱动时间图层、兵线、野区和远古生物。</p></div><span className="feature-status">{data.access.sharedAnnotationsVisible ? "复盘只读" : "队内私密"}</span></header>
+    <header className="tactic-header"><div><nav className="feature-breadcrumb" aria-label="面包屑"><Link href={`${routePrefix}/tournaments/${tournamentId}`}>赛事房间</Link><span>/</span><span>{side === "red" ? "红方" : "蓝方"}战术室</span></nav><h1>{side === "red" ? "红方" : "蓝方"}战术推演</h1><p>一个比赛时钟同时驱动时间图层、兵线、野区和远古生物。</p></div><span className="feature-status">{data.access.sharedAnnotationsVisible ? "复盘只读" : "队内私密"}</span></header>
     <div className="tactic-privacy-notice" data-open={data.access.sharedAnnotationsVisible} role="status"><strong>{data.access.sharedAnnotationsVisible ? "复盘已公开" : "独立标注中"}</strong><span>{data.access.sharedAnnotationsVisible ? "房主已正式提交比赛数据，现在可以查看队友标注；战术板已锁定为只读。" : "当前只显示你的路线与点位，房主也无法查看。房主正式提交比赛数据后，全队标注才会公开。"}</span></div>
     <section className="tactic-clock-panel" aria-label="比赛时间轴">
       <div className="tactic-clock-control">
@@ -284,7 +317,7 @@ export function TacticBoard() {
       <details className="tactic-resource-details"><summary>记录击杀与查看完整刷新表</summary><div className="tactic-resource-table-wrap"><table className="tactic-resource-table"><thead><tr><th>资源</th><th>首刷</th><th>刷新规则</th><th>当前 / 下一次</th><th>本地推演</th></tr></thead><tbody>{timeline.map((item) => <tr key={item.id} data-state={item.state}><th>{item.name}</th><td>{formatTacticTime(item.firstSpawnAt)}</td><td>{item.id === "lane" ? `每 ${item.respawnSeconds}s` : `击杀后 ${item.respawnSeconds}s`}</td><td>{tacticResourceStateLabel(item, clockSeconds)}</td><td>{item.id === "lane" ? "自动计算" : <button disabled={item.state === "pending" || item.state === "retired"} onClick={() => recordClear(item.id)}>记为此刻击杀</button>}</td></tr>)}</tbody></table></div><p className="tactic-rule-note">龙与野怪从实际击杀时刻计算再次刷新。</p></details>
     </section>
     <section className="tactic-stage-panel tactic-stage-panel--focused">
-        <div className="tactic-stage-switcher" aria-label="战术阶段"><div className="tactic-layer-list">{layers.map((layer, index) => <button key={layer.id} aria-current={index === activeIndex} onClick={() => { setFollowClock(false); setActiveIndex(index); }}><strong>{layer.name}</strong><small>{secondsLabel(layer.startTime)}{layer.endTime === null ? "" : ` – ${secondsLabel(layer.endTime)}`}</small></button>)}</div><button className="tactic-follow" aria-pressed={followClock} onClick={() => setFollowClock((value) => !value)}>{followClock ? "跟随时间" : "手动阶段"}</button></div>
+        <div className="tactic-stage-switcher" aria-label="战术阶段"><div className="tactic-layer-list">{layers.map((layer, index) => <button key={layer.id} aria-current={index === activeIndex} onClick={() => { setFollowClock(false); setActiveLayerId(layer.id); }}><strong>{layer.name}</strong><small>{secondsLabel(layer.startTime)}{layer.endTime === null ? "" : ` – ${secondsLabel(layer.endTime)}`}</small></button>)}</div><button className="tactic-follow" aria-pressed={followClock} onClick={() => setFollowClock((value) => !value)}>{followClock ? "跟随时间" : "手动阶段"}</button></div>
         <div className="tactic-toolbar" aria-label="绘制工具">
           {(["route", "point", "text"] as ToolMode[]).map((tool) => <button key={tool} disabled={!data.access.canDraw} aria-pressed={mode === tool} onClick={() => setMode(tool)}>{tool === "route" ? "拖动路线" : tool === "point" ? "添加点位" : "添加文字"}</button>)}
           {mode === "text" && <input className="tactic-inline-text" aria-label="地图文字" disabled={!data.access.canDraw} value={markerText} maxLength={120} placeholder="输入文字后点地图" onChange={(event) => setMarkerText(event.target.value)} />}
@@ -292,9 +325,15 @@ export function TacticBoard() {
           <button disabled={!data.access.canDraw || history.length === 0} onClick={undo}>撤销</button><button disabled={!data.access.canDraw || future.length === 0} onClick={redo}>重做</button><button className="toolbar-primary" disabled={!data.access.canDraw || busy || draft.length < 2} onClick={saveCurrentRoute}>保存路线</button>
         </div>
         <p className="tactic-input-hint" id="tactic-input-hint">触控或鼠标可直接在地图上拖动/点按；键盘用户可展开“图层与精确编辑”，按 X、Y 坐标添加路线点或标记。</p>
-        {!activeLayer ? <div className="feature-empty">房主需要先创建一个战术图层。</div> : <div className="tactic-board-wrap">
-          <svg ref={svgRef} className="tactic-board" data-readonly={!data.access.canDraw} viewBox={`0 0 ${BOARD_WIDTH} ${BOARD_HEIGHT}`} role="img" aria-label={data.access.canDraw ? "王者峡谷战术板，按住并拖动绘制路线，点击添加点位" : "王者峡谷战术复盘，只读查看已公开标注"} aria-describedby="tactic-input-hint" onPointerDown={boardPointerDown} onPointerMove={boardPointerMove} onPointerUp={finishRoutePointer} onPointerCancel={finishRoutePointer}>
-            <image href="/images/tactic-map-source.jpg" x="-350" y="-90" width="2048" height="963" />
+        {activeLayer && mapMissing && <p className="tactic-input-hint" id="tactic-map-status" role="status">地图底图缺失，当前仅显示坐标网格，不代表真实峡谷地形</p>}
+        {!activeLayer ? <div className="feature-empty"><p>{data.access.sharedAnnotationsVisible ? "本场比赛没有战术图层可供复盘。" : "本队尚未创建战术图层。"}</p>{data.access.canDraw && !data.access.sharedAnnotationsVisible && <button className="btn-subtle" disabled={busy} onClick={() => void initializeOwnLayer()}>初始化本队图层</button>}</div> : <div className="tactic-board-wrap">
+          <svg ref={svgRef} className="tactic-board" data-readonly={!data.access.canDraw} viewBox={`0 0 ${BOARD_WIDTH} ${BOARD_HEIGHT}`} role="img" aria-label={mapMissing ? (data.access.canDraw ? "战术坐标网格，按住并拖动绘制路线，点击添加点位" : "战术坐标网格，只读查看已公开标注") : (data.access.canDraw ? "王者峡谷战术板，按住并拖动绘制路线，点击添加点位" : "王者峡谷战术复盘，只读查看已公开标注")} aria-describedby={mapMissing ? "tactic-input-hint tactic-map-status" : "tactic-input-hint"} onPointerDown={boardPointerDown} onPointerMove={boardPointerMove} onPointerUp={finishRoutePointer} onPointerCancel={finishRoutePointer}>
+            <image href="/images/tactic-map-source.jpg" x="-350" y="-90" width="2048" height="963" onError={() => setMapMissing(true)} onLoad={() => setMapMissing(false)} />
+            {mapMissing && <g pointerEvents="none">
+              <defs><pattern id="tactic-coordinate-grid" width={BOARD_WIDTH / 10} height={BOARD_HEIGHT / 10} patternUnits="userSpaceOnUse"><path d={`M ${BOARD_WIDTH / 10} 0 H 0 V ${BOARD_HEIGHT / 10}`} fill="none" stroke="#64748b" strokeWidth="2" /></pattern></defs>
+              <rect width={BOARD_WIDTH} height={BOARD_HEIGHT} fill="#1e293b" />
+              <rect width={BOARD_WIDTH} height={BOARD_HEIGHT} fill="url(#tactic-coordinate-grid)" />
+            </g>}
             <rect width={BOARD_WIDTH} height={BOARD_HEIGHT} fill="rgba(2, 12, 18, .08)" pointerEvents="none" />
             <defs><marker id="tactic-arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L7,3 z" fill="context-stroke" /></marker></defs>
             {visibleLayers.map(({ layer, index }) => <g key={layer.id} opacity={index === activeIndex ? 1 : 0.22} pointerEvents={index === activeIndex ? "auto" : "none"}>
@@ -303,7 +342,7 @@ export function TacticBoard() {
             </g>)}
             {draft.length > 0 && <g><polyline points={draft.map((point) => `${point.x * BOARD_WIDTH},${point.y * BOARD_HEIGHT}`).join(" ")} fill="none" stroke={COLOR[data.access.ownColorKey || "crimson"]} strokeWidth="14" strokeDasharray="22 12" strokeLinecap="round" strokeLinejoin="round" />{draft.map((point, index) => <circle key={`${point.x}-${point.y}-${index}`} cx={point.x * BOARD_WIDTH} cy={point.y * BOARD_HEIGHT} r="10" fill={COLOR[data.access.ownColorKey || "crimson"]} />)}</g>}
           </svg>
-          <div className="tactic-board-caption"><strong>{formatTacticTime(clockSeconds)} · {activeLayer.name}</strong><span>{activeLayer.description || "点击真实峡谷地图开始标记"}</span></div>
+          <div className="tactic-board-caption"><strong>{formatTacticTime(clockSeconds)} · {activeLayer.name}</strong><span>{activeLayer.description || (mapMissing ? "坐标网格 · 可继续编辑标注" : "点击真实峡谷地图开始标记")}</span></div>
         </div>}
         <details className="tactic-advanced"><summary>图层与精确编辑</summary><div className="tactic-advanced-grid">
           {data.access.canManageLayers && !data.access.sharedAnnotationsVisible && <div className="tactic-layer-manager"><h3>管理时间图层</h3><label>图层名称<input value={layerName} maxLength={64} placeholder="新图层名称" onChange={(event) => setLayerName(event.target.value)} /></label><div className="tactic-layer-time-inputs"><label>开始<input value={layerStart} placeholder="2:00" inputMode="numeric" onChange={(event) => setLayerStart(event.target.value)} /></label><label>结束<input value={layerEnd} placeholder="10:00" inputMode="numeric" onChange={(event) => setLayerEnd(event.target.value)} /></label></div><div className="tactic-advanced-actions"><button className="btn-subtle" disabled={busy || !layerName.trim()} onClick={addLayer}>新建图层</button><button className="btn-subtle" disabled={busy || !activeLayer} onClick={saveLayerRange}>保存时间</button><button className="btn-danger" disabled={!activeLayer || busy} onClick={() => setConfirmation({ kind: "layer" })}>删除图层</button></div></div>}

@@ -23,12 +23,17 @@ export function useRolePreferences() {
   const [prefs, setPrefs] = useState<Pref[]>([]);
   const [heroesByRole, setHeroesByRole] = useState<Record<string, HeroEntry[]>>({});
   const [sharedRank, setSharedRank] = useState(0);
-  const [activeTab, setActiveTab] = useState<string>("top");
+  const [activeTab, setActiveTabState] = useState<string>("top");
   const [selHero, setSelHero] = useState("");
   const [selHeroName, setSelHeroName] = useState("");
   const [selPower, setSelPower] = useState("");
   const [saving, setSaving] = useState(false);
   const [animatingIdx, setAnimatingIdx] = useState<number | null>(null);
+
+  const setActiveTab = useCallback((role: string) => {
+    setActiveTabState(role);
+    setSelHero(""); setSelHeroName(""); setSelPower("");
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -102,6 +107,10 @@ export function useRolePreferences() {
 
   const addHero = useCallback(async (role: string, onSuccess: () => void, onError: (msg: string) => void) => {
     if (!selHero || !selHeroName || !selPower) return;
+    if (heroesByRole[role]?.some(hero => hero.heroId === Number(selHero))) {
+      onError("该英雄已添加，请先删除原有战力项");
+      return;
+    }
     let powerScore: number;
     try {
       powerScore = normalizeHeroPowerScore(selPower);
@@ -112,7 +121,7 @@ export function useRolePreferences() {
     try {
       const res = await addHeroPower<HeroEntry & { error?: string }>({ roleType: role, heroId: parseInt(selHero), heroName: selHeroName, powerScore });
       if (res.ok) {
-        setHeroesByRole(p => ({ ...p, [role]: [...(p[role] || []), res.data] }));
+        setHeroesByRole(p => ({ ...p, [role]: [...(p[role] || []).filter(hero => hero.heroId !== res.data.heroId), res.data] }));
         setSelHero(""); setSelHeroName(""); setSelPower("");
         onSuccess();
       } else {
@@ -121,7 +130,7 @@ export function useRolePreferences() {
     } catch (error) {
       onError(error instanceof Error ? error.message : "添加失败");
     }
-  }, [selHero, selHeroName, selPower]);
+  }, [selHero, selHeroName, selPower, heroesByRole]);
 
   const removeHero = useCallback(async (id: number, role: string, onSuccess: () => void) => {
     try {

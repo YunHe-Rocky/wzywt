@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { getHeroes } from "@/features/heroes/client/api";
+import { useHeroes } from "@/features/heroes/client";
+import { HeroPortrait } from "./HeroPortrait";
 import { ROLE_LABELS, selectHeroesForLane } from "@/core/game";
 
 interface Hero {
@@ -17,6 +18,7 @@ interface Hero {
 interface Props {
   roleType: string;
   value: string;
+  excludedHeroIds?: readonly number[];
   onChange: (heroId: string, heroName: string) => void;
 }
 
@@ -61,25 +63,34 @@ async function fuzzyMatchPinyin(hero: Hero, query: string): Promise<boolean> {
   return false;
 }
 
-export function HeroSelect({ roleType, value, onChange }: Props) {
+const NO_EXCLUSIONS: readonly number[] = [];
+
+export function HeroSelect({ roleType, value, onChange, excludedHeroIds = NO_EXCLUSIONS }: Props) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
-  const [heroes, setHeroes] = useState<Hero[]>([]);
+  const { heroes: catalog, loading, error, refetch } = useHeroes();
+  const heroes = useMemo(() => selectHeroesForLane(catalog.map(hero => ({
+    heroId: hero.heroId ?? hero.id,
+    name: hero.name,
+    title: hero.title ?? hero.meta?.title ?? "",
+    imageUrl: hero.imageUrl ?? hero.meta?.imageUrl ?? "",
+    roleType: hero.roleType ?? hero.meta?.roleType ?? "",
+    secondaryRoleTypes: hero.secondaryRoleTypes ?? hero.meta?.secondaryRoleTypes ?? [],
+  })), roleType), [catalog, roleType]);
+  const availableHeroes = useMemo(() => heroes.filter(hero => !excludedHeroIds.includes(hero.heroId)), [heroes, excludedHeroIds]);
   const ref = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    getHeroes<Hero>()
-      .then(({ data }) => {
-        if (!Array.isArray(data)) return;
-        const normalized = data.map((hero) => ({
-          ...hero,
-          secondaryRoleTypes: hero.secondaryRoleTypes ?? [],
-        }));
-        const sorted = selectHeroesForLane(normalized, roleType);
-        setHeroes(sorted);
-      })
-      .catch(() => {});
+    setSearch("");
+    setOpen(false);
   }, [roleType]);
+
+  useEffect(() => {
+    if (open && !window.matchMedia("(max-width: 640px), (pointer: coarse)").matches) {
+      searchRef.current?.focus({ preventScroll: true });
+    }
+  }, [open]);
 
   const portalRef = useRef<HTMLDivElement>(null);
 
@@ -153,29 +164,25 @@ export function HeroSelect({ roleType, value, onChange }: Props) {
 
   const selectedHero = heroes.find((h) => String(h.heroId) === value);
 
-  const [filtered, setFiltered] = useState<Hero[]>(heroes);
+  const [pinyinMatches, setPinyinMatches] = useState<{ query: string; ids: number[] }>({ query: "", ids: [] });
+  const filtered = useMemo(() => availableHeroes.filter(hero => fuzzyMatch(hero, search)
+    || (pinyinMatches.query === search && pinyinMatches.ids.includes(hero.heroId))), [availableHeroes, search, pinyinMatches]);
 
   useEffect(() => {
     let cancelled = false;
-    // Instant basic filter
-    const basic = heroes.filter((h) => fuzzyMatch(h, search));
-    setFiltered(basic);
-    // Then enhance with pinyin (lazy loaded)
+    // Keep catalog order even when a primary hero only matches via pinyin.
     if (search.trim()) {
       Promise.all(heroes.map(async (h) => {
-        if (basic.includes(h)) return h;
+        if (fuzzyMatch(h, search)) return h.heroId;
         const match = await fuzzyMatchPinyin(h, search);
-        return match ? h : null;
+        return match ? h.heroId : null;
       })).then((results) => {
         if (!cancelled) {
-          const pinyinResults = results.filter(Boolean) as Hero[];
-          if (pinyinResults.length > basic.length) {
-            setFiltered([...basic, ...pinyinResults.filter(h => !basic.includes(h))]);
-          }
+          setPinyinMatches({ query: search, ids: results.filter((id): id is number => id !== null) });
         }
-      });
-      return () => { cancelled = true; };
+      }).catch(() => { if (!cancelled) setPinyinMatches({ query: search, ids: [] }); });
     }
+    return () => { cancelled = true; };
   }, [heroes, search]);
 
   return (
@@ -220,12 +227,7 @@ export function HeroSelect({ roleType, value, onChange }: Props) {
       >
         {selectedHero ? (
           <>
-            <img
-              src={selectedHero.imageUrl}
-              alt=""
-              style={{ width: 28, height: 28, borderRadius: 4, objectFit: "cover" }}
-              onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-            />
+            <HeroPortrait heroId={selectedHero.heroId} name={selectedHero.name} imageUrl={selectedHero.imageUrl} size={28} />
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: "flex", alignItems: "baseline", gap: 5 }}>
                 <span style={{ fontWeight: 600, fontSize: 13, whiteSpace: "nowrap" }}>{selectedHero.name}</span>
@@ -271,13 +273,13 @@ export function HeroSelect({ roleType, value, onChange }: Props) {
           >
           <div className="hero-select-header">
             <input
+              ref={searchRef}
               type="text"
               placeholder="搜索英雄名、拼音或 ID"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              autoFocus
               aria-label="搜索英雄"
-              style={{ minHeight: 44, fontSize: 14, padding: "8px 10px" }}
+              style={{ minHeight: 44, fontSize: 16, padding: "8px 10px" }}
             />
             <button
               type="button"
@@ -291,13 +293,13 @@ export function HeroSelect({ roleType, value, onChange }: Props) {
           </div>
 
           <div style={{ padding: "7px 12px 5px", color: "var(--text-muted)", fontSize: 11 }}>
-            共 {filtered.length} 位英雄 · 主分路优先，附属分路随后
+            {loading ? "正在加载英雄…" : `共 ${filtered.length} 位英雄 · 主分路优先，附属分路随后`}
           </div>
 
           <div className="hero-select-results" role="listbox" aria-label="英雄候选列表">
-            {filtered.length === 0 ? (
+            {error ? <div role="alert" style={{ padding: 16 }}>英雄加载失败 <button type="button" className="btn-ghost" onClick={() => void refetch()}>重试</button></div> : filtered.length === 0 ? (
               <p style={{ padding: "16px", textAlign: "center", fontSize: 12, color: "var(--text-muted)", margin: 0 }}>
-                无匹配英雄
+                {loading ? "正在加载英雄…" : "无可选英雄"}
               </p>
             ) : (
               filtered.map((hero) => (
@@ -316,18 +318,7 @@ export function HeroSelect({ roleType, value, onChange }: Props) {
                     background: String(hero.heroId) === value ? "var(--gold-alpha-08)" : "transparent",
                   }}
                 >
-                  <img
-                    src={hero.imageUrl}
-                    alt=""
-                    style={{
-                      width: 32,
-                      height: 32,
-                      borderRadius: 4,
-                      objectFit: "cover",
-                      background: "var(--bg-hover)",
-                    }}
-                    onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-                  />
+                  <HeroPortrait heroId={hero.heroId} name={hero.name} imageUrl={hero.imageUrl} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
                       <span style={{ fontWeight: 600, whiteSpace: "nowrap" }}>{hero.name}</span>

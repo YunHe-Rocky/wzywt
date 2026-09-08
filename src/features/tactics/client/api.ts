@@ -13,6 +13,10 @@ export function createLayer<T>(tournamentId: string | number, matchId: string | 
   return jsonRequest<T>(roomBase(tournamentId, matchId, side), "POST", input);
 }
 
+export function initializeLayer<T>(tournamentId: string | number, matchId: string | number, side: string) {
+  return jsonRequest<T>(roomBase(tournamentId, matchId, side), "POST", { action: "initialize" });
+}
+
 export function updateLayer<T>(tournamentId: string | number, matchId: string | number, side: string, layerId: number, input: unknown) {
   return jsonRequest<T>(`${roomBase(tournamentId, matchId, side)}/layers/${layerId}`, "PATCH", input);
 }

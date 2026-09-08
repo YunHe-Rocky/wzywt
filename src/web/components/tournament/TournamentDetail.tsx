@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import { CalendarModal } from "@/web/components/ui/CalendarModal";
 import { useParams, useRouter } from "next/navigation";
 import { useToast } from "@/web/components/ui/Toast";
+import { copyText } from "@/web/components/ui/clipboard";
+import { UserAvatar } from "@/web/components/ui/UserAvatar";
 import { ROLE_LABELS } from "@/core/game";
 import { TeamBuilder } from "@/web/components/tournament/TeamBuilder";
 import { SplitExplanation } from "@/web/components/tournament/SplitExplanation";
@@ -26,8 +28,8 @@ interface PlayerInfo {
   userId: number; user: {
     id: number;
     username: string;
+    avatar?: string | null;
     gameNickname?: string | null;
-    gameId?: string | null;
   };
   isTemporary: boolean; tempName: string | null; isSpectator: boolean;
 }
@@ -69,9 +71,11 @@ type TeamColor = "red" | "blue";
 function LineupPanel({
   teamColor,
   splitResult,
+  currentUserId,
 }: {
   teamColor: TeamColor;
   splitResult: SplitResult;
+  currentUserId?: number;
 }) {
   const team = teamColor === "red" ? splitResult.teamRed : splitResult.teamBlue;
   const isRed = teamColor === "red";
@@ -93,7 +97,7 @@ function LineupPanel({
           const detail = splitResult.playerDetails.find((d) => d.userId === p.userId);
           return (
             <div key={p.userId} className="flex items-center justify-between py-2.5 border-b border-white/5">
-              <span className="text-[15px] font-semibold text-text min-w-[80px]">{detail?.username || "?"}</span>
+              <span className="text-[15px] font-semibold text-text min-w-[80px]">{detail?.username || "?"}{p.userId === currentUserId && <small className="text-gold">（我）</small>}</span>
               <div className="flex items-center gap-2">
                 <small className="text-text-muted">{p.preferenceRank && p.preferenceRank <= 5 ? `第 ${p.preferenceRank} 志愿` : "全局补位"}</small>
                 <span className="text-xs font-semibold px-2.5 py-1 rounded-md border" style={{ background: accentBg, color: accentText, borderColor: accentBorder }}>
@@ -118,9 +122,8 @@ export function TournamentDetail() {
   const [tournament, setTournament] = useState<Tournament | null>(null);
   const [splitResult, setSplitResult] = useState<SplitResult | null>(null);
   const [adminMsg, setAdminMsg] = useState("");
-  const [me, setMe] = useState<{ userId: number } | null>(null);
+  const [me, setMe] = useState<{ userId: number; role?: string } | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
-  const [canViewMemberIdentity, setCanViewMemberIdentity] = useState(false);
   const [editingAnnouncement, setEditingAnnouncement] = useState(false);
   const [announcementText, setAnnouncementText] = useState("");
   const [promotingId, setPromotingId] = useState<number | null>(null);
@@ -134,8 +137,7 @@ export function TournamentDetail() {
     const { ok, status, data } = await getTournament(id);
     if (ok) {
       setTournament(data.tournament);
-      setCanViewMemberIdentity(data.canViewMemberIdentity === true);
-      if (data.splitResult) setSplitResult(data.splitResult);
+      setSplitResult(data.splitResult || null);
     } else if (status === 401 || status === 403) {
       router.replace("/login");
     }
@@ -231,6 +233,11 @@ export function TournamentDetail() {
   const isOverdue = tournament.deadline ? new Date(tournament.deadline) < new Date() : false;
 
   const isFull = playerCount >= 10;
+  const ownTeam = splitResult?.teamRed.some(p => p.userId === me?.userId) ? "red"
+    : splitResult?.teamBlue.some(p => p.userId === me?.userId) ? "blue" : null;
+  const ownSlot = ownTeam && splitResult
+    ? (ownTeam === "red" ? splitResult.teamRed : splitResult.teamBlue).find(p => p.userId === me?.userId)
+    : undefined;
   const isSplit = tournament.status === "completed" && tournament.splitResult;
   const isCapacityLocked = tournament.status === "locked" && isFull && !isSplit;
   const statusLabel =
@@ -315,8 +322,11 @@ export function TournamentDetail() {
             flexWrap: "wrap" as const,
           }}>
             <button
-              onClick={() => {
-                navigator.clipboard.writeText(tournament.code).then(() => success("房间号已复制: " + tournament.code));
+              type="button"
+              aria-label={`复制房间号 ${tournament.code}`}
+              onClick={async () => {
+                try { await copyText(tournament.code); success("房间号已复制: " + tournament.code); }
+                catch { showError("复制失败，请手动复制房间号：" + tournament.code); }
               }}
               title="点击复制房间号"
               style={{
@@ -363,6 +373,14 @@ export function TournamentDetail() {
           </span>
         </div>
       </div>
+
+      {splitResult && ownTeam && (
+        <section aria-labelledby="my-split-title" style={{ marginBottom: 24 }}>
+          <h2 id="my-split-title" className="section-title">我的分队结果</h2>
+          <p style={{ margin: "8px 0 16px", color: "var(--gold)" }}>我的分路：{ROLE_LABELS[ownSlot?.roleType || ""] || "待确认"}</p>
+          <LineupPanel teamColor={ownTeam} splitResult={splitResult} currentUserId={me?.userId} />
+        </section>
+      )}
 
       {/* Visitor preview — information first, member identities stay private */}
       {!isPlayer && !isAdmin && tournament.status === "recruiting" && tournament.isPublic && (
@@ -664,6 +682,7 @@ export function TournamentDetail() {
                 }}
               >
                 {/* Left: info */}
+                <UserAvatar avatar={p.isTemporary ? null : p.user.avatar} name={p.isTemporary ? p.tempName || "临时选手" : p.user.username} />
                 <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0, flex: 1, flexWrap: "wrap", rowGap: 3 }}>
                   {/* Team indicator */}
                   {teamColor && (
@@ -689,9 +708,7 @@ export function TournamentDetail() {
                   <span style={{ fontSize: 14, fontWeight: 600, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "100%" }}>
                     {p.isTemporary
                       ? (p.tempName || "临时选手")
-                      : canViewMemberIdentity
-                        ? (p.user.gameNickname || p.user.username)
-                        : p.user.username}
+                      : (p.user.gameNickname || p.user.username)}
                     {isMe && <span style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 400, marginLeft: 4 }}>(我)</span>}
                   </span>
                   <span className={roleBadge} style={{ fontSize: 11, padding: "2px 8px", flexShrink: 0 }}>
@@ -703,20 +720,6 @@ export function TournamentDetail() {
                       ...(typeLabel === "临时" ? { background: "var(--gold-alpha-08)", color: "var(--gold-light)" } : {}),
                     }}>
                       {typeLabel}
-                    </span>
-                  )}
-                  {canViewMemberIdentity && !p.isTemporary && (
-                    <span
-                      style={{
-                        flexBasis: "100%",
-                        paddingLeft: teamColor || splitRole ? 0 : 0,
-                        fontSize: 11,
-                        lineHeight: 1.5,
-                        color: "var(--text-muted)",
-                        overflowWrap: "anywhere",
-                      }}
-                    >
-                      账号：{p.user.username} · UID：#{p.user.id} · 游戏 ID：{p.user.gameId || "未填写"}
                     </span>
                   )}
                 </div>
@@ -826,8 +829,8 @@ export function TournamentDetail() {
       {/* ================================================================== */}
       {splitResult && (
         <div style={{ marginBottom: 32 }}>
-          <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-            {[{ k: "result", l: "分队结果" }, { k: "builder", l: "英雄阵容" }, { k: "archive", l: "比赛档案" }].map(t => (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
+            {[{ k: "result", l: "分队结果" }, { k: "builder", l: "英雄阵容" }, ...(ownTeam ? [{ k: "tactics", l: "本队战术" }] : []), { k: "archive", l: "比赛档案" }].map(t => (
               <button key={t.k} onClick={() => setSplitTab(t.k)}
                 style={{ padding: "6px 20px", borderRadius: 8, fontSize: 14, fontWeight: splitTab === t.k ? 600 : 400, border: splitTab === t.k ? "1px solid var(--gold)" : "1px solid transparent", background: splitTab === t.k ? "var(--gold-alpha-08)" : "transparent", color: splitTab === t.k ? "var(--gold)" : "var(--text-secondary)", cursor: "pointer" }}>{t.l}</button>
             ))}
@@ -835,7 +838,7 @@ export function TournamentDetail() {
           {splitTab === "result" && <div className="animate-slide-up">
           {/* Section title */}
           <h3 className="section-title" style={{ marginBottom: 16 }}>
-            分队结果
+            完整分队结果
           </h3>
 
           {/* Team cards side by side */}
@@ -965,7 +968,10 @@ export function TournamentDetail() {
           />
         )}
         {splitTab === "archive" && (
-          <MatchArchivePanel tournamentId={tournament.id} canManage={isAdmin} />
+          <MatchArchivePanel tournamentId={tournament.id} canManage={isAdmin || me?.role === "admin"} />
+        )}
+        {splitTab === "tactics" && ownTeam && (
+          <MatchArchivePanel tournamentId={tournament.id} canManage={isAdmin || me?.role === "admin"} mode="tactics" />
         )}
         </div>
       )}

@@ -34,9 +34,7 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
     select: { role: true },
   });
   const canViewMemberIdentity = canViewTournamentMemberIdentity(currentAdmin?.role);
-  const memberSelect = canViewMemberIdentity
-    ? { id: true, username: true, gameNickname: true, gameId: true }
-    : { id: true, username: true };
+  const memberSelect = { id: true, username: true, avatar: true, gameNickname: true };
 
   const tournament = await prisma.tournament.findUnique({
     where: { id: tournamentId },

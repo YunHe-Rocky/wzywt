@@ -34,6 +34,10 @@ export function HeroPowerEditor() {
 
   async function addHero() {
     if (!activeRole || !selectedHero || !selectedHeroName || !powerScore) return;
+    if (grouped[activeRole]?.some(hero => hero.heroId === Number(selectedHero))) {
+      error("该英雄已添加，请先删除原有战力项");
+      return;
+    }
 
     const { ok, data } = await addHeroPower({
       roleType: activeRole,
@@ -208,6 +212,7 @@ export function HeroPowerEditor() {
                     <div>
                       <HeroSelect
                         roleType={role}
+                        excludedHeroIds={heroes.map(hero => hero.heroId)}
                         value={selectedHero}
                         onChange={(heroId, heroName) => {
                           setSelectedHero(heroId);

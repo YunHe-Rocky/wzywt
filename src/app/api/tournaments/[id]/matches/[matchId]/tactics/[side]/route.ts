@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { isMatchSide } from "@/features/matches/model";
-import { createTacticLayer, getTacticRoom } from "@/features/tactics/server/service";
+import { createTacticLayer, getTacticRoom, initializeOwnTacticLayer } from "@/features/tactics/server/service";
 import { apiErrorResponse } from "@/lib/api-errors";
 import { parseRouteId, readJsonRequest } from "@/lib/request-validation";
 import { ServiceError } from "@/lib/service-error";
@@ -27,7 +27,11 @@ export async function GET(_request: NextRequest, context: Context) {
 export async function POST(request: NextRequest, context: Context) {
   try {
     const ids = await parseContext(context);
-    return NextResponse.json({ layer: await createTacticLayer(ids.tournamentId, ids.matchId, ids.side, await readJsonRequest(request)) }, { status: 201 });
+    const input = await readJsonRequest(request);
+    const layer = typeof input === "object" && input !== null && "action" in input && input.action === "initialize"
+      ? await initializeOwnTacticLayer(ids.tournamentId, ids.matchId, ids.side)
+      : await createTacticLayer(ids.tournamentId, ids.matchId, ids.side, input);
+    return NextResponse.json({ layer }, { status: 201 });
   } catch (error) {
     return apiErrorResponse(error);
   }

@@ -2,6 +2,7 @@ import { requireAuth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { PermissionError } from "@/lib/permissions";
 import { ServiceError } from "@/lib/service-error";
+import { getMatchVisibility } from "@/features/matches/visibility";
 
 export type AuthenticatedUser = Awaited<ReturnType<typeof requireAuth>>;
 
@@ -37,17 +38,18 @@ export async function requireMatchManager(
   return user;
 }
 
-export async function requireMatchViewer(tournamentId: number, matchId: number): Promise<AuthenticatedUser> {
+export async function requireMatchViewer(tournamentId: number, matchId: number) {
   const user = await requireAuth();
   const match = await prisma.internalMatch.findFirst({
     where: { id: matchId, tournamentId },
     select: {
       status: true,
-      players: { where: { memberId: user.userId }, select: { id: true } },
-      tournament: { select: { admins: { where: { userId: user.userId }, select: { id: true } } } },
+      players: { where: { memberId: user.userId }, select: { memberId: true, side: true } },
+      tournament: { select: { admins: { where: { userId: user.userId }, select: { role: true } } } },
     },
   });
   if (!match) throw new ServiceError("NOT_FOUND", "比赛不存在");
-  if (match.status === "SUBMITTED" || user.role === "admin" || match.players.length > 0 || match.tournament.admins.length > 0) return user;
-  throw new PermissionError();
+  const matchAccess = getMatchVisibility(user, match);
+  if (!matchAccess.canViewArchive) throw new PermissionError();
+  return { ...user, matchAccess };
 }

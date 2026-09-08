@@ -32,6 +32,7 @@
     "test:task-fence": "tsx scripts/test-task-write-fence.ts",
     "test:api-use-cases": "tsx scripts/test-api-use-cases.ts",
     "test:match-draft": "tsx scripts/test-match-draft.ts",
+    "test:match-visibility": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/test-match-visibility.ts",
     "test:mobile-routes": "tsx scripts/test-mobile-route-parity.ts",
     "test:device-routing": "tsx scripts/test-device-routing.ts",
     "test:auth-redirect": "tsx scripts/test-auth-redirect.ts",
@@ -46,8 +47,10 @@
     "test:e2e:ci": "node tests/e2e/ci-auth-resource-regression.mjs",
     "test:e2e:proxy": "node tests/e2e/run-proxy-regression.mjs",
     "test:e2e:login-visual": "node tests/e2e/login-transition-regression.mjs",
+    "test:e2e:room-profile": "node tests/e2e/room-profile-regression.mjs",
+    "test:e2e:room-archive": "node tests/e2e/room-archive-regression.mjs && node tests/e2e/tactic-layer-regression.mjs",
     "audit:prod": "npm audit --omit=dev --audit-level=high",
-    "check": "npm run check:shell-eol && npm run test:release && npm run check:architecture && npm run typecheck && npm run test:core && npm run test:split-worker && npm run test:entry && npm run test:markdown && npm run test:next-stage && npm run test:connections && npm run test:task-fence && npm run test:api-use-cases && npm run test:match-draft && npm run test:mobile-routes && npm run test:deploy",
+    "check": "npm run check:shell-eol && npm run test:release && npm run check:architecture && npm run typecheck && npm run test:core && npm run test:split-worker && npm run test:entry && npm run test:markdown && npm run test:next-stage && npm run test:connections && npm run test:task-fence && npm run test:api-use-cases && npm run test:match-draft && npm run test:match-visibility && npm run test:mobile-routes && npm run test:deploy",
     "test:e2e:arena": "node tests/e2e/arena-redesign.mjs && node tests/e2e/arena-motion.mjs && node tests/e2e/arena-glass.mjs && node tests/e2e/hero-live-refresh.mjs"
   },
   "dependencies": {

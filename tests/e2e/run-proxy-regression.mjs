@@ -131,6 +131,9 @@ http {
   await run(process.execPath, ["scripts/public-entry-smoke.mjs", origin, "development"], { env });
   await run(process.execPath, ["tests/e2e/ci-auth-resource-regression.mjs"], { env });
   await run(process.execPath, ["tests/e2e/login-transition-regression.mjs"], { env });
+  await run(process.execPath, ["tests/e2e/room-profile-regression.mjs"], { env });
+  await run(process.execPath, ["tests/e2e/room-archive-regression.mjs"], { env });
+  await run(process.execPath, ["tests/e2e/tactic-layer-regression.mjs"], { env });
 } catch (error) {
   for (const name of ["next.log", "nginx.log", "nginx-error.log"]) {
     console.error((await readFile(join(directory, name), "utf8").catch(() => "")).slice(-8000));

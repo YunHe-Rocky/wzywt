@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useToast } from "@/web/components/ui/Toast";
+import { copyText } from "@/web/components/ui/clipboard";
 import { MarkdownContent } from "@/web/components/content/MarkdownContent";
 import { usePageResources } from "@/features/resource-scheduler/client";
 import { ArenaIcon } from "@/web/components/arena/ArenaIcon";
@@ -51,7 +52,7 @@ export function HomePage() {
   }, [leaseId, loadResource, newsAttempt]);
 
   async function copyCode(code: string) {
-    try { await navigator.clipboard.writeText(code); success(`房间号已复制：${code}`); }
+    try { await copyText(code); success(`房间号已复制：${code}`); }
     catch { toastError(`复制失败，请手动复制房间号：${code}`); }
   }
 

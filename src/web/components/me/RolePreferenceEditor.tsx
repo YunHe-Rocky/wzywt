@@ -3,6 +3,7 @@
 import { useRef, useCallback, useEffect } from "react";
 import { useToast } from "@/web/components/ui/Toast";
 import { HeroSelect } from "@/web/components/hero/HeroSelect";
+import { HeroPortrait } from "@/web/components/hero/HeroPortrait";
 import { useRolePreferences } from "@/features/profile/client";
 import {
   calculateLanePowerRank,
@@ -197,6 +198,7 @@ export function RolePreferenceEditor() {
                 <div key={h.id} className="card !p-3 !rounded-lg"
                   style={{ animation: `role-item-in 0.25s ease-out ${idx * 0.05}s both` }}>
                   <div className="flex items-center gap-3">
+                    <HeroPortrait heroId={h.heroId} name={h.heroName} />
                     <div className="flex-1 min-w-0">
                       <div className="text-sm font-semibold text-text truncate">{h.heroName}</div>
                     </div>
@@ -224,6 +226,7 @@ export function RolePreferenceEditor() {
             <div className="profile-add-grid">
               <div className="flex-1 min-w-0">
                 <HeroSelect roleType={activeTab} value={selHero}
+                  excludedHeroIds={activeHeroes.map(hero => hero.heroId)}
                   onChange={(hid, hn) => { setSelHero(hid); setSelHeroName(hn); }} />
               </div>
               <input type="number" aria-label="英雄战力" placeholder="战力" value={selPower}
