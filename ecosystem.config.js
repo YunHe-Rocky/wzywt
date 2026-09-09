@@ -1,6 +1,6 @@
 const { isAbsolute, resolve } = require("node:path");
 const { existsSync } = require("node:fs");
-const { readRedisEnv, readDeployEnv } = require("./scripts/deploy-env.mjs");
+const { readRedisEnv, readDeployEnv, readOcrEnv } = require("./scripts/deploy-env.mjs");
 const packageJson = require("./package.json");
 
 function safeProjectName(value) {
@@ -22,6 +22,10 @@ const entryEnv = {
 const redisEnv = existsSync(redisEnvFile) ? readRedisEnv(redisEnvFile) : {
   REDIS_URL: process.env.REDIS_URL || "",
   REDIS_REQUIRED: process.env.REDIS_REQUIRED || "0",
+};
+const ocrEnv = existsSync(redisEnvFile) ? readOcrEnv(redisEnvFile) : {
+  MATCH_OCR_ENDPOINT: process.env.MATCH_OCR_ENDPOINT || "",
+  MATCH_OCR_TOKEN: process.env.MATCH_OCR_TOKEN || "",
 };
 const projectName = process.env.DEPLOY_PROJECT_NAME || safeProjectName(packageJson.name);
 const webName = process.env.DEPLOY_PM2_WEB_NAME || `${projectName}-web`;
@@ -51,6 +55,7 @@ module.exports = {
       cwd: appDir,
       env: {
         ...redisEnv,
+        ...ocrEnv,
         ...entryEnv,
         NODE_ENV: "production",
         APP_RELEASE_ID: process.env.APP_RELEASE_ID || "",
@@ -71,6 +76,7 @@ module.exports = {
       cwd: appDir,
       env: {
         ...redisEnv,
+        ...ocrEnv,
         ...entryEnv,
         NODE_ENV: "production",
         APP_RELEASE_ID: process.env.APP_RELEASE_ID || "",

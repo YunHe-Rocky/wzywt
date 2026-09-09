@@ -1,5 +1,14 @@
 # Findings
 
+## Deployment/OCR retrospective (2026-09-09)
+- OCR endpoint/token are not selected by deployment dotenv parsing; duplicate or Markdown OCR values evade preflight.
+- PM2 explicitly replaces Redis settings but not OCR settings, leaving stale inherited values possible.
+- Backup preflight lacks directory search permission checks and uses generic diagnostics; relative override is canonicalized before absolute-path validation.
+- Cloud path in pasted error is backup parent; documented dedicated child is bakup/yanwutang. Preserve user's choice; inspect live ancestry before permissions repair.
+- Six images are now present under public/test; previous missing-samples statement is stale.
+- User explicitly approved HTTP for production loopback OCR only. Shared runtime/preflight policy accepts exact localhost, canonical 127/8 and ::1; non-loopback production addresses still require HTTPS.
+- Real loopback HTTP regression confirms POST multipart and Bearer token transport, and refuses redirects. Public website HTTPS and cookie policy unchanged.
+
 ## OCR local endpoint follow-up (2026-09-09)
 - recognition-provider only checks NODE_ENV and ignores DEPLOY_ENVIRONMENT.
 - public-origin already validates production/local and canonical private hostnames; reuse this policy.

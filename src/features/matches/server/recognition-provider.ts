@@ -1,5 +1,5 @@
 import { ServiceError } from "@/lib/service-error";
-import { isPrivateHostname, resolveDeploymentEnvironment } from "@/lib/public-origin";
+import { resolveOcrEndpoint } from "@/lib/public-origin";
 
 export interface RecognitionProviderFile {
   type: string;
@@ -54,28 +54,11 @@ export function getRecognitionProviderUrl(): URL {
   if (!endpoint) {
     throw new ServiceError("SERVICE_UNAVAILABLE", "尚未配置 MATCH_OCR_ENDPOINT，无法启动 OCR");
   }
-  let url: URL;
   try {
-    url = new URL(endpoint);
-  } catch {
-    throw new ServiceError("SERVICE_UNAVAILABLE", "MATCH_OCR_ENDPOINT 配置无效");
+    return resolveOcrEndpoint(endpoint, process.env.DEPLOY_ENVIRONMENT, process.env.NODE_ENV === "production");
+  } catch (error) {
+    throw new ServiceError("SERVICE_UNAVAILABLE", error instanceof Error ? error.message : "MATCH_OCR_ENDPOINT 配置无效");
   }
-  if (url.protocol !== "http:" && url.protocol !== "https:") {
-    throw new ServiceError("SERVICE_UNAVAILABLE", "MATCH_OCR_ENDPOINT 只支持 HTTP 或 HTTPS");
-  }
-  let mode: "production" | "local";
-  try {
-    mode = resolveDeploymentEnvironment(process.env.DEPLOY_ENVIRONMENT);
-  } catch {
-    throw new ServiceError("SERVICE_UNAVAILABLE", "DEPLOY_ENVIRONMENT 必须为 production 或 local");
-  }
-  if (mode === "local" && url.protocol === "http:" && !isPrivateHostname(url.hostname)) {
-    throw new ServiceError("SERVICE_UNAVAILABLE", "本地模式 HTTP MATCH_OCR_ENDPOINT 仅允许 localhost、回环或私有 IP 地址");
-  }
-  if (process.env.NODE_ENV === "production" && mode !== "local" && url.protocol !== "https:") {
-    throw new ServiceError("SERVICE_UNAVAILABLE", "生产环境 MATCH_OCR_ENDPOINT 必须使用 HTTPS");
-  }
-  return url;
 }
 
 export async function recognizeMatchScreenshots(files: RecognitionProviderFile[], signal?: AbortSignal): Promise<unknown> {

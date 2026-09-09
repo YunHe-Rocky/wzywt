@@ -69,6 +69,8 @@ export const RUNTIME_ENV_KEYS = Object.freeze([
   "HOST",
 ]);
 
+const OCR_ENV_KEYS = Object.freeze(["MATCH_OCR_ENDPOINT", "MATCH_OCR_TOKEN"]);
+
 function parseQuotedValue(rawValue, quote, lineNumber, key) {
   let value = "";
   let escaped = false;
@@ -121,8 +123,9 @@ function parseValue(rawValue, lineNumber, key) {
 
 function parseSelectedEnv(content, keys) {
   const allowedKeys = new Set(keys);
-  const urlKeys = new Set(["PUBLIC_ORIGIN", "DATABASE_URL", "REDIS_URL"]);
+  const urlKeys = new Set(["PUBLIC_ORIGIN", "DATABASE_URL", "REDIS_URL", "MATCH_OCR_ENDPOINT"]);
   const result = new Map();
+  const firstLines = new Map();
   const lines = content.replace(/^\uFEFF/, "").split(/\r?\n/);
 
   for (let index = 0; index < lines.length; index += 1) {
@@ -136,7 +139,8 @@ function parseSelectedEnv(content, keys) {
     }
     const [, key, rawValue] = assignment;
     if (!allowedKeys.has(key)) continue;
-    if (result.has(key)) throw new Error(`Duplicate environment key ${key} on line ${lineNumber}`);
+    if (result.has(key)) throw new Error(`Duplicate environment key ${key} on line ${lineNumber}; first defined on line ${firstLines.get(key)}. Keep one active assignment`);
+    firstLines.set(key, lineNumber);
     if (urlKeys.has(key) && rawValue.includes("\\")) {
       throw new Error(`Environment key ${key} URL must not contain backslash escapes on line ${lineNumber}`);
     }
@@ -158,7 +162,9 @@ function parseSelectedEnv(content, keys) {
 }
 
 export function parseDeployEnv(content) {
-  return parseSelectedEnv(content, DEPLOY_ENV_KEYS);
+  // Validate OCR too, but never emit its token into the shell settings stream.
+  const values = parseSelectedEnv(content, [...DEPLOY_ENV_KEYS, ...OCR_ENV_KEYS]);
+  return new Map([...values].filter(([key]) => DEPLOY_ENV_KEYS.includes(key)));
 }
 
 export function parseRuntimeEnv(content) {
@@ -179,6 +185,15 @@ export function readRedisEnv(filePath) {
   return {
     REDIS_URL: values.get("REDIS_URL")?.trim() || "",
     REDIS_REQUIRED: values.get("REDIS_REQUIRED") || "0",
+  };
+}
+
+// Release configuration is authoritative, including removal of old PM2 values.
+export function readOcrEnv(filePath) {
+  const values = parseSelectedEnv(readFileSync(filePath, "utf8"), OCR_ENV_KEYS);
+  return {
+    MATCH_OCR_ENDPOINT: values.get("MATCH_OCR_ENDPOINT")?.trim() || "",
+    MATCH_OCR_TOKEN: values.get("MATCH_OCR_TOKEN")?.trim() || "",
   };
 }
 

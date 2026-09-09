@@ -1,5 +1,14 @@
 # Local deployment support
 
+## Deployment/OCR retrospective (2026-09-09)
+- User requested code repairs supporting test and production.
+- Investigate: complete (OCR dotenv validation/PM2 propagation, backup diagnostics and raw relative path check).
+- Regressions and bounded fixes: complete.
+- Production loopback HTTP exception: explicitly approved by user; implementation and final verification complete.
+- Existing deployment rollback, OCR tests and production build: complete. Six supplied screenshots audited offline.
+- Remaining work outside these fixes: complete five additional OCR page parsers and six-file HTTP workflow; verify actual server backup permissions and Linux-only capability checks.
+- No automatic permission changes, backup relocation, credential rotation, live deployment or Git publishing.
+
 ## OCR local endpoint follow-up (2026-09-09)
 - Approved: explicit local mode permits private/loopback HTTP OCR; default production retains HTTPS.
 - Regression reproduction: complete; production-built local loopback rejected with the reported HTTPS error.

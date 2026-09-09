@@ -46,7 +46,14 @@ try {
   for (const mode of ["production", "", undefined]) {
     if (mode === undefined) delete process.env.DEPLOY_ENVIRONMENT;
     else process.env.DEPLOY_ENVIRONMENT = mode;
-    expectOcrRejected("http://127.0.0.1:8010/recognize");
+    for (const host of ["localhost", "127.0.0.1", "127.0.0.2", "[::1]"]) {
+      const endpoint = `http://${host}:8010/recognize`;
+      process.env.MATCH_OCR_ENDPOINT = endpoint;
+      assert.equal(getRecognitionProviderUrl().href, endpoint, "production permits HTTP only on loopback");
+    }
+    for (const host of ["10.0.0.2", "192.168.1.73", "172.16.0.2", "[fd00::1]", "127.0.0.1.evil.example", "localhost.evil.example", "[::ffff:808:808]", "0.0.0.0"]) {
+      expectOcrRejected(`http://${host}:8010/recognize`);
+    }
     expectOcrRejected("http://ocr.example.com/recognize");
   }
   for (const mode of ["production", "local"]) {
@@ -55,6 +62,9 @@ try {
     assert.equal(getRecognitionProviderUrl().href, "https://ocr.example.com/recognize");
     expectOcrRejected("ftp://127.0.0.1/recognize");
     expectOcrRejected("not a URL");
+    expectOcrRejected("http://localhost@public.example/recognize");
+    expectOcrRejected("http://private-user:private-pass@127.0.0.1/recognize");
+    expectOcrRejected("https://ocr.example/recognize#private-token");
     expectOcrRejected("");
   }
   process.env.DEPLOY_ENVIRONMENT = "locla";
@@ -70,4 +80,4 @@ try {
     else process.env[key] = value;
   }
 }
-console.log("OCR local HTTP and production HTTPS endpoint policy passed.");
+console.log("OCR local/private HTTP and production loopback-only HTTP policy passed.");

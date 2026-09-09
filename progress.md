@@ -1,5 +1,21 @@
 # Progress
 
+## 2026-09-09 deployment/OCR retrospective
+Reproduced duplicate/Markdown OCR config passing preflight and stale PM2 OCR values; new tests fail before fix, pass after.
+Reproduced raw relative backup directory accepted; now reject before canonicalization and give targeted safe permission diagnostics.
+Full deploy simulation passed after backup fixes; added actual deploy-entry OCR policy test, observed RED, wired shared checker and rerunning full suite.
+Agent inspected all six supplied images with offline cached RapidOCR. DATA yields 10 players/10 scores/40 metrics; six-image request rejected before inference by one-file limit.
+Agent reproduced missing all metrics/score with six pages incorrectly PASS; fixed to WARNING, preserving manual correction and zero values, validated next-stage and Python/TS contract.
+Entry/local-mode, connections, core, next-stage, architecture, typecheck and all 28 Python tests passed. Lint: 0 errors, 18 existing image warnings.
+Independent review found no new P1/P2 in deployment diff. Permission failures do not change permissions; existing successful deployment chmod 700 behavior is retained.
+User approved production loopback HTTP only. RED reproduced existing HTTPS rejection with new regression before interruption.
+Resumed after interruption; old deploy/build session IDs are unavailable, so their completion is not claimed. Applied loopback-only exception; rerun final verification.
+Final production build passed (exit 0), including type validation and all 42 static pages.
+Fresh typecheck, lint (0 errors/18 existing warnings), local/production entry, core, next-stage, architecture and real-loopback connection tests passed.
+Fresh Python -> TypeScript OCR contract passed; 28 Python tests previously passed with unchanged Python source.
+Final test:deploy passed after production loopback change (exit 0), covering release activation/rollback, PM2 ownership and new OCR preflight. Unix mysqldump/search-permission cases are skipped on Windows and still require Linux CI/host verification.
+No .env/real credential changes, server permission changes, commits, pushes or live deployment. Six-page service completion remains a separate implementation gap, not a passed deployment check.
+
 ## 2026-09-09 OCR local endpoint
 User approved bounded local HTTP exception with production HTTPS unchanged.
 Read TDD/verification guidance; adding real provider URL regressions to test:local-deploy.

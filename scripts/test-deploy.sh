@@ -424,6 +424,7 @@ prepare_case() {
   mkdir -p -- "$source/src/lib"
   cp -- "$REPO_ROOT/src/lib/public-origin.ts" "$source/src/lib/"
   cp -- "$SCRIPT_DIR/public-entry-smoke.mjs" "$source/scripts/"
+  cp -- "$SCRIPT_DIR/check-ocr-config.mjs" "$source/scripts/"
   cp -- "$SCRIPT_DIR/deploy.sh" "$SCRIPT_DIR/deploy-env.mjs" "$SCRIPT_DIR/verify-deploy-state.mjs" \
     "$SCRIPT_DIR/inspect-deploy-host.mjs" "$SCRIPT_DIR/inspect-runtime-services.mjs" \
     "$SCRIPT_DIR/stop.sh" "$source/scripts/"
@@ -591,6 +592,47 @@ run_stop() {
       bash scripts/stop.sh --env-file "$case_dir/project.env"
   )
 }
+relative_backup_case="$(prepare_case relative-backup)"
+if DEPLOY_DB_BACKUP_DIR=relative-backups run_deploy "$relative_backup_case" --check >"$relative_backup_case/check.log" 2>&1; then
+  fail "relative database backup directory unexpectedly accepted"
+fi
+assert_contains "$relative_backup_case/check.log" "DEPLOY_DB_BACKUP_DIR must be an absolute non-root path"
+assert_current_is_old "$relative_backup_case"
+
+backup_file_case="$(prepare_case backup-file)"
+printf 'existing backup marker\n' >"$backup_file_case/database-backups"
+if run_deploy "$backup_file_case" --check >"$backup_file_case/check.log" 2>&1; then
+  fail "backup file unexpectedly accepted as directory"
+fi
+assert_contains "$backup_file_case/check.log" "DEPLOY_DB_BACKUP_DIR"
+assert_contains "$backup_file_case/check.log" "namei -l"
+assert_contains "$backup_file_case/database-backups" "existing backup marker"
+assert_current_is_old "$backup_file_case"
+
+backup_search_case="$(prepare_case backup-search)"
+mkdir -p -- "$backup_search_case/database-backups"
+chmod 600 -- "$backup_search_case/database-backups"
+if [[ ! -x "$backup_search_case/database-backups" ]]; then
+  if run_deploy "$backup_search_case" --check >"$backup_search_case/check.log" 2>&1; then
+    fail "backup directory without search permission unexpectedly accepted"
+  fi
+  assert_contains "$backup_search_case/check.log" "DEPLOY_DB_BACKUP_DIR"
+  assert_contains "$backup_search_case/check.log" "namei -l"
+  assert_current_is_old "$backup_search_case"
+else
+  printf '[test-deploy] SKIP: directory search permissions require non-root Unix execution\n'
+fi
+chmod 700 -- "$backup_search_case/database-backups"
+
+ocr_config_case="$(prepare_case ocr-config)"
+printf '\nMATCH_OCR_ENDPOINT=http://public.example/recognize\nMATCH_OCR_TOKEN=private-test-token\n' >>"$ocr_config_case/project.env"
+if run_deploy "$ocr_config_case" --check >"$ocr_config_case/check.log" 2>&1; then
+  fail "production OCR HTTP URL passed deployment preflight"
+fi
+assert_contains "$ocr_config_case/check.log" "OCR configuration is invalid"
+assert_not_contains "$ocr_config_case/check.log" "private-test-token"
+assert_current_is_old "$ocr_config_case"
+
 success_case="$(prepare_case success)"
 if ! run_deploy "$success_case" --check >"$success_case/check.log" 2>&1; then
   cat -- "$success_case/check.log" >&2
@@ -608,6 +650,7 @@ mkdir -p -- "$ordinary_root/.git" "$ordinary_root/scripts"
 mkdir -p -- "$ordinary_root/src/lib"
 cp -- "$REPO_ROOT/src/lib/public-origin.ts" "$ordinary_root/src/lib/"
 cp -- "$SCRIPT_DIR/public-entry-smoke.mjs" "$ordinary_root/scripts/"
+cp -- "$SCRIPT_DIR/check-ocr-config.mjs" "$ordinary_root/scripts/"
 cp -- "$SCRIPT_DIR/deploy.sh" "$SCRIPT_DIR/deploy-env.mjs" "$SCRIPT_DIR/verify-deploy-state.mjs" \
   "$SCRIPT_DIR/inspect-deploy-host.mjs" "$SCRIPT_DIR/inspect-runtime-services.mjs" "$ordinary_root/scripts/"
 printf '{"name":"ordinary-root"}\n' >"$ordinary_root/package.json"

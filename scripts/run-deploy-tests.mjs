@@ -43,6 +43,12 @@ function resolveBash() {
 }
 
 try {
+  const ocrTests = spawnSync(process.execPath, ["--test", "scripts/test-ocr-deploy.mjs"], {
+    cwd: repoRoot, env: process.env, stdio: "inherit", shell: false, windowsHide: true,
+  });
+  if (ocrTests.error) throw ocrTests.error;
+  if (ocrTests.status !== 0) process.exit(ocrTests.status ?? 1);
+
   const redisTests = spawnSync(process.execPath, ["--test", "scripts/test-redis-deploy.mjs"], {
     cwd: repoRoot, env: process.env, stdio: "inherit", shell: false, windowsHide: true,
   });

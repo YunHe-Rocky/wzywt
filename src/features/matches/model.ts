@@ -41,6 +41,23 @@ export const STAT_FIELDS_BY_SCREENSHOT: Record<MatchScreenshotType, readonly Mat
   TEAM: ["participationRate", "controlScore", "healing", "towerDamage"],
 };
 
+const STAT_LABELS: Record<MatchStatField, string> = {
+  damageDealt: "输出伤害",
+  damageTaken: "承受伤害",
+  gold: "总经济",
+  participationRate: "参团率",
+  damageConversionRate: "伤害转化比",
+  damageTakenPerDeath: "每死承伤",
+  jungleGold: "野怪经济",
+  minionKills: "补刀数",
+  kills: "击败",
+  deaths: "死亡",
+  assists: "助攻",
+  controlScore: "控制效果",
+  healing: "治疗量",
+  towerDamage: "对塔伤害",
+};
+
 export interface SplitMemberSnapshot {
   userId: number;
   side: MatchSide;
@@ -281,9 +298,11 @@ export function normalizeRecognitionPayload(payload: unknown): NormalizedRecogni
       }
       const score = mergeValues(entries.map(({ score }) => score).filter((value): value is RecognitionSourceValue => value !== null));
       if (score.conflict) conflicts.push({ side, slot, field: "score", sources: score.sources });
+      if (score.value === null && !score.conflict) playerWarnings.push("评分未识别，请核对截图并人工补齐");
       const stats = Object.fromEntries(MATCH_STAT_FIELDS.map((field) => {
         const metric = mergeValues(entries.map(({ metrics }) => metrics[field]).filter((value): value is RecognitionSourceValue => value !== undefined));
         if (metric.conflict) conflicts.push({ side, slot, field, sources: metric.sources });
+        if (metric.value === null && !metric.conflict) playerWarnings.push(`${STAT_LABELS[field]}未识别，请核对截图并人工补齐`);
         return [field, metric];
       })) as Record<MatchStatField, NormalizedMetric>;
       if (entries.length === 0) {

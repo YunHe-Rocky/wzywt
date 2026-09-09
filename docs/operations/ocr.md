@@ -2,7 +2,7 @@
 
 当前交付：`/health`、`/ocr` 原始坐标/文本、`/recognize` 的 DATA「数据—双方」实验性解析，以及独立 Bash / PM2 后台管理入口。
 
-**尚未完成六图正式识别。不要把这个预览服务配置为生产 MATCH_OCR_ENDPOINT。** 网站要求 DATA、OUTPUT、SURVIVAL、DEVELOPMENT、KDA、TEAM 六页；本服务只接受一张，其他类型仅可用 `/ocr` 导出原始文字。六图请求会被拒绝，不会伪造五页结果或 PASS 状态。`/health` 返回 `fullMatchReady: false`。
+**地址连接支持测试/生产两种部署模式，但六图正式识别尚未完成。** 配置生产 `MATCH_OCR_ENDPOINT` 只代表接通调用入口，不能把本预览服务作为已完成的六图识别功能上线。网站要求 DATA、OUTPUT、SURVIVAL、DEVELOPMENT、KDA、TEAM 六页；本服务只接受一张，其他类型仅可用 `/ocr` 导出原始文字。六图请求会被拒绝，不会伪造五页结果或 PASS 状态。`/health` 返回 `fullMatchReady: false`。
 
 ## 环境与源码
 
@@ -87,6 +87,14 @@ curl --fail http://127.0.0.1:8010/health
 
 `probe` 使用令牌文件并且只访问本机，不受 HTTP_PROXY 配置影响。原始结果保留原图像素坐标、每行文字及置信度，不含巨大的像素数组；结构化结果返回网站 `normalizeRecognitionPayload` 使用的 `pages[].players[].metrics` 格式，但仅含 DATA 一页，网站将正确判为六图不完整。
 
+注意区分三个检查：`--ocr --check` 检查 Python、模型、令牌但不启动；`--ocr`
+启动独立后台服务；网站 `--check` 检查网站发布配置（包括 OCR URL），不会实际上传图片，
+也不能证明六图功能已经可用。网站部署会从所选 release 的 `.env` 显式刷新 Web/cron 的
+OCR 地址和令牌，删除配置也会清除旧值；不要依赖旧终端 export 或 PM2 缓存来覆盖它。
+
+`.env` 中每个配置键只保留一处生效行。重复项报错会同时指出首次和重复定义的行号；
+OCR URL 的 Markdown 链接和反斜杠转义会在发布前被拒绝，令牌内容不写入诊断输出。
+
 ## 解析边界与验证
 
 ### 虚拟机的网站 OCR 地址配置
@@ -104,20 +112,42 @@ MATCH_OCR_ENDPOINT=http://127.0.0.1:8010/recognize
 `127.0.0.1` 指网站进程所在机器，适用于网站与 OCR 在同一台虚拟机运行。
 
 本地模式只允许 localhost、回环和私有 IP 的 HTTP OCR；公网主机仍需 HTTPS。
-未设置 `DEPLOY_ENVIRONMENT` 或设置为 `production` 时，生产构建继续要求 HTTPS，
-包括回环 OCR 地址。不要为了绕过检查将云服务器改为 local。
+未设置 `DEPLOY_ENVIRONMENT` 或设置为 `production` 时，仅同机回环 OCR 可使用 HTTP；
+其他地址（包括私有局域网 IP）仍要求 HTTPS。不要为了绕过检查将云服务器改为 local。
 
 同步修复代码并修改 `.env` 后，执行 `bash scripts/deploy.sh --check`，通过后再执行
 `bash scripts/deploy.sh` 发布网站，使代码和配置对 Web/cron 生效；只重启 OCR 不会更新网站校验。
 此配置仅解决地址校验，不代表六图识别已完成：当前预览服务仍拒绝六图请求，
 单图请使用前面的 `manage.py probe` 验证。
 
+### 云服务器生产配置（网站与 OCR 同机）
+
+在网站 `.env` 修改原有对应行，不重复添加：
+
+```dotenv
+DEPLOY_ENVIRONMENT=production
+MATCH_OCR_ENDPOINT=http://127.0.0.1:8010/recognize
+MATCH_OCR_TOKEN=替换为本机OCR令牌内容
+```
+
+`PUBLIC_ORIGIN` 仍为网站实际 HTTPS 域名；不要修改 `NODE_ENV`，也不要给 8010 开公网端口。
+生产 HTTP 例外仅限 `127.0.0.0/8`、`::1` 和精确主机名 `localhost`；推荐上面固定 IPv4
+地址，因为预览服务目前只监听 `127.0.0.1`，`localhost` 可能优先解析为 IPv6。
+如果网站与 OCR 分在两台机器或不同容器中，回环指向的是调用进程自身的网络环境，
+不能用它访问另一台机器；生产远程地址需要配置真实 HTTPS 服务/代理。
+
+令牌来自云服务器 `/opt/project/wzywt-ocr.token`，填写文件内容而不是路径，勿公开。
+先按前文启动 OCR，再执行网站 `bash scripts/deploy.sh --check`，通过后发布网站。
+预检和运行时使用同一地址规则；请求仍携带原有 Bearer 令牌，仍禁止跟随重定向。
+此配置不改变单图预览的能力限制。
+
 ### 预览能力
 
-- 当前固定模板对应已提供截图，宽高比 2.0–2.35；必须找到左右两组四列表头和十个昵称/评分槽位。截取、压缩、不同 UI 版本可能被拒绝，需要导出 boxes 校准。未用当前本地文件完成真实图片解析验收（用户的微信临时文件已经不可读）。
+- 当前固定模板对应已提供截图，宽高比 2.0–2.35；必须找到左右两组四列表头和十个昵称/评分槽位。截取、压缩、不同 UI 版本可能被拒绝，需要导出 boxes 校准。2026-09-09 已用 `public/test` 六张 3168×1440 样本完成本地离线文字提取，DATA 单图成功解析 10 人、10 个评分和 40 项指标；红方第三名英雄漏检保留 null。这不是多模板准确率或生产验收。
 - 依据坐标归组，不依赖 txts 顺序；仅以图中左侧为 blue、右侧为 red 标记截图阵营，正式集成还需验证其与网站队伍的映射。
 - 数值支持 `k`、`万`、`%`；百分数返回 0–100。`130.2k` 转成 130200 只是屏幕舍入值，不能恢复真实精确伤害。低置信度、缺失或多个候选返回 null，不补 0。
 - 不识别英雄头像，不猜 heroId，不宣称昵称百分百正确；纯数字昵称目前可能被当作徽章而拒绝整页，需要补充样本。
+- 六图样本的真实请求目前会因单文件上限被拒绝，另外五页的结构化解析仍未实现；单数字和徽章干扰也已在样本中出现。网站合并后缺少评分或统计会标为 WARNING 并提示人工补齐，不再把全空统计显示为 PASS；缺页仍为 FAIL，不伪造结果。
 - 仅本机监听，Bearer 鉴权在解析请求体前执行；请求体限 13 MiB、图片限 12 MiB / 1200 万像素，仅非动画 JPEG/PNG/WebP。只允许一个推理任务，同时请求返回 429；健康检查仍可响应。
 - 上传限时 20 秒。ONNX 原生线程不能强制中断，客户端取消不会释放正在推理的锁。常驻上线前应补子进程硬超时、资源限制及管理员可见的任务故障处理。
 
@@ -131,6 +161,6 @@ bash scripts/test-ocr-python.sh
 
 测试以合成文字坐标验证归组、数值、漏项、HTTP 鉴权、上传限制和并发，并以模拟 PM2 验证重复启动、进程归属、端口冲突、健康失败不保存和 root 用户切换。测试不代表真实 OCR 准确率或云服务器已部署。
 
-下一步需要其他五类截图的样本及原始 boxes，补模板和跨图人员对应回归后，再启用六图 /recognize。默认生产模式仍要求 HTTPS OCR 地址；HTTPS 代理和正式 OCR 发布回滚要另行验收。
+下一步可使用现有六类样本补齐另外五页模板、单数字漏检处理和跨图人员对应回归，再启用六图 /recognize。生产非回环地址仍要求 HTTPS；远程 HTTPS 代理和正式 OCR 发布回滚要另行验收。
 
 实现参考：[FastAPI 模型生命周期](https://fastapi.tiangolo.com/advanced/events/)、[RapidOCR 输出格式](https://rapidai.github.io/RapidOCRDocs/main/install_usage/rapidocr/usage/)。

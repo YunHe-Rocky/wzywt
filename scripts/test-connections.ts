@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createServer } from "node:http";
 import { mkdtemp, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -199,6 +200,51 @@ async function testOcrTransportGuards(): Promise<void> {
   }
 }
 
+async function testProductionLoopbackOcrTransport(): Promise<void> {
+  const saved = new Map(["NODE_ENV", "DEPLOY_ENVIRONMENT", "MATCH_OCR_ENDPOINT", "MATCH_OCR_TOKEN"]
+    .map((key) => [key, process.env[key]]));
+  let observed: { method?: string; url?: string; authorization?: string; body: string } | undefined;
+  let requestCount = 0;
+  let redirect = false;
+  const server = createServer((request, response) => {
+    requestCount++;
+    const chunks: Buffer[] = [];
+    request.on("data", (chunk: Buffer) => chunks.push(chunk));
+    request.on("end", () => {
+      observed = { method: request.method, url: request.url, authorization: request.headers.authorization, body: Buffer.concat(chunks).toString() };
+      if (redirect) response.writeHead(302, { Location: "/unexpected-redirect" }).end();
+      else response.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify({ pages: [] }));
+    });
+  });
+  try {
+    await new Promise<void>((accept, reject) => { server.once("error", reject); server.listen(0, "127.0.0.1", accept); });
+    const address = server.address();
+    assert.ok(address && typeof address !== "string");
+    Reflect.set(process.env, "NODE_ENV", "production");
+    process.env.DEPLOY_ENVIRONMENT = "production";
+    process.env.MATCH_OCR_ENDPOINT = `http://127.0.0.1:${address.port}/recognize`;
+    process.env.MATCH_OCR_TOKEN = "local-transport-test-token";
+    const files = [{ type: "DATA", filename: "data.png", mimeType: "image/png", data: Buffer.from("image-test-data") }];
+    assert.deepEqual(await recognizeMatchScreenshots(files), { pages: [] });
+    assert.equal(observed?.method, "POST");
+    assert.equal(observed?.url, "/recognize");
+    assert.equal(observed?.authorization, "Bearer local-transport-test-token");
+    assert.match(observed?.body || "", /name="screenshots"; filename="data.png"/);
+    assert.match(observed?.body || "", /name="types"\r\n\r\nDATA/);
+    redirect = true;
+    await assert.rejects(() => recognizeMatchScreenshots(files), (error: unknown) =>
+      error instanceof ServiceError && error.code === "SERVICE_UNAVAILABLE");
+    assert.equal(requestCount, 2, "loopback HTTP exception must not follow redirects");
+  } finally {
+    for (const [key, value] of saved) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+    server.closeAllConnections();
+    await new Promise<void>((accept) => server.close(() => accept()));
+  }
+}
+
 async function main(): Promise<void> {
   assert.equal(redisRetryDelay(1), 250);
   assert.equal(redisRetryDelay(4), 2_000);
@@ -218,6 +264,7 @@ async function main(): Promise<void> {
   await testClientConnectionErrors();
   await testStreamingCombatUpload();
   await testOcrTransportGuards();
+  await testProductionLoopbackOcrTransport();
   console.log("Connection timeout, recovery, body-limit, and OCR transport tests passed.");
 }
 

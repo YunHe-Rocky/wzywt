@@ -99,6 +99,21 @@ DEPLOY_DB_BACKUP_DIR=/opt/middleware/Mysql/mysql/bakup/yanwutang
 
 `bash scripts/deploy.sh --check` 会打印 `database-backups=...` 并在目录不存在或不可写时提前拒绝发布。
 
+若报错指向 `/opt/middleware/Mysql/mysql/bakup`，先检查 `.env` 中的
+`DEPLOY_DB_BACKUP_DIR` 是否误填为备份父目录，而不是原先准备的专属子目录
+`/opt/middleware/Mysql/mysql/bakup/yanwutang`。不要直接给 MySQL 或共享备份父目录改属主。
+在实际部署用户下检查（不输出密码）：
+
+```bash
+id
+namei -l /opt/middleware/Mysql/mysql/bakup/yanwutang
+test -w /opt/middleware/Mysql/mysql/bakup/yanwutang && test -x /opt/middleware/Mysql/mysql/bakup/yanwutang && echo "备份目录可写且可进入"
+```
+
+每级父目录都需要通行权限；仅给最终目录写权限不一定足够。由管理员依据检查结果
+准备或修复已确认的专属目录，再由 `project` 重跑 `--check`。脚本不会自动迁移备份位置、
+跳过备份或递归 chmod/chown；相对路径也会被拒绝。`--check` 是预检，不会实际创建备份。
+
 `DEPLOY_REQUIRED_COMMANDS`、`DEPLOY_REQUIRED_SYSTEMD_SERVICES`、`DEPLOY_AUTO_START_SERVICES` 是已禁用的危险旧设置，脚本会主动拒绝。
 
 ## Dirty source

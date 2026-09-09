@@ -222,6 +222,15 @@ nearest_existing_parent() {
   printf '%s\n' "$candidate"
 }
 
+fail_backup_path() {
+  local reason="$1" diagnostic
+  printf -v diagnostic '%q ' namei -l -- "$BACKUP_DIR"
+  printf '[deploy] ERROR: DEPLOY_DB_BACKUP_DIR=%s: %s (user=%s)\n' "$BACKUP_DIR" "$reason" "$ACTUAL_RUN_USER" >&2
+  printf '[deploy] ERROR: Read-only path inspection: %s\n' "$diagnostic" >&2
+  printf '[deploy] ERROR: Use a dedicated backup directory writable/searchable by the deployment user; check every parent directory for search permission.\n' >&2
+  fail "Ask an administrator to fix only the verified backup destination. No backup path was changed, no permission was modified, and backup must not be skipped. See docs/operations/deploy-advanced.md"
+}
+
 check_runtime_permissions() {
   local parent path
   if [[ -e "$BASE_DIR" && ! -d "$BASE_DIR" ]]; then
@@ -230,18 +239,26 @@ check_runtime_permissions() {
 
   if [[ ! -e "$BASE_DIR" ]]; then
     parent="$(nearest_existing_parent "$BASE_DIR")"
-    [[ -d "$parent" && -w "$parent" ]] || fail "runtime directory cannot be created by $ACTUAL_RUN_USER: $BASE_DIR. Ask an administrator to run once: sudo install -d -m 0750 -o '$ACTUAL_RUN_USER' -g '$ACTUAL_RUN_GROUP' '$BASE_DIR'"
-  elif [[ ! -w "$BASE_DIR" ]]; then
+    [[ -d "$parent" && -w "$parent" && -x "$parent" ]] || fail "runtime directory cannot be created by $ACTUAL_RUN_USER: $BASE_DIR. Ask an administrator to run once: sudo install -d -m 0750 -o '$ACTUAL_RUN_USER' -g '$ACTUAL_RUN_GROUP' '$BASE_DIR'"
+  elif [[ ! -w "$BASE_DIR" || ! -x "$BASE_DIR" ]]; then
     fail "runtime directory is not writable by $ACTUAL_RUN_USER: $BASE_DIR. Fix this exact runtime directory; do not chmod/chown the source tree or all of /opt recursively"
   fi
 
-  for path in "$RELEASES_DIR" "$SHARED_DIR" "$BACKUP_DIR" "$DEPLOY_LOG_DIR" "$MEDIA_STORAGE_DIR" "$AVATAR_DIR"; do
+  if [[ -e "$BACKUP_DIR" ]]; then
+    [[ -d "$BACKUP_DIR" ]] || fail_backup_path "path is not a directory"
+    [[ -w "$BACKUP_DIR" && -x "$BACKUP_DIR" ]] || fail_backup_path "directory is not writable/searchable"
+  else
+    parent="$(nearest_existing_parent "$BACKUP_DIR")"
+    [[ -d "$parent" && -w "$parent" && -x "$parent" ]] || fail_backup_path "directory cannot be created under its nearest accessible parent"
+  fi
+
+  for path in "$RELEASES_DIR" "$SHARED_DIR" "$DEPLOY_LOG_DIR" "$MEDIA_STORAGE_DIR" "$AVATAR_DIR"; do
     if [[ -e "$path" ]]; then
       [[ -d "$path" ]] || fail "deployment path exists but is not a directory: $path"
-      [[ -w "$path" ]] || fail "deployment path is not writable by $ACTUAL_RUN_USER: $path"
+      [[ -w "$path" && -x "$path" ]] || fail "deployment path is not writable/searchable by $ACTUAL_RUN_USER: $path"
     else
       parent="$(nearest_existing_parent "$path")"
-      [[ -d "$parent" && -w "$parent" ]] || fail "deployment path cannot be created by $ACTUAL_RUN_USER: $path. Ask an administrator to create and assign this exact directory"
+      [[ -d "$parent" && -w "$parent" && -x "$parent" ]] || fail "deployment path cannot be created by $ACTUAL_RUN_USER: $path. Ask an administrator to create and assign this exact directory"
     fi
   done
 }
@@ -326,6 +343,7 @@ RELEASES_DIR="$BASE_DIR/releases"
 SHARED_DIR="$BASE_DIR/shared"
 CURRENT_LINK="$BASE_DIR/current"
 BACKUP_DIR="${DEPLOY_DB_BACKUP_DIR:-$SHARED_DIR/mysql-bak}"
+[[ "$BACKUP_DIR" == /* && "$BACKUP_DIR" != "/" ]] || fail "DEPLOY_DB_BACKUP_DIR must be an absolute non-root path"
 BACKUP_DIR="$($REALPATH_BIN -m -- "$BACKUP_DIR")"
 [[ "$BACKUP_DIR" == /* && "$BACKUP_DIR" != "/" ]] || fail "DEPLOY_DB_BACKUP_DIR must be an absolute non-root path"
 DEPLOY_LOG_DIR="$SHARED_DIR/deploy-logs"
@@ -585,6 +603,8 @@ check_pm2_ownership() {
 }
 
 check_source_clean "preflight"
+log "preflight user=$ACTUAL_RUN_USER source=$SOURCE_DIR env=$ENV_FILE environment=$DEPLOY_ENVIRONMENT"
+"$NODE_BIN" "$SCRIPT_DIR/check-ocr-config.mjs" "$ENV_FILE" || fail "OCR configuration is invalid; website release was not deployed"
 check_runtime_permissions
 "$GIT_BIN" -C "$SOURCE_DIR" check-ref-format --branch "$BRANCH" >/dev/null \
   || fail "DEPLOY_BRANCH is not a valid branch name"

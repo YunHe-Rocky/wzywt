@@ -34,6 +34,83 @@ function recognitionPayload(conflict = false) {
   };
 }
 
+function testRecognitionMissingValues() {
+  // Missing OCR must remain reviewable through the existing manual confirmation flow.
+  const empty = normalizeRecognitionPayload({
+    pages: recognitionPayload().pages.map((page) => ({
+      ...page,
+      players: page.players.map((player) => ({ ...player, score: undefined, metrics: {} })),
+    })),
+  });
+  assert.equal(empty.consistencyStatus, "WARNING", "六页齐全但统计和评分均未识别时不能显示 PASS，也不能阻断人工补齐");
+  assert.equal(empty.players.flatMap((player) => Object.values(player.stats)).filter(({ value }) => value === null).length, 140);
+  assert.equal(empty.players.filter(({ score }) => score.value === null).length, 10);
+  assert.ok(empty.players.every(({ warnings }) => warnings.some((warning) => /评分/.test(warning))));
+
+  const requiredStats = [
+    ["damageDealt", "输出伤害"], ["damageTaken", "承受伤害"], ["gold", "总经济"],
+    ["participationRate", "参团率"], ["damageConversionRate", "伤害转化比"],
+    ["damageTakenPerDeath", "每死承伤"], ["jungleGold", "野怪经济"], ["minionKills", "补刀"],
+    ["kills", "击败"], ["deaths", "死亡"], ["assists", "助攻"], ["controlScore", "控制效果"],
+    ["healing", "治疗量"], ["towerDamage", "对塔伤害"],
+  ] as const;
+  for (const [field, label] of requiredStats) {
+    const payload = recognitionPayload();
+    for (const page of payload.pages) delete page.players[0].metrics[field];
+    const missing = normalizeRecognitionPayload(payload);
+    assert.equal(missing.consistencyStatus, "WARNING", `${field} 缺失必须提示人工确认`);
+    assert.equal(missing.players[0].stats[field].value, null, `${field} 缺失不得补零`);
+    assert.ok(missing.players[0].warnings.some((warning) => warning.includes(label) && /人工/.test(warning)), `${field} 警告必须指出待补字段和处理方式`);
+    assert.equal(missing.players[1].warnings.length, 0, "缺项警告应归属具体玩家");
+  }
+
+  const nullValues = normalizeRecognitionPayload({
+    pages: recognitionPayload().pages.map((page) => ({
+      ...page,
+      players: page.players.map((player) => ({
+        ...player,
+        score: { value: null, confidence: 0.4 },
+        metrics: { ...player.metrics, ...(page.type === "KDA" ? { deaths: { value: null, confidence: 0.4 } } : {}) },
+      })),
+    })),
+  });
+  assert.equal(nullValues.consistencyStatus, "WARNING");
+  assert.equal(nullValues.players[0].score.value, null);
+  assert.equal(nullValues.players[0].stats.deaths.value, null);
+  assert.equal(nullValues.players[0].stats.deaths.sources[0].confidence, 0.4, "缺项仍应保留原始置信度用于复核");
+  assert.ok(nullValues.players[0].warnings.some((warning) => /评分/.test(warning)));
+  assert.ok(nullValues.players[0].warnings.some((warning) => /死亡/.test(warning)));
+
+  const zero = normalizeRecognitionPayload({
+    pages: recognitionPayload().pages.map((page) => ({
+      ...page,
+      players: page.players.map((player) => ({
+        ...player,
+        heroId: 1,
+        heroName: null,
+        score: page.type === "DATA" ? { value: 0 } : undefined,
+        metrics: Object.fromEntries(Object.keys(player.metrics).map((field) => [field, { value: 0 }])),
+      })),
+    })),
+  });
+  assert.equal(zero.consistencyStatus, "PASS", "零值有效，heroId 可替代名称，其他五页无需重复提供评分");
+  assert.equal(zero.players[0].score.value, 0);
+  assert.equal(zero.players[0].stats.kills.value, 0);
+
+  const supplemented = normalizeRecognitionPayload({
+    pages: recognitionPayload().pages.map((page) => ({
+      ...page,
+      players: page.players.map((player) => ({
+        ...player,
+        ...(page.type === "DATA" ? { score: null, metrics: {} } : {}),
+      })),
+    })),
+  });
+  assert.equal(supplemented.consistencyStatus, "PASS", "DATA 漏读的重复指标和评分可由其他页可靠补足");
+  assert.equal(supplemented.players[0].score.value, 10);
+  assert.equal(supplemented.players[0].stats.damageDealt.value, 100);
+}
+
 async function streamText(stream: NodeJS.ReadableStream): Promise<string> {
   const chunks: Buffer[] = [];
   for await (const chunk of stream) chunks.push(Buffer.from(chunk as Uint8Array));
@@ -51,6 +128,7 @@ async function main() {
   assert.equal(conflicted.consistencyStatus, "WARNING");
   assert.equal(conflicted.conflicts.some(({ field }) => field === "damageDealt"), true);
   assert.equal(conflicted.players[0].stats.damageDealt.value, null, "跨图冲突不得伪造默认值");
+  testRecognitionMissingValues();
 
   assert.deepEqual(parseByteRange(null, 100), { kind: "full" });
   assert.deepEqual(parseByteRange("bytes=10-19", 100), { kind: "partial", range: { start: 10, end: 19 } });
