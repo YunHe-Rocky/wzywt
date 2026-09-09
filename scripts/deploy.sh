@@ -5,7 +5,7 @@ umask 027
 INVOCATION_DIR="$(pwd -P)"
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 SCRIPT_SOURCE_DIR="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"
-# OCR has its own foreground launcher and never enters website release activation.
+# OCR has its own process manager and never enters website release activation.
 if [[ "${1:-}" == "--ocr" ]]; then
   shift
   exec bash "$SCRIPT_DIR/deploy-ocr.sh" "$@"
@@ -75,7 +75,7 @@ check_source_clean() {
 usage() {
   cat <<'USAGE'
 Usage: bash scripts/deploy.sh [--check] [--env-file PATH]
-       bash scripts/deploy.sh --ocr [--check|--serve]
+       bash scripts/deploy.sh --ocr [--start|--check|--serve|--status|--logs]
 
   --check          Resolve and validate project paths, commands, PM2 ownership,
                    and configured system services without deploying a release.

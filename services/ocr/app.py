@@ -93,7 +93,7 @@ def create_app(engine_factory=load_engine, token=None):
     @app.get("/health")
     async def health():
         return {"status": "ok", "service": "wzywt-ocr-preview", "supportedTypes": ["DATA"],
-                "fullMatchReady": False}
+                "fullMatchReady": False, "pid": os.getpid(), "instanceId": os.environ.get("OCR_INSTANCE_ID")}
 
     async def process(request, structured):
         authorization = request.headers.get("authorization", "")

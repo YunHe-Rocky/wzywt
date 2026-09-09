@@ -7,6 +7,7 @@ from pathlib import Path
 import secrets
 import urllib.error
 import urllib.request
+from token_store import ensure_token
 
 
 def main():
@@ -20,11 +21,8 @@ def main():
     probe.add_argument("--type", default="DATA", choices=["DATA", "OUTPUT", "SURVIVAL", "DEVELOPMENT", "KDA", "TEAM"])
     args = parser.parse_args()
     if args.command == "init-token":
-        # Never overwrite an existing credential, including symlinks.
-        descriptor = os.open(args.path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-        with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
-            stream.write(secrets.token_urlsafe(32) + "\n")
-        print("Created OCR token file; keep it private and outside the repository.")
+        ensure_token(args.path, create=True, owner_uid=os.geteuid() if os.name == "posix" else None)
+        print("OCR token file ready (created or reused); contents were not printed.")
         return
     from app import load_token
     if args.image.stat().st_size > 12 * 1024 * 1024:
@@ -49,4 +47,8 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except (OSError, ValueError) as exc:
+        print(f"OCR setup failed: {exc}")
+        raise SystemExit(1) from exc

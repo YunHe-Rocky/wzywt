@@ -1,6 +1,6 @@
 # RapidOCR 单图预览服务
 
-当前交付：`/health`、`/ocr` 原始坐标/文本、`/recognize` 的 DATA「数据—双方」实验性解析，以及独立 Bash 启动入口。
+当前交付：`/health`、`/ocr` 原始坐标/文本、`/recognize` 的 DATA「数据—双方」实验性解析，以及独立 Bash / PM2 后台管理入口。
 
 **尚未完成六图正式识别。不要把这个预览服务配置为生产 MATCH_OCR_ENDPOINT。** 网站要求 DATA、OUTPUT、SURVIVAL、DEVELOPMENT、KDA、TEAM 六页；本服务只接受一张，其他类型仅可用 `/ocr` 导出原始文字。六图请求会被拒绝，不会伪造五页结果或 PASS 状态。`/health` 返回 `fullMatchReady: false`。
 
@@ -14,6 +14,7 @@
 每个候选都验证实际 OCR 依赖导入，跳过缺包或 cv2 系统库不可用的环境，并打印最终选中的路径。
 若显式设置了 `OCR_PYTHON`，则严格使用该路径，错误时不悄悄切换。
 此脚本不读取网站 `.env`，不会自动安装依赖，也不改变目录权限。
+后台启动默认使用仓库旁的 `<仓库路径>-ocr.token`，例如 `/opt/project/wzywt-ocr.token`，无需 export。
 下面的 `export OCR_PYTHON=...` 是可选的明确指定方式；直接运行 Python 管理命令时仍需设置它。
 
 虚拟机：
@@ -24,7 +25,7 @@ export OCR_PYTHON=/opt/wzywt/.venv-ocr/bin/python
 export OCR_TOKEN_FILE=/opt/wzywt-ocr.token
 ```
 
-云服务器（测试时使用现有环境；未来常驻应由网站所属 project 用户管理）：
+云服务器（使用现有环境；后台进程由仓库所属 project 用户管理）：
 
 ```bash
 cd /opt/project/wzywt
@@ -32,7 +33,7 @@ export OCR_PYTHON=/opt/runtime/Python/python/bin/python
 export OCR_TOKEN_FILE=/opt/project/wzywt-ocr.token
 ```
 
-路径按实际安装位置配置，不假设两台机器相同。令牌文件必须由运行 OCR 的用户创建和读取。不要用 root 创建后直接让 project 读取 0600 文件。
+路径按实际安装位置配置，不假设两台机器相同。以上环境变量只用于显式覆盖和手动 probe，常规后台启动无需设置。
 
 已完成依赖安装的机器无需重复安装。全新环境参考已验证版本：
 
@@ -45,17 +46,38 @@ export OCR_TOKEN_FILE=/opt/project/wzywt-ocr.token
 
 仅在专用 OCR 环境中替换 OpenCV。RapidOCR 的包元数据仍声明 `opencv-python`，所以替换 headless 后 `pip check` 可能报告缺少该声明依赖；这是元数据差异，不应重新共装两个 cv2 包。后续更新 RapidOCR 可能重新拉入 GUI 版，需要重新检查。依赖版本来自本次安装，HTTP 依赖文件不是完整跨平台 lockfile。
 
-## Bash 启动
+## 一条命令后台启动（虚拟机和云服务器通用）
 
 ```bash
-bash scripts/deploy.sh --ocr --check
-"$OCR_PYTHON" services/ocr/manage.py init-token "$OCR_TOKEN_FILE"
-bash scripts/deploy.sh --ocr --serve
+# 在持久化源码仓库目录执行。云服务器 /opt/project/wzywt；虚拟机 /opt/wzywt。
+bash scripts/deploy.sh --ocr
 ```
 
-`init-token` 只执行一次，文件已存在时拒绝覆盖；之后直接复用它。密钥不打印、不进入命令行参数。`--check` 检查导入并加载模型，但不启动服务；首次加载可能需要联网下载模型。`--serve` 前台运行，Ctrl+C 停止，只监听 `127.0.0.1:8010`。该入口不运行网站备份、migration、PM2、release 切换。原来的 `bash scripts/deploy.sh` 仍然只发布网站。
+默认等同于 `--ocr --start`，不再默认为只检查。脚本依次选择 Python、检查仓库所属用户、创建或复用令牌、管理独立 `wzywt-ocr` PM2 进程、等待健康检查、成功后 `pm2 save`。重复运行会重启并更新同一个 OCR 进程，不创建副本；不重启 Web/cron。
 
-在同一台机器的另一个 SSH 窗口重新设置上述三个路径后：
+- root 在 project 所属仓库执行时：仅对默认的、无符号链接且无其他硬链接的 root 所有令牌修正归属，然后通过 `runuser` 切换到 project。不会把服务启动到 root 的 PM2，也不递归 chown 项目。虚拟机仓库属于 root 时仍使用 root。
+- project 遇到之前 root 创建的不可读令牌时：非特权用户无法自行改属主，脚本明确提示在 root 终端执行一次同样的 `bash scripts/deploy.sh --ocr`，由该命令完成修复和用户切换。无需手工执行 chown。
+- 令牌缺失自动生成，已有有效令牌原样复用，权限收紧到 600；无效文件报错，不自动轮换。自定义 `OCR_TOKEN_FILE` 的既有错误归属需要管理员处理，脚本不对任意路径自动 chown。`init-token` 手动命令也可重复执行。
+- PM2 默认使用运行用户的 home/.pm2（云服务器是 `/opt/project/.pm2`），支持 `OCR_PM2_HOME` 明确覆盖。非 root 调用也兼容其 `PM2_HOME`；root 切换用户时不继承 root 的 `PM2_HOME`。自定义目录必须属于运行用户。
+- 现有同名进程必须匹配当前服务目录、Python 和 Uvicorn 参数；不匹配即拒绝覆盖。端口 8010 被前台服务占用时，先在原窗口 Ctrl+C，再运行后台启动命令。
+- 健康检查核对服务标识、本次启动的 instanceId 以及 PM2/Python PID，最长等待约 90 秒。失败不执行 `pm2 save`，保留 OCR 条目供诊断。更新失败不保证恢复上一版 OCR，但不会改动网站进程。
+- 健康成功后自动保存 PM2 列表，关闭 SSH 不影响服务。**开机恢复仍依赖已有的 PM2 startup 系统服务**，脚本不会自动安装/修改系统服务。参见 [PM2 开机恢复说明](https://pm2.keymetrics.io/docs/usage/startup/)。
+
+后台 OCR 使用持久化源码中的 `services/ocr`；不能从 `wzywt-runtime/current` 或 release 内启动，否则可能随网站旧版本清理而失去文件。更新源码后再次运行 `--ocr` 生效。原来的 `bash scripts/deploy.sh` 仍然只发布网站，不连带更新 OCR。
+
+## 检查、状态和日志
+
+```bash
+bash scripts/deploy.sh --ocr --check   # 检查依赖、模型和已有令牌；不创建令牌、不启动服务
+bash scripts/deploy.sh --ocr --status  # 仅报告 OCR 状态并核对 HTTP health
+bash scripts/deploy.sh --ocr --logs    # 输出 OCR 最近 50 行日志后退出
+bash scripts/deploy.sh --ocr --start   # 首次后台启动，或更新已有 OCR 进程
+bash scripts/deploy.sh --ocr --serve   # 可选前台调试；后台服务运行时不要同时启动
+```
+
+首次模型加载可能需要联网。`--check` 对不存在的令牌提示将在启动时创建；已有令牌不可读则检查失败。`--serve` 同样自动准备令牌，Ctrl+C 停止。服务只监听 `127.0.0.1:8010`，无需开放公网端口。
+
+需要手动测试图片时，先按前面的虚拟机/云服务器示例设置 OCR_PYTHON 和 OCR_TOKEN_FILE：
 
 ```bash
 curl --fail http://127.0.0.1:8010/health
@@ -82,8 +104,8 @@ OCR_TEST_PYTHON="$OCR_PYTHON" node scripts/test-ocr-contract.mjs
 bash scripts/test-ocr-python.sh
 ```
 
-测试以合成文字坐标验证归组、数值、漏项、HTTP 鉴权、上传限制和并发，不代表真实 OCR 准确率。
+测试以合成文字坐标验证归组、数值、漏项、HTTP 鉴权、上传限制和并发，并以模拟 PM2 验证重复启动、进程归属、端口冲突、健康失败不保存和 root 用户切换。测试不代表真实 OCR 准确率或云服务器已部署。
 
-下一步需要其他五类截图的样本及原始 boxes，补模板和跨图人员对应回归后，再启用六图 /recognize。生产网站目前要求 HTTPS OCR 地址，预览阶段没有修改该检查；常驻发布的用户、服务目录、HTTPS 代理和回滚要另行验收。
+下一步需要其他五类截图的样本及原始 boxes，补模板和跨图人员对应回归后，再启用六图 /recognize。生产网站目前要求 HTTPS OCR 地址，预览阶段没有修改该检查；HTTPS 代理和正式 OCR 发布回滚要另行验收。
 
 实现参考：[FastAPI 模型生命周期](https://fastapi.tiangolo.com/advanced/events/)、[RapidOCR 输出格式](https://rapidai.github.io/RapidOCRDocs/main/install_usage/rapidocr/usage/)。
