@@ -19,7 +19,8 @@ export function resolveDeploymentEnvironment(value?: string): "production" | "lo
   return mode;
 }
 
-function isPrivateHostname(hostname: string): boolean {
+/** Accept a canonical hostname from URL, not a raw endpoint or DNS lookup. */
+export function isPrivateHostname(hostname: string): boolean {
   if (hostname === "localhost" || hostname === "[::1]") return true;
   // URL has already canonicalized IPv6. Only unique-local addresses are accepted.
   if (/^\[f[cd][0-9a-f]{2}:/.test(hostname)) return true;

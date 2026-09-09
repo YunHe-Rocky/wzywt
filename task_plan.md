@@ -1,5 +1,14 @@
 # Local deployment support
 
+## OCR local endpoint follow-up (2026-09-09)
+- Approved: explicit local mode permits private/loopback HTTP OCR; default production retains HTTPS.
+- Regression reproduction: complete; production-built local loopback rejected with the reported HTTPS error.
+- Shared hostname policy, provider fix and documentation: complete.
+- Targeted tests, type and architecture verification: complete.
+- Test runner: sandbox tsx failed uv_os_get_passwd ENOMEM; approved outside-sandbox run reproduced the actual bug.
+- Multi-file patch partially applied before reporting failure; inspected diff and applied remaining files separately.
+- Preserve public/test; no secrets, commits, pushes or server operations.
+
 User approved explicit local HTTP testing alongside default HTTPS production.
 
 ## Phases

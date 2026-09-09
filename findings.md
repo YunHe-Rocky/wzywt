@@ -1,5 +1,11 @@
 # Findings
 
+## OCR local endpoint follow-up (2026-09-09)
+- recognition-provider only checks NODE_ENV and ignores DEPLOY_ENVIRONMENT.
+- public-origin already validates production/local and canonical private hostnames; reuse this policy.
+- ecosystem.config.js already propagates DEPLOY_ENVIRONMENT; no PM2 changes needed.
+- The OCR preview still only parses DATA, not the website's six-page contract.
+
 Origin validation, middleware, session cookies and PM2 settings must agree.
 PM2 must explicitly clear cached entry settings after mode switches.
 Deployment regressions run through npm run test:deploy (Git Bash on Windows).

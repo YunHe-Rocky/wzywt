@@ -1,5 +1,14 @@
 # Progress
 
+## 2026-09-09 OCR local endpoint
+User approved bounded local HTTP exception with production HTTPS unchanged.
+Read TDD/verification guidance; adding real provider URL regressions to test:local-deploy.
+RED confirmed outside sandbox: local HTTP throws the reported production HTTPS ServiceError.
+GREEN: local origin/cookie and OCR endpoint tests pass after shared hostname policy wiring.
+Documented VM configuration and preview limits; no live deployment performed.
+Verification: test:local-deploy, test:connections, typecheck and check:architecture passed.
+Final diff inspection preserves production HTTPS, redirect rejection and token transport; public/test untouched.
+
 Verified clean checkout and architecture. User approved design.
 Read TDD and verification skills. Next: failing local-mode regressions.
 

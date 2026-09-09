@@ -89,6 +89,31 @@ curl --fail http://127.0.0.1:8010/health
 
 ## 解析边界与验证
 
+### 虚拟机的网站 OCR 地址配置
+
+网站的生产构建仍使用 `NODE_ENV=production`。虚拟机测试时，在网站源码仓库的 `.env`
+明确设置本地部署模式；OCR 地址校验与现有本地入口共用私有地址规则：
+
+```dotenv
+DEPLOY_ENVIRONMENT=local
+MATCH_OCR_ENDPOINT=http://127.0.0.1:8010/recognize
+```
+
+`PUBLIC_ORIGIN` 仍填写浏览器实际访问的虚拟机地址（例如 `http://192.168.1.73:8001`，
+替换为自己的 IP）；`MATCH_OCR_TOKEN` 必须与 OCR 服务的令牌一致。不要粘贴 Markdown 链接或公开令牌。
+`127.0.0.1` 指网站进程所在机器，适用于网站与 OCR 在同一台虚拟机运行。
+
+本地模式只允许 localhost、回环和私有 IP 的 HTTP OCR；公网主机仍需 HTTPS。
+未设置 `DEPLOY_ENVIRONMENT` 或设置为 `production` 时，生产构建继续要求 HTTPS，
+包括回环 OCR 地址。不要为了绕过检查将云服务器改为 local。
+
+同步修复代码并修改 `.env` 后，执行 `bash scripts/deploy.sh --check`，通过后再执行
+`bash scripts/deploy.sh` 发布网站，使代码和配置对 Web/cron 生效；只重启 OCR 不会更新网站校验。
+此配置仅解决地址校验，不代表六图识别已完成：当前预览服务仍拒绝六图请求，
+单图请使用前面的 `manage.py probe` 验证。
+
+### 预览能力
+
 - 当前固定模板对应已提供截图，宽高比 2.0–2.35；必须找到左右两组四列表头和十个昵称/评分槽位。截取、压缩、不同 UI 版本可能被拒绝，需要导出 boxes 校准。未用当前本地文件完成真实图片解析验收（用户的微信临时文件已经不可读）。
 - 依据坐标归组，不依赖 txts 顺序；仅以图中左侧为 blue、右侧为 red 标记截图阵营，正式集成还需验证其与网站队伍的映射。
 - 数值支持 `k`、`万`、`%`；百分数返回 0–100。`130.2k` 转成 130200 只是屏幕舍入值，不能恢复真实精确伤害。低置信度、缺失或多个候选返回 null，不补 0。
@@ -106,6 +131,6 @@ bash scripts/test-ocr-python.sh
 
 测试以合成文字坐标验证归组、数值、漏项、HTTP 鉴权、上传限制和并发，并以模拟 PM2 验证重复启动、进程归属、端口冲突、健康失败不保存和 root 用户切换。测试不代表真实 OCR 准确率或云服务器已部署。
 
-下一步需要其他五类截图的样本及原始 boxes，补模板和跨图人员对应回归后，再启用六图 /recognize。生产网站目前要求 HTTPS OCR 地址，预览阶段没有修改该检查；HTTPS 代理和正式 OCR 发布回滚要另行验收。
+下一步需要其他五类截图的样本及原始 boxes，补模板和跨图人员对应回归后，再启用六图 /recognize。默认生产模式仍要求 HTTPS OCR 地址；HTTPS 代理和正式 OCR 发布回滚要另行验收。
 
 实现参考：[FastAPI 模型生命周期](https://fastapi.tiangolo.com/advanced/events/)、[RapidOCR 输出格式](https://rapidai.github.io/RapidOCRDocs/main/install_usage/rapidocr/usage/)。
