@@ -15,9 +15,10 @@ from PIL import Image, UnidentifiedImageError
 from starlette.concurrency import run_in_threadpool
 from starlette.datastructures import UploadFile
 
-from parser import TextBox, parse_data
+from parser import TextBox, parse_page, PAGE_COLUMNS, INTEGER_FIELDS, number
 
 MAX_BODY = 13 * 1024 * 1024
+MAX_BATCH_BODY = 73 * 1024 * 1024  # six 12 MiB images plus bounded multipart overhead
 MAX_IMAGE = 12 * 1024 * 1024
 MAX_PIXELS = 12_000_000
 MAX_BOXES = 1500
@@ -54,10 +55,11 @@ def decode_image(data):
         raise ValueError("Invalid image or excessive dimensions") from exc
 
 
-def infer(engine, data, structured):
+def infer(engine, data, structured, kind="DATA"):
     with decode_image(data) as img:
         width, height = img.size
-        result = engine(img)
+        # RapidOCR call-time flags are mutable: reset them after recognition-only crops.
+        result = engine(img, use_det=True, use_cls=True, use_rec=True)
     texts = result.txts if result.txts is not None else []
     polygons = result.boxes if result.boxes is not None else []
     scores = result.scores if result.scores is not None else []
@@ -72,10 +74,65 @@ def infer(engine, data, structured):
             raise RuntimeError("Invalid OCR engine output")
         boxes.append(TextBox(str(text), confidence, points))
     if structured:
-        return {"pages": [parse_data(boxes, width, height)], "experimental": True,
-                "supportedTypes": ["DATA"], "requiresConfirmation": True}
+        page = parse_page(boxes, width, height, kind)
+        with decode_image(data) as img:
+            recover_small_numbers(engine, img, page, boxes)
+        return {"pages": [page], "experimental": True,
+                "supportedTypes": list(PAGE_COLUMNS), "requiresConfirmation": True}
     return {"width": width, "height": height,
             "boxes": [{"text": b.text, "confidence": b.confidence, "box": b.box} for b in boxes]}
+
+
+def recover_small_numbers(engine, image, page, boxes):
+    """Re-read only missing short numeric cells, never bars, nicknames or conflicting boxes.
+
+Single digits can be missed by full-image detection. Two recognition-only crops
+must agree at >= .98 confidence. No inference from totals, percentages or other rows.
+"""
+    width, height = image.size
+    attempts = 0
+    for player in page["players"]:
+        shift = .44 if player["side"] == "red" else 0
+        top = .192 + (player["slot"]-1)*.1195
+        for _label, field, x1, x2, percent in PAGE_COLUMNS[page["type"]]:
+            metric = player["metrics"][field]
+            if metric["value"] is not None or percent or field not in INTEGER_FIELDS | {"damageConversionRate", "controlScore"}:
+                continue
+            candidates = [b for b in boxes if x1+shift <= b.center[0]/width < x2+shift
+                          and top+.049 <= b.center[1]/height < top+.078]
+            if len(candidates) > 1 or attempts >= 10:
+                continue
+            attempts += 1
+            rect = (int((x1+shift)*width), int((top+.043)*height),
+                    int((x1+shift+.045)*width), int((top+.080)*height))
+            readings = []
+            with image.crop(rect) as crop:
+                for scale in (1, 2):
+                    with crop.resize((crop.width*scale, crop.height*scale)) as sample:
+                        result = engine(sample, use_det=False, use_cls=False, use_rec=True)
+                    texts = result.txts if result.txts is not None else []
+                    scores = result.scores if result.scores is not None else []
+                    if len(texts) != 1 or len(scores) != 1:
+                        break
+                    value, confidence = number(str(texts[0])), float(scores[0])
+                    if (value is None or not math.isfinite(confidence) or not .98 <= confidence <= 1
+                            or (field in INTEGER_FIELDS and not value.is_integer())):
+                        break
+                    readings.append((value, confidence))
+            if len(readings) == 2 and readings[0][0] == readings[1][0]:
+                left, top_px, right, bottom = rect
+                metric.update(value=readings[0][0], confidence=min(r[1] for r in readings),
+                              sourceRegion=",".join(map(str, (left, top_px, right, top_px, right, bottom, left, bottom))))
+
+
+def infer_batch(engine, images, structured):
+    if not structured:
+        return infer(engine, images[0][1], False)
+    pages = []
+    for kind, data in images:
+        pages.extend(infer(engine, data, True, kind)["pages"])
+    return {"pages": pages, "experimental": True, "supportedTypes": list(PAGE_COLUMNS),
+            "requiresConfirmation": True}
 
 
 def create_app(engine_factory=load_engine, token=None):
@@ -92,8 +149,9 @@ def create_app(engine_factory=load_engine, token=None):
 
     @app.get("/health")
     async def health():
-        return {"status": "ok", "service": "wzywt-ocr-preview", "supportedTypes": ["DATA"],
-                "fullMatchReady": False, "pid": os.getpid(), "instanceId": os.environ.get("OCR_INSTANCE_ID")}
+        return {"status": "ok", "service": "wzywt-ocr-preview", "supportedTypes": list(PAGE_COLUMNS),
+                "fullMatchReady": True, "requiresConfirmation": True,
+                "pid": os.getpid(), "instanceId": os.environ.get("OCR_INSTANCE_ID")}
 
     async def process(request, structured):
         authorization = request.headers.get("authorization", "")
@@ -107,7 +165,8 @@ def create_app(engine_factory=load_engine, token=None):
             if not content_type.lower().startswith("multipart/form-data;"):
                 raise HTTPException(415, "Expected multipart/form-data")
             length = request.headers.get("content-length")
-            if length is not None and (not length.isdigit() or int(length) > MAX_BODY):
+            body_limit = MAX_BATCH_BODY if structured else MAX_BODY
+            if length is not None and (not length.isdigit() or int(length) > body_limit):
                 raise HTTPException(413, "Request too large or invalid Content-Length")
             # Count actual bytes as well: Content-Length is not trusted, including chunked uploads.
             chunks = []
@@ -116,33 +175,48 @@ def create_app(engine_factory=load_engine, token=None):
                 async with asyncio.timeout(20):
                     async for chunk in request.stream():
                         size += len(chunk)
-                        if size > MAX_BODY:
-                            raise HTTPException(413, "Request exceeds 13 MiB")
+                        if size > body_limit:
+                            raise HTTPException(413, "OCR request exceeds upload limit")
                         chunks.append(chunk)
             except TimeoutError as exc:
                 raise HTTPException(408, "Upload timed out") from exc
 
+            # Replay bounded chunks instead of allocating a second joined batch body.
+            chunks.reverse()
+
             async def receive_body():
-                return {"type": "http.request", "body": b"".join(chunks), "more_body": False}
+                chunk = chunks.pop() if chunks else b""
+                return {"type": "http.request", "body": chunk, "more_body": bool(chunks)}
 
             bounded = Request(request.scope, receive_body)
-            async with bounded.form(max_files=1, max_fields=1, max_part_size=1024) as form:
+            max_files = 6 if structured else 1
+            images = []
+            async with bounded.form(max_files=max_files, max_fields=max_files, max_part_size=1024) as form:
                 if set(form) != {"screenshots", "types"}:
                     raise HTTPException(422, "Expected screenshots and types fields")
                 files, types = form.getlist("screenshots"), form.getlist("types")
-                if len(files) != 1 or len(types) != 1 or not isinstance(files[0], UploadFile) or not isinstance(types[0], str):
-                    raise HTTPException(422, "Preview accepts exactly one screenshot and one type")
-                if types[0] not in {"DATA", "OUTPUT", "SURVIVAL", "DEVELOPMENT", "KDA", "TEAM"}:
+                if (not 1 <= len(files) <= max_files or len(files) != len(types)
+                        or not all(isinstance(f, UploadFile) for f in files)
+                        or not all(isinstance(t, str) for t in types)):
+                    raise HTTPException(422, "Each screenshot must have one paired type (maximum six)")
+                if any(t not in PAGE_COLUMNS for t in types):
                     raise HTTPException(422, "Unknown screenshot type")
-                if structured and types[0] != "DATA":
-                    raise HTTPException(422, "Only DATA / 双方 is supported; use /ocr for other tabs' raw text")
-                data = await files[0].read(MAX_IMAGE + 1)
-                if not data or len(data) > MAX_IMAGE:
-                    raise HTTPException(413, "Image must be nonempty and no larger than 12 MiB")
+                if len(set(types)) != len(types):
+                    raise HTTPException(422, "Duplicate screenshot types")
+                for kind, file in zip(types, files):
+                    data = await file.read(MAX_IMAGE + 1)
+                    if not data or len(data) > MAX_IMAGE:
+                        raise HTTPException(413, "Image must be nonempty and no larger than 12 MiB")
+                    try:
+                        with decode_image(data):
+                            pass  # Validate every image before spending time on inference.
+                    except ValueError as exc:
+                        raise HTTPException(422, f"{kind}: {exc}") from exc
+                    images.append((kind, data))
             try:
                 # Shield + await on disconnect keeps the lock held until native inference ends.
                 # In-process thread cancellation cannot safely terminate ONNX Runtime.
-                task = asyncio.create_task(run_in_threadpool(infer, app.state.engine, data, structured))
+                task = asyncio.create_task(run_in_threadpool(infer_batch, app.state.engine, images, structured))
                 try:
                     return await asyncio.shield(task)
                 except asyncio.CancelledError:

@@ -10,7 +10,8 @@ import { prisma } from "@/lib/db";
 import { ServiceError } from "@/lib/service-error";
 import { getMediaStorage } from "@/lib/storage";
 import { requireMatchManager } from "./access";
-import { getRecognitionProviderUrl, recognizeMatchScreenshots, type RecognitionProviderFile } from "./recognition-provider";
+import { getRecognitionProviderUrl, recognizeMatchScreenshots, RecognitionProviderError, type RecognitionProviderFile } from "./recognition-provider";
+import { isRetryableRecognitionFailure } from "../recognition-errors";
 
 async function streamToBuffer(stream: NodeJS.ReadableStream, maxBytes: number): Promise<Buffer> {
   const chunks: Buffer[] = [];
@@ -269,8 +270,8 @@ async function handleRecognitionFailure(
   attemptCount: number,
   error: unknown,
 ): Promise<void> {
-  const code = error instanceof ServiceError ? error.code : "RECOGNITION_FAILED";
-  const retryable = code === "SERVICE_UNAVAILABLE" || code === "RECOGNITION_FAILED";
+  const code = error instanceof RecognitionProviderError ? error.failureCode : error instanceof ServiceError ? error.code : "RECOGNITION_FAILED";
+  const retryable = isRetryableRecognitionFailure(code);
   const shouldRetry = retryable && attemptCount < 3;
   const now = new Date();
   const availableAt = new Date(now.getTime() + Math.min(60_000, 15_000 * 2 ** Math.max(0, attemptCount - 1)));

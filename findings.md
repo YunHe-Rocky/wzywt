@@ -1,5 +1,18 @@
 # Findings
 
+## Promotional video (2026-09-10)
+- Live public homepage returned HTTP 200 and presents the promise: friend-group 5v5 internal matches, strength-aware team balancing, role-preference support, room-code joining, hero/equipment reference, and post-match continuity.
+- Strongest positioning is a friend-group match organizer, not a generic game news site or professional esports platform.
+- Brand language is warm rivalry: "今晚，峡谷见。", "熟悉的朋友，也可以是好对手。", and "和朋友，好好打一场。"
+- Visual system uses deep navy (#080f17), muted gold (#d3b783), light gold (#edd7aa), restrained glass panels, and a nocturnal arena hero image.
+- Approved output is about 60 seconds, 16:9 1080p, Mandarin male voice, original percussion/electronic music, and real website UI as the visual core.
+- Desktop capture confirms the homepage is the strongest hero shot: the real UI already combines the arena artwork, the headline, two core promises, the three-step flow, and a prominent event-hall CTA in one 16:9 frame.
+- The unauthenticated tournament hall is intentionally a login gate. It supports the low-friction "login then join" narrative, but it should not be presented as evidence of a populated room list.
+- The hero catalog clearly exposes 132 heroes and role/profession filtering, but many portrait tiles were not loaded in the first capture; recapture or crop the strong heading/filter region rather than show placeholder-heavy cards.
+- The equipment catalog is visually production-ready for the montage: 121 items, filter chips, readable item art, prices, and attributes appear in the first viewport.
+- The scrolled homepage gives a clean three-step narrative plus the "create room / browse hero / browse equipment" preparation flow, making it stronger than the login-gated hall for the middle montage.
+- The 390px mobile capture preserves the complete hero promise, CTAs, core benefits, three-step flow, and dock without horizontal overflow; it is suitable for a floating-phone shot that proves mobile readiness.
+
 ## Deployment/OCR retrospective (2026-09-09)
 - OCR endpoint/token are not selected by deployment dotenv parsing; duplicate or Markdown OCR values evade preflight.
 - PM2 explicitly replaces Redis settings but not OCR settings, leaving stale inherited values possible.

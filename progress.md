@@ -1,5 +1,8 @@
 # Progress
 
+## 2026-09-10 promotional video
+User approved the proposed 60-second landscape concept. Live homepage and repository product/visual documentation were inspected. Existing dirty worktree is unrelated and will be preserved. Next: capture current public pages without mutating production data.
+
 ## 2026-09-09 deployment/OCR retrospective
 Reproduced duplicate/Markdown OCR config passing preflight and stale PM2 OCR values; new tests fail before fix, pass after.
 Reproduced raw relative backup directory accepted; now reject before canonicalization and give targeted safe permission diagnostics.

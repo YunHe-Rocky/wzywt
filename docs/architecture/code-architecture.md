@@ -10,7 +10,7 @@
 可选的外部 OCR 预览服务位于 `services/ocr`，由 `bash scripts/deploy.sh --ocr`
 默认作为独立的 `wzywt-ocr` PM2 后台进程启动；支持 `--check`、`--status`、`--logs` 和前台调试 `--serve`。
 它不属于上述两个网站进程，也不参与网站 release 切换。
-当前只支持 DATA 单图实验性解析，六图正式接入边界见 [OCR 说明](../operations/ocr.md)。
+支持六类结算截图的批量辅助识别（当前双方横屏模板），结果需人工核对；能力与验证边界见 [OCR 说明](../operations/ocr.md)。
 
 源码按职责分为四层，避免把“运行进程”和“代码职责”混为一谈。
 

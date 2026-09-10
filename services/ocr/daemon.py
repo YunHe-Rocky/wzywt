@@ -202,7 +202,8 @@ def main():
             payload = controller.read_health()
             if not healthy(payload, process, process["pm2_env"].get("OCR_INSTANCE_ID")):
                 raise ValueError("OCR health does not match the PM2 process; run --ocr to update it")
-            print("[ocr] HTTP health matches the PM2 process; fullMatchReady=false (single-image preview)")
+            ready = payload.get("fullMatchReady") is True
+            print(f"[ocr] HTTP health matches the PM2 process; fullMatchReady={str(ready).lower()}; manual confirmation required")
 
 
 if __name__ == "__main__":

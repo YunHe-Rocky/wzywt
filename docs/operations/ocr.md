@@ -1,8 +1,19 @@
-# RapidOCR 单图预览服务
+# RapidOCR 六图辅助识别服务
 
-当前交付：`/health`、`/ocr` 原始坐标/文本、`/recognize` 的 DATA「数据—双方」实验性解析，以及独立 Bash / PM2 后台管理入口。
+当前交付：`/health`、`/ocr` 单图原始坐标/文本、`/recognize` 六类「双方」横屏截图解析，以及独立 Bash / PM2 后台管理入口。
 
-**地址连接支持测试/生产两种部署模式，但六图正式识别尚未完成。** 配置生产 `MATCH_OCR_ENDPOINT` 只代表接通调用入口，不能把本预览服务作为已完成的六图识别功能上线。网站要求 DATA、OUTPUT、SURVIVAL、DEVELOPMENT、KDA、TEAM 六页；本服务只接受一张，其他类型仅可用 `/ocr` 导出原始文字。六图请求会被拒绝，不会伪造五页结果或 PASS 状态。`/health` 返回 `fullMatchReady: false`。
+网站一次发送 DATA、OUTPUT、SURVIVAL、DEVELOPMENT、KDA、TEAM 六页，`/recognize` 接受 1–6 张互不重复、与 `types` 按顺序配对的图片。`/ocr` 保留单图上限。`/health` 返回 `fullMatchReady: true` 表示协议支持六图，并非准确率保证；识别响应带 `requiresConfirmation: true`，网站显示待人工核查，缺页仍为 FAIL，缺失值保持 null。
+
+从旧单图服务升级时，拉取代码后必须分别更新 OCR 和网站：
+
+```bash
+bash scripts/deploy.sh --ocr
+bash scripts/deploy.sh --ocr --status
+bash scripts/deploy.sh --check
+bash scripts/deploy.sh
+```
+
+状态应显示 `fullMatchReady=true`。只发布网站不会更新独立 OCR 进程。旧版接口拒绝六图时，网站会提示升级服务；鉴权失败、超大图片、错误分类/不支持模板不再自动重试，临时连接失败、繁忙和超时保留有限重试。原图与失败记录保留，失败后可以直接再次识别。
 
 ## 环境与源码
 
@@ -85,11 +96,11 @@ curl --fail http://127.0.0.1:8010/health
 "$OCR_PYTHON" services/ocr/manage.py probe /绝对路径/王者截图.jpg
 ```
 
-`probe` 使用令牌文件并且只访问本机，不受 HTTP_PROXY 配置影响。原始结果保留原图像素坐标、每行文字及置信度，不含巨大的像素数组；结构化结果返回网站 `normalizeRecognitionPayload` 使用的 `pages[].players[].metrics` 格式，但仅含 DATA 一页，网站将正确判为六图不完整。
+`probe` 使用令牌文件并且只访问本机，不受 HTTP_PROXY 配置影响。原始结果保留原图像素坐标、每行文字及置信度，不含巨大的像素数组；结构化结果返回网站 `normalizeRecognitionPayload` 使用的 `pages[].players[].metrics` 格式。`--type KDA` 等参数可测试其他页；单张结果仍会被网站判为六图不完整。
 
 注意区分三个检查：`--ocr --check` 检查 Python、模型、令牌但不启动；`--ocr`
 启动独立后台服务；网站 `--check` 检查网站发布配置（包括 OCR URL），不会实际上传图片，
-也不能证明六图功能已经可用。网站部署会从所选 release 的 `.env` 显式刷新 Web/cron 的
+也不能证明真实截图可以识别。网站部署会从所选 release 的 `.env` 显式刷新 Web/cron 的
 OCR 地址和令牌，删除配置也会清除旧值；不要依赖旧终端 export 或 PM2 缓存来覆盖它。
 
 `.env` 中每个配置键只保留一处生效行。重复项报错会同时指出首次和重复定义的行号；
@@ -117,8 +128,7 @@ MATCH_OCR_ENDPOINT=http://127.0.0.1:8010/recognize
 
 同步修复代码并修改 `.env` 后，执行 `bash scripts/deploy.sh --check`，通过后再执行
 `bash scripts/deploy.sh` 发布网站，使代码和配置对 Web/cron 生效；只重启 OCR 不会更新网站校验。
-此配置仅解决地址校验，不代表六图识别已完成：当前预览服务仍拒绝六图请求，
-单图请使用前面的 `manage.py probe` 验证。
+此配置仅解决地址校验。使用前面的 `manage.py probe` 验证单图，网站六图验收仍需实际执行识别并核对结果。
 
 ### 云服务器生产配置（网站与 OCR 同机）
 
@@ -139,16 +149,16 @@ MATCH_OCR_TOKEN=替换为本机OCR令牌内容
 令牌来自云服务器 `/opt/project/wzywt-ocr.token`，填写文件内容而不是路径，勿公开。
 先按前文启动 OCR，再执行网站 `bash scripts/deploy.sh --check`，通过后发布网站。
 预检和运行时使用同一地址规则；请求仍携带原有 Bearer 令牌，仍禁止跟随重定向。
-此配置不改变单图预览的能力限制。
+配置变更不改变解析模板和人工复核要求。
 
-### 预览能力
+### 识别能力和验证边界
 
-- 当前固定模板对应已提供截图，宽高比 2.0–2.35；必须找到左右两组四列表头和十个昵称/评分槽位。截取、压缩、不同 UI 版本可能被拒绝，需要导出 boxes 校准。2026-09-09 已用 `public/test` 六张 3168×1440 样本完成本地离线文字提取，DATA 单图成功解析 10 人、10 个评分和 40 项指标；红方第三名英雄漏检保留 null。这不是多模板准确率或生产验收。
+- 当前固定模板对应 `public/test` 六张 3168×1440 截图，宽高比 2.0–2.35；每页校验左右两组对应表头和十个玩家槽位。裁剪、不同 UI 版本可能被拒绝，错误分类不会按上传标签强行解释。已用真实 RapidOCR 经六文件 HTTP 接口验证 60 个评分和 180 项页面统计，与独立人工抄录值一致。这是一组样本的结果，不是多模板准确率或目标服务器验收。
 - 依据坐标归组，不依赖 txts 顺序；仅以图中左侧为 blue、右侧为 red 标记截图阵营，正式集成还需验证其与网站队伍的映射。
 - 数值支持 `k`、`万`、`%`；百分数返回 0–100。`130.2k` 转成 130200 只是屏幕舍入值，不能恢复真实精确伤害。低置信度、缺失或多个候选返回 null，不补 0。
-- 不识别英雄头像，不猜 heroId，不宣称昵称百分百正确；纯数字昵称目前可能被当作徽章而拒绝整页，需要补充样本。
-- 六图样本的真实请求目前会因单文件上限被拒绝，另外五页的结构化解析仍未实现；单数字和徽章干扰也已在样本中出现。网站合并后缺少评分或统计会标为 WARNING 并提示人工补齐，不再把全空统计显示为 PASS；缺页仍为 FAIL，不伪造结果。
-- 仅本机监听，Bearer 鉴权在解析请求体前执行；请求体限 13 MiB、图片限 12 MiB / 1200 万像素，仅非动画 JPEG/PNG/WebP。只允许一个推理任务，同时请求返回 429；健康检查仍可响应。
+- 不识别英雄头像，不猜 heroId，不宣称昵称百分百正确；纯数字昵称长度至少三位时可保留，一两位仍可能与徽章混淆。低置信度英雄文字和无法确定的昵称保持 null，由人工复核。
+- 对少量漏检的短数字格做两次局部纯识别；两种缩放读数一致、置信度均至少 0.98 才补入，并记录原图区域。多个候选不强行覆盖；每页最多补识别十格。仍漏掉或有跨图冲突的值由网站提示人工补齐。
+- 仅本机监听，Bearer 鉴权在解析请求体前执行；六图请求体限 73 MiB，单图 `/ocr` 请求体限 13 MiB，单张图片限 12 MiB / 1200 万像素，仅非动画 JPEG/PNG/WebP。先校验全部图片，再顺序推理；只允许一个批次，同时请求返回 429，健康检查仍可响应。
 - 上传限时 20 秒。ONNX 原生线程不能强制中断，客户端取消不会释放正在推理的锁。常驻上线前应补子进程硬超时、资源限制及管理员可见的任务故障处理。
 
 本地测试（需 HTTP 依赖和 `httpx==0.28.1`，无需下载 OCR 模型）：
@@ -159,8 +169,14 @@ OCR_TEST_PYTHON="$OCR_PYTHON" node scripts/test-ocr-contract.mjs
 bash scripts/test-ocr-python.sh
 ```
 
-测试以合成文字坐标验证归组、数值、漏项、HTTP 鉴权、上传限制和并发，并以模拟 PM2 验证重复启动、进程归属、端口冲突、健康失败不保存和 root 用户切换。测试不代表真实 OCR 准确率或云服务器已部署。
+测试覆盖合成坐标、六类真实截图原始 OCR 坐标回归、数值、漏项、HTTP 鉴权、上传限制和并发，并以模拟 PM2 验证重复启动、进程归属、端口冲突、健康失败不保存和 root 用户切换。`services/ocr/fixtures` 来自 `public/test` 的 RapidOCR 3.9.2 / PP-OCRv6 本地提取；数值期望在 `test_samples.py` 独立抄录，离线测试不加载模型。
 
-下一步可使用现有六类样本补齐另外五页模板、单数字漏检处理和跨图人员对应回归，再启用六图 /recognize。生产非回环地址仍要求 HTTPS；远程 HTTPS 代理和正式 OCR 发布回滚要另行验收。
+真实引擎与六文件 HTTP 回归（使用已有模型，不连接数据库）：
+
+```bash
+"$OCR_PYTHON" scripts/test-ocr-samples.py
+```
+
+结果写入 `.cache/ocr-samples/recognized.json`。更多设备、分辨率和不同对局需继续补充样本；截图左右阵营与网站队伍仍需人工确认。生产非回环地址仍要求 HTTPS；远程 HTTPS 代理和目标环境运行情况需单独验收。
 
 实现参考：[FastAPI 模型生命周期](https://fastapi.tiangolo.com/advanced/events/)、[RapidOCR 输出格式](https://rapidai.github.io/RapidOCRDocs/main/install_usage/rapidocr/usage/)。

@@ -1,5 +1,23 @@
 # Local deployment support
 
+## Promotional video (2026-09-10)
+
+Approved direction: create a roughly 60-second 1920x1080 landscape promotional video for the public website, using real public UI footage, warm and energetic Mandarin narration, original Chinese-percussion/electronic background music, burned-in Chinese captions, and the established navy/gold visual language.
+
+### Video phases
+- Capture and inspect current public desktop/mobile website scenes: in progress.
+- Write the timed Chinese script and shot list: pending.
+- Produce narration, original music, motion graphics, and edit: pending.
+- Verify playback, duration, resolution, audio, captions, and final frames: pending.
+
+### Video boundaries
+- Preserve all existing application and OCR changes; add only standalone promotional-video artifacts.
+- Use public website screens and repository-owned brand art; do not use official game soundtrack.
+- Do not log in, create rooms, submit forms, or mutate production data.
+
+### Video errors
+- Initial combined planning-file patch did not match findings.md context; no partial change was retained, so the files are being updated separately.
+
 ## Deployment/OCR retrospective (2026-09-09)
 - User requested code repairs supporting test and production.
 - Investigate: complete (OCR dotenv validation/PM2 propagation, backup diagnostics and raw relative path check).

@@ -22,3 +22,20 @@ assert.equal(player.stats.kills.value, null, "Unobserved KDA must not become zer
 assert.equal(player.stats.damageDealt.sources[0].sourceScreenshotType, "DATA");
 assert.ok(player.stats.damageDealt.sources[0].sourceRegion);
 console.log("OCR Python -> TypeScript contract passed; incomplete six-page evidence fails closed");
+
+const batch = spawnSync(python, ["-c", [
+  "import sys, json",
+  "sys.path.insert(0, 'services/ocr')",
+  "from parser import parse_page, PAGE_COLUMNS",
+  "from test_ocr import fixture",
+  "print(json.dumps({'pages': [parse_page(fixture(k), 2200, 1000, k) for k in PAGE_COLUMNS], 'requiresConfirmation': True}))",
+].join("; ")], { encoding: "utf8", windowsHide: true });
+assert.equal(batch.status, 0, batch.stderr || String(batch.error));
+const complete = normalizeRecognitionPayload(JSON.parse(batch.stdout));
+assert.equal(complete.consistencyStatus, "WARNING", "Six-page recognition still requires manual confirmation");
+assert.equal(complete.players.length, 10);
+assert.ok(complete.players.every(p => Object.values(p.stats).every(m => m.value !== null)));
+assert.equal(complete.players[0].stats.kills.value, 12);
+assert.equal(complete.players[0].stats.controlScore.value, 0);
+assert.equal(complete.players[0].stats.damageDealt.sources.length, 2);
+console.log("Six-page Python -> TypeScript contract passed, observed zero preserved, human confirmation required");

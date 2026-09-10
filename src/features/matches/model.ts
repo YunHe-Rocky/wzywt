@@ -263,6 +263,9 @@ export function normalizeRecognitionPayload(payload: unknown): NormalizedRecogni
   const byType = new Map<MatchScreenshotType, RawRecognitionPage>();
   const warnings: string[] = [];
   let severe = false;
+  if (isRecord(payload) && payload.requiresConfirmation === true) {
+    warnings.push("识别结果需人工核对阵营、成员身份和数值后确认");
+  }
   for (const page of pages) {
     if (byType.has(page.type)) warnings.push(`${page.type} 存在重复识别页面`);
     else byType.set(page.type, page);

@@ -14,6 +14,7 @@ import {
   uploadScreenshot,
 } from "@/features/matches/client/api";
 import { MATCH_ROLE_TYPES, MATCH_SCREENSHOT_TYPES, STAT_FIELDS_BY_SCREENSHOT, type MatchScreenshotType, type MatchStatField, type NormalizedRecognitionPlayer } from "@/features/matches/model";
+import { recognitionFailureMessage } from "@/features/matches/recognition-errors";
 import { useToast } from "@/web/components/ui/Toast";
 import { ConfirmDialog } from "@/web/components/ui/ConfirmDialog";
 import { MatchWorkflowProgress } from "@/web/components/match/MatchWorkflowProgress";
@@ -482,7 +483,8 @@ export function MatchWorkspace() {
           <span className="match-evidence-toggle" aria-hidden="true">查看</span>
         </summary>
         <div className="match-evidence-content">
-          <div className="match-section-heading"><div className="match-section-copy"><span className="match-section-index">02</span><div><span className="match-section-label">原始凭据</span><h2>截图与识别</h2><p>用于录入、复核和争议追溯，不代替人工确认。</p><p role="status" aria-live="polite">{localizedStatus(RECOGNITION_LABELS, detail.match.recognition?.status, "未识别")}{detail.match.recognition?.attemptCount ? " · 第 " + detail.match.recognition.attemptCount + " 次执行" : ""}{detail.match.recognition?.errorCode ? " · " + detail.match.recognition.errorCode : ""}</p></div></div><div className="feature-row-actions"><button className="btn-primary feature-action" disabled={!canEdit || Boolean(busy) || recognitionActive || detail.match.screenshots.length !== 6} onClick={recognize}>{busy === "recognize" ? "入队中…" : recognitionActive ? "识别任务处理中" : "开始识别"}</button>{recognitionActive && <button className="btn-subtle" disabled={Boolean(busy)} onClick={cancelRecognitionJob}>{busy === "cancel-recognition" ? "取消中…" : "取消识别"}</button>}</div></div>
+          <div className="match-section-heading"><div className="match-section-copy"><span className="match-section-index">02</span><div><span className="match-section-label">原始凭据</span><h2>截图与识别</h2><p>用于录入、复核和争议追溯，不代替人工确认。</p><p role="status" aria-live="polite">{localizedStatus(RECOGNITION_LABELS, detail.match.recognition?.status, "未识别")}{detail.match.recognition?.attemptCount ? " · 第 " + detail.match.recognition.attemptCount + " 次执行" : ""}</p></div></div><div className="feature-row-actions"><button className="btn-primary feature-action" disabled={!canEdit || Boolean(busy) || recognitionActive || detail.match.screenshots.length !== 6} onClick={recognize}>{busy === "recognize" ? "入队中…" : recognitionActive ? "识别任务处理中" : "开始识别"}</button>{recognitionActive && <button className="btn-subtle" disabled={Boolean(busy)} onClick={cancelRecognitionJob}>{busy === "cancel-recognition" ? "取消中…" : "取消识别"}</button>}</div></div>
+          {detail.match.recognition?.errorCode && <p className="feature-note" role="alert">{recognitionFailureMessage(detail.match.recognition.errorCode)}</p>}
           <div className="screenshot-grid">
             {MATCH_SCREENSHOT_TYPES.map((type) => {
               const shot = screenshotByType.get(type);

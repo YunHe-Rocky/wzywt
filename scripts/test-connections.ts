@@ -5,7 +5,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { readCombatPostUpload } from "@/features/combat-posts/server/upload";
 import { ApiConnectionError, apiRequest } from "@/features/shared/client/api";
-import { recognizeMatchScreenshots } from "@/features/matches/server/recognition-provider";
+import { recognizeMatchScreenshots, RecognitionProviderError } from "@/features/matches/server/recognition-provider";
+import { isRetryableRecognitionFailure, recognitionFailureMessage } from "@/features/matches/recognition-errors";
 import { redisRetryDelay } from "@/lib/redis";
 import { resolveSessionCookieSecure } from "@/lib/session-config";
 import { shouldBootstrapEquipment } from "@/features/cron/bootstrap-policy";
@@ -165,6 +166,30 @@ async function testOcrTransportGuards(): Promise<void> {
     assert.deepEqual(await recognizeMatchScreenshots(files), { pages: [] });
     assert.equal(observedInit?.redirect, "error");
     assert.equal(new Headers(observedInit?.headers).get("authorization"), "Bearer test-token");
+    const sixFiles = ["DATA", "OUTPUT", "SURVIVAL", "DEVELOPMENT", "KDA", "TEAM"].map(type => ({ ...files[0], type }));
+    await recognizeMatchScreenshots(sixFiles);
+    assert.deepEqual((observedInit?.body as FormData).getAll("types"), sixFiles.map(f => f.type));
+    assert.equal((observedInit?.body as FormData).getAll("screenshots").length, 6);
+
+    for (const [status, detail, code, retryable] of [
+      [400, "Too many files. Maximum number of files is 1.", "OCR_UPGRADE_REQUIRED", false],
+      [422, "Only DATA / 双方 is supported; use /ocr for other tabs' raw text", "OCR_UPGRADE_REQUIRED", false],
+      [401, "private-token", "OCR_AUTH_FAILED", false],
+      [413, "private-path", "OCR_IMAGE_TOO_LARGE", false],
+      [422, "private-input", "OCR_INPUT_INVALID", false],
+      [429, "private-service", "OCR_BUSY", true],
+      [503, "private-service", "OCR_UNAVAILABLE", true],
+    ] as const) {
+      globalThis.fetch = async () => Response.json({ detail }, { status });
+      await assert.rejects(() => recognizeMatchScreenshots(sixFiles), (error: unknown) => {
+        assert.ok(error instanceof RecognitionProviderError);
+        assert.equal(error.failureCode, code);
+        assert.equal(isRetryableRecognitionFailure(error.failureCode), retryable);
+        assert.ok(recognitionFailureMessage(code));
+        assert.doesNotMatch(error.message, /private-/);
+        return true;
+      });
+    }
 
     globalThis.fetch = async () => new Response(new ReadableStream<Uint8Array>({
       start(controller) {
