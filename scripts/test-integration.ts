@@ -175,7 +175,7 @@ try {
     recognitionId: recognition.id,
     matchId: match.id,
     raw: { pages: [] },
-    normalized: { version: 1, consistencyStatus: "PASS", players: [], warnings: [], conflicts: [] },
+    normalized: { version: 2, consistencyStatus: "PASS", players: [], warnings: [], conflicts: [] },
   });
   assert.equal(lateRecognition.status, "SUPERSEDED");
   const preservedSubmitted = await prisma.internalMatch.findUniqueOrThrow({ where: { id: match.id } });

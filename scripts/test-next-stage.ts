@@ -10,6 +10,7 @@ import {
   normalizeRecognitionPayload,
   STAT_FIELDS_BY_SCREENSHOT,
 } from "@/features/matches/model";
+import * as matchModel from "@/features/matches/model";
 import { canViewSharedTacticAnnotations, parseTacticGeometry, tacticColorForSlot, visibleTacticAnnotationOwnerId } from "@/features/tactics/model";
 import { formatTacticTime, getTacticTimeline, parseTacticTime } from "@/features/tactics/timeline";
 import { validateCombatVideo, validateScreenshotFile } from "@/lib/media-validation";
@@ -26,7 +27,9 @@ function recognitionPayload(conflict = false) {
         heroName: `hero-${index + 1}`,
         score: { value: 10 + index, confidence: 0.99 },
         metrics: Object.fromEntries(STAT_FIELDS_BY_SCREENSHOT[type].map((field) => [field, {
-          value: conflict && side === "red" && index === 0 && type === "OUTPUT" && field === "damageDealt" ? 999 : 100 + index,
+          value: field === "participationRate"
+            ? 63 + index
+            : conflict && side === "red" && index === 0 && type === "OUTPUT" && field === "damageDealt" ? 999 : 100 + index,
           confidence: 0.98,
         }])),
       }))),
@@ -122,8 +125,30 @@ async function main() {
   assert.equal(MATCH_SCREENSHOT_TYPES.includes("OVERVIEW" as never), false);
   assert.equal(MATCH_SCREENSHOT_TYPES.includes("PERFORMANCE" as never), false);
   assert.equal(areNamesEquivalent(" Player·01 ", "player01"), true);
-  assert.equal(normalizeRecognitionPayload(recognitionPayload()).players.length, 10);
-  assert.equal(normalizeRecognitionPayload(recognitionPayload()).consistencyStatus, "PASS");
+  const participationRates = matchModel as typeof matchModel & {
+    participationRateFromPercentage: (value: number) => number;
+    participationRateToPercentage: (value: number) => number;
+    normalizeLegacyParticipationRate: <T extends number | string>(value: T) => T | number | string;
+    normalizeRecognitionParticipationRate: (value: number, version: unknown) => number;
+    normalizeLegacyParticipationRateGroup: (values: Array<number | string>) => Array<number | string>;
+  };
+  assert.equal(typeof participationRates.participationRateFromPercentage, "function", "参团率需要明确的百分数到存储小数转换");
+  assert.equal(participationRates.participationRateFromPercentage(63), 0.63);
+  assert.equal(participationRates.participationRateFromPercentage(33.33), 0.3333);
+  assert.equal(participationRates.participationRateToPercentage(0.6333), 63.33);
+  assert.equal(participationRates.normalizeLegacyParticipationRate("63"), "0.63", "旧 OCR 草稿百分数需要兼容转换");
+  assert.equal(participationRates.normalizeLegacyParticipationRate(0.63), 0.63, "既有存储小数不能被重复转换");
+  assert.equal(typeof participationRates.normalizeRecognitionParticipationRate, "function", "新旧识别结果必须按显式版本区分参团率单位");
+  assert.equal(participationRates.normalizeRecognitionParticipationRate(1, 1), 0.01, "旧版识别结果中的 1 表示 1% 而不是 100%");
+  assert.equal(participationRates.normalizeRecognitionParticipationRate(0.01, 2), 0.01, "新版识别结果已经使用规范小数，不能重复转换");
+  assert.deepEqual(participationRates.normalizeLegacyParticipationRateGroup([63, 0.63, 1]), [0.63, 0.63, 1], "混合单位旧草稿只能转换明确大于 1 的百分数，不能破坏合法小数");
+  assert.deepEqual(participationRates.normalizeLegacyParticipationRateGroup([0.63, 1, 0]), [0.63, 1, 0], "规范小数组不能被重复转换");
+  const normalizedRecognition = normalizeRecognitionPayload(recognitionPayload());
+  assert.equal(Number(normalizedRecognition.version), 2, "规范化后的识别结果必须提升版本以区分单位语义");
+  assert.equal(normalizedRecognition.players.length, 10);
+  assert.equal(normalizedRecognition.consistencyStatus, "PASS");
+  assert.equal(normalizedRecognition.players[0].stats.participationRate.value, 0.63, "OCR 百分数必须在进入业务模型时转为存储小数");
+  assert.ok(normalizedRecognition.players[0].stats.participationRate.sources.every(({ value }) => value === 0.63), "识别来源值也必须使用同一规范单位");
   const conflicted = normalizeRecognitionPayload(recognitionPayload(true));
   assert.equal(conflicted.consistencyStatus, "WARNING");
   assert.equal(conflicted.conflicts.some(({ field }) => field === "damageDealt"), true);

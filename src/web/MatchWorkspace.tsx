@@ -13,7 +13,7 @@ import {
   submitMatchRecord,
   uploadScreenshot,
 } from "@/features/matches/client/api";
-import { MATCH_ROLE_TYPES, MATCH_SCREENSHOT_TYPES, STAT_FIELDS_BY_SCREENSHOT, type MatchScreenshotType, type MatchStatField, type NormalizedRecognitionPlayer } from "@/features/matches/model";
+import { MATCH_ROLE_TYPES, MATCH_SCREENSHOT_TYPES, normalizeLegacyParticipationRateGroup, normalizeRecognitionParticipationRate, participationRateFromPercentage, participationRateToPercentage, STAT_FIELDS_BY_SCREENSHOT, type MatchScreenshotType, type MatchStatField, type NormalizedRecognitionPlayer } from "@/features/matches/model";
 import { recognitionFailureMessage } from "@/features/matches/recognition-errors";
 import { useToast } from "@/web/components/ui/Toast";
 import { ConfirmDialog } from "@/web/components/ui/ConfirmDialog";
@@ -25,7 +25,7 @@ const SCREEN_LABELS: Record<MatchScreenshotType, string> = {
 };
 const ROLE_LABELS: Record<string, string> = { top: "对抗路", jungle: "打野", mid: "中路", adc: "发育路", support: "游走" };
 const STAT_LABELS: Record<MatchStatField, string> = {
-  damageDealt: "输出伤害", damageTaken: "承受伤害", gold: "总经济", participationRate: "参团率（0-1）",
+  damageDealt: "输出伤害", damageTaken: "承受伤害", gold: "总经济", participationRate: "参团率（%）",
   damageConversionRate: "伤害转化比", damageTakenPerDeath: "每死承伤", jungleGold: "野怪经济", minionKills: "补刀",
   kills: "击败", deaths: "死亡", assists: "助攻", controlScore: "控制效果", healing: "治疗量", towerDamage: "对塔伤害",
 };
@@ -85,6 +85,26 @@ function isEditablePlayer(value: unknown): value is EditablePlayer {
   if (!isRecord(stats)) return false;
   return ALL_STATS.every((field) => typeof stats[field] === "number" || typeof stats[field] === "string");
 }
+function normalizeEditablePlayerParticipationRates(players: EditablePlayer[]): EditablePlayer[] {
+  const rates = normalizeLegacyParticipationRateGroup(players.map((player) => player.stats.participationRate));
+  return players.map((player, index) => ({
+    ...player,
+    stats: { ...player.stats, participationRate: rates[index] },
+  }));
+}
+function statValueForInput(field: MatchStatField, value: number | string): number | string {
+  if (field !== "participationRate" || value === "") return value;
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue) ? participationRateToPercentage(numericValue) : value;
+}
+function statValueFromInput(field: MatchStatField, value: string): string {
+  if (field !== "participationRate" || value === "") return value;
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue) ? String(participationRateFromPercentage(numericValue)) : value;
+}
+function statValueForDisplay(field: MatchStatField, value: number | string): number | string {
+  return field === "participationRate" ? `${statValueForInput(field, value)}%` : value;
+}
 function recognitionPlayers(value: unknown): RecognitionPlayer[] {
   if (!isRecord(value) || !Array.isArray(value.players)) return [];
   return value.players.filter((player): player is RecognitionPlayer => isRecord(player)
@@ -102,14 +122,21 @@ function manualReviewReasons(player: RecognitionPlayer | undefined): string[] {
   return Array.from(new Set(reasons));
 }
 
-function mergeRecognitionPlayers(current: EditablePlayer[], payload: unknown): EditablePlayer[] {
+function mergeRecognitionPlayers(current: EditablePlayer[], payload: unknown, persistedPlayerIds: ReadonlySet<number>): EditablePlayer[] {
   if (typeof payload !== "object" || payload === null || !("players" in payload) || !Array.isArray(payload.players)) return current;
   const recognized = payload.players as RecognitionPlayer[];
+  const normalizedVersion = "version" in payload ? payload.version : null;
   return current.map((player) => {
+    if (persistedPlayerIds.has(player.id)) return player;
     const source = recognized.find((item) => item.side === player.side && item.slot === player.slot);
     if (!source) return player;
     const stats = { ...player.stats };
-    for (const field of ALL_STATS) if (source.stats[field]?.value !== null) stats[field] = source.stats[field].value;
+    for (const field of ALL_STATS) {
+      const recognizedValue = source.stats[field]?.value;
+      if (recognizedValue !== null && recognizedValue !== undefined) {
+        stats[field] = field === "participationRate" ? normalizeRecognitionParticipationRate(recognizedValue, normalizedVersion) : recognizedValue;
+      }
+    }
     return {
       ...player, stats,
       gameNickname: source.nickname || player.gameNickname,
@@ -150,13 +177,14 @@ export function MatchWorkspace() {
       const result = await getMatch<DetailData>(tournamentId, matchId);
       if (!result.ok) { setDetail(null); setPlayers([]); setLoadError(apiMessage(result.data, "比赛档案加载失败，请确认登录状态后重试")); return; }
       setDetail(result.data);
+      const persistedPlayerIds = new Set(result.data.match.players.filter((player) => player.stats !== null).map((player) => player.id));
       const loadedPlayers = mergeRecognitionPlayers(result.data.match.players.map((player) => ({
         ...player,
         heroName: player.heroName || "",
         score: player.score ?? 0,
         statsUpdatedAt: player.stats?.updatedAt || null,
         stats: { ...emptyStats(), ...(player.stats || {}) },
-      })), result.data.match.recognition?.normalizedResult);
+      })), result.data.match.recognition?.normalizedResult, persistedPlayerIds);
       const identity: MatchDraftIdentity = {
         userId: result.data.access.currentUserId,
         matchId,
@@ -182,7 +210,7 @@ export function MatchWorkspace() {
         } else if (saved && savedIds === expectedIds) {
           dirtyRef.current = true;
           restoredDraftRef.current = true;
-          setPlayers(saved.players);
+          setPlayers(normalizeEditablePlayerParticipationRates(saved.players));
           setWinnerSide(saved.winnerSide);
           setDraftStatus(`已恢复 ${new Date(saved.savedAt).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })} 的本地草稿`);
         } else if (!dirtyRef.current || draftVersionRef.current !== draftVersion) {
@@ -390,9 +418,14 @@ export function MatchWorkspace() {
     const isStat = ALL_STATS.includes(correction.field as MatchStatField);
     setBusy("correct");
     try {
+      const correctionValue = correction.field === "gameNickname" || correction.field === "heroName" || correction.field === "roleType"
+        ? correction.value
+        : correction.field === "participationRate"
+          ? participationRateFromPercentage(Number(correction.value))
+          : Number(correction.value);
       const result = await correctMatch(matchId, {
         matchPlayerId: player.id, field: correction.field,
-        value: correction.field === "gameNickname" || correction.field === "heroName" || correction.field === "roleType" ? correction.value : Number(correction.value),
+        value: correctionValue,
         reason: correction.reason, expectedUpdatedAt: isStat ? player.statsUpdatedAt : player.updatedAt,
         expectedMatchRevision: detail.match.recordRevision,
       });
@@ -468,7 +501,7 @@ export function MatchWorkspace() {
                     <td data-label="英雄">{canEdit ? <input aria-label={`${playerLabel}英雄`} value={player.heroName} maxLength={64} onChange={(event) => updatePlayer(player.id, { heroId: null, heroName: event.target.value })} /> : <span title={player.heroName}>{player.heroName || "—"}</span>}</td>
                     <td data-label="实际分路">{canEdit ? <select aria-label={`${playerLabel}实际分路`} value={player.roleType} onChange={(event) => updatePlayer(player.id, { roleType: event.target.value })}>{MATCH_ROLE_TYPES.map((role) => <option value={role} key={role}>{ROLE_LABELS[role]}</option>)}</select> : <span>{ROLE_LABELS[player.roleType] || player.roleType}</span>}</td>
                     <td className="match-result-number" data-label="评分">{canEdit ? <input aria-label={`${playerLabel}评分`} type="number" min="0" max="100" step="0.1" value={player.score} onChange={(event) => updatePlayer(player.id, { score: event.target.value })} /> : player.score}</td>
-                    {activeStatFields.map((field) => <td className="match-result-number" data-label={STAT_LABELS[field]} key={field}>{canEdit ? <input aria-label={`${playerLabel}${STAT_LABELS[field]}`} type="number" min="0" step={field.includes("Rate") ? "0.01" : "1"} value={player.stats[field]} onChange={(event) => updateStat(player.id, field, event.target.value)} /> : player.stats[field]}</td>)}
+                    {activeStatFields.map((field) => <td className="match-result-number" data-label={STAT_LABELS[field]} key={field}>{canEdit ? <input aria-label={`${playerLabel}${STAT_LABELS[field]}`} type="number" min="0" max={field === "participationRate" ? "100" : undefined} step={field.includes("Rate") ? "0.01" : "1"} value={statValueForInput(field, player.stats[field])} onChange={(event) => updateStat(player.id, field, statValueFromInput(field, event.target.value))} /> : statValueForDisplay(field, player.stats[field])}</td>)}
                   </tr>;
                 })}
               </tbody>;
@@ -513,7 +546,7 @@ export function MatchWorkspace() {
         {ownSide && <section className="match-secondary-section"><span className="match-section-label">队内工具</span><h2>本队战术复盘</h2><p>仅本队成员进入对应战术室；提交前各自标注，提交后队内只读复盘。</p><div className="feature-row-actions"><Link className={`btn-subtle match-team-link match-team-link--${ownSide}`} href={`${routePrefix}/tournaments/${tournamentId}/matches/${matchId}/tactics/${ownSide}`}>进入本队战术室</Link></div></section>}
       </div>
 
-      {detail.access.isSuperAdmin && detail.match.status === "SUBMITTED" && <section className="match-sheet"><div className="match-section-heading"><div className="match-section-copy"><span className="match-section-index">04</span><div><span className="match-section-label">审计操作</span><h2>超管纠错</h2></div></div></div><div className="correction-grid"><label>选手<select value={correction.playerId} onChange={(event) => setCorrection({ ...correction, playerId: event.target.value })}><option value="">选择选手</option>{players.map((player) => <option key={player.id} value={player.id}>{player.gameNickname}</option>)}</select></label><label>字段<select value={correction.field} onChange={(event) => setCorrection({ ...correction, field: event.target.value })}><option value="score">评分</option><option value="gameNickname">昵称</option><option value="heroName">英雄</option><option value="roleType">分路</option>{ALL_STATS.map((field) => <option value={field} key={field}>{STAT_LABELS[field]}</option>)}</select></label><label>新值<input value={correction.value} onChange={(event) => setCorrection({ ...correction, value: event.target.value })} /></label><label>修改原因<input placeholder="至少 5 字" value={correction.reason} onChange={(event) => setCorrection({ ...correction, reason: event.target.value })} /></label><button className="btn-primary" disabled={busy === "correct" || correction.reason.trim().length < 5} onClick={correct}>{busy === "correct" ? "保存中…" : "保存审计纠错"}</button></div></section>}
+      {detail.access.isSuperAdmin && detail.match.status === "SUBMITTED" && <section className="match-sheet"><div className="match-section-heading"><div className="match-section-copy"><span className="match-section-index">04</span><div><span className="match-section-label">审计操作</span><h2>超管纠错</h2></div></div></div><div className="correction-grid"><label>选手<select value={correction.playerId} onChange={(event) => setCorrection({ ...correction, playerId: event.target.value })}><option value="">选择选手</option>{players.map((player) => <option key={player.id} value={player.id}>{player.gameNickname}</option>)}</select></label><label>字段<select value={correction.field} onChange={(event) => setCorrection({ ...correction, field: event.target.value })}><option value="score">评分</option><option value="gameNickname">昵称</option><option value="heroName">英雄</option><option value="roleType">分路</option>{ALL_STATS.map((field) => <option value={field} key={field}>{STAT_LABELS[field]}</option>)}</select></label><label>{correction.field === "participationRate" ? "新值（%）" : "新值"}<input type={ALL_STATS.includes(correction.field as MatchStatField) ? "number" : undefined} min={correction.field === "participationRate" ? "0" : undefined} max={correction.field === "participationRate" ? "100" : undefined} step={correction.field === "participationRate" ? "0.01" : undefined} value={correction.value} onChange={(event) => setCorrection({ ...correction, value: event.target.value })} /></label><label>修改原因<input placeholder="至少 5 字" value={correction.reason} onChange={(event) => setCorrection({ ...correction, reason: event.target.value })} /></label><button className="btn-primary" disabled={busy === "correct" || correction.reason.trim().length < 5} onClick={correct}>{busy === "correct" ? "保存中…" : "保存审计纠错"}</button></div></section>}
       <ConfirmDialog open={submitConfirmationOpen} title="正式提交并锁定比赛档案？" description="提交后原图、十人数据和战术标注都会进入只读复盘状态。请确认胜方与比分无误。" confirmLabel="确认提交并锁定" danger={false} busy={busy === "submit"} onClose={() => setSubmitConfirmationOpen(false)} onConfirm={() => void submit()} />
     </main>
   );

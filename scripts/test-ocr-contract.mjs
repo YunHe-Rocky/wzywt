@@ -17,7 +17,7 @@ assert.equal(normalized.consistencyStatus, "FAIL", "Single-page preview must nev
 assert.equal(normalized.players.length, 10);
 const player = normalized.players.find(({ side, slot }) => side === "blue" && slot === 1);
 assert.equal(player.stats.damageDealt.value, 130200);
-assert.equal(player.stats.participationRate.value, 55);
+assert.equal(player.stats.participationRate.value, 0.55);
 assert.equal(player.stats.kills.value, null, "Unobserved KDA must not become zero");
 assert.equal(player.stats.damageDealt.sources[0].sourceScreenshotType, "DATA");
 assert.ok(player.stats.damageDealt.sources[0].sourceRegion);

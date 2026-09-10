@@ -44,6 +44,7 @@
     "test:deploy": "npm run check:shell-eol && node scripts/run-deploy-tests.mjs",
     "test:e2e": "node tests/e2e/ui-regression.mjs",
     "test:e2e:human-factors": "node tests/e2e/human-factors-regression.mjs",
+    "test:e2e:participation-rate": "node tests/e2e/participation-rate-regression.mjs",
     "test:e2e:ci": "node tests/e2e/ci-auth-resource-regression.mjs",
     "test:e2e:proxy": "node tests/e2e/run-proxy-regression.mjs",
     "test:e2e:login-visual": "node tests/e2e/login-transition-regression.mjs",

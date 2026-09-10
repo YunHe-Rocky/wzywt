@@ -7,6 +7,7 @@ const baseUrl = process.env.E2E_BASE_URL || "http://localhost:8001";
 const browserPath = process.env.E2E_BROWSER_PATH || "C:/Program Files/Google/Chrome/Application/chrome.exe";
 const artifactDir = path.resolve(".cache/test-artifacts/human-factors-regression");
 await mkdir(artifactDir, { recursive: true });
+const confirmationPayloads = [];
 
 const now = new Date().toISOString();
 const statValues = {
@@ -41,6 +42,20 @@ const players = Array.from({ length: 10 }, (_, index) => ({
   statsUpdatedAt: now,
   stats: { ...statValues, kills: index + 1, updatedAt: now },
 }));
+const staleRecognitionPlayers = players.map((player) => ({
+  side: player.side,
+  slot: player.slot,
+  nickname: player.gameNickname,
+  heroId: player.heroId,
+  heroName: player.heroName,
+  score: { value: player.score, sources: [], conflict: false },
+  stats: Object.fromEntries(Object.keys(statValues).map((field) => [field, {
+    value: field === "participationRate" ? 0.55 : player.stats[field],
+    sources: [],
+    conflict: false,
+  }])),
+  warnings: [],
+}));
 const matchFixture = {
   match: {
     id: 1,
@@ -64,7 +79,7 @@ const matchFixture = {
       size: 1024 * 450,
       recognitionStatus: "COMPLETED",
     })),
-    recognition: { status: "COMPLETED", normalizedResult: {}, warnings: [], errorCode: null },
+    recognition: { status: "COMPLETED", normalizedResult: { version: 2, players: staleRecognitionPlayers }, warnings: [], errorCode: null },
     disputes: [],
   },
   access: { canManage: true, isSuperAdmin: true, currentUserId: 1 },
@@ -145,6 +160,10 @@ async function installFixtures(page) {
       return route.fulfill({ status: 200, contentType: "text/event-stream", body: `data: ${JSON.stringify({ type: "connected" })}\n\n` });
     }
     if (pathname === "/api/heroes/watch" && request.method() === "POST") return fulfillJson(route, { queued: true }, 202);
+    if (pathname === "/api/tournaments/1/matches/1/confirmation" && request.method() === "PUT") {
+      confirmationPayloads.push(request.postDataJSON());
+      return fulfillJson(route, { ok: true, status: "CONFIRMED" });
+    }
     if (pathname === "/api/tournaments/1/matches/1") return fulfillJson(route, matchFixture);
     if (pathname === "/api/tournaments/1/matches/1/tactics/red") return fulfillJson(route, tacticsFixture);
     if (pathname === "/api/combat-posts" && request.method() === "GET") return fulfillJson(route, { posts: [postSummary], totalPages: 1 });
@@ -261,6 +280,9 @@ try {
   assert.equal(await page.locator(".match-result-table tbody tr:not(.match-result-team-heading)").first().evaluate((element) => getComputedStyle(element).display), "grid", "mobile result rows must use the adaptive record layout");
   const currentWorkflowStep = page.locator('[aria-current="step"]');
   assert.match((await currentWorkflowStep.innerText()).replace(/\s+/g, " "), /提交/, "confirmed match must highlight submit as the next step");
+  const participationRateInput = page.getByLabel("红方 1参团率（%）");
+  assert.equal(await participationRateInput.inputValue(), "65", "canonical 0.65 participation rate must display as 65 percent");
+  await participationRateInput.fill("63");
   const nicknameInput = page.getByLabel("红方 1游戏昵称");
   await nicknameInput.fill("刷新恢复测试");
   await page.waitForTimeout(700);
@@ -270,6 +292,7 @@ try {
   await page.reload({ waitUntil: "domcontentloaded" });
   await waitReady(page);
   assert.equal(await page.getByLabel("红方 1游戏昵称").inputValue(), "刷新恢复测试", "refresh must restore a compatible local draft");
+  assert.equal(await page.getByLabel("红方 1参团率（%）").inputValue(), "63", "percentage edits must survive local draft restoration");
   assert.match(await page.getByRole("status").filter({ hasText: "已恢复" }).first().innerText(), /已恢复/, "draft restoration must be announced");
 
   const firstTab = page.getByRole("tab").first();
@@ -327,6 +350,12 @@ try {
     reports.push(await inspectPage(page, label));
     await page.screenshot({ path: path.join(artifactDir, `${label}.png`), fullPage: true });
   }
+  await page.goto(`${baseUrl}/tournaments/1/matches/1`, { waitUntil: "domcontentloaded", timeout: 60_000 });
+  await waitReady(page);
+  const confirmationResponse = page.waitForResponse((response) => response.url().endsWith("/confirmation") && response.request().method() === "PUT");
+  await page.getByRole("button", { name: "保存复核结果" }).click();
+  assert.equal((await confirmationResponse).status(), 200);
+  assert.equal(confirmationPayloads.at(-1)?.players?.[0]?.stats?.participationRate, 0.63, "63 percent must submit as canonical 0.63");
   await context.close();
 } finally {
   await browser.close();

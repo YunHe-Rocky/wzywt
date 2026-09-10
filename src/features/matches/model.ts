@@ -96,7 +96,7 @@ export interface NormalizedRecognitionPlayer {
 }
 
 export interface NormalizedRecognitionResult {
-  version: 1;
+  version: 2;
   consistencyStatus: "PASS" | "WARNING" | "FAIL";
   players: NormalizedRecognitionPlayer[];
   warnings: string[];
@@ -148,6 +148,34 @@ export function isMatchScreenshotType(value: unknown): value is MatchScreenshotT
   return isScreenshotType(value);
 }
 
+export function participationRateFromPercentage(value: number): number {
+  return value / 100;
+}
+
+export function participationRateToPercentage(value: number): number {
+  return Number((value * 100).toFixed(4));
+}
+
+export function normalizeLegacyParticipationRate(value: number): number;
+export function normalizeLegacyParticipationRate(value: string): string;
+export function normalizeLegacyParticipationRate(value: number | string): number | string;
+export function normalizeLegacyParticipationRate(value: number | string): number | string {
+  if (value === "") return value;
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue) || numericValue <= 1) return value;
+  const normalized = participationRateFromPercentage(numericValue);
+  return typeof value === "string" ? String(normalized) : normalized;
+}
+
+export function normalizeRecognitionParticipationRate(value: number, version: unknown): number {
+  if (version === 1) return participationRateFromPercentage(value);
+  return normalizeLegacyParticipationRate(value);
+}
+
+export function normalizeLegacyParticipationRateGroup(values: Array<number | string>): Array<number | string> {
+  return values.map((value) => normalizeLegacyParticipationRate(value));
+}
+
 export function parsePositiveId(value: unknown, label = "ID"): number {
   const number = typeof value === "string" && value.trim() ? Number(value) : value;
   if (typeof number !== "number" || !Number.isSafeInteger(number) || number <= 0) {
@@ -177,6 +205,7 @@ export function parseSplitSnapshot(value: unknown): SplitMemberSnapshot[] | null
 function parseSourceValue(
   value: unknown,
   type: MatchScreenshotType,
+  field?: MatchStatField,
 ): RecognitionSourceValue | null {
   const data = isRecord(value) ? value : { value };
   const parsedValue = data.value === null ? null : asFiniteNumber(data.value);
@@ -186,7 +215,7 @@ function parseSourceValue(
     : asFiniteNumber(data.confidence);
   if (confidence !== null && (confidence < 0 || confidence > 1)) return null;
   return {
-    value: parsedValue,
+    value: parsedValue !== null && field === "participationRate" ? participationRateFromPercentage(parsedValue) : parsedValue,
     confidence,
     sourceScreenshotType: type,
     sourceRegion: asNullableText(data.sourceRegion, 128),
@@ -203,7 +232,7 @@ function parseRecognitionPage(value: unknown): RawRecognitionPage | null {
     const sourceMetrics = isRecord(item.metrics) ? item.metrics : {};
     for (const field of STAT_FIELDS_BY_SCREENSHOT[type]) {
       if (!(field in sourceMetrics)) continue;
-      const parsed = parseSourceValue(sourceMetrics[field], type);
+      const parsed = parseSourceValue(sourceMetrics[field], type, field);
       if (parsed) metrics[field] = parsed;
     }
     players.push({
@@ -320,7 +349,7 @@ export function normalizeRecognitionPayload(payload: unknown): NormalizedRecogni
   if (conflicts.length > 0) warnings.push(`存在 ${conflicts.length} 个跨图字段冲突，必须人工确认`);
   if (players.some(({ warnings: playerWarnings }) => playerWarnings.length > 0)) warnings.push("部分玩家字段需要人工确认");
   return {
-    version: 1,
+    version: 2,
     consistencyStatus: severe ? "FAIL" : warnings.length > 0 ? "WARNING" : "PASS",
     players,
     warnings,
