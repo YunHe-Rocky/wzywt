@@ -1,0 +1,32 @@
+{
+  "name": "C-equipment-filter-and-passives",
+  "output": "D:\\WorkSpace\\王者演武堂\\artifacts\\promotional-video\\v3\\captures\\C-equipment-filter-and-passives.mp4",
+  "description": "Actual equipment catalog tier filter, physical-category filter, search and displayed prices/stats/passive effects. No unsupported composition interaction.",
+  "url": "https://ywt.yunhe.ink/equipment",
+  "sourceFrameCount": 999,
+  "sourceSeconds": 17.96970796585083,
+  "width": 1920,
+  "height": 1080,
+  "events": [
+    {
+      "at": 0.001,
+      "label": "Fully loaded equipment catalog"
+    },
+    {
+      "at": 2.089,
+      "label": "Click tier-three filter"
+    },
+    {
+      "at": 4.159,
+      "label": "Click physical-equipment filter"
+    },
+    {
+      "at": 5.964,
+      "label": "Scroll and inspect equipment passives"
+    },
+    {
+      "at": 11.867,
+      "label": "Search 无尽战刃"
+    }
+  ]
+}

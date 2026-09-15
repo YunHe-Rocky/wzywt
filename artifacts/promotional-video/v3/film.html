@@ -1,0 +1,83 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>王者演武堂 · 今晚，峡谷见</title>
+<style>html,body{margin:0;background:#030609;overflow:hidden}canvas{display:block;width:100vw;height:100vh;object-fit:contain}</style>
+<canvas id="film" width="1920" height="1080"></canvas><script>
+const c=document.getElementById('film').getContext('2d',{alpha:false}),W=1920,H=1080,Y=128,CH=824;
+const clamp=x=>Math.max(0,Math.min(1,x)),ease=x=>{x=clamp(x);return x*x*(3-2*x)},lerp=(a,b,p)=>a+(b-a)*p;
+const ramp=(t,a,b)=>ease((t-a)/(b-a)),envelope=(t,a,b,d=.45)=>ramp(t,a,a+d)*(1-ramp(t,b-d,b));
+let seed=4719;const rnd=()=>{seed=(seed*1664525+1013904223)>>>0;return seed/4294967296};
+const particles=Array.from({length:95},()=>({x:rnd()*1920,y:rnd()*1080,z:rnd(),v:rnd(),p:rnd()*6.3}));
+const imgs={},files={canyon:'../v2/canyon-keyframe.png',sword:'../v2/sword-keyframe.png',assembly:'art/assembly.png',forge:'art/forge.png',clash:'art/clash.png',dawn:'art/dawn.png'};
+window.ready=Promise.all(Object.entries(files).map(([k,src])=>new Promise((resolve,reject)=>{let i=new Image();i.onload=()=>{imgs[k]=i;resolve()};i.onerror=()=>reject(new Error(src));i.src=src}))).then(()=>true);
+window.SHOTS=[
+ {a:0,b:7,k:'canyon',z:[1.05,1.15],x:[24,-15],title:'还差你一个',ta:2,tb:6.5},
+ {a:7,b:15,k:'signals'},
+ {a:15,b:22,k:'assembly',z:[1.13,1.02],title:'人齐，开场。',ta:17,tb:21.5,ty:380},
+ {a:22,b:28,k:'sword',z:[1.18,1.07],x:[-60,30],title:'从队友，到对手。',ta:23,tb:27.6,tx:575,ts:96},
+ {a:28,b:46,k:'ui',tag:'发起 · 邀请 · 分队'},
+ {a:46,b:51,k:'assembly',z:[1.6,1.46],x:[165,75],title:'各有所长',ta:46.6,tb:50.7,ty:350},
+ {a:51,b:59,k:'roles'},
+ {a:59,b:67,k:'preferences'},
+ {a:67,b:78,k:'split'},
+ {a:78,b:85,k:'versus'},
+ {a:85,b:92,k:'forge',z:[1.1,1.23],x:[-35,38],title:'准备，从细节开始。',ta:86,tb:91.5,tx:620,ty:325,ts:90},
+ {a:92,b:104,k:'ui',tag:'英雄图鉴 · 分路筛选 · 搜索'},
+ {a:104,b:113,k:'ui',tag:'英雄详情 · 属性 · 技能'},
+ {a:113,b:125,k:'ui',tag:'装备图鉴 · 分类 · 属性与被动'},
+ {a:125,b:129,k:'clash',z:[1.0,1.14],action:true},
+ {a:129,b:132,k:'sword',z:[1.7,1.5],x:[-190,-45],action:true},
+ {a:132,b:135,k:'flight'},
+ {a:135,b:139,k:'clash',z:[1.27,1.06],title:'认真，才是默契。',ta:135.4,tb:138.8,ty:360,ts:112,action:true},
+ {a:139,b:144,k:'assembly',z:[1.15,1.04],title:'熟悉的人，也值得全力以赴。',ta:139.5,tb:143.8,ty:330,ts:83},
+ {a:144,b:147,k:'clash',z:[1.2,1.04],action:true},
+ {a:147,b:149,k:'versus'},
+ {a:149,b:151.5,k:'mobile'},
+ {a:151.5,b:155,k:'mobile'},
+ {a:155,b:162,k:'dawn',z:[1.25,1.10],x:[100,10],title:'记住这一晚。',ta:156.4,tb:161.6,tx:1350,ty:450,ts:114},
+ {a:162,b:163,k:'forge',z:[1.28,1.3],action:true},
+ {a:163,b:164,k:'assembly',z:[1.22,1.20],action:true},
+ {a:164,b:165,k:'sword',z:[1.4,1.42],action:true},
+ {a:165,b:166,k:'clash',z:[1.1,1.08],action:true},
+ {a:166,b:167,k:'dawn',z:[1.03,1.06],action:true},
+ {a:167,b:180,k:'brand'}
+];
+function cover(img,z=1,dx=0,dy=0){let r=Math.max(W/img.width,CH/img.height)*z;let w=img.width*r,h=img.height*r;c.drawImage(img,(W-w)/2+dx,Y+(CH-h)/2+dy,w,h)}
+function txt(str,x,y,size=40,color='#ebe5d9',font='Microsoft YaHei',spacing=0,align='center') {c.font=`${size}px "${font}"`;c.textBaseline='middle';const chars=[...str],widths=chars.map(s=>c.measureText(s).width);let w=widths.reduce((a,b)=>a+b,0)+(chars.length-1)*spacing;let sx=align==='center'?x-w/2:x;c.fillStyle=color;chars.forEach((ch,i)=>{c.fillText(ch,sx,y);sx+=widths[i]+spacing})}
+function crest(x,y,s=1,a=1){c.save();c.translate(x,y);c.scale(s,s);c.globalAlpha*=a;c.lineWidth=2.2;c.strokeStyle='#dfc494';c.beginPath();c.moveTo(0,-36);c.lineTo(28,-19);c.lineTo(22,18);c.lineTo(0,36);c.lineTo(-22,18);c.lineTo(-28,-19);c.closePath();c.stroke();for(let yy of [-12,4]){c.beginPath();c.moveTo(-13,yy);c.lineTo(0,yy+13);c.lineTo(13,yy);c.stroke()}c.restore()}
+function darken(v=.55){const g=c.createLinearGradient(0,Y,0,H-Y);g.addColorStop(0,`rgba(0,6,12,${v})`);g.addColorStop(.45,'rgba(0,6,12,0)');g.addColorStop(1,`rgba(0,6,12,${v*.8})`);c.fillStyle=g;c.fillRect(0,Y,W,CH)}
+function vignette(){const g=c.createRadialGradient(960,520,220,960,520,1150);g.addColorStop(0,'#00000000');g.addColorStop(1,'#010408bb');c.fillStyle=g;c.fillRect(0,Y,W,CH)}
+const fog=document.createElement('canvas');fog.width=fog.height=256;
+{const q=fog.getContext('2d'),g=q.createRadialGradient(128,128,1,128,128,128);g.addColorStop(0,'#9db7c648');g.addColorStop(.4,'#7694a420');g.addColorStop(1,'#759bad00');q.fillStyle=g;q.fillRect(0,0,256,256)}
+function haze(t,amount=.7){c.save();c.globalCompositeOperation='screen';c.globalAlpha=amount;for(let i=0;i<6;i++){const x=((i*485+t*(i%2?-9:17)+3000)%2850)-650;const y=620+90*Math.sin(i*1.9+t*.13);c.drawImage(fog,x,y,990,300)}c.restore()}
+function sparks(t,fast=false,alpha=.8){c.save();c.globalCompositeOperation='screen';for(const p of particles){const v=(fast?135:21)*(p.z+.3);const x=(p.x+t*v+W*5)%W,y=(p.y-t*v*.63+H*50)%H;const s=.7+p.z*2.9;c.globalAlpha=alpha*(.25+.5*p.z);c.fillStyle=p.x<W*.46?'#84cce8':'#efb879';c.shadowColor=c.fillStyle;c.shadowBlur=p.z*8;c.beginPath();c.ellipse(x,y,s*(fast?2.5:1),s*.52,-.45,0,6.3);c.fill()}c.restore()}
+function flare(x,y,r,color,alpha){c.save();c.globalCompositeOperation='screen';c.globalAlpha=alpha;const g=c.createRadialGradient(x,y,0,x,y,r);g.addColorStop(0,color);g.addColorStop(1,'#00000000');c.fillStyle=g;c.fillRect(x-r,y-r,r*2,r*2);c.restore()}
+function title(s,t){if(!s.title)return;const a=envelope(t,s.ta,s.tb,.5);c.save();c.globalAlpha=a;c.shadowColor='#02080d';c.shadowBlur=24;const p=ramp(t,s.ta,s.ta+.9);txt(s.title,s.tx||960,(s.ty||525)+(1-p)*16,s.ts||126,'#f1eadc','STXingkai',3);c.restore()}
+function ring(x,y,r,t,color='#d9ba81',squash=.44){c.save();c.translate(x,y);c.scale(1,squash);c.rotate(t*.15);c.lineWidth=1.25;c.strokeStyle=color;c.globalAlpha=.45;c.beginPath();c.arc(0,0,r,0,6.3);c.stroke();c.globalAlpha=.2;c.beginPath();c.arc(0,0,r+13,0,6.3);c.stroke();for(let i=0;i<36;i++){const a=i*Math.PI/18;c.beginPath();c.moveTo(Math.cos(a)*(r-7),Math.sin(a)*(r-7));c.lineTo(Math.cos(a)*(r+2),Math.sin(a)*(r+2));c.stroke()}c.restore()}
+function rune(x,y,r,t,color,index){c.save();c.translate(x,y);c.strokeStyle=color;c.lineWidth=2;c.shadowColor=color;c.shadowBlur=12;c.beginPath();for(let j=0;j<6;j++){const a=j*Math.PI/3-Math.PI/2;const xx=Math.cos(a)*r,yy=Math.sin(a)*r;j?c.lineTo(xx,yy):c.moveTo(xx,yy)}c.closePath();c.stroke();c.shadowBlur=0;c.globalAlpha*=.75;c.beginPath();if(index%5===0){c.moveTo(-r*.28,-r*.38);c.lineTo(r*.28,r*.38);c.moveTo(r*.28,-r*.38);c.lineTo(-r*.28,r*.38)}else if(index%5===1){c.moveTo(0,-r*.48);c.lineTo(r*.21,r*.02);c.lineTo(0,r*.48);c.lineTo(-r*.21,r*.02);c.closePath()}else if(index%5===2){c.arc(0,0,r*.34,0,6.3);c.moveTo(0,-r*.53);c.lineTo(0,r*.53)}else if(index%5===3){c.arc(-r*.18,0,r*.42,-1.2,1.2);c.moveTo(-r*.01,-r*.39);c.lineTo(-r*.01,r*.39);c.moveTo(-r*.32,0);c.lineTo(r*.45,0)}else{c.moveTo(0,r*.42);c.lineTo(-r*.32,-r*.22);c.lineTo(0,-r*.4);c.lineTo(r*.32,-r*.22);c.closePath()}c.stroke();c.restore()}
+const roles=['对抗路','打野','中路','发育路','游走'];
+function graphic(s,t){const local=t-s.a;c.fillStyle='#06101b';c.fillRect(0,Y,W,CH);flare(390,700,900,'#17495b',.5);flare(1500,480,760,'#5c381d',.4);haze(t,.45);ring(960,700,590,t);ring(960,700,420,-t);
+ if(s.k==='signals'){for(let i=0;i<10;i++){const a=i*6.283/10-.7;const p=ramp(local,i*.37,.9+i*.37);const x=960+Math.cos(a)*610,y=590+Math.sin(a)*230;c.save();c.globalAlpha=p;c.strokeStyle=i%2?'#e6b26c88':'#77c9eb88';c.lineWidth=1;c.beginPath();c.moveTo(x,y);c.quadraticCurveTo((x+960)/2,430,960,590);c.stroke();rune(x,y,30+7*Math.sin(p*1.57),t,i%2?'#e2b373':'#7bc8e7',i);c.restore()}crest(960,590,1.3,ramp(local,2,3));c.globalAlpha=ramp(local,3.5,4.5);txt('十人集结',960,325,110,'#eee6d6','STXingkai',12);c.globalAlpha=1;}
+ if(s.k==='roles'||s.k==='flight'){const move=s.k==='flight'?Math.sin(local*.65)*60:0;txt('各有拿手，才是队伍。',960,300,87,'#efe7d8','STXingkai',3);for(let i=0;i<5;i++){let a=ramp(local,i*.35,i*.35+.7);let x=330+i*315+move,y=570+Math.sin(t+i)*8;c.save();c.globalAlpha=a;rune(x,y,74,t,i%2?'#e2b373':'#7bc8e7',i);ring(x,y+128,115,t+i,'#8db1bf',.30);txt(roles[i],x,y+178,34,'#dbdfe2','Microsoft YaHei',3);c.restore()}}
+ if(s.k==='preferences'){txt('先看分路偏好',960,312,98,'#efe7d8','STXingkai',8);for(let i=0;i<5;i++){const x=380+i*290;const a=ramp(local,i*.6,i*.6+.5);c.save();c.globalAlpha=.22+.78*a;rune(x,570,56,t,i===0?'#efd299':'#9caebc',i);txt(`${i+1}`,x,570,34,'#e6d3aa','Arial');txt(`第${['一','二','三','四','五'][i]}志愿`,x,695,29,'#c7cdd4');if(i<4){c.strokeStyle='#bea576';c.globalAlpha*=.5;c.beginPath();c.moveTo(x+80,570);c.lineTo(x+210,570);c.stroke()}c.restore()}c.globalAlpha=ramp(local,3.2,4.2);txt('按志愿满足顺序，优先比较候选方案',960,835,24,'#90a3b3','Microsoft YaHei',2);c.globalAlpha=1;}
+ if(s.k==='split'){const p=ramp(local,1.3,6.5);txt('再兼顾实力差距',960,300,99,'#efe7d8','STXingkai',4);for(let i=0;i<10;i++){let a=i*6.283/10+t*.11;let sx=960+Math.cos(a)*450,sy=615+Math.sin(a)*200;let tx=i<5?500:1420,ty=420+(i%5)*98;let x=lerp(sx,tx,p),y=lerp(sy,ty,p);rune(x,y,32,t,i<5?'#72c9ed':'#edb477',i);if(p>.6){c.globalAlpha=(p-.6)/.4;txt(roles[i%5],x+(i<5?92:-92),y,24,'#cbd3da');c.globalAlpha=1;}}c.globalAlpha=ramp(local,6,7.2);txt('5',500,865,49,'#72c9ed','Arial');txt('5',1420,865,49,'#edb477','Arial');txt('不是预设胜负，而是认真组织一场较量。',960,920,23,'#b4bcc6');c.globalAlpha=1;}
+ if(s.k==='versus'){let p=ramp(local,.1,.9);c.save();c.globalAlpha=p;c.shadowColor='#3ba5d9';c.shadowBlur=35;txt('5',680-(1-p)*200,545,250,'#7ccbe8','Arial');c.shadowColor='#ef973e';txt('5',1240+(1-p)*200,545,250,'#eac393','Arial');c.shadowBlur=0;txt('VS',960,535,68,'#eef0ee','Arial',10);txt('熟悉的朋友 · 不同的阵营',960,790,36,'#c9cdd1','Microsoft YaHei',7);c.restore();}
+ sparks(t,s.k==='flight'||s.k==='versus',.55);
+}
+function mobile(s,t){cover(imgs.canyon,1.08);c.fillStyle='#020a12c9';c.fillRect(0,Y,W,CH);haze(t,.4);txt('把朋友，叫到同一场。',670,460,100,'#eee8dc','STXingkai',3);txt('打开网站 · 发起今晚的朋友局',665,612,32,'#c5cbd1','Microsoft YaHei',3);txt('ywt.yunhe.ink',665,739,32,'#d2b77f','Arial',3);c.strokeStyle='#aa936966';c.lineWidth=2;c.beginPath();c.roundRect(1285,155,440,778,28);c.stroke();}
+function brand(t){const local=t-167;cover(imgs.dawn,1.07+.025*local/13,-65,0);c.fillStyle=`rgba(2,8,14,${.62+.05*ramp(local,2,6)})`;c.fillRect(0,Y,W,CH);haze(t,.45);sparks(t,false,.5);crest(960,330,1.25,ramp(local,0,.7));c.globalAlpha=ramp(local,.3,1.2);txt('王者演武堂',960,460,64,'#e9cf9a','Microsoft YaHei',12);c.globalAlpha=ramp(local,3.0,4.0);txt('今晚，峡谷见。',960,610,141,'#f5eedf','STXingkai',3);c.globalAlpha=ramp(local,5.0,6.0);txt('和朋友，好好打一场。',960,766,32,'#d5d8db','Microsoft YaHei',5);c.globalAlpha=ramp(local,6.5,7.5);txt('ywt.yunhe.ink',960,851,35,'#dfc18a','Arial',4);c.globalAlpha=1;}
+window.render=function(t){const s=window.SHOTS.find(s=>t>=s.a&&t<s.b)||window.SHOTS.at(-1);c.globalAlpha=1;c.globalCompositeOperation='source-over';c.fillStyle='#030609';c.fillRect(0,0,W,H);c.save();c.beginPath();c.rect(0,Y,W,CH);c.clip();let local=t-s.a,p=clamp(local/(s.b-s.a));
+ if(imgs[s.k]){cover(imgs[s.k],lerp(...(s.z||[1.04,1.12]),p),lerp(...(s.x||[0,0]),p),-8+12*p);darken(s.k==='dawn'?.28:.47);haze(t,s.k==='dawn'?.25:.65);sparks(t,s.action,.65);if(s.action){const a=.4*Math.exp(-local*1.4);flare(960,430,580,'#eabd79',a)}vignette();title(s,t)}
+ else if(s.k==='ui'){c.fillStyle='#091422';c.fillRect(0,Y,W,CH)}
+ else if(s.k==='mobile')mobile(s,t);
+ else if(s.k==='brand')brand(t);
+ else graphic(s,t);
+ if(t<1.1){c.fillStyle=`rgba(0,3,7,${1-ramp(t,.1,1.1)})`;c.fillRect(0,Y,W,CH)}
+ if(t>179){c.fillStyle=`rgba(0,3,7,${ramp(t,179,180)})`;c.fillRect(0,Y,W,CH)}
+ if(local<.12&&t>1&&!['ui','brand','mobile'].includes(s.k)){c.fillStyle=`rgba(212,224,227,${.12*(1-local/.12)})`;c.fillRect(0,Y,W,CH)}
+ c.restore();c.globalAlpha=1;c.fillStyle='#030609';c.fillRect(0,0,W,Y);c.fillRect(0,H-Y,W,Y);
+ if(t>1&&t<175){c.globalAlpha=.67;crest(95,65,.36);txt('王者演武堂',130,64,22,'#e0ceb0','Microsoft YaHei',2,'left');c.globalAlpha=1;txt(s.k==='ui'||s.k==='mobile'?'网站实录':imgs[s.k]||s.k==='brand'?'AI 宣传美术':'理念示意动画',1760,65,17,'#97a2ae');}
+ if(s.k==='ui')txt(s.tag,960,66,25,'#d4c3a2','Microsoft YaHei',4);
+ const line=(window.NARRATION||[]).find(v=>t>=v.start&&t<v.displayEnd);if(line){c.globalAlpha=Math.min(ramp(t,line.start,line.start+.12),1-ramp(t,line.displayEnd-.18,line.displayEnd));txt(line.text,960,1008,31,'#edece6','Microsoft YaHei',1);c.globalAlpha=1;}
+ if(t>=175){txt('Music: Legionnaire — Scott Buckley · CC BY 4.0 · scottbuckley.com.au',960,64,18,'#b3b5b4','Arial',.5);}
+ return s.k;
+};
+</script></html>

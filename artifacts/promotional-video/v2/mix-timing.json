@@ -1,0 +1,32 @@
+{
+  "duration": 22,
+  "voice": [
+    {
+      "text_clip": "01-tonight",
+      "start": 0.85,
+      "end": 2.59
+    },
+    {
+      "text_clip": "02-usual-teammates",
+      "start": 4.78,
+      "end": 6.08
+    },
+    {
+      "text_clip": "03-tonight-rivals",
+      "start": 7.88,
+      "end": 9.7
+    },
+    {
+      "text_clip": "04-brand",
+      "start": 16.12,
+      "end": 17.45
+    },
+    {
+      "text_clip": "05-with-friends",
+      "start": 18.64,
+      "end": 20.32
+    }
+  ],
+  "source": "Legionnaire, original seconds 12–34",
+  "mix_peak_dbfs": -0.6970499304695054
+}

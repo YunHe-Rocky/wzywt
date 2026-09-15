@@ -1,0 +1,32 @@
+{
+  "name": "A-home-and-three-steps",
+  "output": "D:\\WorkSpace\\王者演武堂\\artifacts\\promotional-video\\v3\\captures\\A-home-and-three-steps.mp4",
+  "description": "Public home hero, hover on event-hall call to action, smooth reveal of actual three-step friend-match flow.",
+  "url": "https://ywt.yunhe.ink/",
+  "sourceFrameCount": 1006,
+  "sourceSeconds": 17.98548913002014,
+  "width": 1920,
+  "height": 1080,
+  "events": [
+    {
+      "at": 0.001,
+      "label": "Home hero and slogan"
+    },
+    {
+      "at": 2.522,
+      "label": "Hover event-hall CTA"
+    },
+    {
+      "at": 4.133,
+      "label": "Scroll to friend-match three-step flow"
+    },
+    {
+      "at": 9.08,
+      "label": "Three steps visible"
+    },
+    {
+      "at": 11.585,
+      "label": "Return to hero"
+    }
+  ]
+}

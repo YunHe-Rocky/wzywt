@@ -1,0 +1,24 @@
+{
+  "name": "B2-zhaoyun-stats-and-skills",
+  "output": "D:\\WorkSpace\\王者演武堂\\artifacts\\promotional-video\\v3\\captures\\B2-zhaoyun-stats-and-skills.mp4",
+  "description": "Real Zhao Yun detail opened from search result; hero art, skin thumbnails, base stats and skill descriptions.",
+  "url": "https://ywt.yunhe.ink/heroes/107",
+  "sourceFrameCount": 681,
+  "sourceSeconds": 11.964741945266724,
+  "width": 1920,
+  "height": 1080,
+  "events": [
+    {
+      "at": 0,
+      "label": "Loaded Zhao Yun detail and skin thumbnails"
+    },
+    {
+      "at": 2.2,
+      "label": "Scroll into base stats and skill descriptions"
+    },
+    {
+      "at": 9.37,
+      "label": "Skill text hold"
+    }
+  ]
+}

@@ -1,0 +1,83 @@
+{
+  "text": "今晚，人齐了。平时一起上分，这次，做一回对手。王者演武堂。和朋友，好好打一场。",
+  "engine": "edge-tts",
+  "clips": [
+    {
+      "slug": "01-tonight",
+      "voice": "zh-CN-YunxiNeural",
+      "rate": "-2%",
+      "pitch": "+0Hz",
+      "text": "今晚，人齐了。",
+      "mp3": "D:\\WorkSpace\\王者演武堂\\artifacts\\promotional-video\\v2\\audio-probe\\01-tonight.mp3",
+      "wav": "D:\\WorkSpace\\王者演武堂\\artifacts\\promotional-video\\v2\\audio-probe\\01-tonight.wav",
+      "duration_seconds": 2.616,
+      "mp3_bytes": 15696
+    },
+    {
+      "slug": "02-usual-teammates",
+      "voice": "zh-CN-YunxiNeural",
+      "rate": "-2%",
+      "pitch": "+0Hz",
+      "text": "平时一起上分，",
+      "mp3": "D:\\WorkSpace\\王者演武堂\\artifacts\\promotional-video\\v2\\audio-probe\\02-usual-teammates.mp3",
+      "wav": "D:\\WorkSpace\\王者演武堂\\artifacts\\promotional-video\\v2\\audio-probe\\02-usual-teammates.wav",
+      "duration_seconds": 2.184,
+      "mp3_bytes": 13104
+    },
+    {
+      "slug": "03-tonight-rivals",
+      "voice": "zh-CN-YunxiNeural",
+      "rate": "-2%",
+      "pitch": "+0Hz",
+      "text": "这次，做一回对手。",
+      "mp3": "D:\\WorkSpace\\王者演武堂\\artifacts\\promotional-video\\v2\\audio-probe\\03-tonight-rivals.mp3",
+      "wav": "D:\\WorkSpace\\王者演武堂\\artifacts\\promotional-video\\v2\\audio-probe\\03-tonight-rivals.wav",
+      "duration_seconds": 2.76,
+      "mp3_bytes": 16560
+    },
+    {
+      "slug": "04-brand",
+      "voice": "zh-CN-YunxiNeural",
+      "rate": "-2%",
+      "pitch": "+0Hz",
+      "text": "王者演武堂。",
+      "mp3": "D:\\WorkSpace\\王者演武堂\\artifacts\\promotional-video\\v2\\audio-probe\\04-brand.mp3",
+      "wav": "D:\\WorkSpace\\王者演武堂\\artifacts\\promotional-video\\v2\\audio-probe\\04-brand.wav",
+      "duration_seconds": 2.232,
+      "mp3_bytes": 13392
+    },
+    {
+      "slug": "05-with-friends",
+      "voice": "zh-CN-YunxiNeural",
+      "rate": "-2%",
+      "pitch": "+0Hz",
+      "text": "和朋友，好好打一场。",
+      "mp3": "D:\\WorkSpace\\王者演武堂\\artifacts\\promotional-video\\v2\\audio-probe\\05-with-friends.mp3",
+      "wav": "D:\\WorkSpace\\王者演武堂\\artifacts\\promotional-video\\v2\\audio-probe\\05-with-friends.wav",
+      "duration_seconds": 2.592,
+      "mp3_bytes": 15552
+    },
+    {
+      "slug": "yunxi-conversational",
+      "voice": "zh-CN-YunxiNeural",
+      "rate": "-2%",
+      "pitch": "+0Hz",
+      "text": "今晚，人齐了。平时一起上分，这次，做一回对手。王者演武堂。和朋友，好好打一场。",
+      "mp3": "D:\\WorkSpace\\王者演武堂\\artifacts\\promotional-video\\v2\\audio-probe\\yunxi-conversational.mp3",
+      "wav": "D:\\WorkSpace\\王者演武堂\\artifacts\\promotional-video\\v2\\audio-probe\\yunxi-conversational.wav",
+      "duration_seconds": 10.392,
+      "mp3_bytes": 62352
+    },
+    {
+      "slug": "yunyang-composed",
+      "voice": "zh-CN-YunyangNeural",
+      "rate": "-3%",
+      "pitch": "+0Hz",
+      "text": "今晚，人齐了。平时一起上分，这次，做一回对手。王者演武堂。和朋友，好好打一场。",
+      "mp3": "D:\\WorkSpace\\王者演武堂\\artifacts\\promotional-video\\v2\\audio-probe\\yunyang-composed.mp3",
+      "wav": "D:\\WorkSpace\\王者演武堂\\artifacts\\promotional-video\\v2\\audio-probe\\yunyang-composed.wav",
+      "duration_seconds": 9.408,
+      "mp3_bytes": 56448
+    }
+  ]
+}

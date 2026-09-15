@@ -1,0 +1,32 @@
+{
+  "name": "B-hero-role-and-search",
+  "output": "D:\\WorkSpace\\王者演武堂\\artifacts\\promotional-video\\v3\\captures\\B-hero-role-and-search.mp4",
+  "description": "Hero catalog: filter by jungle lane, inspect matching portraits, search the real hero Zhao Yun.",
+  "url": "https://ywt.yunhe.ink/heroes",
+  "sourceFrameCount": 1030,
+  "sourceSeconds": 17.986146211624146,
+  "width": 1920,
+  "height": 1080,
+  "events": [
+    {
+      "at": 0.001,
+      "label": "Fully loaded initial catalog"
+    },
+    {
+      "at": 2.348,
+      "label": "Click jungle role filter"
+    },
+    {
+      "at": 4.33,
+      "label": "Scroll filtered portrait rows"
+    },
+    {
+      "at": 8.849,
+      "label": "Search Zhao Yun"
+    },
+    {
+      "at": 11.833,
+      "label": "Zhao Yun search result and hover"
+    }
+  ]
+}

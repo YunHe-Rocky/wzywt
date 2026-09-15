@@ -83,7 +83,7 @@ export function mergeHeroCatalog(
   return Array.from(merged.values()).sort((a, b) => a.ename - b.ename);
 }
 
-function parseSkinNames(raw: string | undefined, fallbackName: string): string[] {
+export function parseSkinNames(raw: string | undefined, fallbackName: string): string[] {
   const names = (raw ?? "")
     .split("|")
     .map((item) => item.split("&")[0]?.trim())

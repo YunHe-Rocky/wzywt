@@ -544,7 +544,7 @@ run_deploy() {
   fi
   (
     cd -- "$case_dir/app/source"
-    env \
+    env -u PUBLIC_ORIGIN -u MEDIA_STORAGE_DIR -u AVATAR_DIR \
       PATH="$FAKE_BIN:$PATH" \
       TEST_FAIL_PM2_NEW="$fail_pm2" \
       TEST_FAIL_HEALTH_NEW="$fail_health" \
@@ -575,7 +575,7 @@ run_stop() {
   local case_dir="$1"
   (
     cd -- "$case_dir/app/source"
-    env \
+    env -u PUBLIC_ORIGIN -u MEDIA_STORAGE_DIR -u AVATAR_DIR \
       PATH="$FAKE_BIN:$PATH" \
       TEST_PM2_VERSION=6.0.0 \
       TEST_ARCHIVE_DIR="$case_dir/archive" \
@@ -592,6 +592,12 @@ run_stop() {
       bash scripts/stop.sh --env-file "$case_dir/project.env"
   )
 }
+# Reproduce the application settings inherited by this suite in GitHub Actions.
+# Every fixture must use its own project.env, including local HTTP cases below.
+export PUBLIC_ORIGIN=https://localhost:8443
+export MEDIA_STORAGE_DIR=/tmp/wzywt-ci-media
+export AVATAR_DIR=/tmp/wzywt-ci-avatars
+
 relative_backup_case="$(prepare_case relative-backup)"
 if DEPLOY_DB_BACKUP_DIR=relative-backups run_deploy "$relative_backup_case" --check >"$relative_backup_case/check.log" 2>&1; then
   fail "relative database backup directory unexpectedly accepted"
@@ -664,7 +670,7 @@ printf '[]\n' >"$ordinary_root/pm2-state.json"
 : >"$ordinary_root/commands.log"
 if ! (
   cd -- "$ordinary_root"
-  env \
+  env -u PUBLIC_ORIGIN -u MEDIA_STORAGE_DIR -u AVATAR_DIR \
     PATH="$FAKE_BIN:$PATH" \
     HOME="$ordinary_root/home" \
     TEST_PM2_STATE="$ordinary_root/pm2-state.json" \
@@ -690,7 +696,7 @@ assert_not_contains "$ordinary_root/check.log" "password"
 assert_not_contains "$ordinary_root/check.log" "ordinary-test-secret"
 if (
   cd -- "$ordinary_root"
-  env PATH="$FAKE_BIN:$PATH" HOME="$ordinary_root/home" TEST_NODE_VERSION=v23.11.0 TEST_PM2_STATE="$ordinary_root/pm2-state.json" TEST_COMMAND_LOG="$ordinary_root/commands.log" TEST_FAKE_BIN="$FAKE_BIN" TEST_SERVICE_PID="$SERVICE_PID" TEST_SERVICE_USER="$SERVICE_USER" bash scripts/deploy.sh --check
+  env -u PUBLIC_ORIGIN -u MEDIA_STORAGE_DIR -u AVATAR_DIR PATH="$FAKE_BIN:$PATH" HOME="$ordinary_root/home" TEST_NODE_VERSION=v23.11.0 TEST_PM2_STATE="$ordinary_root/pm2-state.json" TEST_COMMAND_LOG="$ordinary_root/commands.log" TEST_FAKE_BIN="$FAKE_BIN" TEST_SERVICE_PID="$SERVICE_PID" TEST_SERVICE_USER="$SERVICE_USER" bash scripts/deploy.sh --check
 ) >"$ordinary_root/wrong-node.log" 2>&1; then
   fail "default preflight accepted Node below 24"
 fi
@@ -698,7 +704,7 @@ assert_contains "$ordinary_root/wrong-node.log" "node version does not match"
 for supported_node in v24.0.0 v26.8.1 v30.0.0 v100.0.0; do
   if ! (
     cd -- "$ordinary_root"
-    env PATH="$FAKE_BIN:$PATH" HOME="$ordinary_root/home" TEST_NODE_VERSION="$supported_node" TEST_PM2_STATE="$ordinary_root/pm2-state.json" TEST_COMMAND_LOG="$ordinary_root/commands.log" TEST_FAKE_BIN="$FAKE_BIN" TEST_SERVICE_PID="$SERVICE_PID" TEST_SERVICE_USER="$SERVICE_USER" bash scripts/deploy.sh --check
+    env -u PUBLIC_ORIGIN -u MEDIA_STORAGE_DIR -u AVATAR_DIR PATH="$FAKE_BIN:$PATH" HOME="$ordinary_root/home" TEST_NODE_VERSION="$supported_node" TEST_PM2_STATE="$ordinary_root/pm2-state.json" TEST_COMMAND_LOG="$ordinary_root/commands.log" TEST_FAKE_BIN="$FAKE_BIN" TEST_SERVICE_PID="$SERVICE_PID" TEST_SERVICE_USER="$SERVICE_USER" bash scripts/deploy.sh --check
   ) >"$ordinary_root/supported-node.log" 2>&1; then
     cat -- "$ordinary_root/supported-node.log" >&2
     fail "default preflight rejected $supported_node"

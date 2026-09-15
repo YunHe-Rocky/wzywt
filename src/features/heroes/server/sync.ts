@@ -22,7 +22,7 @@ const DEFAULTS = {
 
 type CrawlConfig = typeof DEFAULTS;
 
-async function getCrawlConfig(): Promise<CrawlConfig> {
+export async function getCrawlConfig(): Promise<CrawlConfig> {
   const row = await prisma.kvCache.findUnique({ where: { key: "config:crawl_urls" } });
   if (!row) return { ...DEFAULTS };
   try {
@@ -76,8 +76,10 @@ function sanitize(s: string): string {
 }
 
 // ── Fetch hero detail page ──────────────────────────────────────────
-async function fetchDetail(cfg: CrawlConfig, heroId: number, idName?: string): Promise<string> {
+export async function fetchDetail(cfg: CrawlConfig, heroId: number, idName?: string): Promise<string> {
   // 数字页优先（数据最新），拼音页兜底（部分重做英雄专属页可能有额外信息）
+  // Keep known fallback names here so sync and monitoring use the same source.
+  if (heroId === 119) idName = "bianque";
   const base = cfg.hero_detail_base.replace(/\/$/, "");
   const urls: string[] = [`${base}/${heroId}.shtml`];
   if (idName) urls.push(`${base}/${idName}.shtml`);
@@ -157,7 +159,7 @@ function parseMingGe(html: string): { hasMingGe: boolean; mingGeName: string | n
 }
 
 // ── Parse skills ────────────────────────────────────────────────────
-function parseSkills(html: string): { name: string; cd: string; cost: string; desc: string }[] {
+export function parseSkills(html: string): { name: string; cd: string; cost: string; desc: string }[] {
   const $ = load(html);
 
   // 1. Standard page: .skill-show .show-list
@@ -223,7 +225,10 @@ function parseSkills(html: string): { name: string; cd: string; cost: string; de
 }
 
 // ── Parse hero list from herolist.shtml ─────────────────────────────
-async function fetchHeroList(cfg: CrawlConfig): Promise<HeroCatalogRecord[]> {
+export async function fetchHeroList(
+  cfg: CrawlConfig,
+  options: { requireComplete?: boolean } = {},
+): Promise<HeroCatalogRecord[]> {
   const { fetchWithRetry } = await import("@/lib/anti-bot");
   // 1. Scrape herolist.shtml for correct hero IDs + names
   const htmlRes = await fetchWithRetry(cfg.hero_list_page, {
@@ -251,15 +256,13 @@ async function fetchHeroList(cfg: CrawlConfig): Promise<HeroCatalogRecord[]> {
     timeout: 15000, referer: "https://pvp.qq.com/", isJson: true,
   });
   const jsonHeroes = (jsonRes.ok && Array.isArray(jsonRes.json) ? jsonRes.json as RawHero[] : []);
+  // A partial catalog is useful for explicit sync's existing fallback, but its
+  // default metadata must never be treated as a detected upstream change.
+  if (options.requireComplete && (!htmlRes.ok || idMap.size === 0 || !jsonRes.ok || jsonHeroes.length === 0)) {
+    throw new Error("Hero catalog sources unavailable or empty");
+  }
   // 3. 使用 HTML + JSON 并集。命格/新英雄可能只出现在 JSON，不能被 HTML 主列表丢弃。
   const heroes = mergeHeroCatalog(idMap, jsonHeroes);
-  // 硬补：已知重做英雄的拼音映射（数字页有旧数据）
-  const ID_NAME_OVERRIDES: Record<number, string> = {
-    119: "bianque", // 扁鹊
-  };
-  for (const h of heroes) {
-    if (ID_NAME_OVERRIDES[h.ename]) h.id_name = ID_NAME_OVERRIDES[h.ename];
-  }
   if (heroes.length < 50) throw new Error(`Only ${heroes.length} heroes found`);
   return heroes;
 }

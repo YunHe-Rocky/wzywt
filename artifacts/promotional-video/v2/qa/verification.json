@@ -1,0 +1,37 @@
+{
+  "file": "D:\\WorkSpace\\王者演武堂\\artifacts\\promotional-video\\v2\\yanwu-trailer-v2-preview-1080p.mp4",
+  "bytes": 14652944,
+  "video": "H264 1920x1080 30fps",
+  "audio": "AAC stereo 48kHz",
+  "duration_seconds": 22,
+  "full_decode": "pass",
+  "loudness": {
+    "input_i": "-15.85",
+    "input_tp": "-1.47",
+    "input_lra": "7.30",
+    "input_thresh": "-25.99",
+    "output_i": "-15.98",
+    "output_tp": "-1.50",
+    "output_lra": "4.20",
+    "output_thresh": "-26.03",
+    "normalization_type": "dynamic",
+    "target_offset": "-0.02"
+  },
+  "black_intervals": [
+    [
+      "0",
+      "0.266667",
+      "0.266667"
+    ]
+  ],
+  "review_frames": [
+    0.7,
+    2.7,
+    5.8,
+    8.8,
+    11.5,
+    14.5,
+    19.1
+  ],
+  "limitations": "Visual/art/voice acting quality requires human playback review. Static source artwork is animated; no generated character-performance footage is claimed."
+}

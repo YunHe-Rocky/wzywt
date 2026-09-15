@@ -21,6 +21,7 @@
     "check:architecture": "tsx scripts/check-architecture.ts",
     "typecheck": "tsc --noEmit",
     "test:core": "tsx scripts/test-core.ts",
+    "test:crawler": "node --test scripts/test-crawler.mjs",
     "test:split-worker": "npm run build:workers && tsx scripts/test-split-worker.ts",
     "test:auth-session": "tsx scripts/test-auth-session-contract.ts",
     "test:release": "node scripts/test-release-registry.mjs",
@@ -51,11 +52,11 @@
     "test:e2e:room-profile": "node tests/e2e/room-profile-regression.mjs",
     "test:e2e:room-archive": "node tests/e2e/room-archive-regression.mjs && node tests/e2e/tactic-layer-regression.mjs",
     "audit:prod": "npm audit --omit=dev --audit-level=high",
-    "check": "npm run check:shell-eol && npm run test:release && npm run check:architecture && npm run typecheck && npm run test:core && npm run test:split-worker && npm run test:entry && npm run test:markdown && npm run test:next-stage && npm run test:connections && npm run test:task-fence && npm run test:api-use-cases && npm run test:match-draft && npm run test:match-visibility && npm run test:mobile-routes && npm run test:deploy",
+    "check": "npm run check:shell-eol && npm run test:release && npm run check:architecture && npm run typecheck && npm run test:core && npm run test:crawler && npm run test:split-worker && npm run test:entry && npm run test:markdown && npm run test:next-stage && npm run test:connections && npm run test:task-fence && npm run test:api-use-cases && npm run test:match-draft && npm run test:match-visibility && npm run test:mobile-routes && npm run test:deploy",
     "test:e2e:arena": "node tests/e2e/arena-redesign.mjs && node tests/e2e/arena-motion.mjs && node tests/e2e/arena-glass.mjs && node tests/e2e/hero-live-refresh.mjs"
   },
   "dependencies": {
-    "@next/env": "^15.5.23",
+    "@next/env": "^15.5.25",
     "@prisma/client": "^5.22.0",
     "bcryptjs": "^3.0.3",
     "busboy": "^1.6.0",
@@ -63,7 +64,7 @@
     "iconv-lite": "^0.7.2",
     "ioredis": "^5.11.1",
     "iron-session": "^8.0.4",
-    "next": "^15.5.21",
+    "next": "^15.5.25",
     "node-cron": "^4.5.0",
     "pinyin": "^4.0.0",
     "react": "^18.3.1",
@@ -80,7 +81,7 @@
     "autoprefixer": "^10.4.20",
     "concurrently": "^10.0.3",
     "eslint": "^8.57.0",
-    "eslint-config-next": "^15.5.21",
+    "eslint-config-next": "^15.5.25",
     "playwright": "^1.61.1",
     "postcss": "8.5.23",
     "prisma": "^5.22.0",
@@ -91,7 +92,7 @@
   "overrides": {
     "nanoid": "3.3.18",
     "postcss": "$postcss",
-    "sharp": "0.35.3",
+    "sharp": "0.35.4",
     "undici": "7.29.0"
   }
 }

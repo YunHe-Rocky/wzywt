@@ -1,0 +1,39 @@
+{
+  "tool": "image_gen builtin",
+  "prompts": [
+    [
+      "assembly",
+      "Use case: ads-marketing. One original premium photoreal AAA Chinese mythic MOBA promotional keyframe, 16:9 widescreen high resolution, no typography, no logos, no game UI, no panels, no black bars. World: ancient monumental Chinese canyon architecture, wet carved slate stone, waterfalls, volumetric mist, deep navy with cyan and restrained amber-gold lights. Cinematic physically realistic CG with tactile textures, visible luminous midtones, strong depth and subtle grain. Original fictional environment/characters, not an existing copyrighted hero replica. Scene: a team of EXACTLY FIVE adult fantasy warriors seen from behind, occupying the lower middle quarter, walking toward a towering half-open ancient arena gate. Count exactly five distinct human bodies and no other people. Five different original silhouettes: sword-carrying leader in center, spear wielder on left, cloaked archer far left, tall shield guardian right, slim robed mage far right. No identifiable faces. Five are separated with clear readable negative spaces, gear practical elegant. Giant weathered navy banners above, cyan dawn shafts through gate, warm torches at ground. Wide very low camera behind the group, monumental scale, hopeful anticipation, cinematic 28mm lens. Central upper third mostly gate and mist for editorial typography. Not a battle, no gore."
+    ],
+    [
+      "forge",
+      "Use case: ads-marketing. One original premium photoreal AAA Chinese mythic MOBA promotional keyframe, 16:9 widescreen high resolution, no typography, no logos, no game UI, no panels, no black bars. World: ancient monumental Chinese canyon architecture, wet carved slate stone, waterfalls, volumetric mist, deep navy with cyan and restrained amber-gold lights. Cinematic physically realistic CG with tactile textures, visible luminous midtones, strong depth and subtle grain. Original fictional environment/characters, not an existing copyrighted hero replica. Scene: extreme cinematic macro of a beautifully crafted original ancient Chinese spearhead and an engraved bronze shoulder guard on a dark battle preparation table. A small cyan magical crystal illuminates engraved cloud patterns and water droplets. Warm amber brazier far in background at right bokeh. Tools and straps in shadow, deep tactile metal detail. Very shallow focus, macro diagonal composition from near spear tip at bottom left through crystal in center, no human, no hands, no faces. Not a shop advertisement, restrained authentic fantasy military craft; it is a quiet moment of preparation. Dark left upper quarter clear for caption."
+    ],
+    [
+      "clash",
+      "Use case: ads-marketing. One original premium photoreal AAA Chinese mythic MOBA promotional keyframe, 16:9 widescreen high resolution, no typography, no logos, no game UI, no panels, no black bars. World: ancient monumental Chinese canyon architecture, wet carved slate stone, waterfalls, volumetric mist, deep navy with cyan and restrained amber-gold lights. Cinematic physically realistic CG with tactile textures, visible luminous midtones, strong depth and subtle grain. Original fictional environment/characters, not an existing copyrighted hero replica. Scene: wide dramatic freeze-frame of TWO original adult Chinese fantasy warriors crossing long elegant jian swords at the CENTER of a wet ancient bridge, sparks scattering outward from the crossed blades. LEFT warrior wears graphite armor with navy cloth and cyan rimlight, RIGHT warrior wears deep maroon and antique gold armor with amber rimlight. Both full bodies clearly separated, naturally grounded athletic sword stances, realistic gripping hands. Profile faces largely shadowed, no likeness to named game characters. Long cinematic lens lateral perspective, bridge rail leading into mist, spray around boots, sweeping long cloth. Two people ONLY; NO crowds, no other bodies, no blood or injury. Main visual is powerful diagonal lines of swords and the bright tiny spark collision. Premium high-budget cinematic CG, clear framing and a little negative space above heads."
+    ],
+    [
+      "dawn",
+      "Use case: ads-marketing. One original premium photoreal AAA Chinese mythic MOBA promotional keyframe, 16:9 widescreen high resolution, no typography, no logos, no game UI, no panels, no black bars. World: ancient monumental Chinese canyon architecture, wet carved slate stone, waterfalls, volumetric mist, deep navy with cyan and restrained amber-gold lights. Cinematic physically realistic CG with tactile textures, visible luminous midtones, strong depth and subtle grain. Original fictional environment/characters, not an existing copyrighted hero replica. Scene: quiet human moment after an evenly fought friendly match. TWO original armored adult Chinese fantasy warriors shown from behind in medium-wide frame, left wears navy cloth, right wears muted maroon cloth; standing side by side shoulder distance with swords sheathed. They look toward a golden sunrise breaking above a mist-filled canyon. One rests a gauntleted hand warmly on the other's upper shoulder, natural anatomy, no faces visible. Armor worn but intact, no blood or injuries. Soft warm light replaces blue night, distant flying-eave pavilion and waterfalls, wet stone reflects dawn. Low camera with layers of foreground stone, people at center-left, bright spacious atmosphere on right. Emotional reconciliation, friendship and mutual respect, not romance. Full 16:9 frame, no frame border."
+    ]
+  ],
+  "assets": [
+    [
+      "assembly",
+      "exec-e2dde956-036d-48a8-a401-7cf30e29fc3b.png"
+    ],
+    [
+      "forge",
+      "exec-a5ab16cf-dbaa-48bf-9166-2783d0a0ddca.png"
+    ],
+    [
+      "clash",
+      "exec-80d5ce57-a01a-4db8-ba10-c7b705df0750.png"
+    ],
+    [
+      "dawn",
+      "exec-63e6acc7-4fd2-4423-94d6-92851db1a21e.png"
+    ]
+  ]
+}

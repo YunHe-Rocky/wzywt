@@ -1,7 +1,27 @@
 # Progress
 
+## 2026-09-10 participation rate
+User approved fixing the percentage-unit defect. Root cause is confirmed across OCR output, React presentation, and server validation. Selected the compatibility-preserving design: retain 0-1 storage and convert only at OCR ingestion plus UI presentation/input boundaries. Pre-existing dirty files, especially promotional-video artifacts, remain out of scope.
+Read the architecture and UX form guidance. Confirmed the feature model already owns recognition normalization and the server use case owns canonical validation; no schema change or API route business logic is needed.
+Completed flow tracing, including local draft restoration and the super-admin correction entry. Starting RED tests for OCR normalization and browser-visible percent input/submission.
+Added the pure recognition/conversion expectations to `test-next-stage`; production code is still untouched.
+RED observed outside the sandbox: expected conversion function, got `undefined`. Added browser expectations for 0.65 -> 65 display, 63 -> 0.63 submission, and draft restoration; production code remains untouched.
+Browser RED infrastructure could not reach a ready dev server: Chrome exited, Edge launched, then navigation timed out. The pure RED is valid and specific; browser regression remains in place for the post-build run. Stopped the temporary port 8011 server before implementation.
+GREEN: `npm run test:next-stage` passed after adding explicit percentage converters, OCR boundary normalization, legacy draft normalization, percentage presentation/input handling, and correction conversion. Database schema and server canonical validation are unchanged.
+Typecheck passed after adding the union overload. The Python-to-TypeScript OCR contract passed with 55% normalized to 0.55; the existing Node module-type warning remains unchanged.
+Fresh architecture and account-isolated draft tests passed outside the sandbox. Lint still needs a fresh standalone exit code; build and browser verification remain.
+Standalone lint passed with 0 errors and the same 18 existing `<img>` warnings. Production build passed with 42/42 static pages. On built port 8012, the browser executed all new percentage assertions successfully before the broader suite stopped on the unrelated existing 11px BETA badge assertion.
+Independent review found stale OCR could overwrite already persisted stats. Browser RED reproduced it exactly (`0.65` database value displayed as `55` because OCR was `0.55`). Implemented per-player precedence: any player with persisted stats bypasses OCR merging; OCR only seeds players without stored stats.
+Final review found group-wide legacy-draft conversion could corrupt mixed values such as `[63, 0.63]`. Replaced it with per-value normalization and added the exact mixed-unit regression; explicit OCR result versions continue to disambiguate legacy 1% values.
+Final verification passed: typecheck, architecture, core, next-stage, draft isolation, OCR contract, lint (0 errors/18 existing warnings), production build (42/42 pages), and the dedicated Edge browser regression for normal confirmation plus super-admin correction. The follow-up independent review found no remaining blocker; the temporary server was stopped and no deployment was performed.
+
 ## 2026-09-10 promotional video
 User approved the proposed 60-second landscape concept. Live homepage and repository product/visual documentation were inspected. Existing dirty worktree is unrelated and will be preserved. Next: capture current public pages without mutating production data.
+Captured six public desktop/mobile page views with headless Edge. Generated eight 1080p scene boards and a 61.2-second original synthesized score. The first narration attempt through the bundled PowerShell runtime could not access SAPI voices; retrying through the current system shell where Microsoft Kangkang was observed.
+User caught unloaded lazy hero portraits in scene 07. Paused final render work to recapture that page with an explicit image-completion gate and rebuild the affected scene.
+Hero recapture gate passed and scene 07 was rebuilt/visually inspected with the first row of portraits loaded. Resuming final MP4 rendering after the earlier audio-graph branch fix.
+Initial MP4 encoded at 1920x1080/30fps/60.930s and fully decoded. Nine-frame contact-sheet QA passed, including loaded hero portraits. Audio measured 60.267s, leaving about 0.66s of silent tail; extending the music fade to the final video frame before final verification.
+Final rerender completed after padding the narration control stream. Fresh verification passed: 1920x1080, 30fps, 60.950s; stereo 48kHz audio runs 60.907s at -17.51 dBFS RMS/-0.83 dBFS peak; complete video+audio decode passed. Fresh 1.0s, 45.5s and 60.0s frames were visually inspected, including the corrected loaded hero portraits and final URL. No production data or application source was changed.
 
 ## 2026-09-09 deployment/OCR retrospective
 Reproduced duplicate/Markdown OCR config passing preflight and stale PM2 OCR values; new tests fail before fix, pass after.

@@ -43,6 +43,12 @@ function resolveBash() {
 }
 
 try {
+  const cronTests = spawnSync(process.execPath, ["--test", "scripts/test-cron-runtime.mjs"], {
+    cwd: repoRoot, env: process.env, stdio: "inherit", shell: false, windowsHide: true,
+  });
+  if (cronTests.error) throw cronTests.error;
+  if (cronTests.status !== 0) process.exit(cronTests.status ?? 1);
+
   const ocrTests = spawnSync(process.execPath, ["--test", "scripts/test-ocr-deploy.mjs"], {
     cwd: repoRoot, env: process.env, stdio: "inherit", shell: false, windowsHide: true,
   });
@@ -66,8 +72,7 @@ try {
   if (interop.signal) throw new Error(`next-env interop check ended by ${interop.signal}`);
   if (interop.status !== 0) process.exit(interop.status ?? 1);
 
-  const tsxCli = resolve(repoRoot, "node_modules", "tsx", "dist", "cli.mjs");
-  const tsxInterop = spawnSync(process.execPath, [tsxCli, "src/features/cron/load-env.ts"], {
+  const tsxInterop = spawnSync(process.execPath, ["--import", "tsx", "src/features/cron/load-env.ts"], {
     cwd: repoRoot,
     env: process.env,
     stdio: "inherit",

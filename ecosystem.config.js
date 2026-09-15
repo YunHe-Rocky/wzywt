@@ -71,8 +71,12 @@ module.exports = {
     },
     {
       name: cronName,
-      script: "node_modules/.bin/tsx",
-      args: "scripts/cron.ts",
+      // The tsx CLI forks the worker, hiding its RSS from PM2's memory check.
+      // Load TypeScript in the managed Node process instead.
+      script: "scripts/cron.ts",
+      interpreter: "node",
+      node_args: ["--import", "tsx"],
+      args: [],
       cwd: appDir,
       env: {
         ...redisEnv,

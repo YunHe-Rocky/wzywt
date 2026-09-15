@@ -1,0 +1,62 @@
+{
+  "file": "D:\\WorkSpace\\王者演武堂\\artifacts\\promotional-video\\v3\\yanwu-arena-3min-1080p.mp4",
+  "duration_seconds": 180,
+  "resolution": [
+    1920,
+    1080
+  ],
+  "fps": 30,
+  "video": "H264 limited-range Rec709",
+  "audio": "AAC LC stereo48k",
+  "bytes": 59046265,
+  "decode": "passed",
+  "loudness": {
+    "input_i": "-16.05",
+    "input_tp": "-1.50",
+    "input_lra": "3.70",
+    "input_thresh": "-26.14",
+    "output_i": "-16.28",
+    "output_tp": "-1.50",
+    "output_lra": "3.50",
+    "output_thresh": "-26.36",
+    "normalization_type": "dynamic",
+    "target_offset": "0.28"
+  },
+  "black_intervals": [],
+  "visual_review_times": [
+    3,
+    12,
+    18,
+    24,
+    30,
+    37,
+    44,
+    49,
+    55,
+    63,
+    70,
+    75,
+    81,
+    88,
+    95,
+    101,
+    107,
+    111,
+    115,
+    122,
+    127,
+    136,
+    150,
+    153,
+    158,
+    169,
+    176,
+    178
+  ],
+  "source_labels": [
+    "AI宣传美术",
+    "理念示意动画",
+    "网站实录"
+  ],
+  "not_claimed": "Character action video generation or human audition of voice acting"
+}

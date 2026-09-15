@@ -4,10 +4,9 @@
 import { prisma } from "@/lib/db";
 import { fetchWithRetry } from "@/lib/anti-bot";
 import { fetchGicpNews, GICP_CHANNELS } from "@/lib/gicp";
-import { readResponseBytes } from "@/lib/http-response";
+import { parseSkinNames } from "@/features/heroes/model";
 
 // ── Config ─────────────────────────────────────────────────────────────
-const HEROLIST_URL = "https://pvp.qq.com/web201605/js/herolist.json";
 type OfficialHero = {
   ename: number;
   cname: string;
@@ -15,6 +14,7 @@ type OfficialHero = {
   hero_type: number;
   hero_type2?: number;
   skin_name?: string;
+  id_name?: string;
 };
 type HeroListResponse = Awaited<ReturnType<typeof fetchWithRetry>>;
 
@@ -62,8 +62,11 @@ async function checkHeroes(response: Promise<HeroListResponse>): Promise<Monitor
 
     const official = res.json as OfficialHero[];
 
-    // Light check: compare hero count and names
-    const dbCount = await prisma.hero.count();
+    // Sync keeps historical rows. Only compare the current merged catalog;
+    // an extra stored hero is not a source change that sync could resolve.
+    const dbCount = await prisma.hero.count({
+      where: { heroId: { in: official.map(hero => hero.ename) } },
+    });
     if (official.length !== dbCount) {
       return { module: "heroes", ok: true, changed: true, detail: `count ${dbCount}→${official.length}`, count: official.length };
     }
@@ -120,9 +123,9 @@ async function checkSkins(response: Promise<HeroListResponse>): Promise<MonitorR
     const storedById = new Map(storedHeroes.map((hero) => [hero.heroId, hero.skinsJson]));
     let skinChanges = 0;
 
-    // 全量名称指纹仅需一次官方请求和一次数据库查询，避免抽样漏掉最新皮肤。
+    // 全量名称指纹复用本轮目录和一次数据库查询，避免抽样漏掉最新皮肤。
     for (const h of official) {
-      if (!h.skin_name) continue;
+      if (!h.skin_name?.trim()) continue;
       const skinsJson = storedById.get(h.ename);
       if (!skinsJson) {
         skinChanges++;
@@ -132,7 +135,7 @@ async function checkSkins(response: Promise<HeroListResponse>): Promise<MonitorR
       try {
         const dbSkins: { name: string }[] = JSON.parse(skinsJson);
         const dbNames = dbSkins.map((s) => s.name).sort().join("|");
-        const officialNames = h.skin_name.split("|").sort().join("|");
+        const officialNames = parseSkinNames(h.skin_name, h.title || h.cname).sort().join("|");
 
         if (dbNames !== officialNames) {
           skinChanges++;
@@ -150,11 +153,18 @@ async function checkSkins(response: Promise<HeroListResponse>): Promise<MonitorR
   }
 }
 
-// ── Skill Monitor (50% sampling, full hash comparison) ─────────────────
-async function checkSkills(): Promise<MonitorResult> {
+// ── Skill Monitor (bounded sample, same source/parser as sync) ─────────
+async function checkSkills(response: Promise<HeroListResponse>): Promise<MonitorResult> {
   try {
+    const heroList = await response;
+    if (!heroList.ok || !Array.isArray(heroList.json) || heroList.json.length === 0) {
+      return { module: "skills", ok: false, changed: false, detail: "hero catalog unavailable" };
+    }
+    const official = heroList.json as OfficialHero[];
     const heroes = await prisma.hero.findMany({
-      select: { heroId: true, name: true, dataHash: true, skillsJson: true, skinsJson: true },
+      where: { heroId: { in: official.map(hero => hero.ename) } },
+      select: { heroId: true, skillsJson: true },
+      orderBy: { heroId: "asc" },
     });
     if (heroes.length === 0) return { module: "skills", ok: false, changed: false, detail: "no heroes in db" };
 
@@ -164,87 +174,48 @@ async function checkSkills(): Promise<MonitorResult> {
     const start = (windowIndex * sampleSize) % heroes.length;
     const samples = Array.from({ length: sampleSize }, (_, index) => heroes[(start + index) % heroes.length]);
 
-    const { createHash } = await import("crypto");
-    const { load } = await import("cheerio");
-    const iconv = await import("iconv-lite");
-    const { getHeaders } = await import("@/lib/anti-bot");
-
-    const sanitize = (s: string): string =>
-      s.replace(/\0/g, "").replace(/�/g, "").replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "").trim();
+    const { fetchDetail, getCrawlConfig, parseSkills } = await import("@/features/heroes/server/sync");
+    const cfg = await getCrawlConfig();
+    const detailNames = new Map(official.map(hero => [hero.ename, hero.id_name]));
 
     let mismatchCount = 0;
+    let checkedCount = 0;
     const batchSize = 8;
     for (let b = 0; b < samples.length; b += batchSize) {
       const batch = samples.slice(b, b + batchSize);
       const results = await Promise.all(
         batch.map(async (h) => {
-          // Fetch detail page
-          const urls = [
-            `https://pvp.qq.com/web201605/herodetail/${h.heroId}.shtml`,
-            `https://pvp.qq.com/web201706/herodetail/${h.heroId}.shtml`,
-          ];
-          let html = "";
-          for (const url of urls) {
-            try {
-              const res = await fetch(url, {
-                headers: getHeaders(),
-                signal: AbortSignal.timeout(8000),
-                redirect: "error",
-              });
-              if (!res.ok) {
-                await res.body?.cancel();
-                continue;
-              }
-              const buf = Buffer.from(await readResponseBytes(res, 4 * 1024 * 1024));
-              html = iconv.decode(buf, "gbk");
-              if (html.includes("技能") || html.includes("skill-show")) break;
-            } catch { continue; }
+          const html = await fetchDetail(cfg, h.heroId, detailNames.get(h.heroId));
+          if (!html) return { heroId: h.heroId, checked: false, changed: false };
+          const skills = parseSkills(html);
+          if (skills.length === 1 && skills[0].name === "数据暂缺") {
+            return { heroId: h.heroId, checked: false, changed: false };
           }
-
-          if (!html) return { heroId: h.heroId, hashed: false, newHash: "" };
-
-          // Parse skills
-          const $ = load(html);
-          const skills: { name: string; cd: string; cost: string; desc: string }[] = [];
-          $(".skill-show .show-list").each((_, el: any) => {
-            const name = sanitize($(el).find(".skill-name b").text());
-            if (!name) return;
-            const spans = $(el).find(".skill-name span");
-            skills.push({
-              name,
-              cd: sanitize(spans.eq(0).text().replace(/冷却值[：:]\s*/, "")),
-              cost: sanitize(spans.eq(1).text().replace(/消耗[：:]\s*/, "")),
-              desc: sanitize($(el).find(".skill-desc").text()),
-            });
-          });
-
-          // Parse skins
-          let skinsJson = "[]";
-          const imgMatch = html.match(/data-imgname="([^"]*)"/);
-          if (imgMatch) {
-            const items = imgMatch[1].split("|").filter(Boolean);
-            skinsJson = JSON.stringify(items.map((item, i) => ({
-              name: sanitize(item.split("&")[0]),
-              index: i + 1,
-            })));
-          }
-
-          const skillsJson = JSON.stringify(skills);
-          const newHash = createHash("md5").update(skillsJson).update(skinsJson).digest("hex");
-          return { heroId: h.heroId, hashed: true, newHash, dbHash: h.dataHash };
+          // dataHash also includes skin image URLs; it is not a skill fingerprint.
+          // Compare the same serialized skills that sync writes, keeping existing
+          // database hashes compatible. Skin names are checked independently.
+          return {
+            heroId: h.heroId,
+            checked: true,
+            changed: JSON.stringify(skills) !== h.skillsJson,
+          };
         })
       );
 
       for (const r of results) {
-        if (r.hashed && r.newHash !== r.dbHash) {
+        if (r.checked) checkedCount++;
+        if (r.changed) {
           mismatchCount++;
-          console.log(`[monitor:skills] hash mismatch for #${r.heroId}`);
+          console.log(`[monitor:skills] content changed for #${r.heroId}`);
         }
       }
     }
 
     if (mismatchCount > 0) {
-      return { module: "skills", ok: true, changed: true, detail: `${mismatchCount}/${samples.length} heroes have changes` };
+      return { module: "skills", ok: true, changed: true, detail: `${mismatchCount}/${checkedCount} checked heroes have changes` };
+    }
+    if (checkedCount < samples.length) {
+      return { module: "skills", ok: false, changed: false, detail: `${checkedCount}/${samples.length} hero details available` };
     }
     return { module: "skills", ok: true, changed: false, detail: `${samples.length} heroes OK` };
   } catch (e: unknown) {
@@ -301,16 +272,22 @@ function emit(event: MonitorEvent) {
 }
 
 export async function runAllMonitors(): Promise<MonitorResult[]> {
-  const heroList = fetchWithRetry(HEROLIST_URL, {
-    timeout: 10_000,
-    referer: "https://pvp.qq.com/",
-    isJson: true,
+  // Share the same configured HTML/JSON union and field normalization as sync.
+  // All three checks reuse this promise; historical rows cannot trigger work
+  // which the current sync catalog would never update.
+  const heroList: Promise<HeroListResponse> = (async () => {
+    const { fetchHeroList, getCrawlConfig } = await import("@/features/heroes/server/sync");
+    const json = await fetchHeroList(await getCrawlConfig(), { requireComplete: true });
+    return { ok: true, status: 200, json };
+  })().catch((error: unknown) => {
+    console.warn("[monitor:heroes] catalog unavailable", error instanceof Error ? error.message : error);
+    return { ok: false, status: 0 };
   });
   const results = await Promise.all([
     checkNews(),
     checkHeroes(heroList),
     checkSkins(heroList),
-    checkSkills(),
+    checkSkills(heroList),
     checkItems(),
   ]);
   return results;

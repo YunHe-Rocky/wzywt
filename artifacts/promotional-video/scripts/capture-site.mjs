@@ -44,6 +44,23 @@ async function captureDesktop(name, pathname, options = {}) {
   });
   const page = await context.newPage();
   await preparePage(page, `${baseUrl}${pathname}`, options.waitMs);
+  if (options.waitForHeroImages) {
+    await page.locator(".hero-catalog-grid img").first().scrollIntoViewIfNeeded();
+    await page.waitForFunction(
+      () => {
+        const visibleImages = [...document.querySelectorAll(".hero-catalog-grid img")]
+          .filter((image) => image.getBoundingClientRect().top < window.innerHeight)
+          .slice(0, 6);
+        return visibleImages.length >= 6 && visibleImages.every((image) => (
+          image.complete
+          && image.naturalWidth >= 100
+          && Number.parseFloat(getComputedStyle(image).opacity) >= 0.99
+        ));
+      },
+      { timeout: 45_000 },
+    );
+    await page.waitForTimeout(1500);
+  }
   if (options.scrollY) {
     await page.evaluate((scrollY) => window.scrollTo(0, scrollY), options.scrollY);
     await page.waitForTimeout(300);
@@ -74,12 +91,17 @@ async function captureMobile() {
 }
 
 try {
-  await captureDesktop("home", "/", { waitMs: 5200 });
-  await captureDesktop("tournaments", "/tournaments", { waitMs: 4600 });
-  await captureDesktop("heroes", "/heroes", { waitMs: 5200 });
-  await captureDesktop("equipment", "/equipment", { waitMs: 5200 });
-  await captureDesktop("home-flow", "/", { waitMs: 5200, scrollY: 510 });
-  await captureMobile();
+  const heroesOnly = process.argv.includes("--heroes-only");
+  if (!heroesOnly) {
+    await captureDesktop("home", "/", { waitMs: 5200 });
+    await captureDesktop("tournaments", "/tournaments", { waitMs: 4600 });
+  }
+  await captureDesktop("heroes", "/heroes", { waitMs: 6200, waitForHeroImages: true });
+  if (!heroesOnly) {
+    await captureDesktop("equipment", "/equipment", { waitMs: 5200 });
+    await captureDesktop("home-flow", "/", { waitMs: 5200, scrollY: 510 });
+    await captureMobile();
+  }
 } finally {
   await browser.close();
 }

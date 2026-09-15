@@ -55,6 +55,7 @@ jobs:
       - run: npm run check:architecture
       - run: npm run typecheck
       - run: npm run test:core
+      - run: npm run test:crawler
       - run: npm run test:split-worker
       - run: npm run test:entry
       - run: npm run test:markdown

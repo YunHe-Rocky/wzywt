@@ -1,0 +1,49 @@
+{
+  "passed": true,
+  "duration": 180,
+  "seekChecks": [
+    {
+      "time": 0.5,
+      "width": 1920,
+      "height": 1080,
+      "readyState": 4,
+      "error": null
+    },
+    {
+      "time": 35,
+      "width": 1920,
+      "height": 1080,
+      "readyState": 4,
+      "error": null
+    },
+    {
+      "time": 98,
+      "width": 1920,
+      "height": 1080,
+      "readyState": 4,
+      "error": null
+    },
+    {
+      "time": 120,
+      "width": 1920,
+      "height": 1080,
+      "readyState": 4,
+      "error": null
+    },
+    {
+      "time": 153,
+      "width": 1920,
+      "height": 1080,
+      "readyState": 4,
+      "error": null
+    },
+    {
+      "time": 178,
+      "width": 1920,
+      "height": 1080,
+      "readyState": 4,
+      "error": null
+    }
+  ],
+  "playbackAdvancedTo": 30.971176
+}
