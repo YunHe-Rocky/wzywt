@@ -58,9 +58,13 @@ export async function reserveMediaUpload(
   kind: MediaUploadKind,
   requestedBytes: number,
   now = new Date(),
+  ttlMs = RESERVATION_TTL_MS,
 ): Promise<{ id: string; bytes: number; expiresAt: Date }> {
   if (!Number.isSafeInteger(requestedBytes) || requestedBytes <= 0) {
     throw new ServiceError("VALIDATION_ERROR", "媒体预留大小无效");
+  }
+  if (!Number.isSafeInteger(ttlMs) || ttlMs < RESERVATION_TTL_MS || ttlMs > 65 * 60 * 1000) {
+    throw new ServiceError("VALIDATION_ERROR", "媒体预留有效期无效");
   }
   await checkFilesystemBudget(requestedBytes);
   const limits = quotaLimits();
@@ -108,7 +112,7 @@ export async function reserveMediaUpload(
             limitBytes: exceeded.limit,
           });
         }
-        const expiresAt = new Date(now.getTime() + RESERVATION_TTL_MS);
+        const expiresAt = new Date(now.getTime() + ttlMs);
         const reservation = await tx.mediaUploadReservation.create({
           data: { id: randomUUID(), userId, kind, bytes: BigInt(requestedBytes), expiresAt },
           select: { id: true, bytes: true, expiresAt: true },

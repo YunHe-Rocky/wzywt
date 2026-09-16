@@ -39,7 +39,7 @@ http {
     types_hash_max_size 4096;
 
     # 比赛截图和视频上传上限，对应 NGINX_CLIENT_MAX_BODY_SIZE。
-    client_max_body_size 260m;
+    client_max_body_size 516m;
     client_body_timeout 120s;
 
     gzip on;

@@ -65,7 +65,7 @@ export function Header() {
 
         <nav className="header-primary-nav" aria-label="主导航">
           {[{ path: "/", label: "演武首页" }, { path: "/tournaments", label: "赛事大厅" }, { path: "/heroes", label: "英雄图鉴" }, { path: "/equipment", label: "装备图鉴" }, { path: "/me", label: "我的" }].map(item => <Link key={item.path} href={route(item.path)} prefetch={item.path === "/me" ? false : undefined} aria-current={(item.path === "/" ? basePath === "/" : basePath.startsWith(item.path)) ? "page" : undefined}>{item.label}</Link>)}
-          {mounted && loaded && user && <Link href={route("/combat")} aria-current={pathname.startsWith(route("/combat")) ? "page" : undefined}>演武动态</Link>}
+          <Link href={route("/combat")} prefetch={false} aria-current={pathname.startsWith(route("/combat")) ? "page" : undefined}>演武动态</Link>
         </nav>
 
         <div className="flex-1" />

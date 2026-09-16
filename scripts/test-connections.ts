@@ -78,8 +78,9 @@ async function testStreamingCombatUpload(): Promise<void> {
   const storage = new LocalMediaStorage(root);
   setMediaStorageForTests(storage);
   try {
-    const mp4 = Buffer.alloc(32);
-    mp4.write("ftyp", 4, "ascii");
+    const ftyp = Buffer.alloc(20); ftyp.writeUInt32BE(20); ftyp.write("ftyp", 4, "ascii");
+    const moov = Buffer.alloc(116); moov.writeUInt32BE(116); moov.write("moov", 4); moov.writeUInt32BE(108, 8); moov.write("mvhd", 12); moov.writeUInt32BE(1000, 28); moov.writeUInt32BE(5000, 32);
+    const mp4 = Buffer.concat([ftyp, moov]);
     const form = new FormData();
     form.set("title", "测试视频");
     form.set("content", "流式上传内容");

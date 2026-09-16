@@ -21,6 +21,7 @@ export async function GET(request: NextRequest, context: Context) {
       "Accept-Ranges": "bytes",
       "Cache-Control": "private, no-store",
       "X-Content-Type-Options": "nosniff",
+      "X-Accel-Buffering": "no",
     };
     if (video.kind === "full") {
       return new Response(Readable.toWeb(video.stream) as ReadableStream, { headers: { ...baseHeaders, "Content-Length": String(video.size) } });

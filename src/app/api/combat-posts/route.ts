@@ -7,6 +7,7 @@ import { readCombatPostUpload } from "@/features/combat-posts/server/upload";
 import { releaseMediaReservation, reserveMediaUpload } from "@/features/media/server/quota";
 import { apiErrorResponse } from "@/lib/api-errors";
 import { requireAuth } from "@/lib/auth";
+import { getCombatVideoPolicy } from "@/features/combat-posts/server/video-policy";
 
 export async function GET(request: NextRequest) {
   try {
@@ -19,7 +20,11 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const user = await requireAuth();
-    const reservation = await reserveMediaUpload(user.userId, "combat-video", 256 * 1024 * 1024);
+    const policy = getCombatVideoPolicy();
+    const maximum = policy.maxBytes;
+    const declared = Number(request.headers.get("content-length"));
+    const reservedBytes = Number.isSafeInteger(declared) && declared > 0 ? Math.min(declared, maximum) : maximum;
+    const reservation = await reserveMediaUpload(user.userId, "combat-video", reservedBytes, new Date(), Math.max(15 * 60_000, policy.uploadTimeoutMs + 60_000));
     try {
       const upload = await readCombatPostUpload(request, reservation.id, user.userId);
       return NextResponse.json({ post: await createCombatPost(upload.fields, upload.video, user) }, { status: 201 });

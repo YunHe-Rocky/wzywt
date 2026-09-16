@@ -1,10 +1,16 @@
 import assert from "node:assert/strict";
-import { mkdir } from "node:fs/promises";
+import { mkdir, stat } from "node:fs/promises";
 import path from "node:path";
 import bcrypt from "bcryptjs";
 import { PrismaClient } from "@prisma/client";
 import { chromium } from "playwright";
 
+const testDatabase = process.env.DATABASE_URL ? new URL(process.env.DATABASE_URL) : null;
+if (process.env.E2E_ALLOW_TEST_DATABASE !== "1" || !testDatabase
+  || !["127.0.0.1", "localhost", "[::1]"].includes(testDatabase.hostname)
+  || !/_(ci|test)$/.test(testDatabase.pathname.slice(1))) {
+  throw new Error("Refusing fixture writes: explicitly enable an isolated local _ci or _test database");
+}
 const prisma = new PrismaClient();
 const baseUrl = process.env.E2E_BASE_URL || "http://localhost:8001";
 const browserPath = process.env.E2E_BROWSER_PATH;
@@ -217,12 +223,12 @@ try {
 
   await page.goto(`${baseUrl}/combat`, { waitUntil: "domcontentloaded", timeout: 60_000 });
   await waitReady(page);
+  await page.getByRole("button", { name: "发布动态", exact: true }).click();
   await page.locator('input[name="title"]').fill("高地反打复盘");
   await page.locator('textarea[name="content"]').fill("先拉开阵型，再利用控制链完成反打。");
   await page.locator('input[name="tournamentId"]').fill(String(tournament.id));
   await page.locator('input[name="matchId"]').fill(String(matchId));
-  const mp4 = Buffer.alloc(12); mp4.write("ftyp", 4, "ascii");
-  await page.locator('input[name="video"]').setInputFiles({ name: "review.mp4", mimeType: "video/mp4", buffer: mp4 });
+  await page.locator('input[name="video"]').setInputFiles("artifacts/promotional-video/yanwu-arena-promo-1080p.mp4");
   const publishResponse = page.waitForResponse((response) => response.url().endsWith("/api/combat-posts") && response.request().method() === "POST");
   await page.getByRole("button", { name: "发布动态" }).click();
   const published = await publishResponse;
@@ -236,7 +242,8 @@ try {
   await page.waitForLoadState("domcontentloaded");
   const videoResponse = await context.request.get(`${baseUrl}/api/combat-posts/${postId}/video`, { headers: { Range: "bytes=0-3" } });
   assert.equal(videoResponse.status(), 206);
-  assert.match(videoResponse.headers()["content-range"], /^bytes 0-3\/12$/);
+  const videoSize = (await stat("artifacts/promotional-video/yanwu-arena-promo-1080p.mp4")).size;
+  assert.equal(videoResponse.headers()["content-range"], `bytes 0-3/${videoSize}`);
   await page.getByRole("button", { name: /^点赞/ }).click();
   await page.locator('.comment-form textarea[name="content"]').fill("这段复盘的进场时机说明很清楚。");
   await page.getByRole("button", { name: "发表评论" }).click();

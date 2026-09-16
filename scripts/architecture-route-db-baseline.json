@@ -1,6 +1,5 @@
 [
   "src/app/api/admin/settings/route.ts",
-  "src/app/api/admin/stats/route.ts",
   "src/app/api/admin/sync-status/route.ts",
   "src/app/api/admin/tournaments/route.ts",
   "src/app/api/admin/users/[id]/route.ts",

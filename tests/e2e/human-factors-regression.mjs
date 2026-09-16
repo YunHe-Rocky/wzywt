@@ -166,7 +166,8 @@ async function installFixtures(page) {
     }
     if (pathname === "/api/tournaments/1/matches/1") return fulfillJson(route, matchFixture);
     if (pathname === "/api/tournaments/1/matches/1/tactics/red") return fulfillJson(route, tacticsFixture);
-    if (pathname === "/api/combat-posts" && request.method() === "GET") return fulfillJson(route, { posts: [postSummary], totalPages: 1 });
+    if (pathname === "/api/combat-posts" && request.method() === "GET") return fulfillJson(route, { posts: [postSummary], totalPages: 1, total: 1 });
+    if (pathname === "/api/combat-posts/policy") return fulfillJson(route, { maxBytes: 512 * 1024 ** 2, maxDurationSeconds: 300, uploadTimeoutMs: 900000 });
     if (pathname === "/api/combat-posts/1") return fulfillJson(route, { post: postSummary, access: { canModerate: true } });
     if (pathname === "/api/combat-posts/1/video") return route.fulfill({ status: 206, contentType: "video/mp4", body: Buffer.alloc(16) });
     return fulfillJson(route, {});

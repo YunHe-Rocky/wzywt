@@ -73,3 +73,25 @@ next-env.d.ts
 # OCR Python environment and bytecode
 /.venv-ocr/
 **/__pycache__/
+
+# Generated promotional media (scripts and manifests remain tracked)
+/artifacts/promotional-video/v2/.deps/
+/artifacts/promotional-video/v2/**/*.bin
+/artifacts/promotional-video/v2/**/*.jpeg
+/artifacts/promotional-video/v2/**/*.jpg
+/artifacts/promotional-video/v2/**/*.mp3
+/artifacts/promotional-video/v2/**/*.mp4
+/artifacts/promotional-video/v2/**/*.png
+/artifacts/promotional-video/v2/**/*.pyc
+/artifacts/promotional-video/v2/**/*.wav
+/artifacts/promotional-video/v2/**/*.webm
+/artifacts/promotional-video/v3/.deps/
+/artifacts/promotional-video/v3/**/*.bin
+/artifacts/promotional-video/v3/**/*.jpeg
+/artifacts/promotional-video/v3/**/*.jpg
+/artifacts/promotional-video/v3/**/*.mp3
+/artifacts/promotional-video/v3/**/*.mp4
+/artifacts/promotional-video/v3/**/*.png
+/artifacts/promotional-video/v3/**/*.pyc
+/artifacts/promotional-video/v3/**/*.wav
+/artifacts/promotional-video/v3/**/*.webm

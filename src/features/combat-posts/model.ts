@@ -3,6 +3,10 @@ export interface ByteRange {
   end: number;
 }
 
+export function isCombatModerationAction(value: unknown): value is "HIDE" | "RESTORE" | "DELETE" {
+  return typeof value === "string" && ["HIDE", "RESTORE", "DELETE"].includes(value);
+}
+
 export type ByteRangeResult =
   | { kind: "full" }
   | { kind: "partial"; range: ByteRange }

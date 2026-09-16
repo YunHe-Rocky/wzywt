@@ -10,12 +10,30 @@
 - 单用户 UTC 自然日上传：512 MiB
 - 全站已存储媒体：50 GiB
 - 文件系统最低保留空间：2 GiB
-- 视频单文件：256 MiB；截图单文件：12 MiB
+- 视频单文件：默认 512 MiB、最长 300 秒；截图单文件：12 MiB
 - 截图最长边：8192 像素；总像素：4000 万
 
 只有容量规划确认需要变化时才设置 MEDIA_USER_STORED_QUOTA_BYTES、MEDIA_USER_DAILY_QUOTA_BYTES、MEDIA_GLOBAL_STORED_QUOTA_BYTES 或 MEDIA_MIN_FREE_BYTES。值为十进制字节数。并发请求会共同计入 RESERVED 预留，不能各自通过检查后超卖。
 
-/api/health 会报告媒体可用字节数，并在低于保留线时失败。cron 每五分钟清理过期预留及其已写入但未提交的孤儿文件。容器头和图片尺寸检查只能阻挡明显伪造或异常输入；视频是否可播放、时长和编码兼容性仍应在目标服务器用 ffprobe/播放抽样验证。
+/api/health 会报告媒体可用字节数，并在低于保留线时失败。cron 每五分钟清理过期预留及其已写入但未提交的孤儿文件。视频上传会读取 MP4/WebM 容器中的时长并校验限制；元数据校验不等同完整解码，编码兼容性仍应在目标服务器用 ffprobe/播放抽样验证。
+
+## 视频上传配置
+
+在部署所使用的 `.env` 中设置，修改后重启 Web 进程：
+
+```dotenv
+COMBAT_VIDEO_MAX_DURATION_SECONDS=300
+COMBAT_VIDEO_MAX_SIZE_MB=512
+COMBAT_VIDEO_UPLOAD_TIMEOUT_SECONDS=900
+```
+
+大小按 MiB（1024 × 1024 字节）计算。时长和大小独立限制：五分钟的高码率视频如果超过 512 MiB，仍需压缩。浏览器从 `/api/combat-posts/policy` 获取实际配置，上传前检查大小和时长；后端独立检查容器时长，不信任浏览器。缺失有效时长信息的文件需重新导出为 MP4/WebM。旧视频不因新上传时长限制而被删除或禁播。
+
+上传采用流式保存，提供进度与取消；客户端和服务端总超时默认均为 15 分钟，服务端另保留 30 秒无数据空闲超时。配额预留有效期覆盖配置的上传总超时及一分钟验证余量，修改总超时不会让预留提前失效。单用户每日媒体配额默认仍是 512 MiB（包含截图），因此已有当天上传记录时，可能先达到每日配额。按真实运营需求单独调整 `MEDIA_USER_DAILY_QUOTA_BYTES`。
+
+Nginx 的 `client_max_body_size` 必须覆盖文件上限和 multipart 开销。参考配置已调整为 `516m`，已有线上 Nginx 不会自动读取应用 `.env`，需单独核对当前站点配置。`proxy_read_timeout` 也需允许上传结束后的验证时间。应用文件大小上限最高 2047 MiB，以适配现有数据库字段。
+
+当前播放器使用浏览器原生 Range 播放，播放时预加载并提供缓冲反馈、保留进度重试；视频响应发送 `X-Accel-Buffering: no`。尚未引入 FFmpeg/HLS 转码或多播放器内核。
 
 ## 建立媒体备份集
 

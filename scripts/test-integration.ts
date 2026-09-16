@@ -58,6 +58,10 @@ try {
     assert.ok(quotaFailure && quotaFailure.status === "rejected" && quotaFailure.reason instanceof ServiceError && quotaFailure.reason.code === "PAYLOAD_TOO_LARGE");
     const accepted = reservations.find((result): result is PromiseFulfilledResult<Awaited<ReturnType<typeof reserveMediaUpload>>> => result.status === "fulfilled");
     if (accepted) await releaseMediaReservation(accepted.value.id, userIds[0]);
+    const videoStartedAt = new Date();
+    const videoReservation = await reserveMediaUpload(userIds[0], "combat-video", 80, videoStartedAt, 61 * 60_000);
+    assert.equal(videoReservation.expiresAt.getTime() - videoStartedAt.getTime(), 61 * 60_000, "long video uploads must retain their quota reservation through the upload deadline");
+    await releaseMediaReservation(videoReservation.id, userIds[0]);
   } finally {
     for (const [key, value] of Object.entries({
       MEDIA_USER_STORED_QUOTA_BYTES: quotaEnvironment.userStored,

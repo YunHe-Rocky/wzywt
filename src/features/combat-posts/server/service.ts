@@ -1,5 +1,5 @@
 import { Prisma } from "@prisma/client";
-import { parseByteRange } from "@/features/combat-posts/model";
+import { isCombatModerationAction, parseByteRange } from "@/features/combat-posts/model";
 import type { StreamedCombatVideo } from "@/features/combat-posts/server/upload";
 import { consumeMediaReservation } from "@/features/media/server/quota";
 import { deleteOrQueueMedia } from "@/features/media/server/storage-cleanup";
@@ -80,11 +80,11 @@ export async function listCombatPosts(pageValue: unknown = 1) {
   const page = typeof pageValue === "number" ? pageValue : Number(pageValue);
   const safePage = Number.isSafeInteger(page) && page > 0 ? page : 1;
   const pageSize = 12;
-  const where = user.role === "admin" ? { status: { not: "deleted" } } : { status: "published" };
+  const where = user.role === "admin" ? { status: { in: ["published", "hidden"] } } : { status: "published" };
   const [posts, total] = await Promise.all([
     prisma.combatPost.findMany({
       where,
-      orderBy: { createdAt: "desc" },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       skip: (safePage - 1) * pageSize,
       take: pageSize,
       select: {
@@ -140,7 +140,7 @@ export async function getCombatPost(postId: number, cursorValue?: unknown) {
       _count: { select: { likes: true, comments: { where: { status: "active" } } } },
     },
   });
-  if (!post) throw new ServiceError("NOT_FOUND", "动态不存在");
+  if (!post || post.status === "deleted" || post.status === "deleting") throw new ServiceError("NOT_FOUND", "动态不存在");
   if (post.status !== "published" && user.role !== "admin" && post.authorId !== user.userId) throw new ServiceError("NOT_FOUND", "动态不存在");
   const cursor = parseCommentCursor(cursorValue);
   const rows = await prisma.combatPostComment.findMany({
@@ -227,14 +227,15 @@ export async function deleteCombatPostComment(postId: number, commentId: number)
 export async function moderateCombatPost(postId: number, action: unknown) {
   const user = await requireAuth();
   if (user.role !== "admin") throw new PermissionError();
-  if (!["HIDE", "RESTORE", "DELETE"].includes(String(action))) throw new ServiceError("VALIDATION_ERROR", "管理操作无效");
+  if (!isCombatModerationAction(action)) throw new ServiceError("VALIDATION_ERROR", "管理操作无效");
   const post = await prisma.combatPost.findUnique({ where: { id: postId }, select: { status: true, videoStorageKey: true } });
   if (!post) throw new ServiceError("NOT_FOUND", "动态不存在");
-  if (action === "HIDE") {
-    await prisma.combatPost.update({ where: { id: postId }, data: { status: "hidden", moderatedById: user.userId, moderatedAt: new Date() } });
-  } else if (action === "RESTORE") {
-    if (post.status === "deleted" || post.status === "deleting") throw new ServiceError("CONFLICT", "已删除动态不能恢复");
-    await prisma.combatPost.update({ where: { id: postId }, data: { status: "published", moderatedById: user.userId, moderatedAt: new Date() } });
+  if (action === "HIDE" || action === "RESTORE") {
+    const result = await prisma.combatPost.updateMany({
+      where: { id: postId, status: { in: ["published", "hidden"] } },
+      data: { status: action === "HIDE" ? "hidden" : "published", moderatedById: user.userId, moderatedAt: new Date() },
+    });
+    if (result.count === 0) throw new ServiceError("CONFLICT", "已删除或正在删除的动态不能隐藏或恢复");
   } else {
     await prisma.combatPost.update({ where: { id: postId }, data: { status: "deleting", moderatedById: user.userId, moderatedAt: new Date() } });
     await deleteOrQueueMedia(getMediaStorage(), post.videoStorageKey, "combat-post-deleted");
@@ -249,7 +250,7 @@ export async function openCombatPostVideo(postId: number, rangeHeader: string | 
     where: { id: postId },
     select: { authorId: true, status: true, mimeType: true, size: true, videoStorageKey: true },
   });
-  if (!post) throw new ServiceError("NOT_FOUND", "视频不存在");
+  if (!post || post.status === "deleted" || post.status === "deleting") throw new ServiceError("NOT_FOUND", "视频不存在");
   if (post.status !== "published" && user.role !== "admin" && post.authorId !== user.userId) throw new ServiceError("NOT_FOUND", "视频不存在");
   const storage = getMediaStorage();
   const info = await storage.stat(post.videoStorageKey);

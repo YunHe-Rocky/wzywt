@@ -7,8 +7,9 @@ import { attachMediaReservation } from "@/features/media/server/quota";
 import {
   cleanOriginalFilename,
   detectVideo,
-  MAX_COMBAT_VIDEO_SIZE,
 } from "@/lib/media-validation";
+import { getCombatVideoPolicy } from "@/features/combat-posts/server/video-policy";
+import { inspectVideoDuration } from "@/lib/video-duration";
 import { ServiceError } from "@/lib/service-error";
 import { getMediaStorage } from "@/lib/storage";
 
@@ -37,12 +38,12 @@ function requestHeaders(request: Request): IncomingHttpHeaders {
   return headers;
 }
 
-function assertDeclaredSize(request: Request): void {
+function assertDeclaredSize(request: Request, maxBytes: number): void {
   const value = request.headers.get("content-length");
   if (value === null) return;
   if (!/^\d+$/.test(value)) throw new ServiceError("VALIDATION_ERROR", "Content-Length 格式错误");
   const size = Number(value);
-  if (!Number.isSafeInteger(size) || size > MAX_COMBAT_VIDEO_SIZE + MAX_MULTIPART_OVERHEAD) {
+  if (!Number.isSafeInteger(size) || size > maxBytes + MAX_MULTIPART_OVERHEAD) {
     throw new ServiceError("PAYLOAD_TOO_LARGE", "请求体超过大小限制");
   }
 }
@@ -53,7 +54,8 @@ export async function readCombatPostUpload(
   userId: number,
   attachReservation: typeof attachMediaReservation = attachMediaReservation,
 ): Promise<CombatPostUpload> {
-  assertDeclaredSize(request);
+  const policy = getCombatVideoPolicy();
+  assertDeclaredSize(request, policy.maxBytes);
   if (!request.body) throw new ServiceError("VALIDATION_ERROR", "multipart 请求体不能为空");
 
   const storage = getMediaStorage();
@@ -73,7 +75,7 @@ export async function readCombatPostUpload(
         fieldNameSize: 64,
         fieldSize: MAX_FIELD_SIZE,
         fields: ALLOWED_FIELDS.size,
-        fileSize: MAX_COMBAT_VIDEO_SIZE,
+        fileSize: policy.maxBytes + 1,
         files: 1,
         parts: ALLOWED_FIELDS.size + 1,
         headerPairs: 50,
@@ -116,6 +118,10 @@ export async function readCombatPostUpload(
       extension: claimed.extension,
       data: chunks(),
     }).then(async (stored) => {
+      if (stored.size > policy.maxBytes) {
+        await storage.delete(stored.key);
+        throw new ServiceError("PAYLOAD_TOO_LARGE", "视频超过文件大小限制");
+      }
       if (stored.size === 0) {
         await storage.delete(stored.key);
         throw new ServiceError("VALIDATION_ERROR", "文件不能为空");
@@ -126,6 +132,8 @@ export async function readCombatPostUpload(
         throw new ServiceError("UNSUPPORTED_MEDIA_TYPE", "仅支持真实的 MP4 或 WebM 视频");
       }
       try {
+        const duration = await inspectVideoDuration(storage, stored.key, stored.size, claimed.mimeType);
+        if (duration > policy.maxDurationSeconds) throw new ServiceError("VALIDATION_ERROR", `视频时长不能超过 ${policy.maxDurationSeconds} 秒`);
         await attachReservation(reservationId, userId, stored.key, stored.size);
       } catch (error) {
         await storage.delete(stored.key).catch(() => undefined);
@@ -159,7 +167,7 @@ export async function readCombatPostUpload(
   const limiter = new Transform({
     transform(chunk: Buffer, _encoding, callback) {
       received += chunk.byteLength;
-      if (received > MAX_COMBAT_VIDEO_SIZE + MAX_MULTIPART_OVERHEAD) {
+      if (received > policy.maxBytes + MAX_MULTIPART_OVERHEAD) {
         callback(new ServiceError("PAYLOAD_TOO_LARGE", "请求体超过大小限制"));
         return;
       }
@@ -169,8 +177,10 @@ export async function readCombatPostUpload(
   });
   resetIdleTimer(limiter);
   const source = Readable.fromWeb(request.body as unknown as NodeReadableStream);
+  const deadlineTimer = setTimeout(() => source.destroy(new ServiceError("REQUEST_TIMEOUT", "视频上传超时，请重试")), policy.uploadTimeoutMs);
   const onAbort = () => source.destroy(new ServiceError("REQUEST_TIMEOUT", "上传连接已中断"));
   request.signal.addEventListener("abort", onAbort, { once: true });
+  if (request.signal.aborted) onAbort();
 
   try {
     await pipeline(source, limiter, parser);
@@ -189,6 +199,7 @@ export async function readCombatPostUpload(
     if (error instanceof ServiceError) throw error;
     throw new ServiceError("VALIDATION_ERROR", "multipart 请求体格式错误");
   } finally {
+    clearTimeout(deadlineTimer);
     request.signal.removeEventListener("abort", onAbort);
   }
 }

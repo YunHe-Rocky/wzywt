@@ -297,7 +297,7 @@ select option { background: var(--bg-input); color: var(--text); }
   .arena-brand-type strong { font-size: 16px; }
   .arena-brand-type small { font-size: 12px; }
   .dock-shell { display: flex; z-index: var(--layer-dock); padding: 0 16px calc(10px + env(safe-area-inset-bottom)); }
-  .arena-dock-bar { width: min(100%,440px); display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); padding: 7px; border: 1px solid #3a4957; border-radius: 14px; background: rgba(15,27,39,.97); box-shadow: 0 8px 40px #0007; backdrop-filter: blur(16px); }
+  .arena-dock-bar { width: min(100%,440px); display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); padding: 7px; border: 1px solid #3a4957; border-radius: 14px; background: rgba(15,27,39,.97); box-shadow: 0 8px 40px #0007; backdrop-filter: blur(16px); }
   .arena-dock-item { min-width: 0; min-height: 52px; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 5px; border-radius: 8px; color: var(--text-muted); font-size: 12px; text-decoration: none; }
   .arena-dock-item.is-active, .arena-dock-item[aria-current="page"] { color: var(--gold-light); background: var(--gold-alpha-08); }
   .arena-dock-item > svg { width: 20px; height: 20px; }

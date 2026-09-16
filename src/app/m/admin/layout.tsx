@@ -1,19 +1,9 @@
 import { redirect } from "next/navigation";
-import { getSession } from "@/lib/session";
-import { prisma } from "@/lib/db";
-import { MobileAdminLayout } from "@/web/components/admin/MobileAdminLayout";
+import { authorizeSuperAdmin } from "@/lib/permissions";
+import { AdminShell } from "@/web/components/admin/AdminShell";
 
 export default async function AdminMLayout({ children }: { children: React.ReactNode }) {
-  const session = await getSession();
-  if (!session.userId) { redirect("/"); }
-
-  if (session.role !== "admin") {
-    const user = await prisma.user.findUnique({
-      where: { id: session.userId },
-      select: { role: true, banned: true },
-    });
-    if (!user || user.role !== "admin" || user.banned) { redirect("/"); }
-  }
-
-  return <MobileAdminLayout username={session.username!}>{children}</MobileAdminLayout>;
+  const authorization = await authorizeSuperAdmin();
+  if (!authorization.ok) redirect("/m");
+  return <AdminShell username={authorization.user.username}>{children}</AdminShell>;
 }
