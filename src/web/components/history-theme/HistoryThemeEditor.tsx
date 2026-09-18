@@ -12,6 +12,7 @@ import {
   buildFutureCalendarDays,
   createEmptyBlock,
   createEmptySource,
+  EDITORIAL_NATURE_LABEL,
   TRIGGER_OPTIONS,
   type EditorSection,
   type HistoryThemeStudioState,
@@ -28,7 +29,12 @@ const categories = Object.entries(HISTORY_THEME_CATEGORY_LABELS) as Array<[Histo
 const tones = Object.entries(HISTORY_THEME_TONE_LABELS) as Array<[ThemeTone, string]>;
 const blockKinds = Object.entries(HISTORY_THEME_BLOCK_LABELS) as Array<[HistoryThemeBlockType, string]>;
 
+function normalizeClaimIds(value: string): string[] {
+  return value.split(/[,，]/).map(claimId => claimId.trim()).filter(Boolean);
+}
+
 export function HistoryThemeEditor({ section, state, calendarNow, onChange }: HistoryThemeEditorProps) {
+  const hasEditorialNature = state.trigger.kind === "EDITORIAL_WINDOW";
   const setTheme = (patch: Partial<HistoryThemeStudioState["theme"]>) => onChange({
     ...state,
     theme: { ...state.theme, ...patch },
@@ -47,7 +53,7 @@ export function HistoryThemeEditor({ section, state, calendarNow, onChange }: Hi
         <label className="history-theme-field-wide"><span>主题标题</span><input aria-label="主题标题" value={state.theme.title} onChange={event => setTheme({ title: event.target.value })} /></label>
         <label className="history-theme-field-wide"><span>主题摘要</span><textarea aria-label="主题摘要" rows={3} value={state.theme.summary} onChange={event => setTheme({ summary: event.target.value })} /></label>
         <label><span>Slug</span><input value={state.theme.slug} onChange={event => setTheme({ slug: event.target.value })} /></label>
-        <label><span>性质标签</span><input value={state.theme.natureLabel} onChange={event => setTheme({ natureLabel: event.target.value })} /></label>
+        <label><span>性质标签</span><input aria-label="性质标签" aria-describedby={hasEditorialNature ? "history-editorial-nature-note" : undefined} value={hasEditorialNature ? EDITORIAL_NATURE_LABEL : state.theme.natureLabel} disabled={hasEditorialNature} onChange={event => setTheme({ natureLabel: event.target.value })} />{hasEditorialNature && <small id="history-editorial-nature-note">演武堂历史策划触发类型固定使用此性质标签。</small>}</label>
         <label><span>日期标签</span><input value={state.theme.dateLabel} onChange={event => setTheme({ dateLabel: event.target.value })} /></label>
         <label><span>史实审核日期</span><input aria-label="史实审核日期" value="未核验" readOnly aria-describedby="history-review-date-note" /><small id="history-review-date-note">审核结果只能来自未接入的审核服务。</small></label>
         <label className="history-theme-field-wide"><span>日期说明</span><textarea rows={2} value={state.theme.dateNote} onChange={event => setTheme({ dateNote: event.target.value })} /></label>
@@ -114,19 +120,43 @@ export function HistoryThemeEditor({ section, state, calendarNow, onChange }: Hi
 
   if (section === "来源与素材") {
     const updateSource = (id: string, patch: Partial<HistoryThemeSourceView>) => setTheme({ sources: state.theme.sources.map(source => source.id === id ? { ...source, ...patch } : source) });
+    const addSource = () => {
+      const source = createEmptySource();
+      onChange({
+        ...state,
+        theme: { ...state.theme, sources: [...state.theme.sources, source] },
+        sourceClaimIdInputs: { ...state.sourceClaimIdInputs, [source.id]: "" },
+      });
+    };
+    const removeSource = (id: string) => {
+      const sourceClaimIdInputs = { ...state.sourceClaimIdInputs };
+      delete sourceClaimIdInputs[id];
+      onChange({
+        ...state,
+        theme: { ...state.theme, sources: state.theme.sources.filter(source => source.id !== id) },
+        sourceClaimIdInputs,
+      });
+    };
     return <section className="history-theme-editor-panel" aria-labelledby="history-sources-heading">
-      <div className="history-theme-section-heading"><h2 id="history-sources-heading">来源与素材</h2><button type="button" className="history-theme-secondary-button" onClick={() => setTheme({ sources: [...state.theme.sources, createEmptySource()] })}>添加来源</button></div>
+      <div className="history-theme-section-heading"><h2 id="history-sources-heading">来源与素材</h2><button type="button" className="history-theme-secondary-button" onClick={addSource}>添加来源</button></div>
       <div className="history-theme-stack">{state.theme.sources.length === 0 ? <p className="history-theme-empty">暂无来源。</p> : state.theme.sources.map((source, index) => {
         const unsafeUrl = Boolean(source.url.trim() && !safeSourceUrl(source.url));
         return <article className="history-theme-editor-item" key={source.id}>
-          <div className="history-theme-item-heading"><strong>来源 {index + 1}</strong><button type="button" aria-label={`移除来源 ${index + 1}`} onClick={() => setTheme({ sources: state.theme.sources.filter(item => item.id !== source.id) })}>移除来源</button></div>
+          <div className="history-theme-item-heading"><strong>来源 {index + 1}</strong><button type="button" aria-label={`移除来源 ${index + 1}`} onClick={() => removeSource(source.id)}>移除来源</button></div>
           <div className="history-theme-form-grid">
             <label><span>来源标题</span><input value={source.title} onChange={event => updateSource(source.id, { title: event.target.value })} /></label>
             <label><span>来源网址</span><input type="url" aria-label="来源网址" aria-invalid={unsafeUrl || undefined} aria-describedby={unsafeUrl ? `${source.id}-url-error` : undefined} value={source.url} onChange={event => updateSource(source.id, { url: event.target.value })} />{unsafeUrl && <small className="history-theme-field-error" id={`${source.id}-url-error`} role="alert">仅支持完整的 HTTP(S) 来源网址。</small>}</label>
             <label><span>发布机构</span><input value={source.publisher} onChange={event => updateSource(source.id, { publisher: event.target.value })} /></label>
             <label><span>来源类型</span><input value={source.sourceType} onChange={event => updateSource(source.id, { sourceType: event.target.value })} /></label>
             <label><span>访问日期</span><input type="date" value={source.accessedAt} onChange={event => updateSource(source.id, { accessedAt: event.target.value })} /></label>
-            <label><span>关联论断 ID</span><input value={source.claimIds.join(", ")} onChange={event => updateSource(source.id, { claimIds: event.target.value.split(",").map(value => value.trim()).filter(Boolean) })} /></label>
+            <label><span>关联论断 ID</span><input aria-label="关联论断 ID" value={state.sourceClaimIdInputs[source.id] ?? source.claimIds.join(", ")} onChange={event => {
+              const value = event.target.value;
+              onChange({
+                ...state,
+                theme: { ...state.theme, sources: state.theme.sources.map(item => item.id === source.id ? { ...item, claimIds: normalizeClaimIds(value) } : item) },
+                sourceClaimIdInputs: { ...state.sourceClaimIdInputs, [source.id]: value },
+              });
+            }} /></label>
           </div>
         </article>;
       })}</div>

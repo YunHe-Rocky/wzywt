@@ -1,4 +1,5 @@
 import type { HistoryThemeCategory, ThemeTone } from "@/core/history-theme/types";
+import { parseExplicitInstant } from "@/core/history-theme/calendar";
 
 export type HistoryThemeBlockType =
   | "LEAD_QUOTE"
@@ -83,10 +84,14 @@ export const HISTORY_THEME_BLOCK_LABELS: Record<HistoryThemeBlockType, string> =
 type ThemeWindow = Pick<ThemeCardView, "startsAt" | "endsAt">;
 
 function parseThemeWindow(theme: ThemeWindow): { startsAt: number; endsAt: number } | null {
-  const startsAt = Date.parse(theme.startsAt);
-  const endsAt = Date.parse(theme.endsAt);
-  if (!Number.isFinite(startsAt) || !Number.isFinite(endsAt) || endsAt <= startsAt) return null;
-  return { startsAt, endsAt };
+  try {
+    const startsAt = parseExplicitInstant(theme.startsAt);
+    const endsAt = parseExplicitInstant(theme.endsAt);
+    if (endsAt <= startsAt) return null;
+    return { startsAt, endsAt };
+  } catch {
+    return null;
+  }
 }
 
 export function safeSourceUrl(value: string): string | null {

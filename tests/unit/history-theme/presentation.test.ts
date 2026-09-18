@@ -33,6 +33,38 @@ describe("history theme presentation", () => {
     assert.equal(isThemeCardActive({ startsAt: "2026-09-19T00:00:00+08:00", endsAt: "2026-09-20T00:00:00+08:00" }, Number.NaN), false);
   });
 
+  it("rejects impossible calendar and clock components in every window helper", () => {
+    const invalidInstants = [
+      "2026-02-30T00:00:00+08:00",
+      "2026-13-01T00:00:00+08:00",
+      "2026-01-01T24:00:00+08:00",
+      "2026-01-01T00:60:00+08:00",
+      "2026-01-01T00:00:60+08:00",
+    ];
+    const validEnd = "2026-03-03T00:00:00+08:00";
+    const now = Date.parse("2026-03-01T00:00:00+08:00");
+
+    for (const startsAt of invalidInstants) {
+      const theme = { startsAt, endsAt: validEnd };
+      assert.equal(isThemeCardActive(theme, now), false, startsAt);
+      assert.equal(themeCardExpiryDelay(theme, now), null, startsAt);
+      assert.equal(formatThemeWindowShanghai(theme), null, startsAt);
+    }
+  });
+
+  it("accepts a leap-day window with an explicit non-Shanghai offset in every helper", () => {
+    const theme = {
+      startsAt: "2024-02-29T23:30:00+05:30",
+      endsAt: "2024-03-01T01:00:00+05:30",
+    };
+    const now = Date.parse("2024-03-01T00:30:00+05:30");
+
+    assert.equal(isThemeCardActive(theme, now), true);
+    assert.equal(themeCardExpiryDelay(theme, now), 30 * 60 * 1000);
+    assert.equal(formatThemeWindowShanghai(theme), "2024年3月1日 02:00 — 3月1日 03:30");
+    assert.equal(isThemeCardActive(theme, Date.parse(theme.endsAt)), false);
+  });
+
   it("formats a valid window in Asia/Shanghai and rejects an invalid window", () => {
     assert.equal(
       formatThemeWindowShanghai({

@@ -1,6 +1,6 @@
 import { ActiveThemeCard } from "./ActiveThemeCard";
 import { HistoryThemeDetail } from "./HistoryThemeDetail";
-import type { HistoryThemeStudioState } from "./studio-data";
+import { EDITORIAL_NATURE_LABEL, type HistoryThemeStudioState } from "./studio-data";
 
 export type HistoryThemePreviewContent = "card" | "detail";
 export type HistoryThemePreviewDevice = "desktop" | "mobile";
@@ -17,6 +17,7 @@ interface HistoryThemePreviewProps {
 export function HistoryThemePreview({ state, content, device, previewState, onContentChange }: HistoryThemePreviewProps) {
   const previewTheme = {
     ...state.theme,
+    natureLabel: state.trigger.kind === "EDITORIAL_WINDOW" ? EDITORIAL_NATURE_LABEL : state.theme.natureLabel,
     sources: state.theme.sources.filter(source => Boolean(
       source.title.trim()
       || source.url.trim()

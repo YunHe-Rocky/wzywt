@@ -149,6 +149,16 @@ try {
     assert.ok(await page.getByLabel(label, { exact: true }).isVisible(), `${kind} conditional field`);
     await noOverflow(`trigger overflow: ${kind}`);
   }
+  await page.getByLabel("触发类型", { exact: true }).selectOption("EDITORIAL_WINDOW");
+  await page.getByRole("radio", { name: "首页卡片", exact: true }).check();
+  assert.equal(await page.locator("[data-history-theme-card] .history-theme-card-kicker span").last().textContent(), "演武堂历史策划", "editorial card must use the required nature label");
+  await page.getByRole("radio", { name: "主题详情", exact: true }).check();
+  assert.equal(await page.locator("[data-history-theme-detail] .history-theme-detail-kicker span").last().textContent(), "演武堂历史策划", "editorial detail must use the required nature label");
+  await page.getByRole("button", { name: "基本信息", exact: true }).click();
+  const natureLabelInput = page.getByLabel("性质标签", { exact: true });
+  assert.equal(await natureLabelInput.inputValue(), "演武堂历史策划", "editorial nature label field must show the projected value");
+  assert.ok(await natureLabelInput.isDisabled(), "editorial nature label cannot imply an arbitrary value will be used");
+  assert.ok(await page.getByText("演武堂历史策划触发类型固定使用此性质标签。", { exact: true }).isVisible());
   await page.getByRole("button", { name: "内容块", exact: true }).click();
   const beforeBlocks = await page.getByLabel("内容块标题", { exact: true }).count();
   await page.getByRole("button", { name: "添加内容块", exact: true }).click();
@@ -166,11 +176,20 @@ try {
   await page.getByRole("button", { name: "来源与素材", exact: true }).click();
   await page.getByRole("button", { name: "添加来源", exact: true }).click();
   await page.getByLabel("来源标题", { exact: true }).last().fill("浏览器新增来源");
+  const claimIdsInput = page.getByLabel("关联论断 ID", { exact: true }).last();
+  await claimIdsInput.pressSequentially("claim-a,claim-b");
+  assert.equal(await claimIdsInput.inputValue(), "claim-a,claim-b", "typing a separator must not merge adjacent claim IDs");
+  const addedSourcePreview = page.locator("details.history-theme-source").filter({ hasText: "浏览器新增来源" });
+  await addedSourcePreview.locator("summary").click();
+  assert.ok(await addedSourcePreview.getByText("claim-a、claim-b", { exact: true }).isVisible(), "preview must normalize multiple claim IDs");
   await page.getByLabel("来源网址", { exact: true }).last().fill("javascript:alert(1)");
   await page.getByText("仅支持完整的 HTTP(S) 来源网址。", { exact: true }).waitFor();
   assert.equal(await page.locator('a[href^="javascript:"]').count(), 0);
   await page.getByLabel("来源网址", { exact: true }).last().fill("https://example.org/ui-source");
   await page.getByLabel("复原说明", { exact: true }).fill("艺术复原说明，不是真实历史照片。");
+  await page.getByRole("button", { name: "基本信息", exact: true }).click();
+  await page.getByRole("button", { name: "来源与素材", exact: true }).click();
+  assert.equal(await page.getByLabel("关联论断 ID", { exact: true }).last().inputValue(), "claim-a,claim-b", "claim ID editor text must survive section switches");
   await page.getByRole("button", { name: "排期与审核", exact: true }).click();
   assert.equal(await page.getByText("未计算", { exact: true }).count(), 45, "calendar must expose 45 uncomputed days, not fabricated winners");
   for (const name of ["保存草稿", "提交审核", "审核通过", "发布"]) assert.ok(await page.getByRole("button", { name, exact: true }).isDisabled(), `${name} cannot pretend backend exists`);
@@ -191,6 +210,7 @@ try {
   assert.equal(new URL(page.url()).pathname, "/away", "Back must complete without a synthetic guard entry");
   await page.goForward();
   await page.getByRole("heading", { name: "历史主题工作室", exact: true }).waitFor();
+  await page.waitForFunction(() => document.querySelector('input[aria-label="主题标题"]')?.value === "运行期返回仍保留");
   assert.equal(await page.getByLabel("主题标题", { exact: true }).inputValue(), "运行期返回仍保留", "Forward remount must restore the runtime draft");
   assert.equal(await page.getByLabel("主题摘要", { exact: true }).inputValue(), "这是第二个需要跨客户端导航保留的字段。");
   assert.equal(await page.evaluate(() => history.length), historyLengthBeforeTraversal, "runtime retention must not add history entries");

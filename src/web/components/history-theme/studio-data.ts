@@ -16,6 +16,8 @@ export const TRIGGER_OPTIONS: Array<{ value: TriggerKind; label: string }> = [
   { value: "ONE_OFF", label: "一次性时间窗" },
 ];
 
+export const EDITORIAL_NATURE_LABEL = "演武堂历史策划";
+
 export interface StudioTrigger {
   kind: TriggerKind;
   solarMonth: string;
@@ -41,6 +43,7 @@ export interface HistoryThemeStudioState {
   theme: ThemeDetailView;
   trigger: StudioTrigger;
   material: StudioMaterial;
+  sourceClaimIdInputs: Record<string, string>;
 }
 
 let localId = 0;
@@ -102,6 +105,7 @@ export function createInitialStudioState(): HistoryThemeStudioState {
       licenseStatus: "UNSET",
       reconstructionNote: "",
     },
+    sourceClaimIdInputs: { "source-initial": "" },
   };
 }
 
