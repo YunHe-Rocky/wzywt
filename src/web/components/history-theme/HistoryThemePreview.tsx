@@ -32,10 +32,17 @@ export function HistoryThemePreview({ state, content, device, previewState, onCo
     endsAt: "2026-09-26T00:00:00+08:00",
   };
   const previewNow = Date.parse("2026-09-20T12:00:00+08:00");
+  const detailPreview = previewState === "loading"
+    ? <div className="history-theme-detail-state history-theme-detail-state--loading" role="status" aria-label="正在加载主题详情"><span className="history-theme-skeleton history-theme-skeleton--short" /><span className="history-theme-skeleton history-theme-skeleton--title" /><span className="history-theme-skeleton" /></div>
+    : previewState === "empty"
+      ? <p className="history-theme-preview-message" data-preview-empty>暂无可预览的主题详情。</p>
+      : previewState === "error"
+        ? <p className="history-theme-preview-message" data-preview-error role="alert">主题详情加载失败，不会影响编辑内容。</p>
+        : <HistoryThemeDetail theme={previewTheme} onBack={() => onContentChange("card")} onOther={() => onContentChange("card")} />;
   return <section className="history-theme-preview" data-history-theme-preview data-preview-device={device} aria-label="主题预览">
     <div className="history-theme-preview-viewport">
       {content === "detail"
-        ? <HistoryThemeDetail theme={previewTheme} onBack={() => onContentChange("card")} onOther={() => onContentChange("card")} />
+        ? detailPreview
         : <>
           <ActiveThemeCard
             theme={previewState === "empty" ? null : previewCardTheme}

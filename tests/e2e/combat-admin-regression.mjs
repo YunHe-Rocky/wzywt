@@ -22,7 +22,7 @@ const bundled = await build({
     import { Dock } from "@/web/components/layout/alternate/Dock";
     import { ToastProvider } from "@/web/components/ui/Toast";
     const pathname=location.pathname;
-    const content=pathname.includes("admin") ? <AdminShell username="测试管理员">{pathname.endsWith("/combat") ? <CombatPostManager/> : <AdminDashboard/>}</AdminShell> : pathname==="/player" ? <CombatVideoPlayer src="/video"/> : <><CombatWall/><Dock/></>;
+    const content=pathname.includes("admin") ? <AdminShell userId={1} username="测试管理员">{pathname.endsWith("/combat") ? <CombatPostManager/> : <AdminDashboard/>}</AdminShell> : pathname==="/player" ? <CombatVideoPlayer src="/video"/> : <><CombatWall/><Dock/></>;
     createRoot(document.getElementById("root")).render(<React.StrictMode><ToastProvider>{content}</ToastProvider></React.StrictMode>);`, loader: "tsx", resolveDir: process.cwd() },
   bundle: true, write: false, format: "iife", jsx: "automatic", define: { "process.env.NODE_ENV": JSON.stringify(process.env.E2E_REACT_MODE || "development") },
   plugins: [{ name: "test-navigation-and-session", setup(builder) {

@@ -6,8 +6,9 @@ import { useState } from "react";
 import { useAuth } from "@/features/auth/client";
 import { ADMIN_NAVIGATION, adminRoutePrefix, isAdminRouteActive } from "@/features/admin/navigation";
 import { ArenaIcon } from "@/web/components/arena/ArenaIcon";
+import { AdminIdentityProvider } from "./AdminIdentityContext";
 
-export function AdminShell({ username, children }: { username: string; children: React.ReactNode }) {
+export function AdminShell({ userId, username, children }: { userId: number; username: string; children: React.ReactNode }) {
   const pathname = usePathname();
   const prefix = adminRoutePrefix(pathname);
   const { logout } = useAuth();
@@ -18,7 +19,7 @@ export function AdminShell({ username, children }: { username: string; children:
     setLoggingOut(true); setLogoutError("");
     try { await logout(); } catch { setLogoutError("退出失败，请重试"); } finally { setLoggingOut(false); }
   }
-  return <div className="admin-workspace">
+  return <AdminIdentityProvider userId={userId}><div className="admin-workspace">
     <a className="arena-skip" href="#admin-content">跳至管理内容</a>
     <aside className="admin-rail">
       <Link className="admin-logo" href={`${prefix}/admin`}><ArenaIcon name="crest" /><span><strong>演武管理中心</strong><small>YANWU CONSOLE</small></span></Link>
@@ -32,5 +33,5 @@ export function AdminShell({ username, children }: { username: string; children:
       {logoutError && <p role="alert">{logoutError}</p>}
       <div id="admin-content" className="admin-content" tabIndex={-1}>{children}</div>
     </div>
-  </div>;
+  </div></AdminIdentityProvider>;
 }

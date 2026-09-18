@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useAdminIdentity } from "@/web/components/admin/AdminIdentityContext";
 import { HistoryThemeEditor } from "./HistoryThemeEditor";
 import {
   HistoryThemePreview,
@@ -14,10 +15,18 @@ import {
   type EditorSection,
   type HistoryThemeStudioState,
 } from "./studio-data";
-
-const LEAVE_WARNING = "当前临时编辑尚未保存，离开将丢失这些更改。";
+import {
+  clearHistoryThemeRuntimeDraft,
+  readHistoryThemeRuntimeDraft,
+  writeHistoryThemeRuntimeDraft,
+} from "./runtime-draft";
 
 export function HistoryThemeStudio() {
+  const ownerId = useAdminIdentity();
+  return <HistoryThemeStudioForOwner key={ownerId ?? "missing-owner"} ownerId={ownerId} />;
+}
+
+function HistoryThemeStudioForOwner({ ownerId }: { ownerId: number | null }) {
   const [state, setState] = useState<HistoryThemeStudioState>(() => createInitialStudioState());
   const [section, setSection] = useState<EditorSection>("基本信息");
   const [previewContent, setPreviewContent] = useState<HistoryThemePreviewContent>("card");
@@ -29,36 +38,33 @@ export function HistoryThemeStudio() {
   useEffect(() => setCalendarNow(Date.now()), []);
 
   useEffect(() => {
-    if (!dirty) return;
-    const warnBeforeUnload = (event: BeforeUnloadEvent) => {
-      event.preventDefault();
-      event.returnValue = LEAVE_WARNING;
+    if (ownerId === null) return;
+    const retained = readHistoryThemeRuntimeDraft(ownerId);
+    setState(retained ?? createInitialStudioState());
+    setDirty(retained !== null);
+  }, [ownerId]);
+
+  useEffect(() => {
+    const discardLocalDraft = () => {
+      setState(createInitialStudioState());
+      setSection("基本信息");
+      setPreviewContent("card");
+      setPreviewState("normal");
+      setDirty(false);
     };
-    const warnBeforeLink = (event: MouseEvent) => {
-      const target = event.target;
-      if (!(target instanceof Element)) return;
-      const anchor = target.closest<HTMLAnchorElement>("a[href]");
-      if (!anchor || anchor.target === "_blank") return;
-      if (!window.confirm(LEAVE_WARNING)) {
-        event.preventDefault();
-        event.stopPropagation();
-      }
-    };
-    window.addEventListener("beforeunload", warnBeforeUnload);
-    document.addEventListener("click", warnBeforeLink, true);
-    return () => {
-      window.removeEventListener("beforeunload", warnBeforeUnload);
-      document.removeEventListener("click", warnBeforeLink, true);
-    };
-  }, [dirty]);
+    window.addEventListener("wzywt:auth-identity-changed", discardLocalDraft);
+    return () => window.removeEventListener("wzywt:auth-identity-changed", discardLocalDraft);
+  }, []);
 
   const updateState = (next: HistoryThemeStudioState) => {
     setState(next);
     setDirty(true);
+    if (ownerId !== null) writeHistoryThemeRuntimeDraft(ownerId, next);
   };
 
   const reset = () => {
     if (!window.confirm("确定放弃所有临时修改吗？")) return;
+    if (ownerId !== null) clearHistoryThemeRuntimeDraft(ownerId);
     setState(createInitialStudioState());
     setSection("基本信息");
     setPreviewContent("card");
@@ -68,8 +74,8 @@ export function HistoryThemeStudio() {
 
   return <main className="history-theme-studio admin-page" data-history-theme-studio>
     <header className="history-theme-studio-heading">
-      <div><p className="history-theme-eyebrow">HISTORY THEME / UI ONLY</p><h1>历史主题工作室</h1><p>编辑、版式与状态预览；不保存、不审核、不发布。</p></div>
-      <div className="history-theme-studio-status"><span data-history-theme-unsaved aria-live="polite">{dirty ? "临时修改未保存 · 刷新会清除" : "临时编辑 · 尚未修改"}</span><button type="button" onClick={reset}>重置临时编辑</button></div>
+      <div><p className="history-theme-eyebrow">HISTORY THEME / UI ONLY</p><h1>历史主题工作室</h1><p>编辑、版式与状态预览；客户端切换页面会临时保留，刷新或关闭会清除。</p></div>
+      <div className="history-theme-studio-status"><span data-history-theme-unsaved aria-live="polite">{dirty ? "临时修改已在本次运行中保留 · 刷新或关闭会清除" : "临时编辑 · 尚未修改"}</span><button type="button" onClick={reset}>重置临时编辑</button></div>
     </header>
 
     <div className="history-theme-studio-layout">

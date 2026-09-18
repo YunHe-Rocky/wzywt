@@ -14,28 +14,33 @@ const output = path.resolve("test-results/history-theme-ui", browserName);
 await mkdir(output, { recursive: true });
 const bundled = await build({
   stdin: {
-    contents: `import React from "react"; import { createRoot } from "react-dom/client";
+    contents: `import React, { useEffect, useState } from "react"; import { createRoot } from "react-dom/client";
       import { AdminShell } from "@/web/components/admin/AdminShell";
       import { HistoryThemeStudio } from "@/web/components/history-theme/HistoryThemeStudio";
       import { ActiveThemeCard } from "@/web/components/history-theme/ActiveThemeCard";
       import { HistoryThemeDetail } from "@/web/components/history-theme/HistoryThemeDetail";
       import { HomePage } from "@/web/components/home/HomePage";
       import { ToastProvider } from "@/web/components/ui/Toast";
-      const query = new URLSearchParams(location.search);
-      const state = query.get("state");
-      const now = Date.now();
-      const theme = {slug:"test/preview",title:"历史主题测试卡片",summary:"仅用于隔离测试。",category:"ANCIENT_BATTLE",tone:"CULTURAL",natureLabel:"演武堂历史策划",startsAt:new Date(now - 1000).toISOString(),endsAt:new Date(now + 60000).toISOString()};
-      if(state==="expired") theme.endsAt=new Date(now-1).toISOString();
-      if(state==="future") theme.startsAt=new Date(now+30000).toISOString();
-      if(state==="invalid") theme.endsAt="not-a-date";
-      if(state==="expires") theme.endsAt=new Date(now+1500).toISOString();
-      if(state==="long") theme.endsAt=new Date(now+40*24*60*60*1000).toISOString();
-      if(state==="solemn") theme.tone="SOLEMN";
       const kinds=["LEAD_QUOTE","CLASSICAL_TEXT","MODERN_TRANSLATION","FACT_SUMMARY","TIMELINE","BATTLE_FLOW","MAP","FIGURE_PROFILE","CUSTOMS","SOURCE_NOTE","QUIZ","EDITOR_NOTE"];
-      const detail={...theme, category:query.get("category")||"ANCIENT_BATTLE", dateLabel:"年代待核验",dateNote:"约年，存在争议；非历史周年。", reviewedAt:null,reconstructionNote:"界面示意，不是历史影像。",blocks:kinds.map((kind,index)=>({id:String(index),kind,title:"验收内容块 "+kind,body:'<script>globalThis.historyInjected=true</script>\\n\\n![禁止加载的图片](https://unreviewed.invalid/image.png)\\n\\n[危险链接](javascript:alert(1))\\n\\n- 节点一\\n- 节点二'})),sources:[{id:"safe",title:"验收来源",url:"https://example.org/archive",publisher:"示例机构（未核验）",sourceType:"ARCHIVE",accessedAt:"2026-09-19",claimIds:["test-claim"]},{id:"unsafe",title:"不安全来源",url:"javascript:alert(1)",publisher:"未核验",sourceType:"MEDIA_REPORT",accessedAt:"",claimIds:[]}]};
-      const card = <main><h1>卡片边界验收</h1><ActiveThemeCard theme={state==="empty" ? null : theme} loading={state==="loading"} error={state==="error"} hrefPrefix={query.has("mobile") ? "/m" : ""}/><button>原首页主要操作</button></main>;
-      const isHome = location.pathname === "/" || location.pathname === "/m";
-      createRoot(document.getElementById("root")).render(<React.StrictMode>{location.pathname==="/card" ? card : location.pathname==="/detail" ? <HistoryThemeDetail theme={detail} homeHref="/m"/> : isHome ? <ToastProvider><HomePage/></ToastProvider> : <AdminShell username="界面验收管理员"><HistoryThemeStudio/></AdminShell>}</React.StrictMode>);`,
+      function FixtureApp(){
+        const [,setLocationKey]=useState(()=>location.pathname+location.search);
+        useEffect(()=>{const sync=()=>setLocationKey(location.pathname+location.search); addEventListener("popstate",sync); return()=>removeEventListener("popstate",sync);},[]);
+        const query = new URLSearchParams(location.search);
+        const state = query.get("state");
+        const now = Date.now();
+        const theme = {slug:"test/preview",title:"历史主题测试卡片",summary:"仅用于隔离测试。",category:"ANCIENT_BATTLE",tone:"CULTURAL",natureLabel:"演武堂历史策划",startsAt:new Date(now - 1000).toISOString(),endsAt:new Date(now + 60000).toISOString()};
+        if(state==="expired") theme.endsAt=new Date(now-1).toISOString();
+        if(state==="future") theme.startsAt=new Date(now+30000).toISOString();
+        if(state==="invalid") theme.endsAt="not-a-date";
+        if(state==="expires") theme.endsAt=new Date(now+1500).toISOString();
+        if(state==="long") theme.endsAt=new Date(now+40*24*60*60*1000).toISOString();
+        if(state==="solemn") theme.tone="SOLEMN";
+        const detail={...theme, category:query.get("category")||"ANCIENT_BATTLE", dateLabel:"年代待核验",dateNote:"约年，存在争议；非历史周年。", reviewedAt:null,reconstructionNote:"界面示意，不是历史影像。",blocks:kinds.map((kind,index)=>({id:String(index),kind,title:"验收内容块 "+kind,body:'<script>globalThis.historyInjected=true</script>\\n\\n![禁止加载的图片](https://unreviewed.invalid/image.png)\\n\\n[危险链接](javascript:alert(1))\\n\\n- 节点一\\n- 节点二'})),sources:[{id:"safe",title:"验收来源",url:"https://example.org/archive",publisher:"示例机构（未核验）",sourceType:"ARCHIVE",accessedAt:"2026-09-19",claimIds:["test-claim"]},{id:"unsafe",title:"不安全来源",url:"javascript:alert(1)",publisher:"未核验",sourceType:"MEDIA_REPORT",accessedAt:"",claimIds:[]}]};
+        const card = <main><h1>卡片边界验收</h1><ActiveThemeCard theme={state==="empty" ? null : theme} loading={state==="loading"} error={state==="error"} hrefPrefix={query.has("mobile") ? "/m" : ""}/><button>原首页主要操作</button></main>;
+        const isHome = location.pathname === "/" || location.pathname === "/m";
+        return location.pathname==="/card" ? card : location.pathname==="/detail" ? <HistoryThemeDetail theme={detail} homeHref="/m"/> : location.pathname==="/away" ? <main><h1>已离开工作室</h1></main> : isHome ? <ToastProvider><HomePage/></ToastProvider> : <AdminShell userId={Number(query.get("adminUserId")||1)} username={query.get("adminName")||"界面验收管理员"}><HistoryThemeStudio/></AdminShell>;
+      }
+      createRoot(document.getElementById("root")).render(<React.StrictMode><FixtureApp/></React.StrictMode>);`,
     loader: "tsx", resolveDir: process.cwd(),
   },
   bundle: true, write: false, format: "iife", jsx: "automatic",
@@ -120,6 +125,15 @@ try {
   await previewCardAction.focus();
   await previewCardAction.press("Enter");
   assert.ok(await page.getByRole("radio", { name: "主题详情", exact: true }).isChecked(), "keyboard activation opens detail preview");
+  const previewStateSelect = page.getByLabel("预览状态", { exact: true });
+  await previewStateSelect.selectOption("loading");
+  assert.ok(await page.getByRole("status", { name: "正在加载主题详情" }).isVisible(), "detail loading state must be visible");
+  await previewStateSelect.selectOption("empty");
+  assert.ok(await page.getByText("暂无可预览的主题详情。", { exact: true }).isVisible(), "detail empty state must be visible");
+  await previewStateSelect.selectOption("error");
+  assert.ok(await page.getByRole("alert").getByText("主题详情加载失败，不会影响编辑内容。", { exact: true }).isVisible(), "detail error state must be visible");
+  await previewStateSelect.selectOption("normal");
+  assert.ok(await page.locator("[data-history-theme-detail]").isVisible(), "normal detail state must restore the detail preview");
   await page.getByRole("button", { name: "返回编辑", exact: true }).press("Enter");
   assert.ok(await page.getByRole("radio", { name: "首页卡片", exact: true }).isChecked(), "detail back returns without losing edits");
   for (const category of ["TRADITIONAL_FESTIVAL", "ANCIENT_BATTLE", "MODERN_COMMEMORATION", "HISTORICAL_FIGURE"]) {
@@ -165,6 +179,48 @@ try {
   assert.equal(await page.getByLabel("主题标题", { exact: true }).inputValue(), "只在当前页面预览", "section/category/preview switching must retain edits");
   assert.ok(await page.evaluate(() => !window.dispatchEvent(new Event("beforeunload", { cancelable: true }))), "unsaved edits must guard leaving the page");
   assert.equal(await page.evaluate(() => localStorage.length + sessionStorage.length), 0, "preview must not persist drafts into browser storage");
+  await page.getByLabel("主题标题", { exact: true }).fill("运行期返回仍保留");
+  await page.getByLabel("主题摘要", { exact: true }).fill("这是第二个需要跨客户端导航保留的字段。");
+  const historyLengthBeforeTraversal = await page.evaluate(() => {
+    history.replaceState({ fixture: "away" }, "", "/away");
+    history.pushState({ fixture: "studio" }, "", "/m/admin/history-themes?adminUserId=1");
+    return history.length;
+  });
+  await page.goBack();
+  await page.getByRole("heading", { name: "已离开工作室", exact: true }).waitFor();
+  assert.equal(new URL(page.url()).pathname, "/away", "Back must complete without a synthetic guard entry");
+  await page.goForward();
+  await page.getByRole("heading", { name: "历史主题工作室", exact: true }).waitFor();
+  assert.equal(await page.getByLabel("主题标题", { exact: true }).inputValue(), "运行期返回仍保留", "Forward remount must restore the runtime draft");
+  assert.equal(await page.getByLabel("主题摘要", { exact: true }).inputValue(), "这是第二个需要跨客户端导航保留的字段。");
+  assert.equal(await page.evaluate(() => history.length), historyLengthBeforeTraversal, "runtime retention must not add history entries");
+  await page.goBack();
+  await page.getByRole("heading", { name: "已离开工作室", exact: true }).waitFor();
+  assert.ok(await page.evaluate(() => !window.dispatchEvent(new Event("beforeunload", { cancelable: true }))), "refresh/close warning must remain active while the dirty studio is unmounted");
+  await page.evaluate(() => window.dispatchEvent(new Event("wzywt:auth-identity-changed")));
+  assert.ok(await page.evaluate(() => window.dispatchEvent(new Event("beforeunload", { cancelable: true }))), "logout identity change must clear the runtime draft and warning while away");
+  await page.goForward();
+  await page.getByRole("heading", { name: "历史主题工作室", exact: true }).waitFor();
+  assert.equal(await page.getByLabel("主题标题", { exact: true }).inputValue(), "未命名历史主题", "logout must prevent stale draft restoration");
+  await page.getByLabel("主题标题", { exact: true }).fill("仅属于管理员一");
+  await page.goBack();
+  await page.getByRole("heading", { name: "已离开工作室", exact: true }).waitFor();
+  await page.evaluate(() => {
+    history.pushState({ fixture: "other-admin" }, "", "/m/admin/history-themes?adminUserId=2&adminName=另一管理员");
+    window.dispatchEvent(new PopStateEvent("popstate", { state: history.state }));
+  });
+  await page.getByRole("heading", { name: "历史主题工作室", exact: true }).waitFor();
+  assert.equal(await page.getByLabel("主题标题", { exact: true }).inputValue(), "未命名历史主题", "owner mismatch must never expose another administrator's draft");
+  await page.getByLabel("主题标题", { exact: true }).fill("挂载期间也必须清除的草稿");
+  await page.evaluate(() => window.dispatchEvent(new Event("wzywt:auth-identity-changed")));
+  await page.waitForFunction(() => document.querySelector('input[aria-label="主题标题"]')?.value === "未命名历史主题");
+  assert.equal(await page.getByLabel("主题标题", { exact: true }).inputValue(), "未命名历史主题", "mounted studio must clear its local draft when identity changes");
+  assert.ok(await page.evaluate(() => window.dispatchEvent(new Event("beforeunload", { cancelable: true }))), "mounted identity change must remove the refresh/close warning");
+  await page.getByLabel("主题标题", { exact: true }).fill("将被重置的运行期草稿");
+  await page.getByRole("button", { name: "重置临时编辑", exact: true }).click();
+  assert.equal(await page.getByLabel("主题标题", { exact: true }).inputValue(), "未命名历史主题");
+  assert.ok(await page.evaluate(() => window.dispatchEvent(new Event("beforeunload", { cancelable: true }))), "reset must remove stale refresh/close warnings");
+  assert.equal(await page.evaluate(() => localStorage.length + sessionStorage.length), 0, "runtime retention must not use browser storage");
   for (const viewport of [{ width: 375, height: 812 }, { width: 844, height: 390 }]) {
     await page.setViewportSize(viewport);
     await page.getByRole("radio", { name: "手机", exact: true }).check();

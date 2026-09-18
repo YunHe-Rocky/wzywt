@@ -40,12 +40,12 @@ export function HistoryThemeEditor({ section, state, calendarNow, onChange }: Hi
 
   if (section === "基本信息") {
     return <section className="history-theme-editor-panel" aria-labelledby="history-basic-heading">
-      <div className="history-theme-section-heading"><h2 id="history-basic-heading">基本信息</h2><p>仅保存在当前页面内，刷新后清除。</p></div>
+      <div className="history-theme-section-heading"><h2 id="history-basic-heading">基本信息</h2><p>仅在本次运行中保留；刷新或关闭页面后清除。</p></div>
       <div className="history-theme-form-grid">
         <label><span>主题分类</span><select aria-label="主题分类" value={state.theme.category} onChange={event => setTheme({ category: event.target.value as HistoryThemeCategory })}>{categories.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
         <label><span>语调</span><select aria-label="语调" value={state.theme.tone} onChange={event => setTheme({ tone: event.target.value as ThemeTone })}>{tones.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-        <label className="history-theme-field-wide"><span>主题标题</span><input value={state.theme.title} onChange={event => setTheme({ title: event.target.value })} /></label>
-        <label className="history-theme-field-wide"><span>主题摘要</span><textarea rows={3} value={state.theme.summary} onChange={event => setTheme({ summary: event.target.value })} /></label>
+        <label className="history-theme-field-wide"><span>主题标题</span><input aria-label="主题标题" value={state.theme.title} onChange={event => setTheme({ title: event.target.value })} /></label>
+        <label className="history-theme-field-wide"><span>主题摘要</span><textarea aria-label="主题摘要" rows={3} value={state.theme.summary} onChange={event => setTheme({ summary: event.target.value })} /></label>
         <label><span>Slug</span><input value={state.theme.slug} onChange={event => setTheme({ slug: event.target.value })} /></label>
         <label><span>性质标签</span><input value={state.theme.natureLabel} onChange={event => setTheme({ natureLabel: event.target.value })} /></label>
         <label><span>日期标签</span><input value={state.theme.dateLabel} onChange={event => setTheme({ dateLabel: event.target.value })} /></label>
