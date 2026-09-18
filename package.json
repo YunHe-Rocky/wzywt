@@ -32,6 +32,7 @@
     "test:connections": "tsx scripts/test-connections.ts",
     "test:combat-video": "tsx scripts/test-combat-video.ts",
     "test:e2e:combat-admin": "node tests/e2e/combat-admin-regression.mjs",
+    "test:e2e:history-theme": "node tests/e2e/history-theme-ui-regression.mjs",
     "test:resources": "tsx scripts/test-resource-scheduler.ts",
     "test:task-fence": "tsx scripts/test-task-write-fence.ts",
     "test:api-use-cases": "tsx scripts/test-api-use-cases.ts",
