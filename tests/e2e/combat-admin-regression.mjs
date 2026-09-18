@@ -86,8 +86,14 @@ try {
     await page.goto(`${base}${prefix}/admin`); await page.getByRole("heading", { name: "运营工作台" }).waitFor();
     await page.getByText("20", { exact: true }).waitFor();
     const nav = page.getByRole("navigation", { name: "后台导航" });
-    assert.equal(await nav.getByRole("link").count(), 8);
-    assert.equal(await nav.getByRole("link", { name: /公告管理/ }).getAttribute("href"), `${prefix}/admin/announcements`);
+    const requiredAdminEntries = [
+      ["工作台", "/admin"], ["用户管理", "/admin/users"], ["赛事管理", "/admin/tournaments"],
+      ["动态管理", "/admin/combat"], ["公告管理", "/admin/announcements"], ["历史主题", "/admin/history-themes"],
+      ["英雄管理", "/admin/heroes"], ["运行监控", "/admin/monitor"], ["系统设置", "/admin/settings"],
+    ];
+    for (const [label, route] of requiredAdminEntries) {
+      assert.equal(await nav.getByRole("link", { name: new RegExp(label) }).getAttribute("href"), `${prefix}${route}`);
+    }
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `admin overflow at ${width}`);
     await page.screenshot({ path: path.join(output, `admin-${width}.png`), fullPage: true });
     await nav.getByRole("link", { name: /动态管理/ }).click(); await page.getByRole("heading", { name: title }).waitFor();
@@ -125,5 +131,5 @@ try {
   await page.waitForFunction(() => document.querySelector("video")?.currentTime >= 10 && !document.querySelector("video")?.paused);
   await page.locator("video").evaluate(video => { video.pause(); video.dispatchEvent(new Event("error")); });
   await page.getByRole("button", { name: "重新加载视频" }).click(); await page.waitForFunction(() => document.querySelector("video")?.currentTime >= 10);
-  assert.deepEqual(errors, []); console.log("PASS: desktop/390/320 layout, eight admin entries, moderation confirmation, search, error recovery, guest guard, publish from page 2, actual MP4 playback/seek/retry.");
+  assert.deepEqual(errors, []); console.log("PASS: desktop/390/320 layout, required admin entries, moderation confirmation, search, error recovery, guest guard, publish from page 2, actual MP4 playback/seek/retry.");
 } finally { await browser?.close(); server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); }

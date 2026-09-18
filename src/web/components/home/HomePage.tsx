@@ -8,6 +8,7 @@ import { copyText } from "@/web/components/ui/clipboard";
 import { MarkdownContent } from "@/web/components/content/MarkdownContent";
 import { usePageResources } from "@/features/resource-scheduler/client";
 import { ArenaIcon } from "@/web/components/arena/ArenaIcon";
+import { ActiveThemeCard } from "@/web/components/history-theme/ActiveThemeCard";
 
 interface OfficialNews { title: string; date: string; url: string }
 interface PublicTournament { id: number; name: string; code: string; announcement: string | null; _count: { players: number }; deadline: string }
@@ -73,6 +74,8 @@ export function HomePage() {
       </div>
       <div className="arena-hero-bottom"><span>熟悉的朋友，也可以是好对手。</span><span><i />5V5 好友局</span></div>
     </section>
+
+    <ActiveThemeCard />
 
     <div className="arena-principles" aria-label="内战流程">
       <div><span className="arena-step-number">01</span><ArenaIcon name="users" /><div><strong>喊朋友来</strong><span>发个房间号，人齐就出发</span></div></div>
