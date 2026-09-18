@@ -69,9 +69,9 @@ export function planEditorialWindow(input: {
     start = addCalendarDays(start, 7);
     end = addCalendarDays(end, 7);
     postponedWeeks += 1;
-  }
-  if (comparePlainDates(end, { year: input.year + 1, month: 1, day: 1 }) > 0) {
-    return { themeId: null, window: null, label: LABEL, reason: "NO_AVAILABLE_WEEK", postponedWeeks };
+    if (comparePlainDates(end, { year: input.year + 1, month: 1, day: 1 }) > 0) {
+      return { themeId: null, window: null, label: LABEL, reason: "NO_AVAILABLE_WEEK", postponedWeeks };
+    }
   }
   const window = windowFor(start, end);
   const available = input.candidates.filter((candidate) => isEligible(candidate, start)).sort(compareCandidates);

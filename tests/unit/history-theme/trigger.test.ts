@@ -102,6 +102,22 @@ test("orders equal ranks by priority descending, start ascending, then id ascend
   assert.deepEqual(result.secondary.map((item) => item.id), [3, 4]);
 });
 
+test("orders equal ranks by parsed start instant across explicit offsets", () => {
+  const result = resolveThemes("2026-09-18T01:00:00Z", [
+    base(1, { startsAt: "2026-09-18T08:00:00+08:00", endsAt: "2026-09-19T00:00:00Z" }),
+    base(2, { startsAt: "2026-09-18T00:30:00Z", endsAt: "2026-09-19T00:00:00Z" }),
+  ]);
+  assert.equal(result.primary?.id, 1);
+});
+
+test("deduplicates same-id windows by parsed end instant across explicit offsets", () => {
+  const result = resolveThemes("2026-09-18T01:00:00Z", [
+    base(1, { startsAt: "2026-09-18T00:00:00Z", endsAt: "2026-09-19T08:00:00+08:00", triggerKind: "SOLAR_FIXED" }),
+    base(1, { startsAt: "2026-09-18T00:00:00Z", endsAt: "2026-09-19T00:30:00Z", triggerKind: "LUNAR_FIXED" }),
+  ]);
+  assert.equal(result.primary?.endsAt, "2026-09-19T08:00:00+08:00");
+});
+
 test("selection is stable across all permutations of four candidates", () => {
   const candidates = [base(4), base(2), base(3), base(1)];
   const permutations = <T>(items: readonly T[]): T[][] => items.length === 0 ? [[]] : items.flatMap((item, index) => permutations([...items.slice(0, index), ...items.slice(index + 1)]).map((rest) => [item, ...rest]));

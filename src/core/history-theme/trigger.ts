@@ -88,9 +88,9 @@ function rank(theme: ThemeCandidate): number {
 function compareCandidates(left: ThemeCandidate, right: ThemeCandidate): number {
   return rank(left) - rank(right)
     || right.priority - left.priority
-    || left.startsAt.localeCompare(right.startsAt)
+    || parseExplicitInstant(left.startsAt) - parseExplicitInstant(right.startsAt)
     || left.id - right.id
-    || left.endsAt.localeCompare(right.endsAt)
+    || parseExplicitInstant(left.endsAt) - parseExplicitInstant(right.endsAt)
     || left.triggerKind.localeCompare(right.triggerKind);
 }
 

@@ -105,6 +105,18 @@ test("returns NO_AVAILABLE_WEEK when conflicts push the window beyond the year",
   assert.equal(result.label, "演武堂历史策划");
 });
 
+test("stops conflict evaluation as soon as postponement crosses the year boundary", () => {
+  const result = planEditorialWindow({
+    year: 2026,
+    month: 12,
+    candidates: [candidate(1)],
+    solemnWindows: [{ startsAt: "2026-12-18T00:00:00.000Z", endsAt: "2027-02-01T00:00:00.000Z" }],
+  });
+  assert.equal(result.reason, "NO_AVAILABLE_WEEK");
+  assert.equal(result.window, null);
+  assert.equal(result.postponedWeeks, 2);
+});
+
 test("does not mutate editorial inputs", () => {
   const candidates = [candidate(2), candidate(1)];
   const solemnWindows = [{ startsAt: "2026-06-08T00:00:00.000Z", endsAt: "2026-06-09T00:00:00.000Z" }];
