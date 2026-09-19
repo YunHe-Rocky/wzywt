@@ -29,7 +29,7 @@ All required checks completed with exit code 0 on Node 26:
 - `npm run test:device-routing`
 - `npm run test:auth-redirect`
 - `npm run test:history-theme:core` — 45/45
-- `npm run build` with the documented explicit local dummy configuration — compiled in 10.6 s and generated 48/48 static pages; no real `.env`, database initialization, migration, or production connection
+- `npm run build` with the documented explicit local dummy configuration — compiled in 10.6 s and generated 48/48 static pages. Next reported loading `.env`; database, Redis, OCR, session, origin, and media settings were explicitly overridden for this process with local dummy values. No database initialization, migration, or production connection was performed.
 - `npm run test:e2e:yanwu` — host 4/4, foundation, public, workspaces, admin, history UI, human-factor, room-archive, and tactic-layer coverage; final result `26 families, 52 baseline records`
 - `node --test tests/e2e/yanwu/manifest.test.mjs` — 6/6 after the fresh browser artifacts existed
 - Focused `file://` resolution/stat audit — all 212 gallery `href`/`src` references resolve to existing files
