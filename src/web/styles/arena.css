@@ -92,14 +92,7 @@ select option { background: var(--bg-input); color: var(--text); }
 .arena-page-heading p { color: var(--text-muted); font-size: 13px; line-height: 1.8; }
 .arena-heading-seal { margin-right: 28px; display: grid; place-items: center; width: 82px; height: 82px; transform: rotate(45deg); border: 1px solid var(--border-gold); background: radial-gradient(circle, var(--gold-alpha-08), transparent); border-radius: 12px; color: var(--gold-dim); }
 .arena-heading-seal svg { width: 38px; height: 38px; transform: rotate(-45deg); stroke-width: 1; }
-.arena-lobby-cards { grid-template-columns: .8fr 1.2fr !important; gap: 20px !important; }
-.arena-lobby-cards > .card { padding: 24px !important; }
-.arena-lobby-card-title { display: flex; align-items: center; gap: 9px; font-size: 16px; font-weight: 650; margin-bottom: 16px; }
-.arena-lobby-card-title svg { color: var(--gold); }
-.arena-lobby-hint { font-size: 12px; color: var(--text-muted); line-height: 1.8; margin: 12px 0 0; }
 #join-room, #create-room { scroll-margin-top: 105px; }
-.arena-room-list > .card { min-height: 88px; border-left: 2px solid var(--border-gold); }
-.arena-room-list > .card:hover { border-color: var(--gold-dim); }
 .match-workspace { --match-paper: var(--bg-card); --match-line: var(--border); }
 .match-workspace .match-result-table-wrap, .match-workspace .match-result-table tbody, .match-workspace .match-evidence-disclosure, .match-workspace .screenshot-slot, .match-secondary-section, .match-archive-row { background: var(--bg-card); }
 .match-workspace .match-result-table thead th, .match-workspace .match-result-table .match-result-sticky { background: #172736; }
@@ -151,19 +144,11 @@ select option { background: var(--bg-input); color: var(--text); }
   .arena-page-heading p { font-size: 12px; }
   .arena-heading-seal { width: 54px; height: 54px; margin-right: 10px; flex-shrink: 0; }
   .arena-heading-seal svg { width: 27px; height: 27px; }
-  .arena-lobby-cards { grid-template-columns: minmax(0,1fr) !important; }
-  .arena-lobby-cards > .card { padding: 20px !important; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0s !important; animation-delay: 0ms !important; animation-iteration-count: 1 !important; transition-duration: 0s !important; scroll-behavior: auto !important; }
   .stagger-enter > * { opacity: 1; transform: none; }
 }
 
-.arena-lobby-gate { min-height: 410px; display: flex; align-items: center; justify-content: center; flex-direction: column; padding: 38px 24px; border: 1px solid var(--border-gold); border-radius: 12px; background: linear-gradient(90deg,#0e1a27e8,#0e1a27bb),url('/art/arena.webp') 70% center/cover; text-align: center; }
-.arena-lobby-gate .arena-empty-emblem { margin-bottom: 32px; }
-.arena-lobby-gate h2 { font-size: clamp(26px,4vw,36px); font-weight: 700; margin: 14px 0; color: var(--gold-light); }
-.arena-lobby-gate p { font-size: 13px; color: var(--text-secondary); line-height: 1.9; }
-.arena-lobby-gate .btn-primary { margin-top: 24px; }
-.arena-lobby-gate .arena-text-link { margin-top: 10px; }
 
 @media (max-width: 768px) { .auth-input { font-size: 16px; } }

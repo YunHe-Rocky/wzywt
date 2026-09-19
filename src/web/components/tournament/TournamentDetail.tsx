@@ -7,6 +7,7 @@ import { useToast } from "@/web/components/ui/Toast";
 import { copyText } from "@/web/components/ui/clipboard";
 import { UserAvatar } from "@/web/components/ui/UserAvatar";
 import { ROLE_LABELS } from "@/core/game";
+import { RoomCapacity } from "@/web/components/tournament/RoomCapacity";
 import { TeamBuilder } from "@/web/components/tournament/TeamBuilder";
 import { SplitExplanation } from "@/web/components/tournament/SplitExplanation";
 import { MatchArchivePanel } from "@/web/MatchArchivePanel";
@@ -81,34 +82,24 @@ function LineupPanel({
   const isRed = teamColor === "red";
 
   const teamLabel = isRed ? "红队" : "蓝队";
-  const accentColor = isRed ? "var(--red)" : "var(--blue)";
-  const accentBg = isRed ? "rgba(224, 80, 80, 0.08)" : "rgba(80, 144, 208, 0.08)";
-  const accentBorder = isRed ? "rgba(224, 80, 80, 0.18)" : "rgba(80, 144, 208, 0.18)";
-  const accentText = isRed ? "var(--red)" : "var(--blue)";
-
   return (
-    <div className={`${isRed ? "card-red" : "card-blue"} !p-0 overflow-hidden`}>
-      <div className="flex items-center justify-between px-6 py-[18px] border-b" style={{ borderColor: accentBorder }}>
-        <span className="text-xl font-bold text-text">{teamLabel}</span>
-        <span className={`${isRed ? "badge badge-red" : "badge badge-blue"} !text-[13px] !px-3.5 !py-1`}>{team.length} 人</span>
-      </div>
-      <div className="px-6 py-3.5">
-        {team.map((p) => {
-          const detail = splitResult.playerDetails.find((d) => d.userId === p.userId);
+    <section className={`yanwu-lineup yanwu-lineup--${teamColor}`} aria-label={teamLabel}>
+      <header><h3>{teamLabel}</h3><span>{team.length} 人</span></header>
+      <ol>
+        {team.map(p => {
+          const detail = splitResult.playerDetails.find(d => d.userId === p.userId);
           return (
-            <div key={p.userId} className="flex items-center justify-between py-2.5 border-b border-white/5">
-              <span className="text-[15px] font-semibold text-text min-w-[80px]">{detail?.username || "?"}{p.userId === currentUserId && <small className="text-gold">（我）</small>}</span>
-              <div className="flex items-center gap-2">
-                <small className="text-text-muted">{p.preferenceRank && p.preferenceRank <= 5 ? `第 ${p.preferenceRank} 志愿` : "全局补位"}</small>
-                <span className="text-xs font-semibold px-2.5 py-1 rounded-md border" style={{ background: accentBg, color: accentText, borderColor: accentBorder }}>
-                  {ROLE_LABELS[p.roleType]}
-                </span>
-              </div>
-            </div>
+            <li key={p.userId}>
+              <strong>{detail?.username || "?"}{p.userId === currentUserId && <small>（我）</small>}</strong>
+              <span>
+                <small>{p.preferenceRank && p.preferenceRank <= 5 ? `第 ${p.preferenceRank} 志愿` : "全局补位"}</small>
+                <b>{ROLE_LABELS[p.roleType]}</b>
+              </span>
+            </li>
           );
         })}
-      </div>
-    </div>
+      </ol>
+    </section>
   );
 }
 
@@ -201,10 +192,10 @@ export function TournamentDetail() {
     <div className="page-shell page-shell--medium">
       {/* Title skeleton */}
       <div className="skeleton" style={{ height: 40, width: 240, marginBottom: 12, borderRadius: "var(--radius-sm)" }} />
-      <div className="skeleton" style={{ height: 16, width: 320, marginBottom: 36, borderRadius: "var(--radius-sm)" }} />
+      <div className="skeleton" style={{ height: 16, width: "min(320px, 100%)", marginBottom: 36, borderRadius: "var(--radius-sm)" }} />
 
       {/* Card skeleton */}
-      <div className="card" style={{ padding: "24px", marginBottom: 20 }}>
+      <div className="yanwu-room-block" style={{ padding: "24px", marginBottom: 20 }}>
         <div className="skeleton" style={{ height: 14, width: 80, marginBottom: 16, borderRadius: 4 }} />
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
           {[1, 2, 3, 4, 5].map((i) => (
@@ -260,135 +251,61 @@ export function TournamentDetail() {
       {/* ================================================================== */}
       {/*  HEADER                                                             */}
       {/* ================================================================== */}
-      <div style={{
-        display: "flex",
-        alignItems: "flex-start",
-        justifyContent: "space-between",
-        marginBottom: 24,
-        gap: 16,
-      }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          {/* Tournament name */}
-          <h1
-            style={{
-              fontSize: 28,
-              fontWeight: 700,
-              color: "var(--text)",
-              margin: "0 0 10px 0",
-              lineHeight: 1.3,
-              overflowWrap: "anywhere",
+      <header className="yanwu-room-header">
+        <div>
+          <p className="feature-kicker">ROOM · 好友相聚</p>
+          <h1>{tournament.name}</h1>
+          <div className="yanwu-room-header-meta">
+          <button
+            type="button"
+            className="btn-subtle"
+            aria-label={`复制房间号 ${tournament.code}`}
+            onClick={async () => {
+              try {
+                await copyText(tournament.code);
+                success("房间号已复制: " + tournament.code);
+              } catch {
+                showError("复制失败，请手动复制房间号：" + tournament.code);
+              }
             }}
           >
-            {tournament.name}
-          </h1>
-
-          {/* Deadline banner */}
-          <div style={{
-            background: isOverdue ? "var(--red)/8" : "var(--gold-alpha-08)",
-            border: `1px solid ${isOverdue ? "var(--red)/20" : "var(--gold-alpha-10)"}`,
-            borderRadius: 8, padding: "8px 16px", marginBottom: showExtendCalendar ? 0 : 16,
-            display: "flex", alignItems: "center", justifyContent: "space-between",
-            flexWrap: "wrap", gap: 8,
-          }}>
-            <span style={{ fontSize: 13, fontWeight: 600, color: isOverdue ? "var(--red)" : "var(--gold)" }}>
-              ⏰ 截止时间：{new Date(tournament.deadline).toLocaleString("zh-CN")}
-              {isOverdue ? "（已过期）" : ""}
-            </span>
-            {isAdmin && !splitResult && playerCount < 10 && (
-              <button onClick={() => setShowExtendCalendar(true)}
-                className="btn-subtle" style={{ fontSize: 12, padding: "4px 12px" }}>
-                延长截止
-              </button>
-            )}
-          </div>
-
-          <CalendarModal
-            open={showExtendCalendar}
-            onClose={() => setShowExtendCalendar(false)}
-            onSelect={doExtend}
-            initialValue={tournament.deadline}
-            minValue={tournament.deadline}
-            title="延长报名截止时间"
-            confirmLabel="确认延长"
-          />
-
-          {/* Meta row: code | player count */}
-          <div style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 12,
-            flexWrap: "wrap" as const,
-          }}>
-            <button
-              type="button"
-              aria-label={`复制房间号 ${tournament.code}`}
-              onClick={async () => {
-                try { await copyText(tournament.code); success("房间号已复制: " + tournament.code); }
-                catch { showError("复制失败，请手动复制房间号：" + tournament.code); }
-              }}
-              title="点击复制房间号"
-              style={{
-                fontSize: 13,
-                color: "var(--text-muted)",
-                fontFamily: "monospace",
-                fontWeight: 600,
-                letterSpacing: 1,
-                padding: "3px 10px",
-                background: "var(--bg-input)",
-                borderRadius: "var(--radius-sm)",
-                border: "none",
-                cursor: "pointer",
-              }}
-            >
-              #{tournament.code}
-            </button>
-
-            <span style={{ color: "var(--border)", fontSize: 10 }}>|</span>
-
-            <span style={{
-              fontSize: 13,
-              color: "var(--text-secondary)",
-              display: "flex",
-              alignItems: "center",
-              gap: 4,
-            }}>
-              <span style={{
-                fontSize: 15,
-                fontWeight: 700,
-                color: playerCount === 10 ? "var(--gold)" : "var(--text)",
-              }}>
-                {playerCount}
-              </span>
-              /10 人参战
-            </span>
+            房间号 #{tournament.code}
+          </button>
+          <span className={statusBadgeClass}>{statusLabel}</span>
+          <span>{isOwner ? "房主" : isAdmin ? "协管" : isPlayer ? "已加入" : "访客"}</span>
           </div>
         </div>
-
-        {/* Status badge */}
-        <div style={{ flexShrink: 0 }}>
-          <span className={statusBadgeClass} style={{ fontSize: 14, padding: "7px 18px" }}>
-            {statusLabel}
-          </span>
-        </div>
+        <RoomCapacity count={playerCount} />
+      </header>
+      <div className="yanwu-room-deadline" data-overdue={isOverdue}>
+        <span>
+          报名截止 <time dateTime={tournament.deadline}>{new Date(tournament.deadline).toLocaleString("zh-CN")}</time>
+          {isOverdue ? "（已过期）" : ""}
+        </span>
+        {isAdmin && !splitResult && playerCount < 10 && (
+          <button className="btn-subtle" onClick={() => setShowExtendCalendar(true)}>
+            延长截止
+          </button>
+        )}
       </div>
-
+      <CalendarModal open={showExtendCalendar} onClose={() => setShowExtendCalendar(false)} onSelect={doExtend} initialValue={tournament.deadline} minValue={tournament.deadline} title="延长报名截止时间" confirmLabel="确认延长" />
       {splitResult && ownTeam && (
         <section aria-labelledby="my-split-title" style={{ marginBottom: 24 }}>
           <h2 id="my-split-title" className="section-title">我的分队结果</h2>
-          <p style={{ margin: "8px 0 16px", color: "var(--gold)" }}>我的分路：{ROLE_LABELS[ownSlot?.roleType || ""] || "待确认"}</p>
+          <p className="yanwu-own-role">我的分路：{ROLE_LABELS[ownSlot?.roleType || ""] || "待确认"}</p>
           <LineupPanel teamColor={ownTeam} splitResult={splitResult} currentUserId={me?.userId} />
         </section>
       )}
 
       {/* Visitor preview — information first, member identities stay private */}
       {!isPlayer && !isAdmin && tournament.status === "recruiting" && tournament.isPublic && (
-        <div className="card" style={{
+        <div className="yanwu-room-block" style={{
           marginBottom: 20,
           padding: "22px 24px",
           borderColor: "var(--gold)",
           background: "var(--gold-alpha-04)",
         }}>
-          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1.4, color: "var(--text-muted)", marginBottom: 12 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: 1.4, color: "var(--text-muted)", marginBottom: 12 }}>
             加入前请确认房间信息
           </div>
           <div style={{ display: "grid", gap: 10 }}>
@@ -454,11 +371,11 @@ export function TournamentDetail() {
       {/*  ADMIN CONTROLS (prominent card for admins)                         */}
       {/* ================================================================== */}
       {isAdmin && (
-        <div className="card" style={{ marginBottom: 16, padding: "16px 20px", borderColor: "var(--gold)" }}>
+        <div className="yanwu-room-admin">
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
               <span style={{ fontSize: 16, fontWeight: 700, color: "var(--gold)" }}>
-                ⚙ 房间管理
+                房间管理
               </span>
               {isOwner && <span className="badge badge-gold">房主</span>}
               {!isOwner && <span className="badge badge-gold">管理</span>}
@@ -516,7 +433,7 @@ export function TournamentDetail() {
                   className="btn-ghost"
                   style={{ fontSize: 13, padding: "8px 18px" }}
                 >
-                  {tournament.isPublic ? "🔓 公开中" : "🔒 私有"}
+                  {tournament.isPublic ? "公开中" : "私有"}
                 </button>
               )}
               {/* Resign button -- only for co-owners */}
@@ -542,9 +459,9 @@ export function TournamentDetail() {
       {/*  ANNOUNCEMENT                                                       */}
       {/* ================================================================== */}
       {editingAnnouncement ? (
-        <div className="card animate-slide-up" style={{ marginBottom: 20, padding: "20px 24px" }}>
+        <div className="yanwu-room-block" style={{ marginBottom: 20, padding: "20px 24px" }}>
           <span style={{ fontSize: 15, fontWeight: 700, color: "var(--text)", display: "block", marginBottom: 12 }}>
-            📢 编辑公告
+            编辑公告
           </span>
           <textarea
             value={announcementText}
@@ -593,10 +510,10 @@ export function TournamentDetail() {
           </div>
         </div>
       ) : tournament.announcement && (isPlayer || isAdmin) ? (
-        <div className="card" style={{ marginBottom: 20, padding: "20px 24px" }}>
+        <div className="yanwu-room-block" style={{ marginBottom: 20, padding: "20px 24px" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
             <span style={{ fontSize: 15, fontWeight: 700, color: "var(--text)" }}>
-              📢 房间公告
+              房间公告
             </span>
             {isAdmin && (
               <button
@@ -621,7 +538,7 @@ export function TournamentDetail() {
       {/* ================================================================== */}
       {(isPlayer || isAdmin) && (
       <div
-        className="card animate-slide-up"
+        className="yanwu-room-block"
         style={{ marginBottom: 20, padding: "20px 0 0" }}
       >
         <h3 className="section-title" style={{ padding: "0 20px" }}>
@@ -685,7 +602,7 @@ export function TournamentDetail() {
                   {/* Team indicator */}
                   {teamColor && (
                     <span style={{
-                      fontSize: 10, fontWeight: 700, padding: "2px 6px", borderRadius: 3,
+                      fontSize: 12, fontWeight: 700, padding: "2px 6px", borderRadius: 3,
                       background: teamColor === "red" ? "rgba(224,80,80,0.15)" : "rgba(80,144,208,0.15)",
                       color: teamColor === "red" ? "var(--red)" : "var(--blue)",
                       flexShrink: 0,
@@ -696,7 +613,7 @@ export function TournamentDetail() {
                   {/* Split role */}
                   {splitRole && (
                     <span style={{
-                      fontSize: 10, fontWeight: 600, padding: "2px 6px", borderRadius: 3,
+                      fontSize: 12, fontWeight: 600, padding: "2px 6px", borderRadius: 3,
                       background: "var(--gold-alpha-08)", color: "var(--gold-light)",
                       border: "1px solid var(--gold-alpha-20)", flexShrink: 0,
                     }}>
@@ -707,14 +624,14 @@ export function TournamentDetail() {
                     {p.isTemporary
                       ? (p.tempName || "临时选手")
                       : (p.user.gameNickname || p.user.username)}
-                    {isMe && <span style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 400, marginLeft: 4 }}>(我)</span>}
+                    {isMe && <span style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 400, marginLeft: 4 }}>(我)</span>}
                   </span>
-                  <span className={roleBadge} style={{ fontSize: 11, padding: "2px 8px", flexShrink: 0 }}>
+                  <span className={roleBadge} style={{ fontSize: 12, padding: "2px 8px", flexShrink: 0 }}>
                     {roleLabel}
                   </span>
                   {typeLabel !== "正式" && (
                     <span className={p.isSpectator ? "badge badge-muted" : "badge"} style={{
-                      fontSize: 11, padding: "2px 8px", flexShrink: 0,
+                      fontSize: 12, padding: "2px 8px", flexShrink: 0,
                       ...(typeLabel === "临时" ? { background: "var(--gold-alpha-08)", color: "var(--gold-light)" } : {}),
                     }}>
                       {typeLabel}
@@ -806,7 +723,7 @@ export function TournamentDetail() {
           <span>参赛 <b style={{ color: "var(--text)", fontWeight: 600 }}>{playerCount}</b>/10 人</span>
           {tempCount > 0 && <span>补位 <b style={{ color: "var(--text-secondary)", fontWeight: 600 }}>{tempCount}</b> 人</span>}
           {spectatorCount > 0 && <span>观战 <b style={{ color: "var(--text-secondary)", fontWeight: 600 }}>{spectatorCount}</b> 人</span>}
-          <span style={{ marginLeft: "auto", fontSize: 11 }}>共 {tournament.players.length} 人</span>
+          <span style={{ marginLeft: "auto", fontSize: 12 }}>共 {tournament.players.length} 人</span>
         </div>
       </div>
       )}
@@ -827,12 +744,12 @@ export function TournamentDetail() {
       {/* ================================================================== */}
       {splitResult && (
         <div style={{ marginBottom: 32 }}>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
+          <nav className="yanwu-room-tabs" aria-label="房间工作区">
             {[{ k: "result", l: "分队结果" }, { k: "builder", l: "英雄阵容" }, ...(ownTeam ? [{ k: "tactics", l: "本队战术" }] : []), { k: "archive", l: "比赛档案" }].map(t => (
-              <button key={t.k} onClick={() => setSplitTab(t.k)}
+              <button key={t.k} aria-current={splitTab === t.k ? "page" : undefined} onClick={() => setSplitTab(t.k)}
                 style={{ padding: "6px 20px", borderRadius: 8, fontSize: 14, fontWeight: splitTab === t.k ? 600 : 400, border: splitTab === t.k ? "1px solid var(--gold)" : "1px solid transparent", background: splitTab === t.k ? "var(--gold-alpha-08)" : "transparent", color: splitTab === t.k ? "var(--gold)" : "var(--text-secondary)", cursor: "pointer" }}>{t.l}</button>
             ))}
-          </div>
+          </nav>
           {splitTab === "result" && <div className="animate-slide-up">
           {/* Section title */}
           <h3 className="section-title" style={{ marginBottom: 16 }}>
@@ -878,11 +795,11 @@ export function TournamentDetail() {
           {/* =========================================================== */}
           {/*  STATS BAR                                                   */}
           {/* =========================================================== */}
-          <div className="card stats-bar !flex !items-center !justify-center !gap-12 !p-6 !p-8 !mt-4">
+          <div className="yanwu-room-stats">
             {/* Power diff */}
             <div style={{ textAlign: "center" as const }}>
               <div style={{
-                fontSize: 11,
+                fontSize: 12,
                 color: "var(--text-muted)",
                 marginBottom: 6,
               }}>
@@ -898,7 +815,7 @@ export function TournamentDetail() {
                 {Math.round(splitResult.strengthDiff)}
               </div>
               <div style={{
-                fontSize: 11,
+                fontSize: 12,
                 color: splitResult.strengthDiff <= 200 ? "var(--green)" : "var(--gold-light)",
                 fontWeight: 500,
                 marginTop: 4,
@@ -907,17 +824,10 @@ export function TournamentDetail() {
               </div>
             </div>
 
-            {/* Divider */}
-            <div style={{
-              width: 1,
-              height: 48,
-              background: "var(--border)",
-            }} />
-
             {/* Preference score */}
             <div style={{ textAlign: "center" as const }}>
               <div style={{
-                fontSize: 11,
+                fontSize: 12,
                 color: "var(--text-muted)",
                 marginBottom: 6,
               }}>
@@ -935,7 +845,7 @@ export function TournamentDetail() {
                 {splitResult.preferenceSummary?.first ?? Math.round(splitResult.preferenceScore)}
               </div>
               <div style={{
-                fontSize: 11,
+                fontSize: 12,
                 color: (splitResult.preferenceSummary
                   ? splitResult.preferenceSummary.first >= 8
                   : splitResult.preferenceScore >= 20) ? "var(--green)" : "var(--text-secondary)",

@@ -69,13 +69,19 @@ export async function startYanwuHost({ entry, layout = "src/app/layout.tsx", ali
       name: "yanwu-isolated-host",
       setup(builder) {
         builder.onResolve({ filter: /.*/ }, args => aliasMap[args.path] ? { path: aliasMap[args.path] } : null);
-        builder.onLoad({ filter: /.*/ }, args => {
+        builder.onLoad({ filter: /.*/ }, async args => {
           const normalized = args.path.replaceAll("\\", "/");
           const forbidden = /\/src\/lib\//.test(normalized)
             || /\/src\/app\/api\//.test(normalized)
             || /\/src\/app\/(?:.*\/)?layout\.tsx$/.test(normalized)
             || (/\/src\/features\//.test(normalized) && /\/server(?:\/|\.(?:ts|tsx|js|mjs)$)/.test(normalized));
           if (forbidden) return { errors: [{ text: `Yanwu component host forbids server import: ${path.relative(repoRoot, args.path)}` }] };
+          // esbuild does not run Next's styled-jsx transform. This one real
+          // component contains a static media rule; retain its CSS and logic.
+          if (args.path === path.resolve(repoRoot, "src/web/components/ui/Toast.tsx")) {
+            const source = await readFile(args.path, "utf8");
+            return { contents: source.replace("<style jsx>", "<style>"), loader: "tsx" };
+          }
           return null;
         });
       },
@@ -101,6 +107,8 @@ export async function startYanwuHost({ entry, layout = "src/app/layout.tsx", ali
       const handled = apiHandlers ? await apiHandlers({ request, url, record }) : null;
       if (handled) {
         response.writeHead(handled.status ?? 200, { "Content-Type": handled.contentType ?? "application/json", ...(handled.headers ?? {}) });
+        // Explicit SSE fixtures stay open until the browser releases the connection.
+        if (handled.keepOpen && handled.contentType === "text/event-stream") return response.write(typeof handled.body === "string" ? handled.body : JSON.stringify(handled.body));
         return response.end(typeof handled.body === "string" ? handled.body : JSON.stringify(handled.body ?? {}));
       }
       violations.push({

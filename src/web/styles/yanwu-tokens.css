@@ -27,6 +27,14 @@
   --radius-lg: 12px;
   --font-display: "Songti SC", "SimSun", serif;
   --font-body: "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  --workspace-table-head: #efeee5;
+  --workspace-review: #78520b;
+  --workspace-media: #171e1b;
+  --workspace-media-placeholder: #293d34;
+  --workspace-media-text: #fffdf8;
+  --workspace-map-surface: #18302f;
+  --workspace-map-fallback: #1e293b;
+  --workspace-map-grid: #64748b;
 
   /* Compatibility aliases used by existing page families. */
   --bg-nav: rgba(245, 242, 234, .96);

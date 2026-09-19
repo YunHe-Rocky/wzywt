@@ -456,7 +456,7 @@ export function MatchWorkspace() {
       <header className="match-record-header">
         <div className="match-record-title">
           <span className="match-record-label">赛事正式记录</span>
-          <div><h1>比赛档案</h1><strong>#{String(matchId).padStart(3, "0")}</strong><span className="badge badge-gold" style={{ fontSize: 11 }}>BETA 测试</span></div>
+          <div><h1>比赛档案</h1><strong>#{String(matchId).padStart(3, "0")}</strong><span className="badge badge-gold" style={{ fontSize: 12 }}>BETA 测试</span></div>
           <p>{detail.match.tournamentName} · {playedAt}</p>
         </div>
         <div className="match-record-summary">
