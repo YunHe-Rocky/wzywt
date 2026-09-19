@@ -1,213 +1,153 @@
-# 王者演武堂 UI 系统 · 峡谷之夜
+# 王者演武堂 UI 系统 · 新中式现代演武馆
 
-本文记录 2026-09-06 前端改版后的实现。视觉资料可随产品需求调整，代码分层以 `docs/architecture/code-architecture.md` 为准。
+本文记录 2026-09-19 全站 UI 的实现规范。设计定稿见 [全站演武馆设计](../superpowers/specs/2026-09-19-full-site-yanwu-design.md)，代码依赖方向仍以 [架构说明](../architecture/code-architecture.md) 为唯一权威。
 
-## 1. 当前架构
+## 1. 范围与边界
 
-```text
-ThemeProvider（固定 data-theme="yanwu"）
-  └─ ThemeLayout
-      ├─ 全屏路由：main-content--fullscreen
-      └─ 标准路由：ArenaIntro + Header → main-content/page-shell → 移动 Dock
-```
+- 26 类正式页面同时覆盖标准 URL 与对应的 `/m` URL，其中包含九类后台页面；根路径的手机版为 `/m`。
+- 一个启用主题：`ThemeProvider` 固定 `data-theme="yanwu"`。不要恢复 hash 切换、第二套主题或手机端复制的业务组件。
+- `src/app` 保留页面适配与服务端权限边界；界面位于 `src/web`，业务请求与状态位于 `src/features/*/client`。
+- 本轮不接数据库、不启用历史发布、不改变服务端权限、爬虫、CI 或部署流程。UI 截图和浏览器夹具不代表生产数据库验收。
 
-- 当前只有一个启用主题：`yanwu`。不得依据 URL hash 切换或恢复历史双主题。
-- `ThemeLayout` 只负责全屏/标准布局分流；`/login`、`/register`、`/admin`、`/debug` 为全屏路由。
-- `Header`、`Dock` 和页面内容共用语义层级 token：`--layer-sticky`、`--layer-dock`、`--layer-overlay`、`--layer-modal`、`--layer-popover`、`--layer-toast`。
-- 页面 UI 位于 `src/web`，请求与客户端状态位于 `src/features/*/client`，`src/app` 只做路由适配。
+## 2. 视觉语言与 token
 
-## 2. 人因与无障碍基线
+象牙纸底、墨绿与墨黑正文、朱砂强调、宋体标题。通过留白、细分隔线、内容层次和少量水墨形成品牌；操作密集页面不铺装饰大图。
 
-- 所有主要按钮、导航、菜单项、表单控件和图标操作的命中区至少为 44×44 CSS px。
-- 移动输入字号至少 16px，避免聚焦时页面缩放；操作标签和表头原则上不低于 12px。
-- 键盘焦点必须可见；不能只用 hover、颜色或精确拖动表达关键操作。
-- 状态颜色必须同时配套文字，例如“连接已断开”“检查失败”“已释放”。
-- 表单使用可见 `label`，异步动作提供 pending/disabled、成功、失败原因和恢复路径。
-- 危险或不可逆动作必须确认；对话框支持初始安全焦点、Tab 圈闭、Escape、忙碌期保护和关闭后焦点返回。
-- `prefers-reduced-motion: reduce` 下禁用装饰动画和大幅过渡，功能不能依赖动画完成。
-- 不在 `html/body/main` 隐藏或裁剪横向溢出。宽表、时间轴等由明确、可聚焦、带说明的局部滚动区域承载。
+`src/web/styles/yanwu-tokens.css` 是共享语义 token 的定义处。兼容名称 `--gold` 等仍可被既有组件使用，但其含义已映射到新品牌，不再意味着旧金色玻璃主题。
 
-## 3. 布局系统
+| Token | 当前值或用途 |
+| --- | --- |
+| `--bg-root` | `#f5f2ea`，纸面底色 |
+| `--bg-card` | `#fffdf8`，内容与表单底色 |
+| `--text` | `#252b28`，主要文字 |
+| `--text-secondary` / `--text-muted` | `#515c51` / `#697064`，次要文字与元信息 |
+| `--brand-accent` / `--on-accent` | `#a43e32` / `#fffdf8`，朱砂主操作 |
+| `--brand-ink` | `#426855`，墨绿辅助强调 |
+| `--brand-dock` | `#29382f`，手机导航底色 |
+| `--border` | `#dcdccf`，纸面分隔 |
+| `--red` / `--green` / `--blue` | 错误与危险、成功、蓝方等业务语义 |
+| `--font-display` | Songti SC / SimSun / serif，标题 |
+| `--font-body` | PingFang SC / Microsoft YaHei / system-ui，正文 |
+| `--radius-sm` / `--radius` / `--radius-lg` | 4 / 8 / 12px |
+| `--content-narrow` / `--content-medium` / `--content-wide` | 720 / 960 / 1200px |
+| `--layout-gutter` | 桌面 clamp(20px, 4vw, 64px)，手机 20px，340px 以下 16px |
 
-### Header
+比赛红蓝方、英雄分路、资源状态和深色播放器保留各自业务含义，不把所有信息染成一种品牌色。普通文本以 4.5:1、大字以 3:1 为对比度目标；抽样检查不能写成完整无障碍认证。
 
-| 项目 | 桌面 | 手机 |
-|---|---:|---:|
-| 高度 | 80px | 64–66px |
-| 品牌 | 金色盾剑徽记 + 王者演武堂 | 同桌面，紧凑排列 |
-| 主导航 | 首页、赛事、英雄、装备、我的；登录后演武动态 | 900px 以下使用底部 Dock；登录后演武动态保留在头像菜单 |
-| 用户入口 | 至少 44×44px | 至少 44×44px |
-| 用户菜单 | 点外部或 Escape 关闭，焦点返回触发按钮 | 同桌面 |
+首页使用本地水墨 `public/art/yanwu-ink.webp`，1440×960，133628 字节；来源见 [水墨素材说明](../../public/art/yanwu-ink.md)。手机先呈现标题与行动入口，图片边缘融入纸面。旧 `arena.webp` 是保留的历史素材，不是当前首页视觉规范。
 
-### Dock
+## 3. 布局与导航
 
-- 仅在宽度 ≤900px 显示。一级导航：首页、赛事、图鉴、我的；图鉴二级导航：英雄、装备。
-- `nav` 使用“底部导航”可访问名称，当前项使用 `aria-current="page"`。
-- 图鉴按钮使用 `aria-expanded` 与 `aria-controls`；二级菜单关闭时不进入 Tab 顺序。
-- 导航目标至少 44×44px；Dock 自身包含 `safe-area-inset-bottom`，页面同时预留底部 clearance。
-- 路由预取和 pending 反馈不得阻止键盘与 reduced-motion 用户完成导航。
+### 公共页面
 
-### 页面壳
+- `ThemeLayout` 区分标准壳与专用全屏壳；登录、注册、后台、debug 及其手机镜像不叠加公共 Header/Dock 或自动开屏。
+- 电脑顶部提供首页、演武房间、图鉴和动态入口；图鉴包含英雄、装备。顶部账号入口承担个人中心与账号操作。
+- 宽度 ≤900px 时，主导航换为一套底部书签栏：**首页、演武、图鉴、动态**。不再在底部重复账号入口；可访问名称必须包含可见标签。
+- 当前路由使用 `aria-current`，图鉴展开按钮使用 `aria-expanded` / `aria-controls`；隐藏菜单不能进入 Tab 顺序。外部点击、Escape、路由变化遵循现有关闭与焦点规则。
+- `main-content` 独占全局 gutter 和 Dock 留白，`/m` 不再重复增加 padding；手机预留 `96px + safe-area-inset-bottom`。
+- 手机 UA 的路由中转与窗口宽度响应是不同机制：前者决定标准/`/m` 入口，后者应在同一页面里即时切换布局，不清掉页面状态。
+- 不在 html/body/main 或整页容器上裁切横向溢出来掩盖缺陷。宽内容使用有名称、可聚焦、附说明的局部滚动区域。
 
-- `main-content` 是唯一全局横向 gutter 和底部 Dock clearance 所有者；`/m` layout 不再重复添加 padding。
-- 页面使用 `page-shell`，按内容选择 `page-shell--narrow`（720px）、`--medium`（1100px）或 `--wide`（1280px）。
-- 全屏画布使用 `main-content--fullscreen`，自行管理内部留白。
-- 验证视口：375×812、390×844、768×1024、812×375、1024×768、1440×900。
-- 手机 UA 自动中转 `/m` 对应路由，桌面访问 `/m/*` 自动返回标准路由；保留查询参数，静态资源不参与中转。改变窗口宽度时，CSS 立即切换适合的界面，不要求刷新。
+### 后台
 
-## 4. 视觉 token
+`AdminShell` 使用同一纸面与字体体系：电脑侧栏含九个目的地；手机只有一个“管理菜单”开关，折叠后导航隐藏且不可键盘访问。Escape 返回触发按钮，切换路由/浏览器历史后收起。
 
-| Token | 当前值/语义 |
-|---|---|
-| `--bg-root` | `#080f1b`，深夜蓝页面底色 |
-| `--bg-card` / `--bg-card-glass` | `rgba(24,39,57,.58)` / `rgba(29,46,64,.58)` 半透明玻璃面板 |
-| `--bg-input` | 输入与内嵌面板背景 |
-| `--text` | `#f1f3f4`，主要文字；禁止使用未定义的 `--text-primary` |
-| `--text-secondary` | `#c0cdd8`，次要文字 |
-| `--text-muted` | `#99adbe`，非关键元数据 |
-| `--gold` | `#dcc49a`，香槟金主要强调色 |
-| `--red` | 危险、失败 |
-| `--green` | 成功、健康 |
-| `--radius-sm/radius/radius-lg` | 12/20/26px |
-| `--layout-gutter` | 桌面 `clamp(20px, 4vw, 64px)`；手机 18px |
-| `--layout-bottom-clearance` | 手机 Dock 高度 + 底部安全区；桌面 36px |
+九页分别为工作台、用户、房间、动态、公告、历史主题、英雄分路、监控、设置。保持 AdminIdentityProvider、服务端管理权限与原业务调用。退出失败保留当前身份并提供重试；配置加载失败不显示可误保存的空表单。
 
-正文颜色只使用已定义 token。对比度目标为 WCAG AA：普通文本至少 4.5:1，大字至少 3:1。
+### 页面分组
 
-### 首页构图
+| 分组 | 主要页面 | 呈现重点 |
+| --- | --- | --- |
+| 公共与身份 | 首页、登录、注册、个人中心 | 入口清楚、账号行为完整、移动表单不挤压 |
+| 图鉴与阅读 | 英雄/装备列表与详情、更新日志与详情 | 实体识别、数值层次、图片缺失回退、可读文章 |
+| 演武工作区 | 房间列表/详情、比赛、战术板 | 保留队伍语义、同一份表格、真实地图及操作 |
+| 动态与监控 | 动态列表/详情、数据监控 | 媒体与阅读分区、连接/权限/失败状态 |
+| 后台 | 九个管理页面 | 统一侧栏/折叠菜单、数据表和明确管理反馈 |
 
-- 首屏左侧为标题、行动入口与简短说明，右侧为连续峡谷的高地局部，李白站在地图边缘围墙上；不是整张地图的鸟瞰展示。
-- 主视觉地图放大，以敌方一塔附近城墙上的人物为取景锚点，人物位于右下方；清晰范围延伸至中路，其余地图渐隐，整张地图外沿不入镜。手机将图像移到上部并靠右裁切，正文与按钮独立排在下部。
-- 下方依次为产品能力、公开房间、英雄/装备入口、公告/资讯，所有数据继续走功能层资源调度。
-- 公开房间卡片展示人数与加入入口；未登录进入赛事大厅展示登录引导，不申请私有资源租约。
-- 本地背景 `public/art/arena.webp` 约 124 KiB，来源和复现说明见同目录 README。
+## 4. 控件、状态与业务功能
 
-## 5. 通用组件
+- 主要按钮、图标操作、菜单项保持至少 44×44 CSS px 命中区；输入和选择控件文字至少 16px。
+- 保留可见 label、焦点环、表头 scope、caption、当前项、只读和禁用语义；状态不能只用颜色表达。
+- 异步动作提供 pending/disabled、成功与失败恢复，不把 HTTP 失败当成功；服务端仍是权限与数据的权威。
+- 危险操作必须经过原有确认；`ConfirmDialog` 保持安全初始焦点、Tab 圈闭、Escape、忙碌保护和焦点返回。其他安全问题、删除账户、日期弹窗不丢原合同。
+- Toast 使用状态/错误播报，手机留安全边距；计时器和监听在卸载时清理。
+- 宽表只在自己的容器滚动。比赛表格角表头、列头、固定行单元格分别使用 sticky 基层 +2、+1、+0，避免横向滑动时互相盖住。
+- 比赛仍使用六类数据 tab、十人原始字段与人工复核；窄屏在同一表格上排列选手记录，不复制另一份数据。
+- 战术板保留真实地图、规范化坐标、拖动/点按和精确坐标输入；地图设计裁切不等于可交互页面溢出。
+- 动态保留原生视频控制、评论、点赞和管理确认。播放器可用深色底，不强迫视频区域变成浅色纸面。
+- 监控保留真实功能层 SSE/轮询/租约接口；连接、检查、资源和日志状态有文字与恢复入口。测试中的持续 SSE 不是线上调度验证。
 
-### 按钮与焦点
+## 5. 开屏与动效
 
-- `.btn-primary`：主操作；`.btn-danger`：危险操作；`.btn-ghost`：次级边框操作；`.btn-subtle`：低强调操作。
-- 四类按钮统一最小高度 44px；disabled 必须同时降低视觉强调并禁止重复提交。
-- 链接、按钮、表单、`summary`、tab 和可聚焦滚动区统一使用 `:focus-visible` 焦点环。
+当前开屏是 SVG 武字印章、墨线与标题的短序列，常规约 1860ms；不再使用旧星光 Canvas 汇聚。
 
-### 对话框
+- 标准页面每个标签页首次自动播放，页脚可手动重播；跳过和 Escape 都能退出，重复请求不叠加实例。
+- 登录/注册/后台/debug，以及已有关键模态弹窗时不自动播放；模态弹窗存在时也不启动手动重播。
+- 播放期间记录并锁定背景 inert、html/body overflow；自然完成、跳过、后台可见性变化、路由变化和卸载都恢复原值并清理监听/计时器。
+- `ThemeLayout` 按 pathname 为开屏实例设 key，使标准页面之间跳转也走清理；已看过状态防止路由切换重新自动播放。仍存在的原焦点目标应恢复焦点。
+- reduced-motion 下跳过自动播放，手动重播仅显示约 420ms 静态标记；动态偏好变化应结束正在播放的装饰动画。
+- sessionStorage 不可用时仅有当前运行上下文的内存回退，不能保证跨刷新“只播一次”。
+- 正式页面不挂载 BackgroundOrbs 或 CursorLighting，不恢复常驻鼠标光效。debug 三页保留实验用途和专用壳；不作为正式产品页或生产动画依赖。
 
-| 组件 | 角色 | 关键行为 |
-|---|---|---|
-| `ConfirmDialog` | `alertdialog` | 默认聚焦取消、Tab 圈闭、Escape、焦点返回、busy 保护 |
-| `SecurityQuestionModal` | `dialog` | 可见标签、首字段焦点、Tab 圈闭、请求失败恢复 |
-| `DeleteAccountModal` | `alertdialog` | 双重确认、可见标签、Tab 圈闭、Escape、失败不误报删除 |
-| `CalendarModal` | `dialog` | 日期/时间键盘操作与移动端滚动面板 |
+## 6. 历史主题边界
 
-`.modal-card` 必须限制为视口可见高度并允许内部纵向滚动，不能让操作按钮落到屏幕外。
+历史主题工作室只负责编辑、版式与状态预览，不新增公共历史路由，也不启用保存/发布后端。
 
-### Toast
+- 临时草稿按管理者身份隔离，只在当前运行上下文保存；页面切换可保留，刷新/关闭清除，身份变化及时清理。不写入 localStorage/sessionStorage 伪装永久保存。
+- 保留原文/译文/事实/演绎、日期口径、来源、审核日期、内容性质和艺术重建标记。
+- 尚未接入的发布、问题反馈、排期等能力保留禁用态和说明，不制造成功响应。
+- 文化阅读与庄重纪念使用一致的纸面阅读结构；庄重内容抑制庆祝装饰，不混入游戏成绩指标。
+- 测试样章明确为版式设计文案，不把虚构文案、未核验日期或示例窗口呈现为已审历史事实。
 
-- 成功/加载使用 `role="status"`，错误使用 `role="alert"`。
-- Toast 自动消失，同时提供至少 44px 的“关闭提示”按钮；计时器在 Provider 卸载时清理。
-- 正文使用 `--text`，移动端左右各保留 12px 安全空间。
+## 7. 验证与截图合同
 
-### 表格
-
-- 表格必须有 `caption`、`th scope`，宽表外层使用可聚焦 region 和移动滑动说明。
-- 禁止表格与外层容器同时横向滚动；新功能表格固定由 `.match-result-table-wrap`、`.tactic-resource-table-wrap` 或 `.data-table-wrap` 承载。
-- sticky 表头/首列不能遮住键盘焦点或造成页面级横向溢出。
-
-## 6. 最新功能约束
-
-### 比赛归档与复核
-
-- 六类数据 tab 使用 roving tabindex，支持方向键、Home/End，并通过 `aria-controls` 关联 tabpanel。
-- OCR/比赛/一致性状态显示中文可读文字；比分和十人数据仍由服务端再次核验。
-- 异议与超管纠错字段使用可见标签；“正式提交并锁定”必须经过 `ConfirmDialog`。
-- 桌面端保留单一语义表以便双方横向比较；窄屏在同一张表上自适应为逐选手记录网格，不复制数据，也不要求页面或面板横向滚动。
-
-### 演武动态
-
-- 发布、点赞、评论、审核和删除统一防重复提交并提供失败恢复。
-- 动态和评论永久删除必须确认；点赞按钮使用 `aria-pressed`。
-- 视频播放器允许原生控制，正文和评论保留换行语义。
-
-### 战术板
-
-- SVG 拖动/点按之外，必须保留精确坐标输入这一键盘替代路径，并用说明文字与画布关联。
-- 阶段、工具与跟随状态使用 `aria-current`/`aria-pressed` 和文字，不只用颜色。
-- 图层、路线和点位删除必须确认；资源计时、预设、summary、工具栏操作均满足 44px 命中区。
-- 资源宽表是局部滚动内容；地图图片超出 SVG viewBox 的裁切属于画布设计，不等于页面溢出。
-
-### 资源监控
-
-- `src/app/monitor/page.tsx` 保持薄适配；Web 视图在 `src/web/MonitorDashboard.tsx`，SSE/轮询/资源租约在 `src/features/monitor/client`。
-- 连接、检查和资源生命周期状态使用中文文字；轮询或权限失败显示原因与刷新/登录恢复建议。
-- 资源表和日志均为可聚焦滚动区域；日志使用 `role="log"` 和增量播报。
-
-## 7. 动效
-
-- 用户指定恢复原来的玻璃光影与细腻动效：`arena-glass.css` 提供半透明材质、柔和边缘高光与景深；首页、导航、图鉴、赛事和登录页使用同一组材质 token。
-- `BackgroundOrbs` 以 CSS 渐变营造低亮度环境光，不读取陀螺仪、不请求设备权限；移动端减少光层，页面隐藏时暂停漂移。
-- `CursorLighting` 仅给鼠标所在的卡片写入局部光点坐标；不覆盖组件 transform/box-shadow，不扫描所有卡片，不运行常驻动画循环。滚动、离开窗口、尺寸变化和动态减少动效偏好都会清理光点。
-- 手机 Dock 的玻璃选择背景随当前路由、待跳转目标和图鉴展开状态滑动；星光开场、焦点和路由行为沿用现有逻辑。
-- 页面淡入不保留 transform containing block，卡片模糊限制在已知展示表面；业务弹窗仍由 body Portal 承载。
-- 页面文案使用简短的好友内战语气，保留明确的功能名称与错误恢复入口；减少重复英文标签和宣传口号。
-
-
-- `ArenaIntro` 是网站实时 Canvas 动画：星点汇聚为盾剑徽记，标题浮现，再淡出首页；全程约 3.1 秒。
-- 使用 sessionStorage 每个标签页首次访问标准页面播放一次；页脚提供“重播开场”，右上角可跳过，Escape 同样退出。
-- 播放期间锁定背景交互与滚动，结束恢复原有状态及焦点；切到后台提前结束。移动端减少粒子数、限制像素比，卸载清理动画帧与监听器。
-- 页面入场淡入上移，卡片悬浮、图标位移与微弱飘浮星点为页面增加层次；装饰不可阻挡点击。
-- 功能性过渡一般 150–300ms。`prefers-reduced-motion` 下不播放开场、星点和大幅位移，所有入口仍可用。
-
-## 8. 验证
+常用检查：
 
 ```bash
 npm run check:architecture
 npm run typecheck
 npm run test:core
+npm run test:history-theme:core
 npm run lint
+npm run test:mobile-routes
+npm run test:device-routing
+npm run test:auth-redirect
+npm run test:e2e:yanwu
 npm run build
 ```
 
-启动端口 8001 后运行无数据库写入的人因回归：
+构建必须显式覆盖为本地 dummy 数据库连接、测试 Session、loopback PUBLIC_ORIGIN、本地媒体目录及禁用的 Redis/OCR 配置；不得继承未知生产连接。不要运行数据库初始化、迁移或依赖真实生产状态的测试。
 
-```bash
-npm run test:e2e:human-factors
-npm run test:device-routing
-npm run test:e2e:arena
-```
+浏览器验证使用真实客户端组件、实际根样式和受控数据边界。认证/资源数据等未声明请求必须失败；测试不得通过吞掉控制台异常、关闭检查或隐藏页面溢出伪造成功。既有历史安全、比赛/战术/人因行为检查保持原断言。
 
-该回归覆盖手机/桌面的比赛、战术、动态与监控页面，断言 document 无横向溢出、可见控件至少 44px、字段有标签、焦点可见、reduced-motion 生效，并检查比赛 tab、Header 和确认弹窗键盘流程。
+| 截图项 | 合同 |
+| --- | --- |
+| 正式页面 | 26 个明确组件/路由家族，每页一对，共 52 条 baseline |
+| 电脑 | 1440×900 视口，标准 URL，完整页面截图 |
+| 手机 | 390×844 视口，对应 `/m` URL，首屏截图；长图单独链接 |
+| 补充状态 | 开屏、debug、文化/庄重、错误、空态、弹窗等单独标记，不抵充 baseline |
+| 来源 | `isolated-component-fixture`，记录角色、夹具、路由、组件、视口和真实绝对文件路径 |
+| 成功条件 | 所有子套件真实成功退出后才聚合；缺页、重复页、错误组件/路由或图片缺失必须失败 |
 
-数据库写入型 E2E 只能针对明确的隔离数据库运行，不得把生产或未知 `DATABASE_URL` 当测试库。
+布局检查覆盖 320、375、390、768、812 横屏、1024、1440px。CSS 缩放/文字放大与原生浏览器 200% 缩放不同；Edge 的手机 UA 也不等于 Safari/WebKit 或真机覆盖。
 
-## 9. 关键文件
+正式截图目录为 `test-results/yanwu-full-site/index.html`；即时预览为同目录 `preview.html`。实现与测试代码可复现截图，生成结果保持为本地产物。测试结果以该目录 verification 和本轮实施报告为准，本文不代替运行结果。
 
-| 文件 | 作用 |
-|---|---|
-| `src/app/globals.css` | 功能布局、人因基线与业务组件样式 |
-| `src/web/styles/arena.css` / `arena-motion.css` | 当前视觉 token、响应式主题及动效 |
-| `src/web/components/home/HomePage.tsx` | 峡谷首页及资源消费 |
-| `src/web/components/arena/ArenaIntro.tsx` | 星光汇聚开场、重播和生命周期管理 |
-| `src/app/layout.tsx` | 根 metadata 与 Provider |
-| `src/web/themes/ThemeProvider.tsx` | 固定 `yanwu` 主题 |
-| `src/web/components/layout/ThemeLayout.tsx` | 全屏/标准布局分流 |
-| `src/web/components/layout/Header.tsx` | 主导航和用户菜单 |
-| `src/web/components/layout/alternate/Dock.tsx` | 底部与二级导航 |
-| `src/web/components/ui/ConfirmDialog.tsx` | 通用危险操作确认 |
-| `src/web/components/ui/Toast.tsx` | 全局状态反馈 |
-| `src/web/MatchWorkspace.tsx` | 比赛数据复核 |
-| `src/web/TacticBoard.tsx` | 战术时钟、阶段与标注 |
-| `src/web/CombatWall.tsx` / `CombatPostDetail.tsx` | 演武动态 |
-| `src/web/MonitorDashboard.tsx` | 监控视图 |
-| `tests/e2e/human-factors-regression.mjs` | 无数据库写入的人因回归 |
+**证据边界：** 本轮不宣称真实数据库写入、服务端登录/权限全链路或生产部署 E2E。实际 Next 运行期 smoke 本轮未运行；生产构建、隔离组件浏览器验证和实际服务器验证必须分开记录。
 
-## 10. 版本记录
+## 8. 主要实现文件
 
-| 版本 | 日期 | 主要变更 |
-|---|---|---|
-| V2.0.1 | 2026-07-24 | 基础 ARIA、reduced-motion、响应式页面壳 |
-| V2.1 | 2026-08 | 比赛归档、演武动态、战术板 |
-| V2.2 | 2026-08 | 动态资源调度与监控 |
-| 峡谷之夜 | 2026-09-06 | 深蓝金色主题、响应式导航、峡谷首屏、共用页面视觉与星光开场 |
-| V2.2.1 | 2026-08-31 | 单主题文档纠偏、44px 基线、键盘/弹窗/错误恢复和正式人因回归 |
+| 文件 | 责任 |
+| --- | --- |
+| `src/web/styles/yanwu-tokens.css` | 共用品牌、语义、层级与尺寸 |
+| `arena.css`、`arena-motion.css`、`arena-glass.css` | 页面壳、导航、纸面材质与短动效 |
+| `yanwu-public.css`、`yanwu-workspaces.css` | 公共/内容与演武工作区样式 |
+| `admin.css`、`history-theme.css` | 后台与历史阅读工作室 |
+| `ThemeLayout.tsx`、`Header.tsx`、`alternate/Dock.tsx` | 标准/全屏壳、账号与响应式主导航 |
+| `ArenaIntro.tsx` | 开屏、重播、动效偏好及清理 |
+| `tests/e2e/yanwu/host.mjs` | 根 CSS 解析、服务端依赖防线及严格本地 HTTP 夹具 |
+| `tests/e2e/yanwu-{foundation,public,workspaces,admin}.mjs` | 分组的真实组件浏览器检查 |
+| `tests/e2e/yanwu-full-site.mjs` | 全站检查与正式截图索引 |
+| `tests/e2e/yanwu/manifest.mjs` | 26 家族/52 baseline 完整性 |
 
-新增主题属于产品与设计系统变更，必须先更新 `ThemeProvider`、token、布局矩阵和完整回归，不再通过 hash 临时启用。
+后续视觉改动沿用这套 token、入口和回归合同，不通过恢复旧玻璃/星光样式或另建手机版业务副本实现。

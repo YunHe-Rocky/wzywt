@@ -5,9 +5,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ArenaIcon, type ArenaIconName } from "@/web/components/arena/ArenaIcon";
 
-const items: { path: string; label: string; visualLabel?: string; icon: ArenaIconName }[] = [
+const items: { path: string; label: string; icon: ArenaIconName }[] = [
   { path: "/", label: "首页", icon: "home" },
-  { path: "/tournaments", label: "赛事", visualLabel: "演武", icon: "swords" },
+  { path: "/tournaments", label: "演武", icon: "swords" },
   { path: "/combat", label: "动态", icon: "news" },
 ];
 
@@ -38,7 +38,7 @@ export function Dock() {
   const selectedIndex = subOpen || /^\/(heroes|equipment)(\/|$)/.test(selectionPath) ? 2
     : selectionPath === "/" ? 0 : selectionPath.startsWith("/tournaments") ? 1 : selectionPath.startsWith("/combat") ? 3 : -1;
   function navItem(item: typeof items[number]) {
-    return <Link key={item.path} href={`${prefix}${item.path}`} prefetch={item.path === "/combat" ? false : undefined} className={`arena-dock-item pointer-events-auto ${pendingPath === item.path ? "is-active" : ""}`} aria-label={item.label} aria-current={active(item.path) ? "page" : undefined} onClick={() => { if (!active(item.path)) setPendingPath(item.path); setSubOpen(false); }}><ArenaIcon name={item.icon} /><span>{item.visualLabel ?? item.label}</span></Link>;
+    return <Link key={item.path} href={`${prefix}${item.path}`} prefetch={item.path === "/combat" ? false : undefined} className={`arena-dock-item pointer-events-auto ${pendingPath === item.path ? "is-active" : ""}`} aria-label={item.label} aria-current={active(item.path) ? "page" : undefined} onClick={() => { if (!active(item.path)) setPendingPath(item.path); setSubOpen(false); }}><ArenaIcon name={item.icon} /><span>{item.label}</span></Link>;
   }
   return <nav ref={root} className="dock-shell fixed bottom-0 left-0 right-0 flex-col items-center pointer-events-none" aria-label="底部导航" aria-busy={Boolean(pendingPath)}>
     {pendingPath && <div className="dock-route-progress" aria-hidden="true" />}

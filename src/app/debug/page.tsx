@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export default function GyroTest() {
   const [gyro, setGyro] = useState({ a: 0, b: 0, g: 0 });
   const [hasEvent, setHasEvent] = useState(false);
   const [permission, setPermission] = useState<string>("unknown");
   const [shake, setShake] = useState(0);
+  const permissionListener = useRef<((event: DeviceOrientationEvent) => void) | null>(null);
 
   useEffect(() => {
     if (typeof DeviceOrientationEvent !== "undefined") {
@@ -40,6 +41,7 @@ export default function GyroTest() {
 
     return () => {
       window.removeEventListener("deviceorientation", handler);
+      if (permissionListener.current) window.removeEventListener("deviceorientation", permissionListener.current);
     };
   }, []);
 
@@ -49,10 +51,12 @@ export default function GyroTest() {
       .then((state: string) => {
         setPermission(state);
         if (state === "granted") {
-          window.addEventListener("deviceorientation", (e: DeviceOrientationEvent) => {
+          if (permissionListener.current) window.removeEventListener("deviceorientation", permissionListener.current);
+          permissionListener.current = (e: DeviceOrientationEvent) => {
             setHasEvent(true);
             setGyro({ a: e.alpha ?? 0, b: e.beta ?? 0, g: e.gamma ?? 0 });
-          });
+          };
+          window.addEventListener("deviceorientation", permissionListener.current);
         }
       })
       .catch(console.error);
@@ -61,15 +65,15 @@ export default function GyroTest() {
   const s = { ...gyro, shake };
 
   return (
-    <div style={{
+    <div className="yanwu-debug-page yanwu-debug-gyro" style={{
       minHeight: "100vh", background: "var(--bg-root)", color: "var(--text)",
       display: "flex", flexDirection: "column", alignItems: "center",
-      justifyContent: "center", padding: 40, fontFamily: "monospace",
+      justifyContent: "center", padding: "24px 16px", fontFamily: "monospace",
     }}>
       <h1 style={{ fontSize: 20, marginBottom: 24, color: "var(--text)" }}>陀螺仪调试面板</h1>
 
       <div className="card" style={{
-        padding: "24px 32px", minWidth: 300, display: "flex", flexDirection: "column", gap: 16,
+        padding: "24px 32px", width: "100%", maxWidth: 420, minWidth: 0, display: "flex", flexDirection: "column", gap: 16,
       }}>
         <Row label="API 状态" value={permission} color={
           permission === "listening" ? "var(--green)" :

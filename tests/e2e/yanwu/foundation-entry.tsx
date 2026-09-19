@@ -4,6 +4,9 @@ import { ThemeProvider } from "@/web/themes/ThemeProvider";
 import { ToastProvider } from "@/web/components/ui/Toast";
 import { ThemeLayout } from "@/web/components/layout/ThemeLayout";
 import { replayArenaIntro } from "@/web/components/arena/ArenaIntro";
+import GyroTest from "@/app/debug/page";
+import LoginEffectDemo from "@/app/debug/login-effect/page";
+import OrbColorDemo from "@/app/debug/orb-colors/page";
 
 function FixtureContent() {
   const [, rerender] = useState(0);
@@ -30,7 +33,15 @@ function FixtureContent() {
 }
 
 function App() {
-  return <ThemeProvider><ToastProvider><ThemeLayout><FixtureContent /></ThemeLayout></ToastProvider></ThemeProvider>;
+  const debugPath = location.pathname.replace(/^\/m(?=\/|$)/, "");
+  const content = debugPath === "/debug/login-effect"
+    ? <LoginEffectDemo />
+    : debugPath === "/debug/orb-colors"
+      ? <OrbColorDemo />
+      : debugPath === "/debug"
+        ? <GyroTest />
+        : <FixtureContent />;
+  return <ThemeProvider><ToastProvider><ThemeLayout>{content}</ThemeLayout></ToastProvider></ThemeProvider>;
 }
 
 createRoot(document.getElementById("root")!).render(<App />);

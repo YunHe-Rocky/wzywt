@@ -227,9 +227,9 @@ export default function LoginEffectDemo() {
   }
 
   return (
-    <div style={{
+    <div className="yanwu-debug-page yanwu-debug-login" style={{
       minHeight: "100vh",
-      background: "#161920",
+      background: "var(--bg-root)", color: "var(--text)",
       display: "flex", flexDirection: "column",
       alignItems: "center", justifyContent: "center",
       padding: "40px 20px",
@@ -243,10 +243,10 @@ export default function LoginEffectDemo() {
       <div style={{ position: "relative", zIndex: 1 }}>
         {/* 标题 */}
         <div style={{ textAlign: "center", marginBottom: 20 }}>
-          <h1 style={{ fontSize: 22, fontWeight: 800, color: "#c0b090", margin: "0 0 4px", letterSpacing: 2 }}>
+          <h1 style={{ fontSize: 22, fontWeight: 800, color: "var(--brand-accent)", margin: "0 0 4px", letterSpacing: 2 }}>
             #1 演武 · 登录过渡效果预览
           </h1>
-          <p style={{ fontSize: 13, color: "#777b88", margin: 0 }}>
+          <p style={{ fontSize: 13, color: "var(--text-muted)", margin: 0 }}>
             切换下方效果类型 → 点击登录按钮触发
           </p>
         </div>
@@ -282,7 +282,7 @@ export default function LoginEffectDemo() {
         </div>
 
         {/* 卡片区域 */}
-        <div key={key} style={{ width: cardW, height: cardH, position: "relative" }}>
+        <div key={key} style={{ width: "min(420px, calc(100vw - 32px))", height: cardH, position: "relative" }}>
           {/* 登录卡片 */}
           <div style={{
             width: "100%", height: "100%",

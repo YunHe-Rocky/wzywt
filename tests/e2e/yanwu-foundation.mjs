@@ -29,6 +29,7 @@ try {
   const dockTargets = dock.locator(":scope > a, :scope > button");
   assert.equal(await dockTargets.count(), 4, "mobile dock has four primary destinations");
   assert.equal(await dock.getByText("演武", { exact: true }).count(), 1, "mobile tournament destination uses the approved visible label");
+  assert.equal(await dock.getByRole("link", { name: "演武", exact: true }).count(), 1, "mobile tournament accessible name contains its visible label");
   assert.equal(await page.locator(".header-brand-link .arena-brand-mark text").textContent(), "武", "header brand uses the local seal rather than the legacy crest");
   await page.getByRole("button", { name: "打开图鉴菜单" }).click();
   assert.equal(await page.locator("#dock-catalog-menu").getByRole("link", { name: "装备", exact: true }).isVisible(), true);
@@ -153,6 +154,59 @@ try {
   assert.equal(await page.evaluate(() => document.body.style.overflow), "", "route unmount releases the scroll lock");
   await opened.context.close();
 
+  for (const capture of [
+    { profile: "desktop", width: 1440, height: 900, pathName: "/?scenario=intro-desktop" },
+    { profile: "mobile", width: 390, height: 844, pathName: "/m?scenario=intro-mobile" },
+  ]) {
+    opened = await open({ ...capture, reducedMotion: "no-preference" }); page = opened.page;
+    await page.getByRole("dialog", { name: "演武堂开场动画" }).waitFor();
+    await page.waitForTimeout(720);
+    await page.screenshot({ path: path.join(output, `intro-${capture.profile}.png`) });
+    await page.waitForFunction(() => Number(getComputedStyle(document.querySelector(".arena-intro-caption")).opacity) >= .99);
+    await page.screenshot({ path: path.join(output, `intro-${capture.profile}-title.png`) });
+    await opened.context.close();
+  }
+
+  opened = await open({ pathName: "/m?scenario=natural", reducedMotion: "no-preference" }); page = opened.page;
+  await page.getByRole("dialog", { name: "演武堂开场动画" }).waitFor();
+  await page.getByRole("dialog", { name: "演武堂开场动画" }).waitFor({ state: "detached", timeout: 3000 });
+  assert.deepEqual(await page.evaluate(() => ({ body: document.body.style.overflow, root: document.documentElement.style.overflow, inert: [...document.querySelectorAll("main, header, .dock-shell")].map(element => element.inert) })), { body: "", root: "", inert: [false, false, false] }, "natural completion releases every opening lock");
+  await opened.context.close();
+
+  opened = await open({ pathName: "/m?scenario=visibility", reducedMotion: "no-preference" }); page = opened.page;
+  await page.getByRole("dialog", { name: "演武堂开场动画" }).waitFor();
+  await page.evaluate(() => { Object.defineProperty(document, "hidden", { configurable: true, value: true }); document.dispatchEvent(new Event("visibilitychange")); });
+  await page.getByRole("dialog", { name: "演武堂开场动画" }).waitFor({ state: "detached" });
+  assert.equal(await page.evaluate(() => document.body.style.overflow), "", "backgrounding releases the opening lock");
+  await opened.context.close();
+
+  opened = await open({ width: 1440, height: 900, pathName: "/?scenario=exact-restore", role: "admin", reducedMotion: "reduce" }); page = opened.page;
+  const exactFocusTarget = page.getByRole("button", { name: "打开用户菜单" });
+  await exactFocusTarget.focus();
+  await page.evaluate(() => {
+    document.body.style.overflow = "clip";
+    document.documentElement.style.overflow = "scroll";
+    document.querySelector("main").inert = true;
+    document.querySelector("header").inert = false;
+    document.querySelector(".dock-shell").inert = true;
+    window.dispatchEvent(new Event("yanwu:replay-intro"));
+  });
+  await page.getByRole("dialog", { name: "演武堂开场动画" }).waitFor();
+  await page.keyboard.press("Escape");
+  assert.deepEqual(await page.evaluate(() => ({ body: document.body.style.overflow, root: document.documentElement.style.overflow, main: document.querySelector("main").inert, header: document.querySelector("header").inert, dock: document.querySelector(".dock-shell").inert })), { body: "clip", root: "scroll", main: true, header: false, dock: true }, "opening restores exact html/body overflow and each prior inert value");
+  assert.ok(await exactFocusTarget.evaluate(element => element === document.activeElement), "exact restoration returns focus");
+  await opened.context.close();
+
+  opened = await open({ width: 1440, height: 900, pathName: "/?scenario=standard-route", reducedMotion: "no-preference" }); page = opened.page;
+  await page.getByRole("dialog", { name: "演武堂开场动画" }).waitFor();
+  await page.evaluate(() => { history.pushState({}, "", "/heroes"); window.dispatchEvent(new PopStateEvent("popstate")); });
+  await page.getByRole("dialog", { name: "演武堂开场动画" }).waitFor({ state: "detached", timeout: 1000 });
+  assert.deepEqual(await page.evaluate(() => ({ path: location.pathname, body: document.body.style.overflow, root: document.documentElement.style.overflow, mainInert: document.querySelector("main").inert })), { path: "/heroes", body: "", root: "", mainInert: false }, "standard route changes release opening state without replay");
+  await page.getByRole("button", { name: "手动重播开场" }).click();
+  assert.equal(await page.getByRole("dialog", { name: "演武堂开场动画" }).count(), 1, "manual replay remains available after route change");
+  await page.getByRole("button", { name: "跳过开场动画" }).click();
+  await opened.context.close();
+
   opened = await open({ pathName: "/m?scenario=motion-change", reducedMotion: "no-preference" }); page = opened.page;
   await page.getByRole("dialog", { name: "演武堂开场动画" }).waitFor();
   await page.emulateMedia({ reducedMotion: "reduce" });
@@ -173,7 +227,42 @@ try {
 
   opened = await open({ pathName: "/m?scenario=modal", reducedMotion: "no-preference" }); page = opened.page;
   assert.equal(await page.getByRole("dialog", { name: "演武堂开场动画" }).count(), 0, "opening does not cover an existing modal");
+  await page.evaluate(() => window.dispatchEvent(new Event("yanwu:replay-intro")));
+  assert.equal(await page.getByRole("dialog", { name: "演武堂开场动画" }).count(), 0, "manual replay does not cover an existing modal");
   await opened.context.close();
+
+  opened = await open({ width: 1440, height: 900, pathName: "/?scenario=resize", role: "admin", reducedMotion: "reduce" }); page = opened.page;
+  await page.getByRole("navigation", { name: "主导航" }).getByRole("button", { name: "打开图鉴菜单" }).click();
+  const initialPath = await page.evaluate(() => location.pathname + location.search);
+  await page.setViewportSize({ width: 390, height: 844 });
+  assert.equal(await page.evaluate(() => [...document.querySelectorAll('nav[aria-label="主导航"],nav[aria-label="底部导航"]')].filter(element => { const box = element.getBoundingClientRect(); return box.width > 0 && box.height > 0; }).length), 1, "resize shows one primary navigation at mobile width");
+  assert.equal(await page.evaluate(() => location.pathname + location.search), initialPath, "desktop-to-mobile resize preserves route state");
+  await page.getByRole("navigation", { name: "底部导航" }).getByRole("button", { name: "打开图鉴菜单" }).click();
+  await page.setViewportSize({ width: 1440, height: 900 });
+  assert.equal(await page.evaluate(() => [...document.querySelectorAll('nav[aria-label="主导航"],nav[aria-label="底部导航"]')].filter(element => { const box = element.getBoundingClientRect(); return box.width > 0 && box.height > 0; }).length), 1, "resize returns to one desktop primary navigation");
+  assert.equal(await page.evaluate(() => location.pathname + location.search), initialPath, "mobile-to-desktop resize preserves route state");
+  await opened.context.close();
+
+  const debugPages = [
+    { suffix: "gyro", route: "/debug", heading: "陀螺仪调试面板" },
+    { suffix: "login-effect", route: "/debug/login-effect", heading: "#1 演武 · 登录过渡效果预览" },
+    { suffix: "orb-colors", route: "/debug/orb-colors", heading: "#2 光球配色预览" },
+  ];
+  for (const { suffix, heading, pathName, viewport, width, height } of debugPages.flatMap(item => [
+    { ...item, pathName: item.route, viewport: "desktop", width: 1440, height: 900 },
+    { ...item, pathName: `/m${item.route}`, viewport: "mobile", width: 390, height: 844 },
+  ])) {
+    opened = await open({ width, height, pathName, reducedMotion: "reduce" }); page = opened.page;
+    await page.getByRole("heading", { name: heading, exact: true }).waitFor();
+    const file = path.join(output, `debug-${suffix}-${viewport}.png`);
+    await page.screenshot({ path: file, fullPage: true });
+    await opened.context.close();
+
+    opened = await open({ width: 320, height: 812, pathName, reducedMotion: "reduce" }); page = opened.page;
+    await page.getByRole("heading", { name: heading, exact: true }).waitFor();
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${pathName} has no page-level horizontal overflow at 320px`);
+    await opened.context.close();
+  }
 
   opened = await open({ pathName: "/login", reducedMotion: "no-preference" }); page = opened.page;
   assert.equal(await page.getByRole("dialog", { name: "演武堂开场动画" }).count(), 0, "fullscreen routes skip opening");
@@ -185,6 +274,7 @@ try {
   await page.getByRole("dialog", { name: "演武堂开场动画" }).waitFor();
   await page.getByRole("button", { name: "跳过开场动画" }).click();
   await page.getByRole("button", { name: "手动重播开场" }).click();
+  await page.getByRole("dialog", { name: "演武堂开场动画" }).waitFor();
   assert.equal(await page.getByRole("dialog", { name: "演武堂开场动画" }).count(), 1, "storage failure keeps one active instance");
   await opened.context.close();
 
@@ -193,7 +283,7 @@ try {
   assert.deepEqual(errors, []);
   console.log("PASS: Yanwu shared foundation, navigation, and opening.");
 } catch (error) {
-  if (page) {
+  if (page && !page.isClosed()) {
     await page.screenshot({ path: path.join(output, "failure.png"), fullPage: true }).catch(() => {});
     await writeFile(path.join(output, "failure.html"), await page.content()).catch(() => {});
   }

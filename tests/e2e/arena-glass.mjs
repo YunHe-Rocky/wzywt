@@ -38,7 +38,7 @@ try {
   assert.equal(await selection.getAttribute('data-index'), '2', 'Glass selection follows the opened catalog');
   await phone.getByRole('button', { name: '关闭图鉴菜单' }).tap();
   assert.equal(await selection.getAttribute('data-index'), '0', 'Closing catalog restores the current route selection');
-  await dock.getByRole('link', { name: '赛事', exact: true }).tap();
+  await dock.getByRole('link', { name: '演武', exact: true }).tap();
   await phone.waitForURL(/\/m\/tournaments/);
   assert.equal(await selection.getAttribute('data-index'), '1');
   assert.equal(await phone.locator('[data-glass-active]').count(), 0, 'Touch does not enable cursor light');
