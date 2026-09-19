@@ -160,15 +160,15 @@ export function AnnouncementManager() {
   }
 
   if (loading) {
-    return <div className="px-6 py-8"><div className="skeleton h-80 rounded-xl" /></div>;
+    return <div className="admin-page"><div className="skeleton h-80 rounded-xl" /></div>;
   }
 
   return (
-    <div className="announcement-manager px-6 py-8">
-      <div className="flex items-center justify-between gap-4 mb-5">
+    <div className="announcement-manager admin-page">
+      <div className="admin-page-heading">
         <div>
-          <h1 className="text-xl font-bold mb-0.5">系统公告</h1>
-          <p className="text-[12px] text-text-muted">admin 可新增、编辑、发布或删除，共 {list.length} 条</p>
+          <p className="feature-kicker">ANNOUNCEMENTS</p><h1>系统公告</h1>
+          <p className="text-[12px] text-text-muted">新增、编辑、发布或删除公告，共 {list.length} 条</p>
         </div>
         <button type="button" onClick={openNew} className="btn-primary min-h-11 px-4 py-2 text-sm font-semibold">
           新建公告
@@ -179,7 +179,7 @@ export function AnnouncementManager() {
       {error && <div role="alert" className="mb-4 text-[13px] text-red">{error}</div>}
 
       {showForm && (
-        <section className="card mb-6" aria-labelledby="announcement-form-title">
+        <section className="admin-announcement-form" aria-labelledby="announcement-form-title">
           <div className="flex items-center justify-between gap-3 mb-5">
             <div>
               <h2 id="announcement-form-title" className="text-base font-bold">
@@ -194,7 +194,7 @@ export function AnnouncementManager() {
               <legend className="mb-2 text-xs font-semibold text-text">版本号 + 公告主题名称</legend>
               <div className="announcement-meta-grid">
                 <label className="flex flex-col gap-1.5">
-                  <span className="text-[11px] text-text-muted">版本号</span>
+                  <span className="text-[12px] text-text-muted">版本号</span>
                   <input
                     value={version}
                     onChange={(event) => setVersion(event.target.value)}
@@ -203,10 +203,10 @@ export function AnnouncementManager() {
                     placeholder="例如 2.1.0"
                     autoFocus
                   />
-                  <span className="text-[11px] text-text-muted">由发布者自行填写，最多 32 个字符。</span>
+                  <span className="text-[12px] text-text-muted">由发布者自行填写，最多 32 个字符。</span>
                 </label>
                 <label className="flex flex-col gap-1.5">
-                  <span className="text-[11px] text-text-muted">公告主题名称</span>
+                  <span className="text-[12px] text-text-muted">公告主题名称</span>
                   <input
                     value={title}
                     onChange={(event) => setTitle(event.target.value)}
@@ -214,7 +214,7 @@ export function AnnouncementManager() {
                     maxLength={128}
                     placeholder="概括本次公告的主题"
                   />
-                  <span className="text-[11px] text-text-muted">用于公告列表和详情页主标题。</span>
+                  <span className="text-[12px] text-text-muted">用于公告列表和详情页主标题。</span>
                 </label>
               </div>
             </fieldset>
@@ -223,20 +223,20 @@ export function AnnouncementManager() {
               <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
                 <div className="text-xs font-semibold text-text">主要内容（Markdown）</div>
                 <div className="flex flex-wrap gap-2" aria-label="Markdown 快捷工具">
-                  <button type="button" onClick={() => insertMarkdown("# ", "", "一级标题")} className="btn-subtle min-h-9 px-3 text-xs">H1</button>
-                  <button type="button" onClick={() => insertMarkdown("## ", "", "二级标题")} className="btn-subtle min-h-9 px-3 text-xs">H2</button>
-                  <button type="button" onClick={() => insertMarkdown("### ", "", "三级标题")} className="btn-subtle min-h-9 px-3 text-xs">H3</button>
-                  <button type="button" onClick={() => insertMarkdown("**", "**", "加粗文字")} className="btn-subtle min-h-9 px-3 text-xs">粗体</button>
-                  <button type="button" onClick={() => insertMarkdown("- ", "", "列表项")} className="btn-subtle min-h-9 px-3 text-xs">列表</button>
-                  <button type="button" onClick={() => insertMarkdown("> ", "", "引用内容")} className="btn-subtle min-h-9 px-3 text-xs">引用</button>
-                  <button type="button" onClick={() => insertMarkdown("\n---\n")} className="btn-subtle min-h-9 px-3 text-xs">分隔线</button>
-                  <button type="button" onClick={() => applyTemplate("update")} className="btn-subtle min-h-9 px-3 text-xs">版本更新模板</button>
-                  <button type="button" onClick={() => applyTemplate("maintenance")} className="btn-subtle min-h-9 px-3 text-xs">维护通知模板</button>
+                  <button type="button" onClick={() => insertMarkdown("# ", "", "一级标题")} className="btn-subtle min-h-11 px-3 text-xs">H1</button>
+                  <button type="button" onClick={() => insertMarkdown("## ", "", "二级标题")} className="btn-subtle min-h-11 px-3 text-xs">H2</button>
+                  <button type="button" onClick={() => insertMarkdown("### ", "", "三级标题")} className="btn-subtle min-h-11 px-3 text-xs">H3</button>
+                  <button type="button" onClick={() => insertMarkdown("**", "**", "加粗文字")} className="btn-subtle min-h-11 px-3 text-xs">粗体</button>
+                  <button type="button" onClick={() => insertMarkdown("- ", "", "列表项")} className="btn-subtle min-h-11 px-3 text-xs">列表</button>
+                  <button type="button" onClick={() => insertMarkdown("> ", "", "引用内容")} className="btn-subtle min-h-11 px-3 text-xs">引用</button>
+                  <button type="button" onClick={() => insertMarkdown("\n---\n")} className="btn-subtle min-h-11 px-3 text-xs">分隔线</button>
+                  <button type="button" onClick={() => applyTemplate("update")} className="btn-subtle min-h-11 px-3 text-xs">版本更新模板</button>
+                  <button type="button" onClick={() => applyTemplate("maintenance")} className="btn-subtle min-h-11 px-3 text-xs">维护通知模板</button>
                 </div>
               </div>
               <div className="announcement-editor-grid">
                 <label className="flex flex-col gap-1.5">
-                  <span className="text-[11px] text-text-muted">编辑区</span>
+                  <span className="text-[12px] text-text-muted">编辑区</span>
                   <textarea
                     ref={textareaRef}
                     value={content}
@@ -249,7 +249,7 @@ export function AnnouncementManager() {
                   />
                 </label>
                 <div className="flex flex-col gap-1.5">
-                  <span className="text-[11px] text-text-muted">实时预览</span>
+                  <span className="text-[12px] text-text-muted">实时预览</span>
                   <article className="announcement-preview" aria-label="公告 Markdown 预览">
                     <div className="flex items-center gap-2 mb-2">
                       {version && <span className="badge badge-gold">v{version}</span>}
@@ -273,31 +273,31 @@ export function AnnouncementManager() {
         </section>
       )}
 
-      <div className="card !p-0 overflow-hidden">
-        <div style={{ overflowX: "auto" }}>
-          <table className="w-full text-sm border-collapse">
-            <thead>
-              <tr className="border-b border-border-light bg-black/[0.015]">
-                <th className="py-3 px-5 text-left text-[11px] font-semibold text-text-muted">版本号 + 公告主题名称</th>
-                <th className="py-3 px-5 text-left text-[11px] font-semibold text-text-muted">状态</th>
-                <th className="py-3 px-5 text-left text-[11px] font-semibold text-text-muted">日期</th>
-                <th className="py-3 px-5 text-left text-[11px] font-semibold text-text-muted">操作</th>
+      <div className="">
+        <div className="admin-table-wrap" role="region" aria-label="公告管理表格" tabIndex={0}>
+          <table className="admin-table">
+            <caption>发布状态与公告记录 · 窄屏可在表格内横向滚动</caption><thead>
+              <tr >
+                <th scope="col">版本号 + 公告主题名称</th>
+                <th scope="col">状态</th>
+                <th scope="col">日期</th>
+                <th scope="col">操作</th>
               </tr>
             </thead>
             <tbody>
               {list.length === 0 ? (
                 <tr><td colSpan={4} className="py-16 text-center text-text-muted">暂无公告</td></tr>
               ) : list.map((announcement) => (
-                <tr key={announcement.id} className="border-b border-border-light hover:bg-black/[0.02]">
-                  <td className="py-3 px-5 min-w-56">
+                <tr key={announcement.id} >
+                  <td className="admin-name">
                     <div className="flex items-center gap-2 font-semibold text-text">
                       <span className="badge badge-gold">v{announcement.version || "-"}</span>
                       <span>{announcement.title}</span>
                     </div>
-                    <div className="text-[11px] text-text-muted mt-1 line-clamp-1">{announcement.brief}</div>
+                    <div className="text-[12px] text-text-muted mt-1 line-clamp-1">{announcement.brief}</div>
                   </td>
                   <td className="py-3 px-5">
-                    <button type="button" onClick={() => void togglePublish(announcement)} className={`min-h-9 rounded-full px-3 text-[11px] font-semibold ${announcement.published ? "bg-green/10 text-green" : "bg-gold/10 text-gold"}`}>
+                    <button type="button" onClick={() => void togglePublish(announcement)} className={`min-h-11 rounded-full px-3 text-[12px] font-semibold ${announcement.published ? "bg-green/10 text-green" : "bg-gold/10 text-gold"}`}>
                       {announcement.published ? "已发布" : "草稿"}
                     </button>
                   </td>
@@ -305,12 +305,12 @@ export function AnnouncementManager() {
                   <td className="py-3 px-5">
                     <div className="flex gap-2">
                       {announcement.published && (
-                        <Link href={`/changelog/${announcement.slug}`} className="btn-subtle min-h-9 px-3 inline-flex items-center text-xs no-underline">
+                        <Link href={`/changelog/${announcement.slug}`} className="btn-subtle min-h-11 px-3 inline-flex items-center text-xs no-underline">
                           查看
                         </Link>
                       )}
-                      <button type="button" onClick={() => openEdit(announcement)} className="btn-subtle min-h-9 px-3 text-xs">编辑</button>
-                      <button type="button" onClick={() => void remove(announcement)} className="btn-subtle min-h-9 px-3 text-xs !text-red">删除</button>
+                      <button type="button" onClick={() => openEdit(announcement)} className="btn-subtle min-h-11 px-3 text-xs">编辑</button>
+                      <button type="button" onClick={() => void remove(announcement)} className="btn-subtle min-h-11 px-3 text-xs !text-red">删除</button>
                     </div>
                   </td>
                 </tr>
@@ -320,34 +320,6 @@ export function AnnouncementManager() {
         </div>
       </div>
 
-      <style jsx>{`
-        .announcement-meta-grid,
-        .announcement-editor-grid {
-          display: grid;
-          grid-template-columns: repeat(2, minmax(0, 1fr));
-          gap: 16px;
-        }
-        .announcement-preview {
-          min-height: 100%;
-          padding: 16px;
-          border: 1px solid var(--border);
-          border-radius: var(--radius-sm);
-          background: var(--bg-input);
-        }
-        @media (max-width: 900px) {
-          .announcement-editor-grid {
-            grid-template-columns: 1fr;
-          }
-        }
-        @media (max-width: 640px) {
-          .announcement-manager {
-            padding: 20px 12px !important;
-          }
-          .announcement-meta-grid {
-            grid-template-columns: 1fr;
-          }
-        }
-      `}</style>
     </div>
   );
 }

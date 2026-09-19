@@ -24,6 +24,8 @@ const DEFAULTS: Settings = {
 
 export default function AdminSettingsPage() {
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [revision, setRevision] = useState(0);
   const [settings, setSettings] = useState<Settings>({});
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState<{ ok: boolean; text: string } | null>(null);
@@ -35,12 +37,13 @@ export default function AdminSettingsPage() {
   // Load settings on mount
   useEffect(() => {
     const controller = new AbortController();
-    void apiRequest<{ settings?: Settings }>("/api/admin/settings", { signal: controller.signal })
-      .then(({ data }) => setSettings(data.settings || {}))
-      .catch(() => undefined)
-      .finally(() => setLoading(false));
+    setLoading(true); setLoadError("");
+    void apiRequest<{ settings?: Settings; error?: string }>("/api/admin/settings", { signal: controller.signal })
+      .then(({ ok, data }) => { if (controller.signal.aborted) return; if (!ok) throw new Error("配置加载失败，请重试"); setSettings(data.settings || {}); })
+      .catch(() => { if (!controller.signal.aborted) setLoadError("配置加载失败，请重试"); })
+      .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
-  }, []);
+  }, [revision]);
 
   // Poll sync progress while running
   useEffect(() => {
@@ -124,95 +127,19 @@ export default function AdminSettingsPage() {
     ? Math.round((progress.current / progress.total) * 100)
     : 0;
 
-  const barColor = progress?.phase === "error"
-    ? "var(--red)"
-    : progress?.phase === "done"
-      ? "var(--gold)"
-      : "linear-gradient(90deg, var(--gold-dim), var(--gold-light))";
-
-  const barAnim = progress && progress.phase !== "done" && progress.phase !== "error" && progress.total === 0
-    ? "pulse 1.5s infinite"
-    : "none";
-
-  if (loading) {
-    return <div className="px-6 py-8 text-text-muted">加载中...</div>;
-  }
-
-  return (
-    <div className="px-6 py-8 max-w-2xl">
-      <h1 className="text-xl font-bold mb-6">系统设置</h1>
-
-      {/* ── 爬取配置 ── */}
-      <section className="mb-6">
-        <h2 className="text-sm font-semibold text-text mb-4">数据爬取地址</h2>
-        <p className="text-[12px] text-text-muted mb-4">
-          修改后点击保存，下次同步生效。留空字段不会被保存。
-        </p>
-        <form onSubmit={handleSave}>
-          <div className="flex flex-col gap-3 mb-5">
-            {Object.keys(LABELS).map((key) => (
-              <label key={key} className="flex flex-col gap-1">
-                <span className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">
-                  {LABELS[key]}
-                </span>
-                <input
-                  value={settings[key] || ""}
-                  onChange={(e) => handleChange(key, e.target.value)}
-                  placeholder={DEFAULTS[key]}
-                  className="w-full px-3 py-2 rounded-md border border-gold/10 bg-input text-text text-[13px] placeholder:text-text-muted/40 focus:border-gold/20 focus:outline-none transition-colors"
-                />
-              </label>
-            ))}
-          </div>
-
-          <div className="flex gap-3 items-center">
-            <button type="submit" disabled={saving}
-              className="px-5 py-2 rounded-md text-sm font-semibold bg-gradient-to-b from-gold-light via-gold to-gold-dim text-white disabled:opacity-50 transition-opacity">
-              {saving ? "保存中..." : "保存配置"}
-            </button>
-            <button type="button" onClick={handleReset}
-              className="px-4 py-2 rounded-md text-sm text-text-muted hover:text-text transition-colors">
-              恢复默认
-            </button>
-          </div>
+  return <div className="admin-page admin-settings">
+    <header className="admin-page-heading"><div><p className="feature-kicker">SYSTEM SETTINGS</p><h1>系统设置</h1><p>管理数据来源，查看同步进度。</p></div></header>
+    {loading ? <p className="admin-empty" role="status">正在加载配置…</p> : loadError ? <div className="admin-error" role="alert"><p>{loadError}</p><button className="btn-subtle" onClick={() => setRevision(value => value+1)}>重试加载</button></div> : <>
+      <section className="admin-form-section"><h2>数据爬取地址</h2><p>修改后点击保存，下次同步生效。留空字段不会被保存。</p>
+        <form onSubmit={handleSave}><div className="admin-form-fields">{Object.keys(LABELS).map(key => <label key={key}><span>{LABELS[key]}</span><input value={settings[key] || ""} onChange={e => handleChange(key,e.target.value)} placeholder={DEFAULTS[key]} /></label>)}</div>
+          <div className="admin-row-actions"><button type="submit" className="btn-primary" disabled={saving}>{saving ? "保存中..." : "保存配置"}</button><button type="button" className="btn-subtle" onClick={handleReset}>恢复默认</button></div>
         </form>
       </section>
-
-      {/* ── 同步控制 ── */}
-      <section>
-        <h2 className="text-sm font-semibold text-text mb-4">英雄数据同步</h2>
-        <p className="text-[12px] text-text-muted mb-4">
-          从配置的地址拉取最新英雄数据，包括技能、皮肤、图片。同步需要约 60-90 秒。
-        </p>
-
-        <button type="button" disabled={running} onClick={handleSync}
-          className="px-5 py-2 rounded-md text-sm font-semibold border border-gold/20 text-gold hover:bg-gold/5 disabled:opacity-50 transition-all">
-          {running ? "同步中..." : "立即同步英雄"}
-        </button>
-
-        {/* Progress bar */}
-        {progress && (
-          <div className="mt-4">
-            <div className="flex justify-between text-[11px] text-text-muted mb-1.5">
-              <span>{progress.message}</span>
-              {progress.total > 0 && <span className="tabular-nums">{pct}%</span>}
-            </div>
-            <div className="w-full h-2 rounded-full bg-border-light overflow-hidden">
-              <div
-                className="h-full rounded-full transition-all duration-500"
-                style={{ width: progress.total > 0 ? `${pct}%` : "8%", background: barColor, animation: barAnim }}
-              />
-            </div>
-          </div>
-        )}
+      <section className="admin-form-section"><h2>英雄数据同步</h2><p>从配置的地址拉取最新英雄数据，包括技能、皮肤、图片。同步需要约 60–90 秒。</p>
+        <button type="button" className="btn-subtle" disabled={running} onClick={handleSync}>{running ? "同步中..." : "立即同步英雄"}</button>
+        {progress && <div role="status"><div className="admin-progress-copy"><span>{progress.message}</span>{progress.total > 0 && <span>{pct}%</span>}</div><div className="admin-progress-track" data-error={progress.phase === "error"} role="progressbar" aria-label="英雄同步进度" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress.total > 0 ? pct : undefined}><div style={{ width: progress.total > 0 ? pct+"%" : "8%" }} /></div></div>}
       </section>
-
-      {/* Feedback */}
-      {saveMsg && (
-        <div className={`mt-6 text-[13px] ${saveMsg.ok ? "text-gold" : "text-red"}`}>
-          {saveMsg.text}
-        </div>
-      )}
-    </div>
-  );
+      {saveMsg && <p role={saveMsg.ok ? "status" : "alert"} className={saveMsg.ok ? "admin-notice" : "admin-error"}>{saveMsg.text}</p>}
+    </>}
+  </div>;
 }

@@ -55,8 +55,9 @@ const bundled = await build({
     }));
   } }],
 });
-let styles = (await readFile("src/app/globals.css", "utf8")).replace(/^@import[^\n]*\n/gm, "");
-for (const file of ["arena.css", "arena-motion.css", "arena-glass.css", "admin.css", "history-theme.css"]) styles += await readFile(`src/web/styles/${file}`, "utf8");
+let styles = await readFile("src/web/styles/yanwu-tokens.css", "utf8");
+styles += (await readFile("src/app/globals.css", "utf8")).replace(/^@import[^\n]*\n/gm, "");
+for (const file of ["admin.css", "history-theme.css", "arena.css", "arena-motion.css", "arena-glass.css", "yanwu-public.css", "yanwu-workspaces.css"]) styles += await readFile(`src/web/styles/${file}`, "utf8");
 const css = (await postcss([tailwindcss]).process(styles, { from: path.resolve("src/app/globals.css") })).css;
 const apiRequests = [];
 const html = '<!doctype html><html lang="zh-CN" data-theme="yanwu"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/style.css"><div id="root"></div><script src="/bundle.js"></script></html>';
@@ -108,7 +109,9 @@ try {
     const prefix = width < 768 ? "/m" : "";
     await page.goto(`${base}${prefix}/admin/history-themes`, { waitUntil: "networkidle" });
     await page.getByRole("heading", { name: "历史主题工作室", exact: true }).waitFor();
+    if (width < 901) await page.getByRole("button", { name: "管理菜单", exact: true }).click();
     assert.equal(await page.getByRole("navigation", { name: "后台导航" }).getByRole("link", { name: /历史主题/ }).getAttribute("href"), `${prefix}/admin/history-themes`);
+    if (width < 901) await page.getByRole("button", { name: "管理菜单", exact: true }).click();
     await page.getByLabel("主题标题", { exact: true }).fill("循着史料，读懂来时的路");
     await page.screenshot({ path: path.join(output, `studio-${width}.png`), fullPage: true });
     await page.getByLabel("主题标题", { exact: true }).fill("长标题验收".repeat(20));

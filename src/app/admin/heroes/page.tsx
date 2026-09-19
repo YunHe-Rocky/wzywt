@@ -68,155 +68,23 @@ export default function AdminHeroesPage() {
     return h.roleType === filter || h.secondaryRoleTypes.includes(filter);
   });
 
-  if (loading) {
-    return <div className="px-6 py-8"><div className="skeleton h-[400px] rounded-lg" /></div>;
-  }
-
-  return (
-    <div className="px-6 py-8">
-      <h1 className="text-xl font-bold mb-1">英雄分路管理</h1>
-      <p className="text-[12px] text-text-muted mb-5">主分路与附属分路修改即保存 · 同步不覆盖 · 共 {heroes.length} 位英雄</p>
-
-      {/* Filter */}
-      <div className="flex gap-1.5 mb-5 flex-wrap">
-        <button onClick={() => setFilter("")}
-          className={`px-3 py-1.5 rounded-md text-[12px] font-semibold transition-colors ${
-            filter === "" ? "bg-gold/10 text-gold border border-gold/20" : "text-text-muted hover:text-text border border-transparent hover:bg-black/3"
-          }`}>
-          全部
-        </button>
-        {ROLES.map((r) => (
-          <button key={r} onClick={() => setFilter(r)}
-            className={`px-3 py-1.5 rounded-md text-[12px] font-semibold transition-colors ${
-              filter === r ? "bg-gold/10 text-gold border border-gold/20" : "text-text-muted hover:text-text border border-transparent hover:bg-black/3"
-            }`}>
-            {ROLE_BADGES[r].label}
-          </button>
-        ))}
-        <button onClick={() => setFilter("changed")}
-          className={`px-3 py-1.5 rounded-md text-[12px] font-semibold transition-colors ${
-            filter === "changed" ? "bg-gold/10 text-gold border border-gold/20" : "text-text-muted hover:text-text border border-transparent hover:bg-black/3"
-          }`}>
-          已修正
-        </button>
-      </div>
-
-      {/* Table */}
-      <div className="card !p-0 overflow-hidden">
-        <div style={{ overflowX: "auto" }}>
-          <table className="w-full text-sm border-collapse">
-            <thead>
-              <tr className="border-b border-border-light bg-black/[0.015]">
-                <th className="py-3 px-5 text-left text-[11px] font-semibold text-text-muted uppercase tracking-wider">#</th>
-                <th className="py-3 px-5 text-left text-[11px] font-semibold text-text-muted uppercase tracking-wider">英雄</th>
-                <th className="py-3 px-5 text-left text-[11px] font-semibold text-text-muted uppercase tracking-wider">职业</th>
-                <th className="py-3 px-5 text-left text-[11px] font-semibold text-text-muted uppercase tracking-wider">分路</th>
-                <th className="py-3 px-5 text-left text-[11px] font-semibold text-text-muted uppercase tracking-wider min-w-[300px]">附属分路</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((hero) => {
-                const cls = CLASS_BADGES[hero.heroType];
-                const lane = ROLE_BADGES[hero.roleType];
-                const defaultLane = CLASS_TO_LANE[hero.heroType];
-                const isModified = hero.roleType !== defaultLane;
-                const isSaving = saving[hero.heroId];
-                const err = errors[hero.heroId];
-
-                return (
-                  <tr key={hero.heroId} className="border-b border-border-light transition-colors hover:bg-black/[0.02]">
-                    <td className="py-3 px-5 text-text-muted text-[12px] font-mono">{hero.heroId}</td>
-                    <td className="py-3 px-5">
-                      <span className="font-semibold text-text">{hero.name}</span>
-                      <span className="text-[12px] text-text-muted ml-2">{hero.title}</span>
-                    </td>
-                    <td className="py-3 px-5">
-                      <div className="flex gap-1">
-                        {cls && (
-                          <span className="inline-block px-2 py-0.5 rounded text-[11px] font-semibold border"
-                            style={{ background: cls.color + "15", color: cls.color, borderColor: cls.color + "30" }}>
-                            {cls.label}
-                          </span>
-                        )}
-                        {hero.heroType2 > 0 && CLASS_BADGES[hero.heroType2] && (
-                          <span className="inline-block px-2 py-0.5 rounded text-[11px] font-semibold border"
-                            style={{
-                              background: CLASS_BADGES[hero.heroType2].color + "12",
-                              color: CLASS_BADGES[hero.heroType2].color,
-                              borderColor: CLASS_BADGES[hero.heroType2].color + "25",
-                            }}>
-                            {CLASS_BADGES[hero.heroType2].label}
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="py-3 px-5">
-                      <div className="flex items-center gap-2">
-                        <span className="inline-block px-2 py-0.5 rounded text-[11px] font-semibold border shrink-0 w-[72px] text-center"
-                          style={{
-                            background: lane ? lane.color + "15" : "var(--bg-hover)",
-                            color: lane ? lane.color : "var(--text-muted)",
-                            borderColor: lane ? lane.color + "30" : "var(--border)",
-                          }}>
-                          {lane ? lane.label : hero.roleType}
-                          {isModified && <span className="text-[9px] text-gold ml-0.5">*</span>}
-                        </span>
-                        <select
-                          value={hero.roleType}
-                          disabled={isSaving}
-                          onChange={(e) => void saveLanes(hero.heroId, e.target.value, hero.secondaryRoleTypes)}
-                          className="text-[12px] w-[120px] px-2.5 py-1 rounded-md border border-border-light bg-input text-text disabled:opacity-50 focus:outline-none focus:border-gold/30"
-                        >
-                          {ROLES.map((r) => (
-                            <option key={r} value={r}>
-                              {ROLE_BADGES[r].label}{r === defaultLane ? " (默认)" : ""}
-                            </option>
-                          ))}
-                        </select>
-                        {isSaving && <span className="text-[11px] text-gold shrink-0 animate-pulse">保存中...</span>}
-                        {err && <span className="text-[11px] text-red shrink-0">{err}</span>}
-                      </div>
-                    </td>
-                    <td className="py-3 px-5">
-                      <div className="flex flex-wrap gap-1.5" aria-label={`${hero.name}附属分路`}>
-                        {ROLES.filter((role) => role !== hero.roleType).map((role) => {
-                          const selected = hero.secondaryRoleTypes.includes(role);
-                          const badge = ROLE_BADGES[role];
-                          return (
-                            <button
-                              key={role}
-                              type="button"
-                              disabled={isSaving}
-                              aria-pressed={selected}
-                              onClick={() => {
-                                const next = selected
-                                  ? hero.secondaryRoleTypes.filter((lane) => lane !== role)
-                                  : [...hero.secondaryRoleTypes, role];
-                                void saveLanes(hero.heroId, hero.roleType, next);
-                              }}
-                              className="min-h-9 px-2.5 rounded-md text-[11px] font-semibold border transition-colors disabled:opacity-50"
-                              style={{
-                                background: selected ? `${badge.color}18` : "var(--bg-input)",
-                                color: selected ? badge.color : "var(--text-muted)",
-                                borderColor: selected ? `${badge.color}45` : "var(--border-light)",
-                              }}
-                            >
-                              {badge.label}
-                            </button>
-                          );
-                        })}
-                        {hero.secondaryRoleTypes.length === 0 && (
-                          <span className="self-center text-[11px] text-text-muted">未设置</span>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
+  return <div className="admin-page">
+    <header className="admin-page-heading"><div><p className="feature-kicker">HERO DIRECTORY</p><h1>英雄分路管理</h1><p>主分路与附属分路修改即保存 · 同步不覆盖 · 共 {heroes.length} 位英雄</p></div></header>
+    <div className="admin-hero-filters" aria-label="分路筛选">
+      {[["","全部"],...ROLES.map(role => [role,ROLE_BADGES[role].label]),["changed","已修正"]].map(([value,label]) => <button key={value} className="btn-subtle" aria-pressed={filter === value} onClick={() => setFilter(value)}>{label}</button>)}
     </div>
-  );
+    {loading ? <p role="status" className="admin-empty">正在加载英雄…</p> : !filtered.length ? <p className="admin-empty">没有符合条件的英雄</p> : <div className="admin-table-wrap" role="region" aria-label="英雄分路表格" tabIndex={0}>
+      <table className="admin-table"><caption>逐行编辑主分路和附属分路 · 窄屏可横向滚动</caption><thead><tr>{["编号","英雄","职业","主分路","附属分路"].map(title => <th scope="col" key={title}>{title}</th>)}</tr></thead>
+        <tbody>{filtered.map(hero => <tr key={hero.heroId}><td>{hero.heroId}</td><td className="admin-name"><strong>{hero.name}</strong><p>{hero.title}</p></td>
+          <td><span className="admin-state">{CLASS_BADGES[hero.heroType]?.label}</span>{hero.heroType2 > 0 && <span className="admin-state">{CLASS_BADGES[hero.heroType2]?.label}</span>}</td>
+          <td><label><span className="sr-only">{hero.name}主分路</span><select aria-label={hero.name+"主分路"} value={hero.roleType} disabled={saving[hero.heroId]} onChange={event => void saveLanes(hero.heroId,event.target.value,hero.secondaryRoleTypes)}>{ROLES.map(role => <option key={role} value={role}>{ROLE_BADGES[role].label}{role === CLASS_TO_LANE[hero.heroType] ? "（默认）" : ""}</option>)}</select></label>
+            {saving[hero.heroId] && <p role="status">保存中…</p>}{errors[hero.heroId] && <p role="alert" className="admin-danger">{errors[hero.heroId]}</p>}
+          </td><td className="admin-secondary-lanes"><div className="admin-row-actions" aria-label={hero.name+"附属分路"}>{ROLES.filter(role => role !== hero.roleType).map(role => {
+            const selected=hero.secondaryRoleTypes.includes(role);
+            return <button key={role} className="btn-subtle" disabled={saving[hero.heroId]} aria-pressed={selected} onClick={() => void saveLanes(hero.heroId,hero.roleType,selected ? hero.secondaryRoleTypes.filter(lane => lane !== role) : [...hero.secondaryRoleTypes,role])}>{selected ? "✓ " : ""}{ROLE_BADGES[role].label}</button>;
+          })}</div>{!hero.secondaryRoleTypes.length && <p>未设置</p>}</td>
+        </tr>)}</tbody>
+      </table>
+    </div>}
+  </div>;
 }

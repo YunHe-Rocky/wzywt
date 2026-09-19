@@ -26,7 +26,8 @@ export function useAuth() {
   }, []);
 
   const logout = useCallback(async () => {
-    await logoutRequest();
+    const result = await logoutRequest();
+    if (!result.ok) throw new Error("退出失败，请重试");
     window.dispatchEvent(new Event("wzywt:auth-identity-changed"));
     setUser(null);
     router.push("/login"); router.refresh();

@@ -18,6 +18,14 @@ export function Header() {
   const [showPwd, setShowPwd] = useState(false);
   const [showDel, setShowDel] = useState(false);
   const [securityQ, setSecurityQ] = useState("");
+  const [loggingOut, setLoggingOut] = useState(false);
+  const [logoutError, setLogoutError] = useState("");
+  async function leave() {
+    setLoggingOut(true); setLogoutError("");
+    try { await logout(); setMenuOpen(false); }
+    catch { setLogoutError("退出失败，请重试"); }
+    finally { setLoggingOut(false); }
+  }
   const menuRef = useRef<HTMLDivElement>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const catalogRef = useRef<HTMLDivElement>(null);
@@ -176,10 +184,11 @@ export function Header() {
                   </button>
                 )}
                 <div className="border-t border-border-light my-1" />
-                <button onClick={() => { setMenuOpen(false); logout(); }}
+                {logoutError && <p role="alert" className="px-4 py-2 text-sm text-red">{logoutError}</p>}
+                <button disabled={loggingOut} onClick={() => void leave()}
                   className="header-menu-action w-full text-left flex items-center gap-2 px-4 text-sm transition-colors text-red/70 hover:text-red hover:bg-red/3">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
-                  退出登录
+                  {loggingOut ? "正在退出…" : "退出登录"}
                 </button>
               </div>
             )}
