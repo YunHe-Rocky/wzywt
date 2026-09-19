@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { mkdir, writeFile, readFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { chromium } from 'playwright';
-import { inspectContrast, inspectPlayerControls } from './yanwu/workspace-audit.mjs';
+import { inspectContrast, inspectPlayerControls, inspectScrolledTable } from './yanwu/workspace-audit.mjs';
 import { startYanwuHost } from './yanwu/host.mjs';
 import { makeWorkspaceFixture, makeMonitorFixture, rooms, resources, stamp } from './yanwu/workspace-fixtures.ts';
 const output = path.resolve('test-results/yanwu-workspaces');
@@ -268,6 +268,12 @@ async function capture(page, family, route, component, role, state, profile) {
     });
 }
 try {
+    for (const [width, height] of [[1024, 768], [812, 375]]) {
+        const { context, page } = await open('/m/tournaments/101/matches/201', width, height);
+        const result = await inspectScrolledTable(page);
+        console.log(`PASS: ${width}px scrolled table corner remains exposed; layers ${result.layers.join(' > ')}`);
+        await context.close();
+    }
     // Fails if small inline room controls override the 44px interaction target.
     let { context, page } = await open('/m/tournaments/101', 320, 812);
     const copy = await page.getByRole('button', { name: '复制房间号 628319' }).boundingBox();

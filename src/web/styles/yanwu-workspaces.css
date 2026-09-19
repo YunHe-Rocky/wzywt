@@ -41,11 +41,11 @@
 .match-result-table { width: 100%; min-width: 920px; border-collapse: separate; border-spacing: 0; color: var(--text); font-size: 12px; font-variant-numeric: tabular-nums; }
 .match-result-table caption { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .match-result-table th, .match-result-table td { min-width: 92px; padding: 8px; border-right: 1px solid var(--border-light); border-bottom: 1px solid var(--border-light); text-align: left; vertical-align: middle; white-space: nowrap; }
-.match-result-table thead th { position: sticky; top: 0; z-index: var(--layer-sticky); background: color-mix(in srgb, var(--bg-card) 96%, var(--gold)); color: var(--text-secondary); font-size: 12px; font-weight: 800; letter-spacing: .02em; }
+.match-result-table thead th { position: sticky; top: 0; z-index: calc(var(--layer-sticky) + 1); background: color-mix(in srgb, var(--bg-card) 96%, var(--gold)); color: var(--text-secondary); font-size: 12px; font-weight: 800; letter-spacing: .02em; }
 .match-result-table th:last-child, .match-result-table td:last-child { border-right: 0; }
 .match-result-table tbody:last-child tr:last-child > * { border-bottom: 0; }
 .match-result-table .match-result-sticky { position: sticky; left: 0; z-index: var(--layer-sticky); min-width: 82px; background: var(--bg-input); }
-.match-result-table thead th:first-child { left: 0; z-index: var(--layer-sticky); min-width: 82px; }
+.match-result-table thead th:first-child { left: 0; z-index: calc(var(--layer-sticky) + 2); min-width: 82px; }
 .match-result-team-heading th { position: sticky; left: 0; z-index: var(--layer-sticky); padding: 9px 12px; color: var(--on-accent); font-size: 12px; font-weight: 800; }
 .match-result-team-heading span { margin-left: 12px; opacity: .82; font-weight: 650; }
 .match-result-team--red .match-result-team-heading th { background: color-mix(in srgb, var(--red) 84%, #5c2830); }

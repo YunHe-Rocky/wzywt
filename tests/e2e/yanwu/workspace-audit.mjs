@@ -34,3 +34,42 @@ export async function inspectPlayerControls(page) {
   assert.ok(controls.length >= 40, 'real editable player fields exist');
   for (const c of controls) assert.ok(c.contained && c.height >= 44 && c.width >= 44, `player control must fit its cell with a 44px target: ${JSON.stringify(c)}`);
 }
+
+// Equalizing sticky cell layers lets later column headers cover the corner.
+// Hit-test the actual scrolled table rather than accepting z-index strings alone.
+export async function inspectScrolledTable(page) {
+  const panel = page.getByRole('tabpanel');
+  await panel.scrollIntoViewIfNeeded();
+  await panel.focus();
+  assert.ok(await panel.evaluate(element => element === document.activeElement), 'local table scroller remains keyboard-focusable');
+  const result = await panel.evaluate(async element => {
+    // A tall table can be centered beyond the short landscape viewport by focus.
+    // Keep the header below the site header before testing its actual hit target.
+    window.scrollTo(0, element.getBoundingClientRect().top + window.scrollY - 100);
+    const table = element.querySelector('table');
+    const corner = table.querySelector('thead th:first-child');
+    const column = table.querySelector('thead th:nth-child(2)');
+    const row = table.querySelector('.match-result-sticky');
+    const leftBefore = corner.getBoundingClientRect().left;
+    element.scrollLeft = 130;
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    const rect = corner.getBoundingClientRect();
+    const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+    return {
+      scrollLeft: element.scrollLeft,
+      clientWidth: element.clientWidth,
+      scrollWidth: element.scrollWidth,
+      tableWidth: table.getBoundingClientRect().width,
+      cornerStayedFixed: Math.abs(rect.left - leftBefore) < 1,
+      cornerVisible: hit === corner || corner.contains(hit),
+      expectedLabel: corner.textContent.trim(),
+      actualLabel: hit?.closest('th')?.textContent.trim(),
+      layers: [corner, column, row].map(cell => Number(getComputedStyle(cell).zIndex)),
+    };
+  });
+  assert.equal(result.scrollLeft, 130, `test exercises actual local horizontal overflow: ${JSON.stringify(result)}`);
+  assert.ok(result.cornerStayedFixed, 'first table header remains fixed while columns scroll');
+  assert.ok(result.cornerVisible, `scrolled corner header must remain exposed: ${JSON.stringify(result)}`);
+  assert.ok(result.layers[0] > result.layers[1] && result.layers[1] > result.layers[2], 'local table stacking remains corner > column header > row header');
+  return result;
+}

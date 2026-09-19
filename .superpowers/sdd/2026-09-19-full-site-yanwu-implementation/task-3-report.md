@@ -77,3 +77,32 @@ Normal monitor GET `/api/heroes/watch` returns those frames with `contentType:'t
 No real Next server/build, database authorization, OCR provider, storage/media service, production SSE scheduler, deployment or live external asset access was run. Next production build and combined full-site evidence remain Task 5. Only local Edge/Chromium was available: no Firefox/WebKit, physical-device or native-browser-200%-zoom claim. Upload progress/cancel/timeout, all correction/objection mutation permutations and hero/equipment selection subpanels were preserved but not fully replayed in this task's primary suite. Existing native video controls and deletion confirmation remain; no business authorization was weakened for screenshots. Shared host adaptations are test-only and precisely bounded.
 
 Parent plan changes and unrelated untracked planning/history documents are excluded from the scoped commit. No known failing assertion remains in the executed Task 3 checks; independent review is the next gate.
+
+## Independent review fix round 1 — scrolled table corner
+
+Fix base: `693071bc6edb4d9cd6cb60dac8425af6f6d45f43`. The reviewer found one Important issue: the owned CSS migration flattened the table's corner/column/row sticky hierarchy to the same semantic layer.
+
+Added `inspectScrolledTable` to the real-component workspace suite. It focuses the existing named tabpanel, scrolls its actual horizontal overflow by 130px, verifies the first header stays fixed, and uses `elementFromPoint` at its center to prove that the header is exposed. It also checks the relative corner > column > row order. The test runs at 1024×768 and 812×375 landscape; 320/390 retain the original same-table stacked mobile layout and its existing containment coverage.
+
+Valid RED command: `node tests/e2e/yanwu-workspaces.mjs`, exit **1**:
+
+```text
+AssertionError: scrolled corner header must remain exposed:
+scrollLeft=130, clientWidth=930, scrollWidth=1086, cornerStayedFixed=true,
+cornerVisible=false, expectedLabel="阵营 / 位置", actualLabel="成员身份",
+layers=[100,100,100]
+```
+
+Initial test setup tried widths without horizontal overflow (320px stacked layout and a 1440px table that fits), so those `scrollLeft=0` failures were not counted as product RED. The short landscape test also now explicitly positions the header below the site header after focus, so hit testing is within the viewport instead of offscreen.
+
+The product fix changes exactly two CSS declarations: column headers use `calc(var(--layer-sticky) + 1)`, and the top-left corner uses `calc(var(--layer-sticky) + 2)`. Row headers remain at the existing base token; no shared token, global layer, JSX, scroller semantics or business behavior changed.
+
+GREEN command: the same **unfiltered** `node tests/e2e/yanwu-workspaces.mjs`, exit **0**:
+
+```text
+PASS: 1024px scrolled table corner remains exposed; layers 102 > 101 > 100
+PASS: 812px scrolled table corner remains exposed; layers 102 > 101 > 100
+PASS: Yanwu workspaces; 14 baseline records and seven widths.
+```
+
+Fresh `manifest.json` / `verification.json` replace the stale files cleared by RED; there are still **33 records / 14 baselines**, with all referenced image paths present. `npm run typecheck` exited **0** (`tsc --noEmit`), and `git diff --check` exited **0** (only standard LF/CRLF notices). No unrelated package, architecture/core or supported legacy suite was rerun for this two-declaration CSS fix; their earlier evidence remains separate. Native TS's package-type notice is unchanged. Scoped fix files: `yanwu-workspaces.css`, `yanwu-workspaces.mjs`, `workspace-audit.mjs` and this report only.
