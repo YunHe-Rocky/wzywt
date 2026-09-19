@@ -341,9 +341,7 @@ export function HeroGrid() {
                   aria-label={cardForms[hero.id] === "mingge" ? `切回${hero.name}本命形态` : `切换${hero.name}命格形态`}
                   title={cardForms[hero.id] === "mingge" ? "切回本命" : "切换命格"}
                   style={{
-                    position: "absolute",
-                    right: 10,
-                    bottom: 12,
+                    margin: "0 12px 12px auto",
                     width: 44,
                     height: 44,
                     borderRadius: "50%",

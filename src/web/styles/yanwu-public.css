@@ -85,6 +85,7 @@
 .auth-card.is-leaving { opacity: 0; transform: translateY(-4px); transition: opacity .18s ease-out, transform .18s ease-out; }
 .auth-brand-link .arena-brand-mark svg { color: var(--on-accent); }
 .auth-input { width: 100%; min-height: 48px; font-size: 16px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-input); color: var(--text); }
+.auth-input--password { padding-right: 56px; }
 .auth-label { display: block; margin-bottom: 8px; color: var(--text-secondary); font-size: 14px; font-weight: 600; }
 .auth-submit { width: 100%; min-height: 48px; }
 .auth-card button, .auth-card a, .auth-scene .modal-card button { min-height: 44px; }

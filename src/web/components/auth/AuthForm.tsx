@@ -278,7 +278,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
                   name={mode === "register" ? "new-password" : "password"}
                   autoComplete={mode === "register" ? "new-password" : "current-password"}
                   placeholder={mode === "register" ? "至少 11 位" : "请输入密码"}
-                  value={password} onChange={e => setPassword(e.target.value)} required minLength={11} className={`${inputClass} pr-10`} />
+                  value={password} onChange={e => setPassword(e.target.value)} required minLength={11} className={`${inputClass} auth-input--password`} />
                 <button type="button" onClick={() => setShowPassword(!showPassword)}
                   className="auth-password-toggle"
                   aria-label={showPassword ? "隐藏密码" : "显示密码"}>
@@ -293,7 +293,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
                 <div className="relative">
                   <input type={showPassword ? "text" : "password"} id="confirm-password" name="confirm-password" autoComplete="new-password"
                     placeholder="再次输入密码" value={confirmPassword}
-                    onChange={e => setConfirmPassword(e.target.value)} required minLength={11} className={`${inputClass} pr-10`} />
+                    onChange={e => setConfirmPassword(e.target.value)} required minLength={11} className={`${inputClass} auth-input--password`} />
                   <button type="button" onClick={() => setShowPassword(!showPassword)} aria-label={showPassword ? "隐藏确认密码" : "显示确认密码"}
                     className="auth-password-toggle">
                     <EyeIcon open={showPassword} />
@@ -390,7 +390,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
                     <div className="relative">
                       <input ref={forgotNewPwRef} type={showForgotPw ? "text" : "password"} placeholder="至少 11 位" value={forgotPassword}
                         id="forgot-new-password" name="new-password" autoComplete="new-password"
-                        onChange={e => setForgotPassword(e.target.value)} className={`${inputClass} pr-10`} />
+                        onChange={e => setForgotPassword(e.target.value)} className={`${inputClass} auth-input--password`} />
                       <button type="button" onClick={() => setShowForgotPw(!showForgotPw)} aria-label={showForgotPw ? "隐藏新密码" : "显示新密码"}
                         className="auth-password-toggle">
                         <EyeIcon open={showForgotPw} />
@@ -401,7 +401,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
                     <label htmlFor="forgot-confirm-password" className={labelClass}>确认新密码</label>
                     <div className="relative">
                       <input id="forgot-confirm-password" type={showForgotPw ? "text" : "password"} placeholder="再次输入" value={forgotConfirm}
-                        onChange={e => setForgotConfirm(e.target.value)} className={`${inputClass} pr-10`} />
+                        onChange={e => setForgotConfirm(e.target.value)} className={`${inputClass} auth-input--password`} />
                       <button type="button" onClick={() => setShowForgotPw(!showForgotPw)} aria-label={showForgotPw ? "隐藏新密码" : "显示新密码"}
                         className="auth-password-toggle">
                         <EyeIcon open={showForgotPw} />

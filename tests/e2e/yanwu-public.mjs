@@ -83,6 +83,38 @@ try {
   assert.ok((await page.locator(".arena-hero-art").boundingBox()).y > heading.y, "mobile heading precedes landscape composition");
   await noOverflow(page, "mobile home"); await context.close();
   ({ context, page } = await open("/m/login")); const forgotTrigger = page.getByRole("button", { name: "忘记密码？" }); await forgotTrigger.click(); await page.locator("#forgot-username").focus(); await page.keyboard.press("Escape"); assert.ok(await forgotTrigger.evaluate(e => e === document.activeElement), "closing password recovery restores its trigger focus"); await context.close();
+  // Real layout regressions: a card action must not cover its labels, and password text
+  // must reserve the actual toggle width even when utility CSS precedes page CSS.
+  const layoutFailures = [];
+  ({ context, page } = await open("/m/heroes", 320, 812));
+  const formToggle = page.getByRole("button", { name: "切换廉颇命格形态", exact: true });
+  const toggleRect = await formToggle.boundingBox();
+  assert.ok(toggleRect.width >= 44 && toggleRect.height >= 44, "hero form action keeps a 44px target");
+  const cardLabels = await formToggle.locator("..").locator(".hero-card-copy span").evaluateAll(nodes => nodes.map(e => ({ text: e.textContent, rect: e.getBoundingClientRect().toJSON() })));
+  for (const { text, rect } of cardLabels) if (Math.min(rect.right, toggleRect.x + toggleRect.width) > Math.max(rect.left, toggleRect.x) && Math.min(rect.bottom, toggleRect.y + toggleRect.height) > Math.max(rect.top, toggleRect.y)) layoutFailures.push(`320px hero form action overlaps ${text}`);
+  await supplement(page, "05", "/m/heroes", "HeroGrid", "guest", "320-form-action"); await context.close();
+  for (const mode of ["login", "register", "reset"]) {
+    const route = mode === "register" ? "/m/register" : "/m/login";
+    ({ context, page } = await open(route, 320, 812));
+    if (mode === "reset") { await page.getByRole("button", { name: "忘记密码？" }).click(); await page.locator("#forgot-username").fill("云中客"); await page.getByRole("button", { name: "下一步" }).click(); await page.locator("#forgot-answer").fill("青山"); await page.getByRole("button", { name: "继续设置新密码" }).click(); }
+    const ids = mode === "reset" ? ["forgot-new-password", "forgot-confirm-password"] : mode === "register" ? ["new-password", "confirm-password"] : ["password"];
+    const longPassword = "fictional-long-password-0123456789".repeat(4);
+    for (const id of ids) {
+      const input = page.locator(`#${id}`); await input.fill(longPassword);
+      const button = input.locator("..").locator("button");
+      if (await input.getAttribute("type") === "password") await button.click();
+      assert.equal(await input.getAttribute("type"), "text", `${mode}/${id} shows long password`);
+      await input.focus(); await input.press("End");
+      const geometry = await input.evaluate(e => { const r = e.getBoundingClientRect(), b = e.parentElement.querySelector("button").getBoundingClientRect(), css = getComputedStyle(e); return { contentRight: r.right - parseFloat(css.borderRightWidth) - parseFloat(css.paddingRight), buttonLeft: b.left, buttonWidth: b.width, buttonHeight: b.height, selection: e.selectionStart, valueLength: e.value.length, scrollLeft: e.scrollLeft }; });
+      assert.equal(geometry.selection, longPassword.length, `${mode}/${id} caret can reach the end`);
+      assert.ok(geometry.scrollLeft > 0, `${mode}/${id} long value scrolls within the field`);
+      assert.ok(geometry.buttonWidth >= 44 && geometry.buttonHeight >= 44, `${mode}/${id} toggle target`);
+      if (geometry.contentRight > geometry.buttonLeft - 8) layoutFailures.push(`${mode}/${id} text reaches ${geometry.contentRight}, toggle starts ${geometry.buttonLeft}; needs 8px gap`);
+      await button.click(); assert.equal(await input.getAttribute("type"), "password", `${mode}/${id} hides long password`); assert.equal(await input.inputValue(), longPassword);
+    }
+    await supplement(page, mode === "register" ? "03" : "02", route, "AuthForm", "guest", `${mode}-long-password`); await context.close();
+  }
+  assert.deepEqual(layoutFailures, [], "card labels and long password text must not be covered by actions");
   for (const [family, route, component, role] of pairs.filter(p => !process.env.YANWU_FAMILY || p[0] === process.env.YANWU_FAMILY)) {
     for (const [profile, width, height] of [["desktop", 1440, 900], ["mobile", 390, 844]]) {
       const logical = profile === "mobile" ? `/m${route === "/" ? "" : route}` : route;

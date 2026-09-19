@@ -103,3 +103,26 @@ Crucially, the host's default auth shim is not sufficient for real form behavior
 Supported named cases include default, empty, error, loading, long, news-error, missing-image, no-skins, no-stats, no-toc and missing-session. `YANWU_FAMILY=05` is a development-only baseline filter; it deletes stale success files and does not write a passing full manifest, so always run the unfiltered suite for final artifacts. Future suites should follow `artifact-contract.md`, not import mutable fixture state from this suite.
 
 Remaining boundaries: server/DB authorization is not tested here; no live remote artwork fetch; only sampled contrast; no exhaustive cross-product filter combination test; no real production build/native-browser zoom claim. No known Task2 blocker remains for independent review.
+
+## Independent review fix round 1
+
+Fix base: `cd5d4c6752c792f02785286d26d3b4bfd912d62e`. Both Important layout findings reproduced with tests before product changes.
+
+New browser assertions measure real 320px HeroGrid label/action rectangles and all five password inputs across login, register and the actual three-step recovery flow. Password checks use a long fictional value, exercise show/hide, focus End, verify the end selection and internal scrolling, retain a 44px toggle and require at least 8px between its left edge and the input text area. The first test draft used the login id for registration; this setup timeout was corrected to actual `new-password` before collecting the valid RED below.
+
+RED command: `& 'D:/node-v26.2.0-win-x64/node.exe' tests/e2e/yanwu-public.mjs`; exit **1**, `AssertionError: card labels and long password text must not be covered by actions`, with all expected findings:
+
+```text
+320px hero form action overlaps 对抗路
+login/password text reaches 274, toggle starts 243; needs 8px gap
+register/new-password text reaches 274, toggle starts 243; needs 8px gap
+register/confirm-password text reaches 274, toggle starts 243; needs 8px gap
+reset/forgot-new-password text reaches 262, toggle starts 231; needs 8px gap
+reset/forgot-confirm-password text reaches 262, toggle starts 231; needs 8px gap
+```
+
+Minimal fixes: HeroGrid's 44px form action now occupies its own normal-flow row under the label content, rather than an absolute overlay. Password-bearing AuthForm inputs use a dedicated `auth-input--password` class with 56px right padding, replacing the ineffective earlier `pr-10`; ordinary text fields are unchanged. No handlers, APIs or business state changed.
+
+GREEN command: the same **unfiltered** `node tests/e2e/yanwu-public.mjs`; exit **0**, `PASS: Yanwu public pages; 20 baseline records and seven widths.` Fresh manifest/verification replace previous success evidence. The suite now has **60 records / 20 baselines**: four new supplementary images (`05-320-form-action.png`, `02-login-long-password.png`, `03-register-long-password.png`, `02-reset-long-password.png`) in `D:/WorkSpace/王者演武堂/test-results/yanwu-public/`. All four were actually opened and visually inspected, as was refreshed `05-mobile.png`. Earlier 56-record totals above describe the pre-review run, not this refreshed result.
+
+Final fix-only checks: `npm run typecheck` with explicit Node26 PATH exited **0** (`tsc --noEmit`); `git diff --check` exited **0** (only normal LF/CRLF notices). Architecture/core/lint were not rerun because this round is confined to the two reviewed display corrections and their browser assertions; the previous results remain separately documented. Existing native-TS package notice remains visible. Scope: AuthForm.tsx, HeroGrid.tsx, yanwu-public.css, yanwu-public.mjs and this report only. Parent plan and unrelated files remain excluded.
