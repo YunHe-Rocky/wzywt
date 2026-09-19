@@ -21,16 +21,6 @@ async function open({ width = 390, height = 844, pathName = "/m", role = "user",
   return { context, page: current };
 }
 
-function luminance(hex) {
-  const channels = hex.match(/[\da-f]{2}/gi).map(value => parseInt(value, 16) / 255).map(value => value <= .04045 ? value / 12.92 : ((value + .055) / 1.055) ** 2.4);
-  return .2126 * channels[0] + .7152 * channels[1] + .0722 * channels[2];
-}
-
-function contrast(a, b) {
-  const [lighter, darker] = [luminance(a), luminance(b)].sort((x, y) => y - x);
-  return (lighter + .05) / (darker + .05);
-}
-
 try {
   let opened = await open(); page = opened.page;
   await page.getByRole("heading", { name: "纸墨演武" }).waitFor();
@@ -49,20 +39,56 @@ try {
     return [box.width, box.height];
   }));
   assert.ok(mobileGeometry.every(([width, height]) => width >= 44 && height >= 44), "dock targets remain at least 44px");
-  const metrics = await page.evaluate(() => ({
-    root: getComputedStyle(document.documentElement).getPropertyValue("--bg-root").trim(),
-    card: getComputedStyle(document.documentElement).getPropertyValue("--bg-card").trim(),
-    text: getComputedStyle(document.documentElement).getPropertyValue("--text").trim(),
-    muted: getComputedStyle(document.documentElement).getPropertyValue("--text-muted").trim(),
-    inputSize: getComputedStyle(document.querySelector("input")).fontSize,
-    overflow: document.documentElement.scrollWidth - innerWidth,
-    bodyOverflow: getComputedStyle(document.body).overflowX,
-  }));
-  assert.deepEqual(
-    { root: metrics.root, card: metrics.card, text: metrics.text, muted: metrics.muted },
-    { root: "#f5f2ea", card: "#fffdf8", text: "#252b28", muted: "#697064" },
-  );
-  assert.ok(contrast(metrics.text, metrics.root) >= 4.5 && contrast(metrics.muted, metrics.card) >= 4.5, "paper text contrast meets WCAG AA");
+  const metrics = await page.evaluate(() => {
+    const parse = (value) => {
+      const parts = value.match(/[\d.]+/g)?.map(Number) ?? [];
+      return [parts[0] ?? 0, parts[1] ?? 0, parts[2] ?? 0, parts[3] ?? 1];
+    };
+    const over = (top, bottom) => {
+      const alpha = top[3] + bottom[3] * (1 - top[3]);
+      if (!alpha) return [0, 0, 0, 0];
+      return [0, 1, 2].map(index => (top[index] * top[3] + bottom[index] * bottom[3] * (1 - top[3])) / alpha).concat(alpha);
+    };
+    const background = (element) => {
+      let result = [0, 0, 0, 0];
+      for (let current = element; current; current = current.parentElement) result = over(result, parse(getComputedStyle(current).backgroundColor));
+      return result[3] < 1 ? over(result, [255, 255, 255, 1]) : result;
+    };
+    const luminance = (color) => {
+      const channels = color.slice(0, 3).map(value => value / 255).map(value => value <= .04045 ? value / 12.92 : ((value + .055) / 1.055) ** 2.4);
+      return .2126 * channels[0] + .7152 * channels[1] + .0722 * channels[2];
+    };
+    const inspect = (selector) => {
+      const element = document.querySelector(selector);
+      const bg = background(element);
+      const fg = over(parse(getComputedStyle(element).color), bg);
+      const values = [luminance(fg), luminance(bg)].sort((a, b) => b - a);
+      return { selector, foreground: getComputedStyle(element).color, background: bg, ratio: (values[0] + .05) / (values[1] + .05) };
+    };
+    return {
+      contrast: ["[data-body-copy]", "[data-contrast-surface] #foundation-copy", "#foundation-input", ".btn-primary"].map(inspect),
+      inputSize: getComputedStyle(document.querySelector("input")).fontSize,
+      overflow: document.documentElement.scrollWidth - innerWidth,
+      bodyOverflow: getComputedStyle(document.body).overflowX,
+    };
+  });
+  for (const measurement of metrics.contrast) assert.ok(measurement.ratio >= 4.5, `${measurement.selector} rendered contrast ${measurement.ratio.toFixed(2)} meets WCAG AA`);
+  await page.evaluate(() => {
+    document.documentElement.style.setProperty("--on-accent", "rgb(12, 34, 56)");
+    document.documentElement.style.setProperty("--brand-accent-hover", "rgb(65, 76, 87)");
+    document.documentElement.style.setProperty("--brand-stamp-border", "rgb(98, 87, 76)");
+  });
+  await page.waitForTimeout(250);
+  assert.equal(await page.locator(".btn-primary").evaluate(element => getComputedStyle(element).color), "rgb(12, 34, 56)", "primary control consumes the on-accent token");
+  await page.locator(".btn-primary").hover();
+  await page.waitForTimeout(250);
+  assert.equal(await page.locator(".btn-primary").evaluate(element => getComputedStyle(element).backgroundColor), "rgb(65, 76, 87)", "primary hover consumes the accent-hover token");
+  assert.equal(await page.locator(".arena-brand-mark").evaluate(element => getComputedStyle(element).borderColor), "rgb(98, 87, 76)", "brand seal consumes the stamp-border token");
+  await page.evaluate(() => {
+    for (const name of ["--on-accent", "--brand-accent-hover", "--brand-stamp-border"]) document.documentElement.style.removeProperty(name);
+  });
+  await page.mouse.move(0, 0);
+  await page.waitForTimeout(250);
   assert.equal(metrics.inputSize, "16px");
   assert.ok(metrics.overflow <= 0, "390px document does not overflow");
   assert.notEqual(metrics.bodyOverflow, "hidden", "document overflow is not clipped to hide layout bugs");
@@ -95,6 +121,8 @@ try {
   opened = await open({ pathName: "/m?scenario=intro", reducedMotion: "no-preference" }); page = opened.page;
   const intro = page.getByRole("dialog", { name: "演武堂开场动画" });
   await intro.waitFor();
+  await page.evaluate(() => document.documentElement.style.setProperty("--brand-stamp-ink", "rgb(11, 22, 33)"));
+  assert.equal(await intro.locator(".arena-intro-mark path").evaluate(element => getComputedStyle(element).stroke), "rgb(11, 22, 33)", "opening seal consumes the stamp-ink token");
   assert.equal(await intro.locator("canvas").count(), 0, "opening uses CSS/SVG rather than Canvas");
   assert.equal(await page.evaluate(() => document.body.style.overflow), "hidden");
   await page.keyboard.press("Escape");
@@ -161,6 +189,7 @@ try {
   await opened.context.close();
 
   assert.deepEqual(host.apiRequests, []);
+  assert.deepEqual(host.violations, [], "foundation suite declares every API dependency");
   assert.deepEqual(errors, []);
   console.log("PASS: Yanwu shared foundation, navigation, and opening.");
 } catch (error) {

@@ -21,31 +21,40 @@ function contentType(file) {
   return "application/octet-stream";
 }
 
-async function compileStyles() {
-  const globalsPath = path.resolve(repoRoot, "src/app/globals.css");
-  let globals = await readFile(globalsPath, "utf8");
-  const imports = [];
-  globals = globals.replace(/^@import\s+["']([^"']+)["'];?\s*$/gm, (_match, relativePath) => {
-    imports.push(path.resolve(path.dirname(globalsPath), relativePath));
-    return "";
-  });
-  const rootStyles = [
-    path.resolve(repoRoot, "src/web/styles/yanwu-tokens.css"),
-    ...imports,
-  ];
-  const layoutStyles = [
-    path.resolve(repoRoot, "src/web/styles/arena.css"),
-    path.resolve(repoRoot, "src/web/styles/arena-motion.css"),
-    path.resolve(repoRoot, "src/web/styles/arena-glass.css"),
-  ];
-  let styles = "";
-  for (const file of rootStyles) styles += `${await readFile(file, "utf8")}\n`;
-  styles += globals;
-  for (const file of layoutStyles) styles += `\n${await readFile(file, "utf8")}`;
-  return (await postcss([tailwindcss]).process(styles, { from: globalsPath })).css;
+function resolveStyleImport(specifier, importer) {
+  if (specifier.startsWith("@/")) return path.resolve(repoRoot, "src", specifier.slice(2));
+  if (specifier.startsWith(".")) return path.resolve(path.dirname(importer), specifier);
+  throw new Error(`Yanwu host cannot resolve stylesheet import ${JSON.stringify(specifier)} from ${path.relative(repoRoot, importer)}`);
 }
 
-export async function startYanwuHost({ entry, aliases = {}, apiHandlers, output: _output } = {}) {
+async function expandStyleImports(file, ancestors = []) {
+  const resolved = path.resolve(file);
+  if (ancestors.includes(resolved)) {
+    const cycle = [...ancestors, resolved].map(item => path.relative(repoRoot, item)).join(" -> ");
+    throw new Error(`Yanwu host stylesheet import cycle: ${cycle}`);
+  }
+  const source = await readFile(resolved, "utf8");
+  const importPattern = /^@import\s+["']([^"']+\.css)["'];?\s*$/gm;
+  let styles = "";
+  let cursor = 0;
+  for (const match of source.matchAll(importPattern)) {
+    styles += source.slice(cursor, match.index);
+    styles += await expandStyleImports(resolveStyleImport(match[1], resolved), [...ancestors, resolved]);
+    cursor = match.index + match[0].length;
+  }
+  return styles + source.slice(cursor);
+}
+
+async function compileStyles(layoutPath) {
+  const layoutSource = await readFile(layoutPath, "utf8");
+  const styleImports = [...layoutSource.matchAll(/\bimport\s+["']([^"']+\.css)["'];?/g)];
+  if (!styleImports.length) throw new Error(`Yanwu host found no root styles in ${path.relative(repoRoot, layoutPath)}`);
+  let styles = "";
+  for (const match of styleImports) styles += `${await expandStyleImports(resolveStyleImport(match[1], layoutPath))}\n`;
+  return (await postcss([tailwindcss]).process(styles, { from: resolveStyleImport(styleImports[0][1], layoutPath) })).css;
+}
+
+export async function startYanwuHost({ entry, layout = "src/app/layout.tsx", aliases = {}, apiHandlers, output: _output } = {}) {
   if (!entry) throw new Error("startYanwuHost requires an entry TSX path");
   const suppliedAliases = Object.fromEntries(Object.entries(aliases).map(([specifier, file]) => [specifier, path.resolve(repoRoot, file)]));
   const aliasMap = { ...defaultAliases, ...suppliedAliases };
@@ -72,9 +81,10 @@ export async function startYanwuHost({ entry, aliases = {}, apiHandlers, output:
       },
     }],
   });
-  const css = await compileStyles();
+  const css = await compileStyles(path.resolve(repoRoot, layout));
   const html = '<!doctype html><html lang="zh-CN" data-theme="yanwu"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/style.css"></head><body><div id="root"></div><script src="/bundle.js"></script></body></html>';
   const apiRequests = [];
+  const violations = [];
   const server = createServer(async (request, response) => {
     const url = new URL(request.url ?? "/", "http://localhost");
     if (url.pathname === "/bundle.js") {
@@ -93,6 +103,13 @@ export async function startYanwuHost({ entry, aliases = {}, apiHandlers, output:
         response.writeHead(handled.status ?? 200, { "Content-Type": handled.contentType ?? "application/json", ...(handled.headers ?? {}) });
         return response.end(typeof handled.body === "string" ? handled.body : JSON.stringify(handled.body ?? {}));
       }
+      violations.push({
+        type: "undeclared-api",
+        method: request.method,
+        pathname: url.pathname,
+        search: url.search,
+        record,
+      });
       response.writeHead(503, { "Content-Type": "text/plain" });
       return response.end("Undeclared Yanwu test API");
     }
@@ -118,6 +135,7 @@ export async function startYanwuHost({ entry, aliases = {}, apiHandlers, output:
     baseURL,
     html,
     apiRequests,
+    violations,
     close: async () => {
       server.closeAllConnections();
       await new Promise(resolve => server.close(resolve));

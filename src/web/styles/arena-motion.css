@@ -17,16 +17,16 @@
 }
 .arena-intro-mark rect {
   fill: var(--brand-accent);
-  stroke: #873027;
+  stroke: var(--brand-stamp-border);
   stroke-width: 2;
 }
 .arena-intro-mark path {
   fill: none;
-  stroke: rgba(255,253,248,.34);
+  stroke: var(--brand-stamp-ink);
   stroke-width: 2;
 }
 .arena-intro-mark text {
-  fill: #fffdf8;
+  fill: var(--on-accent);
   font: 700 58px var(--font-display);
 }
 .arena-intro-ink {

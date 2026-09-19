@@ -17,13 +17,13 @@ select option { background: var(--bg-input); color: var(--text); }
 .card-red { background: linear-gradient(125deg, rgba(239,146,150,.06), transparent), var(--bg-card); border-left: 3px solid var(--red); }
 .card-blue { background: linear-gradient(125deg, rgba(121,183,237,.06), transparent), var(--bg-card); border-left: 3px solid var(--blue); }
 .btn-primary, .btn-ghost, .btn-danger, .btn-subtle { display: inline-flex; justify-content: center; align-items: center; gap: 9px; min-height: 44px; padding: 10px 20px; border-radius: var(--radius-sm); font-size: 14px; font-weight: 650; text-decoration: none; transition: background .18s, border-color .18s, color .18s, box-shadow .18s; }
-.btn-primary { background: var(--brand-accent); color: #fffdf8; border: 1px solid var(--brand-accent); box-shadow: 0 3px 14px rgba(164,62,50,.12); }
-.btn-primary:hover { background: #8f342a; color: #fffdf8; box-shadow: 0 4px 18px var(--gold-alpha-20); transform: none; }
+.btn-primary { background: var(--brand-accent); color: var(--on-accent); border: 1px solid var(--brand-accent); box-shadow: 0 3px 14px var(--brand-accent-shadow); }
+.btn-primary:hover { background: var(--brand-accent-hover); color: var(--on-accent); box-shadow: 0 4px 18px var(--gold-alpha-20); transform: none; }
 .btn-ghost { color: var(--gold-light); border: 1px solid var(--border-gold); background: var(--gold-alpha-04); }
 .btn-ghost:hover { color: var(--gold-light); border-color: var(--gold); background: var(--gold-alpha-10); }
 .btn-subtle { color: var(--text-secondary); background: transparent; border: 1px solid transparent; }
 .btn-subtle:hover { color: var(--text); background: var(--bg-hover); }
-.btn-danger { color: #fff; background: var(--red); border: 1px solid var(--red-dim); }
+.btn-danger { color: var(--on-accent); background: var(--red); border: 1px solid var(--red-dim); }
 .badge { border-radius: 4px; }
 .badge-gold { color: var(--gold); background: var(--gold-alpha-10); }
 .badge-green { color: var(--green); background: rgba(123,200,176,.1); }
@@ -35,7 +35,7 @@ select option { background: var(--bg-input); color: var(--text); }
 .dropdown-item { color: var(--text-secondary); }
 .dropdown-item:hover { color: var(--text); background: var(--bg-hover); }
 .data-table-wrap:focus, .monitor-log-scroll:focus { outline: 3px solid var(--gold-dim); outline-offset: 3px; }
-.skeleton { background: linear-gradient(100deg, #ece9df 30%, #fffdf8 50%, #ece9df 70%); background-size: 200% 100%; border-radius: var(--radius); }
+.skeleton { background: linear-gradient(100deg, var(--skeleton-base) 30%, var(--bg-card) 50%, var(--skeleton-base) 70%); background-size: 200% 100%; border-radius: var(--radius); }
 .main-content::after { display: none; }
 .main-content { z-index: var(--layer-content); }
 .arena-skip { position: fixed; left: 16px; top: 10px; z-index: var(--layer-toast); transform: translateY(-150%); padding: 12px 18px; border-radius: 6px; color: var(--bg-root); background: var(--gold); }
@@ -45,7 +45,7 @@ select option { background: var(--bg-input); color: var(--text); }
 [data-theme="yanwu"] .header-bar { height: 72px; border-radius: 0; border-bottom: 1px solid var(--border); background: var(--bg-nav); backdrop-filter: blur(12px); box-shadow: none; }
 .header-inner-alt { max-width: calc(var(--content-wide) + 2 * var(--layout-gutter)); padding-inline: var(--layout-gutter); gap: 32px; }
 .header-brand-link { gap: 12px; }
-.arena-brand-mark { display: grid; place-items: center; width: 36px; height: 40px; color: #fffdf8; background: var(--brand-accent); border: 1px solid #8c3028; transform: rotate(-2deg); }
+.arena-brand-mark { display: grid; place-items: center; width: 36px; height: 40px; color: var(--on-accent); background: var(--brand-accent); border: 1px solid var(--brand-stamp-border); transform: rotate(-2deg); }
 .arena-brand-mark svg { width: 27px; height: 30px; }
 .arena-brand-type { display: flex; flex-direction: column; gap: 3px; }
 .arena-brand-type strong { color: var(--text); font-family: var(--font-display); font-size: 20px; letter-spacing: .12em; font-weight: 700; }
@@ -256,8 +256,8 @@ select option { background: var(--bg-input); color: var(--text); }
   .header-primary-nav { display: none; }
   .arena-brand-type strong { font-size: 16px; }
   .arena-brand-type small { font-size: 12px; }
-  .dock-shell { left: 50%; right: auto; bottom: max(10px,env(safe-area-inset-bottom)); display: grid; z-index: var(--layer-dock); width: min(calc(100% - 32px),440px); grid-template-columns: repeat(4,minmax(0,1fr)); padding: 6px; transform: translateX(-50%); border: 1px solid #1e2b24; border-radius: var(--radius-sm); background: var(--brand-dock); box-shadow: 0 8px 28px rgba(27,38,31,.22); }
-  .arena-dock-item { position: relative; min-width: 0; min-height: 56px; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 4px; border: 0; border-radius: 2px; color: #e4e8df; background: transparent; font-size: 12px; text-decoration: none; }
+  .dock-shell { left: 50%; right: auto; bottom: max(10px,env(safe-area-inset-bottom)); display: grid; z-index: var(--layer-dock); width: min(calc(100% - 32px),440px); grid-template-columns: repeat(4,minmax(0,1fr)); padding: 6px; transform: translateX(-50%); border: 1px solid var(--brand-dock-border); border-radius: var(--radius-sm); background: var(--brand-dock); box-shadow: var(--brand-dock-shadow); }
+  .arena-dock-item { position: relative; min-width: 0; min-height: 56px; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 4px; border: 0; border-radius: 2px; color: var(--brand-dock-text); background: transparent; font-size: 12px; text-decoration: none; }
   .arena-dock-item.is-active, .arena-dock-item[aria-current="page"] { color: var(--brand-accent); background: var(--bg-root); }
   .arena-dock-item.is-active::before, .arena-dock-item[aria-current="page"]::before { content: ""; position: absolute; top: -12px; left: calc(50% - 5px); width: 10px; height: 12px; background: var(--brand-accent); clip-path: polygon(0 0,100% 0,100% 100%,50% 72%,0 100%); }
   .arena-dock-item > svg { width: 20px; height: 20px; }

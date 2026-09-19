@@ -9,8 +9,18 @@
   --text-secondary: #515c51;
   --text-muted: #697064;
   --brand-accent: #a43e32;
+  --brand-accent-hover: #8f342a;
+  --brand-accent-shadow: rgba(164, 62, 50, .12);
+  --on-accent: #fffdf8;
   --brand-ink: #426855;
+  --brand-stamp-border: #873027;
+  --brand-stamp-ink: rgba(255, 253, 248, .34);
   --brand-dock: #29382f;
+  --brand-dock-border: #1e2b24;
+  --brand-dock-text: #e4e8df;
+  --brand-dock-shadow: 0 8px 28px rgba(27, 38, 31, .22);
+  --skeleton-base: #ece9df;
+  --overlay-scrim: rgba(37, 43, 40, .48);
   --border: #dcdccf;
   --radius-sm: 4px;
   --radius: 8px;
