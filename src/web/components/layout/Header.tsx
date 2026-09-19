@@ -13,12 +13,15 @@ export function Header() {
   const { user, loaded, logout } = useAuth();
 
   const [menuOpen, setMenuOpen] = useState(false);
+  const [catalogOpen, setCatalogOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [showPwd, setShowPwd] = useState(false);
   const [showDel, setShowDel] = useState(false);
   const [securityQ, setSecurityQ] = useState("");
   const menuRef = useRef<HTMLDivElement>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const catalogRef = useRef<HTMLDivElement>(null);
+  const catalogButtonRef = useRef<HTMLButtonElement>(null);
   const pathname = usePathname();
   const router = useRouter();
 
@@ -36,7 +39,12 @@ export function Header() {
     document.addEventListener("pointerdown", fn);
     return () => document.removeEventListener("pointerdown", fn);
   }, []);
-  useEffect(() => { setMenuOpen(false); }, [pathname]);
+  useEffect(() => {
+    const fn = (event: PointerEvent) => { if (catalogRef.current && !catalogRef.current.contains(event.target as Node)) setCatalogOpen(false); };
+    document.addEventListener("pointerdown", fn);
+    return () => document.removeEventListener("pointerdown", fn);
+  }, []);
+  useEffect(() => { setMenuOpen(false); setCatalogOpen(false); }, [pathname]);
   useEffect(() => {
     if (!menuOpen) return;
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -48,6 +56,17 @@ export function Header() {
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [menuOpen]);
+  useEffect(() => {
+    if (!catalogOpen) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      setCatalogOpen(false);
+      window.requestAnimationFrame(() => catalogButtonRef.current?.focus());
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [catalogOpen]);
 
   const pathIsM = /^\/m(?:\/|$)/.test(pathname);
   const basePath = pathname.replace(/^\/m(?=\/|$)/, "") || "/";
@@ -55,16 +74,32 @@ export function Header() {
 
   return (
     <>
-    <header className="sticky top-0 z-50 header-bar" suppressHydrationWarning>
+    <header className="sticky top-0 header-bar" suppressHydrationWarning>
       <div className="header-inner-alt flex items-center gap-4">
         {/* Brand */}
         <Link href={pathIsM ? "/m" : "/"} className="header-brand-link flex items-center gap-2 shrink-0 no-underline">
-          <span className="arena-brand-mark"><ArenaIcon name="crest" /></span>
+          <span className="arena-brand-mark"><ArenaIcon name="seal" /></span>
           <span className="arena-brand-type"><strong>王者演武堂</strong><small>YANWU ARENA</small></span>
         </Link>
 
         <nav className="header-primary-nav" aria-label="主导航">
-          {[{ path: "/", label: "演武首页" }, { path: "/tournaments", label: "赛事大厅" }, { path: "/heroes", label: "英雄图鉴" }, { path: "/equipment", label: "装备图鉴" }, { path: "/me", label: "我的" }].map(item => <Link key={item.path} href={route(item.path)} prefetch={item.path === "/me" ? false : undefined} aria-current={(item.path === "/" ? basePath === "/" : basePath.startsWith(item.path)) ? "page" : undefined}>{item.label}</Link>)}
+          <Link href={route("/")} aria-current={basePath === "/" ? "page" : undefined}>演武首页</Link>
+          <Link href={route("/tournaments")} aria-current={basePath.startsWith("/tournaments") ? "page" : undefined}>赛事大厅</Link>
+          <div ref={catalogRef} className="header-catalog-wrap">
+            <button
+              ref={catalogButtonRef}
+              type="button"
+              className={`header-catalog-trigger ${/^\/(heroes|equipment)(\/|$)/.test(basePath) ? "is-active" : ""}`}
+              aria-label={catalogOpen ? "关闭图鉴菜单" : "打开图鉴菜单"}
+              aria-expanded={catalogOpen}
+              aria-controls="header-catalog-menu"
+              onClick={() => { setMenuOpen(false); setCatalogOpen(value => !value); }}
+            >图鉴</button>
+            {catalogOpen && <div id="header-catalog-menu" className="header-catalog-menu" aria-label="图鉴入口">
+              <Link href={route("/heroes")} aria-current={basePath.startsWith("/heroes") ? "page" : undefined}><ArenaIcon name="crest" width="16" height="16" />英雄</Link>
+              <Link href={route("/equipment")} aria-current={basePath.startsWith("/equipment") ? "page" : undefined}><ArenaIcon name="swords" width="16" height="16" />装备</Link>
+            </div>}
+          </div>
           <Link href={route("/combat")} prefetch={false} aria-current={pathname.startsWith(route("/combat")) ? "page" : undefined}>演武动态</Link>
         </nav>
 
@@ -73,7 +108,7 @@ export function Header() {
         {/* Right side */}
         {!mounted ? null : loaded && user ? (
           <div ref={menuRef} className="relative">
-            <button ref={menuButtonRef} onClick={() => setMenuOpen(!menuOpen)}
+            <button ref={menuButtonRef} onClick={() => { setCatalogOpen(false); setMenuOpen(!menuOpen); }}
               aria-label={menuOpen ? "关闭用户菜单" : "打开用户菜单"}
               aria-expanded={menuOpen}
               aria-controls="header-user-menu"
@@ -119,6 +154,7 @@ export function Header() {
                     </div>
                   </div>
                 </div>
+                <Link href={route("/me")} prefetch={false} onClick={() => setMenuOpen(false)} className="header-menu-action w-full flex items-center gap-2 px-4 text-sm text-text-secondary hover:bg-hover"><ArenaIcon name="user" width="16" height="16" />个人空间</Link>
                 <Link href={route("/combat")} onClick={() => setMenuOpen(false)} className="header-menu-action w-full flex items-center gap-2 px-4 text-sm text-text-secondary hover:bg-hover"><ArenaIcon name="news" width="16" height="16" />演武动态</Link>
                 {user.role === "admin" && (
                   <button onClick={() => { setMenuOpen(false); router.push(route("/admin")); }}

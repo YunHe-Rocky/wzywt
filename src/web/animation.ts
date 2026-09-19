@@ -14,7 +14,7 @@ export const EASE_SMOOTH = "cubic-bezier(0.4, 0, 0.2, 1)";
 export const DUR_FAST = "0.12s";
 export const DUR_NORMAL = "0.2s";
 export const DUR_SLOW = "0.3s";
-export const DUR_PAGE = "0.4s";
+export const DUR_PAGE = "0.24s";
 
 // === 毛玻璃卡片 ===
 
@@ -63,7 +63,7 @@ export function childStagger(
 
 export function pageEnter(stagger: number = 0): CSSProperties {
   return {
-    animation: `page-enter-alt .55s cubic-bezier(.22,1,.36,1) ${stagger}s both`,
+    animation: `page-enter-alt ${DUR_PAGE} ${EASE_OUT} ${stagger}s both`,
   };
 }
 

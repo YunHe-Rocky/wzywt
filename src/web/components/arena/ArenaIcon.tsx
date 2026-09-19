@@ -1,6 +1,7 @@
 import type { SVGProps } from "react";
 
 const paths = {
+  seal: "",
   crest: "M12 2 21 6v7l-9 9-9-9V6l9-4Zm0 4v12M7 8l5 5 5-5M7 13l5 5 5-5",
   swords: "m3 3 6 2 11 11-4 4L5 9 3 3Zm12 2 6-2-2 6-4 4M3 21l5-5m8-8 2 2M14 18l4-4M4 14l6 6",
   arrow: "M4 12h15m-6-6 6 6-6 6",
@@ -20,5 +21,8 @@ const paths = {
 
 export type ArenaIconName = keyof typeof paths;
 export function ArenaIcon({ name, ...props }: SVGProps<SVGSVGElement> & { name: ArenaIconName }) {
+  if (name === "seal") {
+    return <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden="true" {...props}><rect x="2.5" y="2.5" width="19" height="19" /><text x="12" y="16" textAnchor="middle" fill="currentColor" stroke="none" fontFamily="Songti SC, SimSun, serif" fontSize="12" fontWeight="700">武</text></svg>;
+  }
   return <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...props}><path d={paths[name]} /></svg>;
 }

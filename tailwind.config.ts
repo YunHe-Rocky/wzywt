@@ -30,12 +30,13 @@ const config: Config = {
         green: { DEFAULT: "var(--green)", dim: "var(--green-dim)" },
       },
       borderRadius: {
-        sm: "6px",
-        DEFAULT: "6px",
-        lg: "8px",
+        sm: "var(--radius-sm)",
+        DEFAULT: "var(--radius)",
+        lg: "var(--radius-lg)",
       },
       fontFamily: {
-        sans: ['"PingFang SC"', '"Microsoft YaHei"', 'sans-serif'],
+        sans: ["var(--font-body)"],
+        display: ["var(--font-display)"],
       },
       animation: {
         "fade-in": "fade-in 0.3s ease-out",

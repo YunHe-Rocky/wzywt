@@ -4,84 +4,6 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  /* 基底 — 厚玻璃浅色系 */
-  --bg-root: #efeff2;
-  --bg-nav: rgba(255,255,255,0.5);
-  --bg-card: rgba(255,255,255,0.45);
-  --bg-card-glass: rgba(255,255,255,0.45);
-  --bg-hover: rgba(255,255,255,0.55);
-  --bg-input: rgba(255,255,255,0.55);
-  --border: rgba(255,255,255,0.6);
-  --border-light: rgba(255,255,255,0.3);
-  --border-top: rgba(255,255,255,0.7);
-  --border-gold: rgba(68,136,240,0.15);
-  --glass-highlight: inset 0 1px 0 rgba(255,255,255,0.5);
-  --glass-shadow-x: 0px;
-  --glass-shadow-y: 6px;
-  --glass-shadow-far-x: 0px;
-  --glass-shadow-far-y: 13px;
-  --glass-highlight-x: 0px;
-  --mobile-glass-shadow:
-    inset var(--glass-highlight-x) 1px 0 rgba(255,255,255,0.62),
-    var(--glass-shadow-x) var(--glass-shadow-y) 4px rgba(0,0,0,0.06),
-    var(--glass-shadow-far-x) var(--glass-shadow-far-y) 16px rgba(0,0,0,0.07);
-  --glass-shadow: 0 1px 2px rgba(0,0,0,0.05),
-                  0 4px 8px rgba(0,0,0,0.06),
-                  0 8px 24px rgba(0,0,0,0.05),
-                  0 16px 48px rgba(0,0,0,0.03);
-  /* 文字 */
-  --text: #111111;
-  --text-secondary: #444444;
-  --text-muted: #777777;
-  /* 强调色 — 系统蓝 */
-  --gold: #4488f0;
-  --gold-light: #66a4f8;
-  --gold-dim: #2563d8;
-  --gold-alpha-04: rgba(68, 136, 240, 0.06);
-  --gold-alpha-08: rgba(68, 136, 240, 0.10);
-  --gold-alpha-10: rgba(68, 136, 240, 0.14);
-  --gold-alpha-20: rgba(68, 136, 240, 0.22);
-  /* 光球 — 青绿+亮蓝+紫罗兰 */
-  --orb-1: #00e5a0;
-  --orb-2: #4488ff;
-  --orb-3: #7c5cfc;
-  --red: #e05555;
-  --red-dim: #b04444;
-  --red-alpha-04: rgba(224, 85, 85, 0.04);
-  --red-alpha-06: rgba(224, 85, 85, 0.06);
-  --red-alpha-08: rgba(224, 85, 85, 0.08);
-  --red-alpha-15: rgba(224, 85, 85, 0.15);
-  --blue: #4488f0;
-  --blue-dim: #2563d8;
-  --green: #55b855;
-  --green-dim: #3d903d;
-  /* 圆角 — 大圆角毛玻璃 */
-  --radius-sm: 14px;
-  --radius: 16px;
-  --radius-lg: 20px;
-  /* 功能层级：所有弹层、下拉和反馈统一使用语义 token */
-  --layer-content: 0;
-  --layer-sticky: 100;
-  --layer-dock: 200;
-  --layer-overlay: 1000;
-  --layer-modal: 1010;
-  --layer-popover: 1020;
-  --layer-toast: 1100;
-  --layer-transition: 1200;
-  /* 响应式布局：页面只通过共享 gutter 和页面壳控制宽度 */
-  --layout-gutter: clamp(16px, 3vw, 32px);
-  --layout-block: clamp(24px, 4vw, 48px);
-  --layout-bottom-clearance: calc(96px + env(safe-area-inset-bottom));
-  --content-narrow: 720px;
-  --content-medium: 960px;
-  --content-wide: 1200px;
-  /* 光球鼠标视差 */
-  --orb-mx: 0.5;
-  --orb-my: 0.5;
-
-}
-
 @layer base {
   * {
     scrollbar-width: thin;
@@ -91,6 +13,7 @@
   body {
     background: var(--bg-root);
     color: var(--text);
+    font-family: var(--font-body);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
@@ -106,7 +29,7 @@
     border-radius: var(--radius-sm);
     padding: 10px 14px;
     color: var(--text);
-    font-size: 14px;
+    font-size: 16px;
     outline: none;
     transition: border-color 0.2s, box-shadow 0.2s;
     width: 100%;
@@ -1959,6 +1882,8 @@
 }
 
 :where(button, a, summary, input, select, textarea) { touch-action: manipulation; }
+
+input, select, textarea { font-size: 16px !important; }
 
 .btn-primary, .btn-danger, .btn-ghost, .btn-subtle {
   min-height: 44px;
