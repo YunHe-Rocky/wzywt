@@ -61,7 +61,7 @@ function SkinThumbnail({ hero, skin }: { hero: Hero; skin: HeroSkin }) {
     setFailed(false);
   }, [hero.heroId, skin.index]);
 
-  if (failed) return null;
+  if (failed) return <span className="hero-skin-fallback">{skin.name}</span>;
   return (
     <img
       src={candidates[candidateIndex]}
@@ -195,19 +195,10 @@ export function HeroDetailView() {
       </button>
 
       {/* Hero header */}
-      <div className="hero-header" style={{ display: "flex", gap: 28, marginBottom: 32, alignItems: "flex-start" }}>
+      <div className="hero-header">
         {/* Image */}
         <div style={{ flexShrink: 0 }}>
-          <div
-            style={{
-              width: 200,
-              height: 280,
-              borderRadius: "var(--radius)",
-              overflow: "hidden",
-              background: "var(--bg-card)",
-              border: "1px solid var(--border)",
-            }}
-          >
+          <div className="hero-portrait-frame">
             {imgFailed ? (
               <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-muted)", fontSize: 14 }}>
                 {hero.name[0]}
@@ -229,7 +220,7 @@ export function HeroDetailView() {
             if (skins.length <= 1) return null;
             return (
               <div style={{ marginTop: 10 }}>
-                <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 6 }}>皮肤</div>
+                <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 6 }}>皮肤</div>
                 <div style={{ display: "flex", gap: 4, flexWrap: "wrap", maxWidth: 200 }}>
                   {skins.map((s) => (
                     <button
@@ -292,9 +283,9 @@ export function HeroDetailView() {
               <span style={{
                 display: "inline-flex", alignItems: "center", gap: 4, padding: "4px 12px", borderRadius: "var(--radius-sm)",
                 fontSize: 13, fontWeight: 700,
-                background: "linear-gradient(135deg, rgba(232,170,60,0.15), rgba(232,170,60,0.05))",
-                color: "#e8aa3c",
-                border: "1px solid rgba(232,170,60,0.25)",
+                background: "var(--gold-alpha-08)",
+                color: "var(--brand-accent)",
+                border: "1px solid var(--border)",
               }}>
                 {activeForm === "mingge" ? "命格形态" : "拥有命格"}
               </span>
@@ -313,33 +304,33 @@ export function HeroDetailView() {
         const lv1 = calcFinalStats(profile.base, profile.growth, 1, []);
         const lv15 = calcFinalStats(profile.base, profile.growth, 15, []);
         const stats: [string, number, number, string, string][] = [
-          ["最大生命", Math.round(lv1.hp), Math.round(lv15.hp), "#44cc88", "生命值"],
-          ["最大法力", Math.round(lv1.mp), Math.round(lv15.mp), "#4488cc", "法力值"],
-          ["物理攻击", Math.round(lv1.atk), Math.round(lv15.atk), "#e05555", "攻击力"],
-          ["法术攻击", Math.round(lv1.ap), Math.round(lv15.ap), "#aa55cc", "法术强度"],
-          ["物理防御", Math.round(lv1.def), Math.round(lv15.def), "#ddaa33", "护甲"],
-          ["法术防御", Math.round(lv1.mdef), Math.round(lv15.mdef), "#5588cc", "魔抗"],
-          ["攻击速度", Math.round(lv1.atkSpeed * 10) / 10, Math.round(lv15.atkSpeed * 10) / 10, "#cc8833", "%"],
-          ["移动速度", lv1.moveSpeed, lv15.moveSpeed, "#66aacc", ""],
+          ["最大生命", Math.round(lv1.hp), Math.round(lv15.hp), "var(--green)", "生命值"],
+          ["最大法力", Math.round(lv1.mp), Math.round(lv15.mp), "var(--blue)", "法力值"],
+          ["物理攻击", Math.round(lv1.atk), Math.round(lv15.atk), "var(--red)", "攻击力"],
+          ["法术攻击", Math.round(lv1.ap), Math.round(lv15.ap), "var(--purple)", "法术强度"],
+          ["物理防御", Math.round(lv1.def), Math.round(lv15.def), "var(--brand-ink)", "护甲"],
+          ["法术防御", Math.round(lv1.mdef), Math.round(lv15.mdef), "var(--blue)", "魔抗"],
+          ["攻击速度", Math.round(lv1.atkSpeed * 10) / 10, Math.round(lv15.atkSpeed * 10) / 10, "var(--brand-ink)", "%"],
+          ["移动速度", lv1.moveSpeed, lv15.moveSpeed, "var(--blue)", ""],
         ];
         return (
           <>
             <h2 style={{ fontSize: 18, fontWeight: 600, color: "var(--text)", margin: "0 0 16px" }}>
               基础属性
             </h2>
-            <div className="card" style={{ padding: "16px 20px", marginBottom: 28 }}>
-              <div className="hero-stat-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px 24px" }}>
+            <div className="hero-stat-panel">
+              <div className="hero-stat-grid">
                 {stats.map(([label, v1, v15, color, unit]) => {
                   const rawGrowth = (v15 - v1) / 14;
                   const growth = rawGrowth % 1 === 0 ? Math.round(rawGrowth) : Math.round(rawGrowth * 10) / 10;
                   return (
-                    <div className="hero-stat-row" key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", padding: "4px 0", borderBottom: "1px solid var(--border)", fontSize: 13 }}>
+                    <div className="hero-stat-row" key={label}>
                       <span style={{ color: "var(--text-secondary)", whiteSpace: "nowrap" }}>{label}</span>
                       <span className="hero-stat-values">
                         <span style={{ color, fontWeight: 600 }}>{v1}{unit}</span>
-                        <span style={{ color: "var(--text-muted)", fontSize: 10, margin: "0 3px" }}>→</span>
+                        <span style={{ color: "var(--text-muted)", fontSize: 12, margin: "0 3px" }}>→</span>
                         <span style={{ color: "var(--gold)", fontWeight: 700 }}>{v15}{unit}</span>
-                        <span style={{ color: "var(--text-muted)", fontSize: 10, marginLeft: 6 }}>+{growth}/级</span>
+                        <span style={{ color: "var(--text-muted)", fontSize: 12, marginLeft: 6 }}>+{growth}/级</span>
                       </span>
                     </div>
                   );
@@ -358,10 +349,9 @@ export function HeroDetailView() {
         {(displayHero || hero)?.skills.map((skill) => (
           <div
             key={skill.skillIndex ?? skill.name}
-            className="card"
-            style={{ padding: "16px 20px", borderLeft: "3px solid var(--gold)" }}
+            className="hero-skill"
           >
-            <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 6 }}>
+            <div className="hero-skill-heading">
               <span style={{ fontSize: 13, fontWeight: 700, color: "var(--gold)" }}>
                 {skillLabels[skill.skillIndex ?? 0] || skill.name}
               </span>
@@ -383,45 +373,6 @@ export function HeroDetailView() {
         ))}
       </div>
 
-      <style jsx>{`
-        @media (max-width: 480px) {
-          .hero-detail {
-            padding: 24px 16px !important;
-          }
-          .hero-header {
-            flex-direction: column !important;
-            gap: 16px !important;
-            align-items: center !important;
-          }
-          .hero-stat-grid {
-            grid-template-columns: minmax(0, 1fr) !important;
-            gap: 0 !important;
-          }
-          .hero-stat-row {
-            min-width: 0;
-            gap: 16px;
-          }
-          .hero-stat-values {
-            display: inline-flex;
-            min-width: 0;
-            align-items: baseline;
-            justify-content: flex-end;
-            white-space: nowrap;
-            font-variant-numeric: tabular-nums;
-          }
-        }
-        @media (max-width: 360px) {
-          .hero-stat-row {
-            align-items: flex-start !important;
-            flex-direction: column;
-            gap: 2px;
-          }
-          .hero-stat-values {
-            align-self: stretch;
-            justify-content: flex-start;
-          }
-        }
-      `}</style>
     </div>
   );
 }

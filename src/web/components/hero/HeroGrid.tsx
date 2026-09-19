@@ -133,29 +133,32 @@ function HeroImage({ hero }: { hero: Hero }) {
   );
 }
 
+const ROLE_INK: Record<string, string> = { top: "var(--role-top)", jungle: "var(--role-jungle)", mid: "var(--role-mid)", adc: "var(--role-adc)", support: "var(--role-support)" };
+const CLASS_INK: Record<number, string> = { 1: "var(--role-top)", 2: "var(--role-mid)", 3: "var(--role-jungle)", 4: "var(--red)", 5: "var(--role-adc)", 6: "var(--role-support)" };
+
 function CardInfo({ hero, form, minggeHero }: { hero: Hero; form: string; minggeHero?: Hero }) {
   const displayHero = (form === "mingge" && minggeHero) ? minggeHero : hero;
   return (
     <>
       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 14, fontWeight: 600, color: "var(--text)" }}>{displayHero.name}</div>
-          <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>{displayHero.title}</div>
+          <div className="hero-card-name">{displayHero.name}</div>
+          <div className="hero-card-title">{displayHero.title}</div>
         </div>
       </div>
       <div style={{ display: "flex", gap: 4, marginTop: 6, flexWrap: "wrap" }}>
         {displayHero.heroType > 0 && CLASS_BADGES[displayHero.heroType] && (
-          <span style={{ display: "inline-flex", alignItems: "center", padding: "2px 6px", borderRadius: 3, fontSize: 10, fontWeight: 600, background: CLASS_BADGES[displayHero.heroType].color + "20", color: CLASS_BADGES[displayHero.heroType].color, border: "1px solid " + CLASS_BADGES[displayHero.heroType].color + "30" }}>
+          <span style={{ display: "inline-flex", alignItems: "center", padding: "2px 6px", borderRadius: 3, fontSize: 12, fontWeight: 600, background: "var(--bg-card)", color: CLASS_INK[displayHero.heroType], border: "1px solid var(--border)" }}>
             {CLASS_BADGES[displayHero.heroType].label}
           </span>
         )}
         {ROLE_BADGES[displayHero.roleType] && (
-          <span style={{ display: "inline-flex", alignItems: "center", padding: "2px 6px", borderRadius: 3, fontSize: 10, fontWeight: 600, background: ROLE_BADGES[displayHero.roleType].color + "18", color: ROLE_BADGES[displayHero.roleType].color, border: "1px solid " + ROLE_BADGES[displayHero.roleType].color + "25" }}>
+          <span style={{ display: "inline-flex", alignItems: "center", padding: "2px 6px", borderRadius: 3, fontSize: 12, fontWeight: 600, background: "var(--bg-card)", color: ROLE_INK[displayHero.roleType], border: "1px solid var(--border)" }}>
             {ROLE_BADGES[displayHero.roleType].label}
           </span>
         )}
         {form === "mingge" && (
-          <span style={{ display: "inline-flex", alignItems: "center", padding: "2px 6px", borderRadius: 3, fontSize: 10, fontWeight: 700, background: "rgba(232,170,60,0.12)", color: "#d4992a", border: "1px solid rgba(232,170,60,0.25)" }}>
+          <span style={{ display: "inline-flex", alignItems: "center", padding: "2px 6px", borderRadius: 3, fontSize: 12, fontWeight: 700, background: "var(--gold-alpha-08)", color: "var(--brand-accent)", border: "1px solid var(--border)" }}>
             命格
           </span>
         )}
@@ -239,7 +242,7 @@ export function HeroGrid() {
 
         {/* 分路筛选 */}
         <div style={{ marginBottom: 10 }}>
-          <span style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", marginRight: 10, letterSpacing: 1 }}>
+          <span style={{ fontSize: 14, fontWeight: 600, color: "var(--text-muted)", marginRight: 10, letterSpacing: 1 }}>
             分路
           </span>
           <div style={{ display: "inline-flex", gap: 4, flexWrap: "wrap" }}>
@@ -248,7 +251,7 @@ export function HeroGrid() {
                 key={r.value}
                 onClick={() => setRoleFilter(r.value)}
                 className={roleFilter === r.value ? "btn-primary" : "btn-subtle"}
-                style={{ padding: "5px 12px", fontSize: 12, fontWeight: roleFilter === r.value ? 600 : 400 }}
+                style={{ padding: "8px 12px", fontSize: 14, fontWeight: roleFilter === r.value ? 600 : 400 }}
               >
                 {r.label}
               </button>
@@ -258,7 +261,7 @@ export function HeroGrid() {
 
         {/* 职业筛选 */}
         <div>
-          <span style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", marginRight: 10, letterSpacing: 1 }}>
+          <span style={{ fontSize: 14, fontWeight: 600, color: "var(--text-muted)", marginRight: 10, letterSpacing: 1 }}>
             职业
           </span>
           <div style={{ display: "inline-flex", gap: 4, flexWrap: "wrap" }}>
@@ -267,7 +270,7 @@ export function HeroGrid() {
                 key={c.value}
                 onClick={() => setClassFilter(c.value)}
                 className={classFilter === c.value ? "btn-primary" : "btn-subtle"}
-                style={{ padding: "5px 12px", fontSize: 12, fontWeight: classFilter === c.value ? 600 : 400 }}
+                style={{ padding: "8px 12px", fontSize: 14, fontWeight: classFilter === c.value ? 600 : 400 }}
               >
                 {c.label}
               </button>
@@ -327,7 +330,7 @@ export function HeroGrid() {
                 }}
               >
                 <HeroImage hero={((cardForms[hero.id] === "mingge" && minggeHeroes[hero.id]) || hero) as Hero} />
-                <div style={{ padding: "10px 48px 12px 12px" }}>
+                <div className="hero-card-copy">
                   <CardInfo hero={hero as Hero} form={cardForms[hero.id] || "base"} minggeHero={minggeHeroes[hero.id]} />
                 </div>
               </button>
@@ -341,12 +344,12 @@ export function HeroGrid() {
                     position: "absolute",
                     right: 10,
                     bottom: 12,
-                    width: 36,
-                    height: 36,
+                    width: 44,
+                    height: 44,
                     borderRadius: "50%",
-                    border: "1px solid rgba(232,170,60,0.3)",
-                    background: cardForms[hero.id] === "mingge" ? "rgba(232,170,60,0.15)" : "var(--bg-card)",
-                    color: cardForms[hero.id] === "mingge" ? "#d4992a" : "var(--text-muted)",
+                    border: "1px solid var(--border)",
+                    background: cardForms[hero.id] === "mingge" ? "var(--gold-alpha-08)" : "var(--bg-card)",
+                    color: cardForms[hero.id] === "mingge" ? "var(--brand-accent)" : "var(--text-muted)",
                     cursor: "pointer",
                     display: "flex",
                     alignItems: "center",
@@ -365,7 +368,7 @@ export function HeroGrid() {
 
       {!loading && !fetchError && filtered.length === 0 && (
         <p style={{ textAlign: "center", color: "var(--text-muted)", padding: "60px 0", fontSize: 14 }}>
-          未找到匹配&quot;{search}&quot;的英雄
+          没有找到匹配的英雄{search ? `：“${search}”` : ""}
         </p>
       )}
 

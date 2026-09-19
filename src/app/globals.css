@@ -1058,24 +1058,6 @@
   min-width: 0;
 }
 
-.doc-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 192px;
-  gap: clamp(24px, 4vw, 40px);
-  align-items: start;
-}
-
-.doc-sidebar {
-  position: sticky;
-  top: 80px;
-  min-width: 0;
-}
-
-.hero-catalog-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(180px, 100%), 1fr));
-  gap: clamp(10px, 1.5vw, 16px);
-}
 
 .dock-route-progress {
   position: fixed;
@@ -1453,10 +1435,6 @@
   gap: 16px;
 }
 
-.role-order-actions {
-  width: 32px;
-  min-height: 50px;
-}
 
 .admin-shell {
   display: grid;
@@ -1480,12 +1458,6 @@
   min-height: 40px;
 }
 
-.equipment-detail-header {
-  display: flex;
-  align-items: flex-start;
-  gap: 24px;
-  margin-bottom: 28px;
-}
 
 .monitor-header {
   display: flex;
@@ -1516,31 +1488,6 @@
   [style*="display: flex"], [style*="display:grid"] { max-width: 100%; }
   img, svg { max-width: 100%; height: auto; }
 
-  .doc-layout {
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
-  }
-
-  .doc-sidebar {
-    position: static;
-    order: -1;
-    width: 100% !important;
-    overflow-x: auto;
-    padding-bottom: 4px;
-  }
-
-  .doc-sidebar > div:last-child {
-    width: max-content;
-    min-width: 100%;
-    flex-direction: row !important;
-    gap: 14px !important;
-    border-left: 0 !important;
-    border-bottom: 1px solid var(--border);
-    padding: 0 0 8px !important;
-  }
-
-  .doc-sidebar a { white-space: nowrap; }
 
   .calendar-overlay {
     align-items: end;
@@ -1609,10 +1556,6 @@
     min-height: 48px;
   }
 
-  .role-order-actions {
-    width: 44px;
-    min-height: 88px;
-  }
 
   .admin-shell {
     display: flex;
@@ -1682,9 +1625,6 @@
     padding: 20px 14px 32px !important;
   }
 
-  .equipment-detail-header {
-    gap: 16px;
-  }
 
   .monitor-header {
     align-items: stretch;
@@ -1698,20 +1638,6 @@
 }
 
 @media (max-width: 420px) {
-  .equipment-detail-header {
-    align-items: center;
-  }
-
-  .equipment-detail-header > div:first-child {
-    width: 80px !important;
-    height: 80px !important;
-  }
-}
-
-@media (max-width: 420px) {
-  .hero-catalog-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
 
   .calendar-header { padding: 14px; }
   .calendar-title { font-size: 16px; }

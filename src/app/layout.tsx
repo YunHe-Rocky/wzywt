@@ -3,6 +3,7 @@ import "./globals.css";
 import "@/web/styles/arena.css";
 import "@/web/styles/arena-motion.css";
 import "@/web/styles/arena-glass.css";
+import "@/web/styles/yanwu-public.css";
 import type { Metadata } from "next";
 import { ThemeLayout } from "@/web/components/layout/ThemeLayout";
 import { ToastProvider } from "@/web/components/ui/Toast";

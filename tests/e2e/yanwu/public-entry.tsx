@@ -1,0 +1,32 @@
+import React from "react";
+import { createRoot } from "react-dom/client";
+import { ThemeProvider } from "@/web/themes/ThemeProvider";
+import { ToastProvider } from "@/web/components/ui/Toast";
+import { ThemeLayout } from "@/web/components/layout/ThemeLayout";
+import { usePathname } from "./routing-shim";
+import { HomePage } from "@/web/components/home/HomePage";
+import { AuthForm } from "@/web/components/auth/AuthForm";
+import MePage from "@/app/me/page";
+import { HeroGrid } from "@/web/components/hero/HeroGrid";
+import { HeroDetailView } from "@/web/components/hero/HeroDetail";
+import EquipmentPage from "@/app/equipment/page";
+import EquipmentDetailPage from "@/app/equipment/[id]/page";
+import ChangelogPage from "@/app/changelog/page";
+import ChangelogDetailPage from "@/app/changelog/[slug]/page";
+import Loading from "@/app/loading";
+import NotFound from "@/app/not-found";
+function Content() {
+  const path = usePathname().replace(/^\/m(?=\/|$)/, "") || "/";
+  if (path === "/") return <HomePage />;
+  if (path === "/login" || path === "/register") return <AuthForm mode={path === "/login" ? "login" : "register"} />;
+  if (path === "/me") return <MePage />;
+  if (path === "/heroes") return <HeroGrid />;
+  if (path.startsWith("/heroes/")) return <HeroDetailView />;
+  if (path === "/equipment") return <EquipmentPage />;
+  if (path.startsWith("/equipment/")) return <EquipmentDetailPage />;
+  if (path === "/changelog") return <ChangelogPage />;
+  if (path.startsWith("/changelog/")) return <ChangelogDetailPage />;
+  if (path === "/loading") return <Loading />;
+  return <NotFound />;
+}
+createRoot(document.getElementById("root")!).render(<ThemeProvider><ToastProvider><ThemeLayout><Content /></ThemeLayout></ToastProvider></ThemeProvider>);

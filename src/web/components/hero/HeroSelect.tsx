@@ -231,9 +231,9 @@ export function HeroSelect({ roleType, value, onChange, excludedHeroIds = NO_EXC
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: "flex", alignItems: "baseline", gap: 5 }}>
                 <span style={{ fontWeight: 600, fontSize: 13, whiteSpace: "nowrap" }}>{selectedHero.name}</span>
-                <span style={{ color: "var(--text-muted)", fontSize: 10, fontFamily: "monospace", whiteSpace: "nowrap" }}>#{selectedHero.heroId}</span>
+                <span style={{ color: "var(--text-muted)", fontSize: 12, fontFamily: "monospace", whiteSpace: "nowrap" }}>#{selectedHero.heroId}</span>
               </div>
-              <div style={{ color: "var(--text-muted)", fontSize: 10, marginTop: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{selectedHero.title}</div>
+              <div style={{ color: "var(--text-muted)", fontSize: 12, marginTop: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{selectedHero.title}</div>
             </div>
           </>
         ) : (
@@ -292,7 +292,7 @@ export function HeroSelect({ roleType, value, onChange, excludedHeroIds = NO_EXC
             </button>
           </div>
 
-          <div style={{ padding: "7px 12px 5px", color: "var(--text-muted)", fontSize: 11 }}>
+          <div style={{ padding: "7px 12px 5px", color: "var(--text-muted)", fontSize: 12 }}>
             {loading ? "正在加载英雄…" : `共 ${filtered.length} 位英雄 · 主分路优先，附属分路随后`}
           </div>
 
@@ -322,7 +322,7 @@ export function HeroSelect({ roleType, value, onChange, excludedHeroIds = NO_EXC
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
                       <span style={{ fontWeight: 600, whiteSpace: "nowrap" }}>{hero.name}</span>
-                      <span style={{ fontSize: 10, color: "var(--text-muted)", fontFamily: "monospace", whiteSpace: "nowrap" }}>#{hero.heroId}</span>
+                      <span style={{ fontSize: 12, color: "var(--text-muted)", fontFamily: "monospace", whiteSpace: "nowrap" }}>#{hero.heroId}</span>
                       <span
                         style={{
                           marginLeft: "auto",
@@ -330,7 +330,7 @@ export function HeroSelect({ roleType, value, onChange, excludedHeroIds = NO_EXC
                           borderRadius: 999,
                           color: hero.roleType === roleType ? "var(--gold)" : "var(--text-muted)",
                           background: hero.roleType === roleType ? "var(--gold-alpha-08)" : "var(--bg-hover)",
-                          fontSize: 10,
+                          fontSize: 12,
                           whiteSpace: "nowrap",
                         }}
                       >
@@ -339,7 +339,7 @@ export function HeroSelect({ roleType, value, onChange, excludedHeroIds = NO_EXC
                           : `兼${ROLE_LABELS[roleType] || roleType}`}
                       </span>
                     </div>
-                    <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{hero.title}</div>
+                    <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{hero.title}</div>
                   </div>
                 </button>
               ))

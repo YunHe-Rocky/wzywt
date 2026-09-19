@@ -54,6 +54,12 @@
   --green: #39755a;
   --green-dim: #2d6049;
   --arena-teal: var(--brand-ink);
+  --purple: #79518a;
+  --role-top: #835b32;
+  --role-jungle: #397047;
+  --role-mid: #79518a;
+  --role-adc: #895c1c;
+  --role-support: #2e6583;
   --orb-1: transparent;
   --orb-2: transparent;
   --orb-3: transparent;

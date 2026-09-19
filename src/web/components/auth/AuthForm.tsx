@@ -7,7 +7,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useToast } from "@/web/components/ui/Toast";
 import { FeaturePortal } from "@/web/components/ui/FeaturePortal";
-import { GlassShatter } from "./GlassShatter";
 import { loginTransitionRedirect, safeAuthRedirect } from "@/features/auth/redirect";
 import {
   getCurrentUser,
@@ -38,9 +37,9 @@ const EyeIcon = ({ open }: { open: boolean }) => (
   </svg>
 );
 
-const inputClass = "auth-input w-full px-3.5 py-2.5 rounded-md border border-gold/10 bg-input text-text text-[13px] placeholder:text-text-muted focus:border-gold/20 focus:outline-none transition-colors box-border";
-const labelClass = "block text-[11px] font-semibold text-text-muted uppercase tracking-wider mb-1.5";
-const btnGold = "w-full py-3.5 rounded-md text-[15px] font-bold tracking-wider bg-gradient-to-b from-gold-light via-gold to-gold-dim text-white hover:brightness-105 transition-all disabled:opacity-50 border border-gold/10 cursor-pointer";
+const inputClass = "auth-input";
+const labelClass = "auth-label";
+const btnGold = "btn-primary auth-submit";
 
 export function AuthForm({ mode }: { mode: "login" | "register" }) {
   const router = useRouter();
@@ -82,10 +81,16 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
   const forgotAnswerRef = useRef<HTMLInputElement>(null);
   const forgotNewPwRef = useRef<HTMLInputElement>(null);
 
+  useEffect(() => {
+    if (!showForgot) return;
+    const previousFocus = document.activeElement;
+    return () => { if (previousFocus instanceof HTMLElement && previousFocus.isConnected) previousFocus.focus({ preventScroll: true }); };
+  }, [showForgot]);
+
   // Focus management and Esc for forgot password modal
   useEffect(() => {
     if (!showForgot) return;
-    setTimeout(() => {
+    const focusTimer = setTimeout(() => {
       if (forgotStep === 1) forgotUserRef.current?.focus();
       else if (forgotStep === 2) forgotAnswerRef.current?.focus();
       else forgotNewPwRef.current?.focus();
@@ -110,7 +115,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
       }
     };
     document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
+    return () => { clearTimeout(focusTimer); document.removeEventListener("keydown", handleKeyDown); };
   }, [showForgot, forgotStep]);
 
   useEffect(() => {
@@ -136,6 +141,16 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
     didNavigateRef.current = true;
     router.replace(shatterRedirect);
   }, [router, shatterRedirect]);
+
+  useEffect(() => {
+    if (!shatterRedirect) return;
+    const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
+    if (motion.matches) { finishLoginTransition(); return; }
+    const timer = setTimeout(finishLoginTransition, 180);
+    const finishForReducedMotion = () => { if (motion.matches) finishLoginTransition(); };
+    motion.addEventListener("change", finishForReducedMotion);
+    return () => { clearTimeout(timer); motion.removeEventListener("change", finishForReducedMotion); };
+  }, [finishLoginTransition, shatterRedirect]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault(); setError(""); setLoading(true);
@@ -213,26 +228,14 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
 
   return (
     <div className="auth-scene">
-      <Link href="/" className="auth-brand-link"><ArenaIcon name="crest" />王者演武堂</Link>
+      <Link href="/" className="auth-brand-link"><span className="arena-brand-mark"><ArenaIcon name="seal" /></span>王者演武堂</Link>
       <div className="auth-intro"><div className="arena-eyebrow"><span />王者荣耀 · 好友内战</div><h2>老朋友，<br /><span>新对手。</span></h2><p>昨天还是双排搭子，今天试试对线。<br />登录后，把朋友都喊来。</p><small>YANWU ARENA / HONOR OF KINGS</small></div>
       {checking ? (
         <div className="skeleton rounded-lg w-full max-w-[420px] h-[400px]" />
       ) : (
-        <div className="auth-card w-full max-w-[420px] px-9 py-10 rounded-xl relative overflow-hidden animate-slide-up"
-          style={{ background: "var(--bg-card)", border: "1px solid var(--border)", boxShadow: "0 4px 24px rgba(0,0,0,0.25)" }}>
-          {/* Top glow */}
-          <div className="absolute -top-15 left-1/2 -translate-x-1/2 w-[200px] h-20 pointer-events-none"
-            style={{ background: "radial-gradient(ellipse, var(--gold-alpha-08), transparent)" }} />
-
-          <h1 className="text-[28px] font-extrabold text-center m-0 mb-1.5 tracking-wider text-gold-light">{title}</h1>
+        <div className={`auth-card${shatterRedirect ? " is-leaving" : ""}`}>
+          <h1>{title}</h1>
           <p className="text-[13px] text-center text-text-muted mb-7">{subtitle}</p>
-
-          {/* Divider */}
-          <div className="flex items-center gap-2.5 mb-6">
-            <div className="flex-1 h-px bg-gradient-to-r from-transparent to-gold/20" />
-            <div className="w-1.5 h-1.5 bg-gold-dim rounded-sm rotate-45" />
-            <div className="flex-1 h-px bg-gradient-to-l from-transparent to-gold/20" />
-          </div>
 
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             <div>
@@ -262,7 +265,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
                   <label htmlFor="security-answer-reg" className={labelClass}>安全答案</label>
                   <input id="security-answer-reg" name="security-answer" autoComplete="off" placeholder="请输入答案" value={securityAnswer}
                     onChange={e => setSecurityAnswer(e.target.value)} required className={inputClass} />
-                  <span className="block text-[10px] text-text-muted/60 mt-1">用于找回密码和注销账号验证</span>
+                  <span className="block text-xs text-text-muted mt-1">用于找回密码和注销账号验证</span>
                 </div>
               </>
             )}
@@ -277,7 +280,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
                   placeholder={mode === "register" ? "至少 11 位" : "请输入密码"}
                   value={password} onChange={e => setPassword(e.target.value)} required minLength={11} className={`${inputClass} pr-10`} />
                 <button type="button" onClick={() => setShowPassword(!showPassword)}
-                  className={`absolute right-0 top-0 bottom-0 w-10 flex items-center justify-center bg-transparent border-none cursor-pointer ${showPassword ? "text-gold" : "text-text-muted"}`}
+                  className="auth-password-toggle"
                   aria-label={showPassword ? "隐藏密码" : "显示密码"}>
                   <EyeIcon open={showPassword} />
                 </button>
@@ -291,8 +294,8 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
                   <input type={showPassword ? "text" : "password"} id="confirm-password" name="confirm-password" autoComplete="new-password"
                     placeholder="再次输入密码" value={confirmPassword}
                     onChange={e => setConfirmPassword(e.target.value)} required minLength={11} className={`${inputClass} pr-10`} />
-                  <button type="button" onClick={() => setShowPassword(!showPassword)}
-                    className={`absolute right-0 top-0 bottom-0 w-10 flex items-center justify-center bg-transparent border-none cursor-pointer ${showPassword ? "text-gold" : "text-text-muted"}`}>
+                  <button type="button" onClick={() => setShowPassword(!showPassword)} aria-label={showPassword ? "隐藏确认密码" : "显示确认密码"}
+                    className="auth-password-toggle">
                     <EyeIcon open={showPassword} />
                   </button>
                 </div>
@@ -324,11 +327,6 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
         </div>
       )}
 
-      {/* ── 登录过渡 ── */}
-      {shatterRedirect && (
-        <GlassShatter cardSelector=".auth-card" onComplete={finishLoginTransition} />
-      )}
-
       {/* ── Forgot Password Modal ── */}
       {showForgot && (
         <FeaturePortal>
@@ -340,28 +338,28 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
             {forgotStep === 1 ? (
               <>
                 <h3 className="text-lg font-bold text-text text-center mb-1.5">找回密码</h3>
-                <p className="text-[11px] text-text-muted text-center mb-[18px]">输入用户名以验证身份</p>
+                <p className="text-xs text-text-muted text-center mb-[18px]">输入用户名以验证身份</p>
                 <div className="mb-3.5">
-                  <label className={labelClass}>召唤师名称</label>
+                  <label htmlFor="forgot-username" className={labelClass}>召唤师名称</label>
                   <input ref={forgotUserRef} id="forgot-username" name="username" autoComplete="username" placeholder="请输入召唤师名称" value={forgotUsername} onChange={e => setForgotUsername(e.target.value)} className={inputClass} />
                 </div>
                 {forgotError && <p className="text-xs text-red text-center mb-3">{forgotError}</p>}
                 <div className="flex gap-2.5">
                   <button onClick={() => setShowForgot(false)} className="flex-1 py-2.5 rounded-md border border-border text-[13px] text-text-muted bg-transparent cursor-pointer hover:bg-hover transition-colors">取消</button>
                   <button onClick={lookupQuestion} disabled={forgotLoading}
-                    className="flex-1 py-2.5 rounded-md text-[13px] font-bold bg-gradient-to-b from-gold-light via-gold to-gold-dim text-white disabled:opacity-60 cursor-pointer">下一步</button>
+                    className="btn-primary flex-1">下一步</button>
                 </div>
               </>
             ) : forgotStep === 2 ? (
               <>
                 <h3 className="text-lg font-bold text-text text-center mb-1.5">验证安全问题</h3>
-                <p className="text-[11px] text-text-muted text-center mb-3.5">账号：<span className="text-gold">{forgotUsername}</span></p>
+                <p className="text-xs text-text-muted text-center mb-3.5">账号：<span className="text-gold">{forgotUsername}</span></p>
                 <div className="bg-gold/5 border border-gold/15 rounded-lg p-3 mb-3.5">
-                  <span className="block text-[10px] font-semibold text-gold-dim mb-1">安全问题</span>
+                  <span className="block text-xs font-semibold text-gold-dim mb-1">安全问题</span>
                   <span className="text-[13px] text-text font-medium">{forgotQuestion}</span>
                 </div>
                 <div className="mb-3.5">
-                  <label className={labelClass}>安全答案</label>
+                  <label htmlFor="forgot-answer" className={labelClass}>安全答案</label>
                   <input ref={forgotAnswerRef} id="forgot-answer" name="security-answer" autoComplete="off" placeholder="请输入答案" value={forgotAnswer} onChange={e => setForgotAnswer(e.target.value)} className={inputClass} />
                 </div>
                 {forgotError && <p className="text-xs text-red text-center mb-3">{forgotError}</p>}
@@ -379,33 +377,33 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
                   }}
                   className={`${btnGold} text-[13px] py-2.5 mb-2.5`}>继续设置新密码</button>
                 <div className="text-center">
-                  <button onClick={() => setShowForgot(false)} className="bg-transparent border-none text-text-muted text-[11px] cursor-pointer">取消</button>
+                  <button onClick={() => setShowForgot(false)} className="bg-transparent border-none text-text-muted text-xs cursor-pointer">取消</button>
                 </div>
               </>
             ) : (
               <>
                 <h3 className="text-lg font-bold text-text text-center mb-1.5">重置密码</h3>
-                <p className="text-[11px] text-text-muted text-center mb-[18px]">为 <span className="text-gold">{forgotUsername}</span> 设置新密码</p>
+                <p className="text-xs text-text-muted text-center mb-[18px]">为 <span className="text-gold">{forgotUsername}</span> 设置新密码</p>
                 <div className="flex flex-col gap-3 mb-[18px]">
                   <div>
-                    <label className={labelClass}>新密码</label>
+                    <label htmlFor="forgot-new-password" className={labelClass}>新密码</label>
                     <div className="relative">
                       <input ref={forgotNewPwRef} type={showForgotPw ? "text" : "password"} placeholder="至少 11 位" value={forgotPassword}
                         id="forgot-new-password" name="new-password" autoComplete="new-password"
                         onChange={e => setForgotPassword(e.target.value)} className={`${inputClass} pr-10`} />
-                      <button type="button" onClick={() => setShowForgotPw(!showForgotPw)}
-                        className={`absolute right-0 top-0 bottom-0 w-10 flex items-center justify-center bg-transparent border-none cursor-pointer ${showForgotPw ? "text-gold" : "text-text-muted"}`}>
+                      <button type="button" onClick={() => setShowForgotPw(!showForgotPw)} aria-label={showForgotPw ? "隐藏新密码" : "显示新密码"}
+                        className="auth-password-toggle">
                         <EyeIcon open={showForgotPw} />
                       </button>
                     </div>
                   </div>
                   <div>
-                    <label className={labelClass}>确认新密码</label>
+                    <label htmlFor="forgot-confirm-password" className={labelClass}>确认新密码</label>
                     <div className="relative">
-                      <input type={showForgotPw ? "text" : "password"} placeholder="再次输入" value={forgotConfirm}
+                      <input id="forgot-confirm-password" type={showForgotPw ? "text" : "password"} placeholder="再次输入" value={forgotConfirm}
                         onChange={e => setForgotConfirm(e.target.value)} className={`${inputClass} pr-10`} />
-                      <button type="button" onClick={() => setShowForgotPw(!showForgotPw)}
-                        className={`absolute right-0 top-0 bottom-0 w-10 flex items-center justify-center bg-transparent border-none cursor-pointer ${showForgotPw ? "text-gold" : "text-text-muted"}`}>
+                      <button type="button" onClick={() => setShowForgotPw(!showForgotPw)} aria-label={showForgotPw ? "隐藏新密码" : "显示新密码"}
+                        className="auth-password-toggle">
                         <EyeIcon open={showForgotPw} />
                       </button>
                     </div>
@@ -415,7 +413,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
                 <button onClick={verifyAndReset} disabled={forgotLoading}
                   className={`${btnGold} text-[13px] py-2.5`}>确认重置</button>
                 <div className="text-center mt-3.5">
-                  <button onClick={() => setShowForgot(false)} className="bg-transparent border-none text-text-muted text-[11px] cursor-pointer">取消</button>
+                  <button onClick={() => setShowForgot(false)} className="bg-transparent border-none text-text-muted text-xs cursor-pointer">取消</button>
                 </div>
               </>
             )}
