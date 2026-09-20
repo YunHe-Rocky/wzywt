@@ -228,7 +228,7 @@ try {
   await page.locator('textarea[name="content"]').fill("先拉开阵型，再利用控制链完成反打。");
   await page.locator('input[name="tournamentId"]').fill(String(tournament.id));
   await page.locator('input[name="matchId"]').fill(String(matchId));
-  await page.locator('input[name="video"]').setInputFiles("artifacts/promotional-video/yanwu-arena-promo-1080p.mp4");
+  await page.locator('input[name="video"]').setInputFiles("tests/fixtures/combat-video.mp4");
   const publishResponse = page.waitForResponse((response) => response.url().endsWith("/api/combat-posts") && response.request().method() === "POST");
   await page.getByRole("button", { name: "发布动态" }).click();
   const published = await publishResponse;
@@ -242,7 +242,7 @@ try {
   await page.waitForLoadState("domcontentloaded");
   const videoResponse = await context.request.get(`${baseUrl}/api/combat-posts/${postId}/video`, { headers: { Range: "bytes=0-3" } });
   assert.equal(videoResponse.status(), 206);
-  const videoSize = (await stat("artifacts/promotional-video/yanwu-arena-promo-1080p.mp4")).size;
+  const videoSize = (await stat("tests/fixtures/combat-video.mp4")).size;
   assert.equal(videoResponse.headers()["content-range"], `bytes 0-3/${videoSize}`);
   await page.getByRole("button", { name: /^点赞/ }).click();
   await page.locator('.comment-form textarea[name="content"]').fill("这段复盘的进场时机说明很清楚。");

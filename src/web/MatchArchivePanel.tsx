@@ -1,5 +1,7 @@
 "use client";
 
+import "@/web/styles/yanwu-workspaces.css";
+
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";

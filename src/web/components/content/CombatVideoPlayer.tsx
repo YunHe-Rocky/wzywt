@@ -1,4 +1,6 @@
 "use client";
+
+import "@/web/styles/yanwu-workspaces.css";
 import { useEffect, useRef, useState } from "react";
 
 export function CombatVideoPlayer({ src }: { src: string }) {

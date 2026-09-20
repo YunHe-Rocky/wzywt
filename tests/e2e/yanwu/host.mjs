@@ -45,13 +45,13 @@ async function expandStyleImports(file, ancestors = []) {
   return styles + source.slice(cursor);
 }
 
-async function compileStyles(layoutPath) {
+async function compileStyles(layoutPath, componentStyles = "") {
   const layoutSource = await readFile(layoutPath, "utf8");
   const styleImports = [...layoutSource.matchAll(/\bimport\s+["']([^"']+\.css)["'];?/g)];
   if (!styleImports.length) throw new Error(`Yanwu host found no root styles in ${path.relative(repoRoot, layoutPath)}`);
   let styles = "";
   for (const match of styleImports) styles += `${await expandStyleImports(resolveStyleImport(match[1], layoutPath))}\n`;
-  return (await postcss([tailwindcss]).process(styles, { from: resolveStyleImport(styleImports[0][1], layoutPath) })).css;
+  return (await postcss([tailwindcss]).process(styles + componentStyles, { from: resolveStyleImport(styleImports[0][1], layoutPath) })).css;
 }
 
 export async function startYanwuHost({ entry, layout = "src/app/layout.tsx", aliases = {}, apiHandlers, output: _output } = {}) {
@@ -62,6 +62,7 @@ export async function startYanwuHost({ entry, layout = "src/app/layout.tsx", ali
     entryPoints: [path.resolve(repoRoot, entry)],
     bundle: true,
     write: false,
+    outdir: path.resolve(repoRoot, ".cache/yanwu-component-bundle"),
     format: "iife",
     jsx: "automatic",
     define: { "process.env.NODE_ENV": JSON.stringify("development") },
@@ -87,7 +88,7 @@ export async function startYanwuHost({ entry, layout = "src/app/layout.tsx", ali
       },
     }],
   });
-  const css = await compileStyles(path.resolve(repoRoot, layout));
+  const css = await compileStyles(path.resolve(repoRoot, layout), bundle.outputFiles.filter(file => file.path.endsWith(".css")).map(file => file.text).join("\n"));
   const html = '<!doctype html><html lang="zh-CN" data-theme="yanwu"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/style.css"></head><body><div id="root"></div><script src="/bundle.js"></script></body></html>';
   const apiRequests = [];
   const violations = [];

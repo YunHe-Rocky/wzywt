@@ -1,5 +1,7 @@
 "use client";
 
+import "@/web/styles/yanwu-workspaces.css";
+
 import { useMonitorDashboard } from "@/features/monitor/client/useMonitorDashboard";
 
 const MODULES = [

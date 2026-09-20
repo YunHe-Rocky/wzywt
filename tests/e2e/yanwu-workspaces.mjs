@@ -23,6 +23,12 @@ const host = await startYanwuHost({
         const p = url.pathname, m = request.method, fail = scenario === 'error';
         if (m === 'GET' && p === '/api/auth/me')
             return { body: { user: fixture.user } };
+        if (m === 'GET' && p === '/api/equipment')
+            return { body: [] };
+        if (m === 'GET' && p === '/api/tournaments/101/picks')
+            return { body: { picks: [] } };
+        if (m === 'GET' && p === '/api/heroes/9001')
+            return { body: { id: 9001, name: '测试先锋', meta: { imageUrl: '', title: '阵容测试', heroType: 1 }, effects: [] } };
         if (m === 'GET' && p === '/api/tournaments/101')
             return {
                 body: {
@@ -114,6 +120,7 @@ const host = await startYanwuHost({
             '/api/tournaments/101/matches/201/disputes',
             '/api/combat-posts/1/comments'
         ].includes(p)) || (m === 'PUT' && [
+            '/api/tournaments/101/picks',
             '/api/tournaments/101/matches/201/confirmation',
             '/api/combat-posts/1/like',
             '/api/tournaments/101/matches/201/tactics/red/layers/1/route'
@@ -210,6 +217,9 @@ async function open(route, width = 390, height = 844, role = 'owner', state = 'd
         }
         if (request.request().resourceType() === 'document') {
             return request.fulfill({ contentType: 'text/html', body: host.html });
+        }
+        if (url.pathname === '/heroes/skins/9001/1.jpg') {
+            return request.fulfill({ contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><rect width="32" height="32" fill="#b18a54"/></svg>' });
         }
         if (url.pathname === '/images/tactic-map-source.jpg' && state === 'map-missing') {
             return request.fulfill({ status: 404, body: 'declared missing map' });
@@ -318,6 +328,27 @@ try {
             await bounds(page, `${family}-${width}`);
             await context.close();
         }
+    }
+    // Opening the deferred builder must preserve self-only editing and the pick API contract.
+    for (const [role, userId, width, height] of [['owner', 1, 1440, 900], ['member', 7, 390, 844]]) {
+        const requestStart = host.apiRequests.length;
+        ({ context, page } = await open('/m/tournaments/101', width, height, role));
+        assert.ok(!host.apiRequests.slice(requestStart).some(r => r.includes('/picks') || r.includes('/api/equipment')), 'builder data stays deferred until its tab opens');
+        await page.getByRole('button', { name: '英雄阵容', exact: true }).click();
+        await page.getByRole('heading', { name: role === 'owner' ? '🔴 红队' : '🔵 蓝队', exact: true }).waitFor();
+        assert.equal(await page.getByRole('heading', { name: role === 'owner' ? '🔵 蓝队' : '🔴 红队', exact: true }).count(), 0, 'opponent builder stays private');
+        assert.equal(await page.getByRole('button', { name: '打开英雄列表', exact: true }).count(), 1, `${role} can edit only their own real player`);
+        await page.getByRole('button', { name: '打开英雄列表', exact: true }).click();
+        const savedPick = page.waitForResponse(r => r.url().endsWith('/api/tournaments/101/picks') && r.request().method() === 'PUT');
+        await page.getByRole('option', { name: /测试先锋/ }).click();
+        assert.equal((await savedPick).status(), 200);
+        assert.deepEqual(mutations.filter(m => m.p.endsWith('/picks')).at(-1).body, {
+            targetUserId: userId, heroId: 9001, heroName: '测试先锋', equipIds: []
+        });
+        await page.getByRole('button', { name: '已选择测试先锋，打开英雄列表', exact: true }).waitFor();
+        await page.getByRole('button', { name: '分队结果', exact: true }).click();
+        await page.getByRole('heading', { name: '完整分队结果', exact: true }).waitFor();
+        await context.close();
     }
     // Supplemental viewport documents a real player record, not a compressed full-page table.
     ({ context, page } = await open('/m/tournaments/101/matches/201', 390, 844));

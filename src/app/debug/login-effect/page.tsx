@@ -1,5 +1,7 @@
 "use client";
 
+import "@/web/styles/yanwu-debug.css";
+
 import { useState } from "react";
 
 type EffectName = "dissolve" | "curtain" | "armor" | "ink" | "crack";

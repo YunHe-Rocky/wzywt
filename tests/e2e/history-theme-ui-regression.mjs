@@ -45,7 +45,7 @@ const bundled = await build({
       createRoot(document.getElementById("root")).render(<React.StrictMode><HistoryThemeSessionProvider><FixtureApp/></HistoryThemeSessionProvider></React.StrictMode>);`,
     loader: "tsx", resolveDir: process.cwd(),
   },
-  bundle: true, write: false, format: "iife", jsx: "automatic",
+  bundle: true, write: false, outdir: ".cache/component-bundle", format: "iife", jsx: "automatic",
   define: { "process.env.NODE_ENV": JSON.stringify("development") },
   plugins: [{ name: "isolated-navigation-session", setup(builder) {
     builder.onResolve({ filter: /^(next\/link|next\/navigation|@\/features\/auth\/client|@\/features\/resource-scheduler\/client)$/ }, args => ({ path: args.path, namespace: "test" }));
@@ -60,6 +60,7 @@ const bundled = await build({
 let styles = await readFile("src/web/styles/yanwu-tokens.css", "utf8");
 styles += (await readFile("src/app/globals.css", "utf8")).replace(/^@import[^\n]*\n/gm, "");
 for (const file of ["admin.css", "history-theme.css", "arena.css", "arena-motion.css", "arena-glass.css", "yanwu-public.css", "yanwu-workspaces.css", "history-theme-session.css"]) styles += await readFile(`src/web/styles/${file}`, "utf8");
+styles += bundled.outputFiles.filter(file => file.path.endsWith(".css")).map(file => file.text).join("\n");
 const css = (await postcss([tailwindcss]).process(styles, { from: path.resolve("src/app/globals.css") })).css;
 const apiRequests = [];
 let sessionUser = { userId: 1, username: "界面验收管理员", role: "admin" };

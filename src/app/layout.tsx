@@ -4,8 +4,6 @@ import "@/web/styles/arena.css";
 import "@/web/styles/arena-motion.css";
 import "@/web/styles/arena-glass.css";
 import "@/web/styles/yanwu-public.css";
-import "@/web/styles/yanwu-workspaces.css";
-import "@/web/styles/yanwu-debug.css";
 import "@/web/styles/history-theme-session.css";
 import type { Metadata } from "next";
 import { ThemeLayout } from "@/web/components/layout/ThemeLayout";

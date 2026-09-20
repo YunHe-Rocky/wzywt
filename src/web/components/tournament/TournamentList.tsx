@@ -1,4 +1,6 @@
 "use client";
+
+import "@/web/styles/yanwu-workspaces.css";
 import { PageHeading } from "@/web/components/arena/PageHeading";
 import { ArenaIcon } from "@/web/components/arena/ArenaIcon";
 import { useEffect, useState } from "react";

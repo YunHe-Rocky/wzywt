@@ -7,7 +7,8 @@ import { startYanwuHost } from "./yanwu/host.mjs";
 
 const fixtureDir = path.resolve("test-results/yanwu-host-regression/fixture");
 await mkdir(fixtureDir, { recursive: true });
-await writeFile(path.join(fixtureDir, "entry.tsx"), 'import React from "react"; import {createRoot} from "react-dom/client"; createRoot(document.getElementById("root")!).render(<div className="host-derived-style">host</div>);');
+await writeFile(path.join(fixtureDir, "entry.tsx"), 'import "./component.css"; import React from "react"; import {createRoot} from "react-dom/client"; createRoot(document.getElementById("root")!).render(<div className="host-derived-style">host</div>);');
+await writeFile(path.join(fixtureDir, "component.css"), '.host-component { color: rgb(7, 8, 9); }');
 await writeFile(path.join(fixtureDir, "layout.mjs"), 'import "./layout-root.css"; export default function Layout({children}) { return children; }');
 await writeFile(path.join(fixtureDir, "layout-root.css"), '@import "./layout-nested.css";\n.host-layout-root { color: rgb(1, 2, 3); }');
 await writeFile(path.join(fixtureDir, "layout-nested.css"), '.host-derived-style { background: rgb(4, 5, 6); }');
@@ -33,6 +34,7 @@ test("host derives stylesheet order from the selected root layout and expands ne
   assert.match(css, /\.host-derived-style\s*\{[^}]*background:\s*rgb\(4, 5, 6\)/);
   assert.match(css, /\.host-layout-root\s*\{[^}]*color:\s*rgb\(1, 2, 3\)/);
   assert.ok(css.indexOf(".host-derived-style") < css.indexOf(".host-layout-root"), "nested @import stays before the importing stylesheet rules");
+  assert.match(css, /\.host-component\s*\{[^}]*color:\s*rgb\(7, 8, 9\)/, "entry component CSS is bundled with layout styles");
 });
 
 test("host distinguishes handled API traffic from undeclared API violations", async () => {

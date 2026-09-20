@@ -1,5 +1,7 @@
 "use client";
 
+import "@/web/styles/yanwu-debug.css";
+
 import { useEffect, useRef, useState } from "react";
 
 export default function GyroTest() {

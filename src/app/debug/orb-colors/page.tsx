@@ -1,5 +1,7 @@
 "use client";
 
+import "@/web/styles/yanwu-debug.css";
+
 import { useState } from "react";
 
 const PALETTES = [

@@ -10,6 +10,14 @@ const lobby = {
 const immediate = { 'tournaments.lobby': { data: lobby, version: 'fixture-v1' } };
 export function usePageResources(name: string) {
     const [retried, setRetried] = useState(false);
+    if (name === 'heroes') return {
+        leaseId: 'fixture-heroes',
+        immediate: { 'heroes.list': { data: [{ heroId: 9001, name: '测试先锋', title: '阵容测试', imageUrl: '', roleType: 'top', secondaryRoleTypes: ['jungle'] }] } },
+        loading: false,
+        error: null,
+        loadResource: async () => [],
+        retry: () => setRetried(true)
+    };
     if (!['tournaments', 'monitor'].includes(name))
         throw new Error(`Unknown workspace resource page ${name}`);
     return {
