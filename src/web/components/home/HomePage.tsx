@@ -8,7 +8,7 @@ import { copyText } from "@/web/components/ui/clipboard";
 import { MarkdownContent } from "@/web/components/content/MarkdownContent";
 import { usePageResources } from "@/features/resource-scheduler/client";
 import { ArenaIcon } from "@/web/components/arena/ArenaIcon";
-import { ActiveThemeCard } from "@/web/components/history-theme/ActiveThemeCard";
+import { HistoryThemeSessionHome } from "@/web/components/history-theme/HistoryThemeSessionHome";
 
 interface OfficialNews { title: string; date: string; url: string }
 interface PublicTournament { id: number; name: string; code: string; announcement: string | null; _count: { players: number }; deadline: string }
@@ -72,7 +72,7 @@ export function HomePage() {
       </div>
     </section>
 
-    <ActiveThemeCard />
+    <HistoryThemeSessionHome />
 
     <section className="arena-section" aria-labelledby="rooms-title">
       <div className="arena-section-heading"><div><p className="arena-eyebrow">01 / 好友相聚</p><h2 id="rooms-title">三五好友，正好一局。</h2><p className="yanwu-section-note">公开房间 · 寻一席好对手</p></div><Link href={href("/tournaments")} className="arena-text-link">全部赛事<ArenaIcon name="arrow" /></Link></div>

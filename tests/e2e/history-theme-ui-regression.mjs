@@ -21,6 +21,8 @@ const bundled = await build({
       import { HistoryThemeDetail } from "@/web/components/history-theme/HistoryThemeDetail";
       import { HomePage } from "@/web/components/home/HomePage";
       import { ToastProvider } from "@/web/components/ui/Toast";
+      import { ThemeLayout } from "@/web/components/layout/ThemeLayout";
+      import { HistoryThemeSessionProvider } from "@/web/components/history-theme/HistoryThemeSessionProvider";
       const kinds=["LEAD_QUOTE","CLASSICAL_TEXT","MODERN_TRANSLATION","FACT_SUMMARY","TIMELINE","BATTLE_FLOW","MAP","FIGURE_PROFILE","CUSTOMS","SOURCE_NOTE","QUIZ","EDITOR_NOTE"];
       function FixtureApp(){
         const [,setLocationKey]=useState(()=>location.pathname+location.search);
@@ -38,9 +40,9 @@ const bundled = await build({
         const detail={...theme, category:query.get("category")||"ANCIENT_BATTLE", dateLabel:"年代待核验",dateNote:"约年，存在争议；非历史周年。", reviewedAt:null,reconstructionNote:"界面示意，不是历史影像。",blocks:kinds.map((kind,index)=>({id:String(index),kind,title:"验收内容块 "+kind,body:'<script>globalThis.historyInjected=true</script>\\n\\n![禁止加载的图片](https://unreviewed.invalid/image.png)\\n\\n[危险链接](javascript:alert(1))\\n\\n- 节点一\\n- 节点二'})),sources:[{id:"safe",title:"验收来源",url:"https://example.org/archive",publisher:"示例机构（未核验）",sourceType:"ARCHIVE",accessedAt:"2026-09-19",claimIds:["test-claim"]},{id:"unsafe",title:"不安全来源",url:"javascript:alert(1)",publisher:"未核验",sourceType:"MEDIA_REPORT",accessedAt:"",claimIds:[]}]};
         const card = <main><h1>卡片边界验收</h1><ActiveThemeCard theme={state==="empty" ? null : theme} loading={state==="loading"} error={state==="error"} hrefPrefix={query.has("mobile") ? "/m" : ""}/><button>原首页主要操作</button></main>;
         const isHome = location.pathname === "/" || location.pathname === "/m";
-        return location.pathname==="/card" ? card : location.pathname==="/detail" ? <HistoryThemeDetail theme={detail} homeHref="/m"/> : location.pathname==="/away" ? <main><h1>已离开工作室</h1></main> : isHome ? <ToastProvider><HomePage/></ToastProvider> : <AdminShell userId={Number(query.get("adminUserId")||1)} username={query.get("adminName")||"界面验收管理员"}><HistoryThemeStudio/></AdminShell>;
+        return location.pathname==="/card" ? card : location.pathname==="/detail" ? <HistoryThemeDetail theme={detail} homeHref="/m"/> : location.pathname==="/away" ? <main><h1>已离开工作室</h1></main> : isHome ? <ToastProvider><ThemeLayout><HomePage/></ThemeLayout></ToastProvider> : <AdminShell userId={Number(query.get("adminUserId")||1)} username={query.get("adminName")||"界面验收管理员"}><HistoryThemeStudio/></AdminShell>;
       }
-      createRoot(document.getElementById("root")).render(<React.StrictMode><FixtureApp/></React.StrictMode>);`,
+      createRoot(document.getElementById("root")).render(<React.StrictMode><HistoryThemeSessionProvider><FixtureApp/></HistoryThemeSessionProvider></React.StrictMode>);`,
     loader: "tsx", resolveDir: process.cwd(),
   },
   bundle: true, write: false, format: "iife", jsx: "automatic",
@@ -49,7 +51,7 @@ const bundled = await build({
     builder.onResolve({ filter: /^(next\/link|next\/navigation|@\/features\/auth\/client|@\/features\/resource-scheduler\/client)$/ }, args => ({ path: args.path, namespace: "test" }));
     builder.onLoad({ filter: /.*/, namespace: "test" }, args => ({ loader: "jsx", resolveDir: process.cwd(), contents:
       args.path === "next/link" ? `import React from "react"; export default function Link({prefetch,children,...props}){return <a {...props}>{children}</a>;}` :
-      args.path === "next/navigation" ? `export const usePathname=()=>location.pathname;` :
+      args.path === "next/navigation" ? `import {useState,useEffect,useMemo} from "react"; const router={push:(url)=>{history.pushState({},"",url);dispatchEvent(new PopStateEvent("popstate"));},replace:(url)=>{history.replaceState({},"",url);dispatchEvent(new PopStateEvent("popstate"));},refresh:()=>{},prefetch:()=>{}}; export const useRouter=()=>router; export function usePathname(){const [path,setPath]=useState(location.pathname);useEffect(()=>{const sync=()=>setPath(location.pathname);addEventListener("popstate",sync);return()=>removeEventListener("popstate",sync);},[]);return path;} export function useSearchParams(){return useMemo(()=>new URLSearchParams(location.search),[location.search]);}` :
       args.path === "@/features/resource-scheduler/client" ? `const loadResource=async(name)=>{(globalThis.__resourceRequests??=[]).push(name);return [];}; export function usePageResources(){return {immediate:{},loading:false,error:null,leaseId:"isolated",loadResource,retry:()=>{}};}` :
       `export function useAuth(){return {user:{userId:1,username:"界面验收管理员",role:"admin"},loaded:true,logout:async()=>{}};}`,
     }));
@@ -57,17 +59,21 @@ const bundled = await build({
 });
 let styles = await readFile("src/web/styles/yanwu-tokens.css", "utf8");
 styles += (await readFile("src/app/globals.css", "utf8")).replace(/^@import[^\n]*\n/gm, "");
-for (const file of ["admin.css", "history-theme.css", "arena.css", "arena-motion.css", "arena-glass.css", "yanwu-public.css", "yanwu-workspaces.css"]) styles += await readFile(`src/web/styles/${file}`, "utf8");
+for (const file of ["admin.css", "history-theme.css", "arena.css", "arena-motion.css", "arena-glass.css", "yanwu-public.css", "yanwu-workspaces.css", "history-theme-session.css"]) styles += await readFile(`src/web/styles/${file}`, "utf8");
 const css = (await postcss([tailwindcss]).process(styles, { from: path.resolve("src/app/globals.css") })).css;
 const apiRequests = [];
+let sessionUser = { userId: 1, username: "界面验收管理员", role: "admin" };
 const html = '<!doctype html><html lang="zh-CN" data-theme="yanwu"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/style.css"><div id="root"></div><script src="/bundle.js"></script></html>';
 const heroArt = await readFile("public/art/arena.webp");
+const inkArt = await readFile("public/art/yanwu-ink.webp");
 const server = createServer((req, res) => {
   const url = new URL(req.url, "http://localhost");
+  if (url.pathname === "/api/auth/me") { res.writeHead(200, { "Content-Type": "application/json" }); return res.end(JSON.stringify({ user: sessionUser })); }
   if (url.pathname.startsWith("/api/")) { apiRequests.push(`${req.method} ${url.pathname}`); res.writeHead(503); return res.end("UI-only boundary violation"); }
   if (url.pathname === "/bundle.js") { res.writeHead(200, { "Content-Type": "text/javascript" }); return res.end(bundled.outputFiles[0].contents); }
   if (url.pathname === "/style.css") { res.writeHead(200, { "Content-Type": "text/css" }); return res.end(css); }
   if (url.pathname === "/art/arena.webp") { res.writeHead(200, { "Content-Type": "image/webp" }); return res.end(heroArt); }
+  if (url.pathname === "/art/yanwu-ink.webp") { res.writeHead(200, { "Content-Type": "image/webp" }); return res.end(inkArt); }
   res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
   res.end(html);
 });
@@ -79,7 +85,8 @@ const errors = [];
 try {
   const engine = browserName === "webkit" ? webkit : chromium;
   browser = await engine.launch({ headless: true, ...(engine === chromium ? { executablePath: process.env.E2E_BROWSER_PATH || undefined } : {}) });
-  page = await browser.newPage({ reducedMotion: "reduce" });
+  const context = await browser.newContext({ reducedMotion: "reduce" });
+  page = await context.newPage();
   await page.addInitScript(() => {
     const original = window.setTimeout.bind(window);
     globalThis.__oversizedTimeouts = [];
@@ -302,6 +309,93 @@ try {
     assert.ok(await page.evaluate(() => globalThis.__resourceRequests.every(name => name === "home.official-news")), "homepage must not acquire a deferred history resource");
     await noOverflow(`unchanged home overflow: ${prefix}`);
   }
+  await page.goto(`${base}/admin/history-themes`, { waitUntil: "networkidle" });
+  assert.ok(await page.getByRole("button", { name: "在首页临时预览", exact: true }).isVisible(), "super admin can apply a session preview to the real homepage");
+  const previewKey = "yanwu:history-preview:v1";
+  const appearances = [
+    ["TRADITIONAL_FESTIVAL", "FESTIVE", "festival", "灯火良辰"],
+    ["ANCIENT_BATTLE", "CULTURAL", "campaign", "山河兵略"],
+    ["MODERN_COMMEMORATION", "SOLEMN", "memorial", "静水铭记"],
+    ["HISTORICAL_FIGURE", "CULTURAL", "scholar", "青简人物"],
+  ];
+  const surfaces = new Set();
+  for (const [category, tone, style, name] of appearances) {
+    for (const width of [1440, 390, 320]) {
+      await page.setViewportSize({ width, height: width === 1440 ? 1000 : 844 });
+      const prefix = width === 1440 ? "" : "/m";
+      await page.goto(`${base}${prefix}/admin/history-themes`, { waitUntil: "networkidle" });
+      await page.getByLabel("主题标题", { exact: true }).fill(`${name}主题验收`);
+      await page.getByLabel("主题摘要", { exact: true }).fill("在真实页面体验完整风格，临时预览仅自己可见。");
+      await page.getByLabel("主题分类", { exact: true }).selectOption(category);
+      await page.getByLabel("语调", { exact: true }).selectOption(tone);
+      await page.getByRole("button", { name: "在首页临时预览", exact: true }).click();
+      await page.locator(`html[data-history-preview-style="${style}"]`).waitFor();
+      await page.getByRole("region", { name: "当前主题预览" }).waitFor();
+      assert.equal(new URL(page.url()).pathname, prefix || "/");
+      const colors = await page.evaluate(() => ({ background: getComputedStyle(document.body).backgroundColor, button: getComputedStyle(document.querySelector(".arena-main-cta")).backgroundColor, header: getComputedStyle(document.querySelector(".header-bar")).backgroundColor }));
+      surfaces.add(JSON.stringify(colors));
+      assert.ok(await page.getByRole("link", { name: "进入赛事大厅" }).isVisible(), "core actions remain available during preview");
+      await noOverflow(`${style} full appearance at ${width}px`);
+      await page.screenshot({ path: path.join(output, `session-${style}-${width}.png`), fullPage: true });
+      await page.getByRole("button", { name: "查看主题详情" }).click();
+      await page.locator("[data-history-theme-detail]").waitFor();
+      await noOverflow(`${style} detail at ${width}px`);
+      await page.getByRole("button", { name: "返回主题卡片", exact: true }).click();
+      if (style !== "memorial" && width === 390) {
+        await page.emulateMedia({ reducedMotion: "no-preference" });
+        await page.getByRole("button", { name: "重播开场", exact: true }).click();
+        const intro = page.getByRole("dialog", { name: "演武堂开场动画" });
+        await intro.waitFor();
+        assert.ok(await intro.getByText(name, { exact: true }).isVisible(), "intro adopts the complete current appearance");
+        assert.equal(await page.locator("#main-content").evaluate(element => element.inert), true);
+        await intro.getByRole("button", { name: "跳过开场动画" }).click();
+        await intro.waitFor({ state: "hidden" });
+        assert.equal(await page.locator("#main-content").evaluate(element => element.inert), false);
+        await page.emulateMedia({ reducedMotion: "reduce" });
+      }
+      await page.reload({ waitUntil: "networkidle" });
+      await page.getByRole("region", { name: "当前主题预览" }).waitFor();
+      assert.ok(await page.getByRole("heading", { name: `${name}主题验收`, exact: true }).isVisible(), "refresh restores the selected snapshot after checking identity");
+      if (style === "memorial") {
+        await page.emulateMedia({ reducedMotion: "no-preference" });
+        await page.getByRole("button", { name: "重播开场", exact: true }).click();
+        assert.equal(await page.getByRole("dialog", { name: "演武堂开场动画" }).count(), 0, "solemn theme never opens a celebratory intro");
+        assert.equal(await page.evaluate(() => document.getAnimations().filter(item => item.playState === "running").length), 0, "solemn theme is static even without a reduced-motion preference");
+        await page.emulateMedia({ reducedMotion: "reduce" });
+      }
+      await page.getByRole("link", { name: "编辑主题", exact: true }).click();
+      await page.locator(`html[data-history-preview-style="${style}"]`).waitFor();
+      await page.getByRole("heading", { name: "历史主题工作室", exact: true }).waitFor();
+      await noOverflow(`${style} admin workspace at ${width}px`);
+      await page.getByRole("button", { name: "结束预览", exact: true }).click();
+      assert.equal(await page.locator("html[data-history-preview-style]").count(), 0);
+      assert.equal(await page.evaluate(key => sessionStorage.getItem(key), previewKey), null);
+    }
+  }
+  assert.equal(surfaces.size, 4, "the four presets have distinct full-site surfaces and controls");
+  // Ending, fresh tabs, invalid storage and identity changes must not leak a preview.
+  await page.getByRole("button", { name: "在首页临时预览", exact: true }).click();
+  await page.getByRole("region", { name: "当前主题预览" }).waitFor();
+  const isolatedTab = await page.context().newPage();
+  await isolatedTab.goto(base, { waitUntil: "networkidle" });
+  assert.equal(await isolatedTab.locator("html[data-history-preview-style]").count(), 0, "a fresh tab does not inherit another tab's preview");
+  await isolatedTab.close();
+  const savedPreview = await page.evaluate(key => sessionStorage.getItem(key), previewKey);
+  await page.evaluate(() => window.dispatchEvent(new Event("wzywt:auth-identity-changed")));
+  assert.equal(await page.locator("html[data-history-preview-style]").count(), 0);
+  await page.evaluate(({ key, raw }) => sessionStorage.setItem(key, raw), { key: previewKey, raw: savedPreview });
+  sessionUser = { userId: 2, username: "另一管理员", role: "admin" };
+  await page.reload({ waitUntil: "networkidle" });
+  assert.equal(await page.locator("html[data-history-preview-style]").count(), 0, "another administrator cannot restore the previous owner's preview");
+  await page.evaluate(({ key, raw }) => sessionStorage.setItem(key, raw), { key: previewKey, raw: savedPreview });
+  sessionUser = { userId: 1, username: "已降权用户", role: "user" };
+  await page.reload({ waitUntil: "networkidle" });
+  assert.equal(await page.locator("html[data-history-preview-style]").count(), 0, "a revoked administrator cannot restore preview");
+  sessionUser = { userId: 1, username: "界面验收管理员", role: "admin" };
+  await page.evaluate(key => sessionStorage.setItem(key, '{"theme":{"blocks":null}}'), previewKey);
+  await page.reload({ waitUntil: "networkidle" });
+  assert.equal(await page.locator("html[data-history-preview-style]").count(), 0, "corrupt stored data fails closed without breaking the homepage");
+  assert.equal(await page.evaluate(key => sessionStorage.getItem(key), previewKey), null);
   assert.deepEqual(apiRequests, [], "UI-only studio must not call deferred APIs");
   assert.deepEqual(externalRequests, [], "preview must not load third-party assets");
   assert.deepEqual(errors, [], "UI must have no runtime errors");

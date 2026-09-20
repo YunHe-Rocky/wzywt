@@ -1,6 +1,14 @@
 import assert from "node:assert/strict";
 import { NextRequest } from "next/server";
-import { middleware } from "../src/middleware";
+import { middleware, config } from "../src/middleware";
+import { unstable_doesMiddlewareMatch } from "next/experimental/testing/server";
+
+for (const url of ["/api/combat-posts", "/api/combat-posts/", "/api/combat-posts?page=1"]) {
+  assert.equal(unstable_doesMiddlewareMatch({ config, url }), false, "streamed video must bypass middleware's body clone limit");
+}
+for (const url of ["/admin", "/m/admin", "/api/combat-posts/1", "/api/combat-posts/policy", "/api/combat-posts-extra"]) {
+  assert.equal(unstable_doesMiddlewareMatch({ config, url }), true, "the upload exclusion must not broaden to other routes");
+}
 
 const desktop = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/140.0 Safari/537.36";
 const mobile = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148";

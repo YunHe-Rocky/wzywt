@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { useAdminIdentity } from "@/web/components/admin/AdminIdentityContext";
 import { HistoryThemeEditor } from "./HistoryThemeEditor";
 import {
@@ -11,6 +12,7 @@ import {
 } from "./HistoryThemePreview";
 import {
   createInitialStudioState,
+  EDITORIAL_NATURE_LABEL,
   EDITOR_SECTIONS,
   type EditorSection,
   type HistoryThemeStudioState,
@@ -20,6 +22,7 @@ import {
   readHistoryThemeRuntimeDraft,
   writeHistoryThemeRuntimeDraft,
 } from "./runtime-draft";
+import { useHistoryThemeSession } from "./HistoryThemeSessionProvider";
 
 export function HistoryThemeStudio() {
   const ownerId = useAdminIdentity();
@@ -27,6 +30,11 @@ export function HistoryThemeStudio() {
 }
 
 function HistoryThemeStudioForOwner({ ownerId }: { ownerId: number | null }) {
+  const { start } = useHistoryThemeSession();
+  const router = useRouter();
+  const pathname = usePathname();
+  const [starting, setStarting] = useState(false);
+  const [previewError, setPreviewError] = useState("");
   const [state, setState] = useState<HistoryThemeStudioState>(() => createInitialStudioState());
   const [section, setSection] = useState<EditorSection>("基本信息");
   const [previewContent, setPreviewContent] = useState<HistoryThemePreviewContent>("card");
@@ -72,10 +80,26 @@ function HistoryThemeStudioForOwner({ ownerId }: { ownerId: number | null }) {
     setDirty(false);
   };
 
+  const startSessionPreview = async () => {
+    if (ownerId === null || starting) return;
+    setStarting(true);
+    setPreviewError("");
+    try {
+      await start(ownerId, {
+        ...state.theme,
+        natureLabel: state.trigger.kind === "EDITORIAL_WINDOW" ? EDITORIAL_NATURE_LABEL : state.theme.natureLabel,
+        sources: state.theme.sources.filter(source => source.title.trim() || source.url.trim() || source.publisher.trim() || source.sourceType.trim() || source.accessedAt || source.claimIds.length),
+      });
+      router.push(/^\/m(?:\/|$)/.test(pathname) ? "/m" : "/");
+    } catch (cause) {
+      setPreviewError(cause instanceof Error ? cause.message : "开启预览失败，请重试");
+    } finally { setStarting(false); }
+  };
+
   return <main className="history-theme-studio admin-page" data-history-theme-studio>
     <header className="history-theme-studio-heading">
-      <div><p className="history-theme-eyebrow">HISTORY THEME / UI ONLY</p><h1>历史主题工作室</h1><p>编辑、版式与状态预览；客户端切换页面会临时保留，刷新或关闭会清除。</p></div>
-      <div className="history-theme-studio-status"><span data-history-theme-unsaved aria-live="polite">{dirty ? "临时修改已在本次运行中保留 · 刷新或关闭会清除" : "临时编辑 · 尚未修改"}</span><button type="button" onClick={reset}>重置临时编辑</button></div>
+      <div><p className="history-theme-eyebrow">HISTORY THEME</p><h1>历史主题工作室</h1><p>编辑主题，在实际页面体验完整风格。临时预览仅自己可见，不会发布。</p></div>
+      <div className="history-theme-studio-status"><span data-history-theme-unsaved aria-live="polite">{dirty ? "临时修改已在本次运行中保留 · 刷新或关闭会清除" : "临时编辑 · 尚未修改"}</span><button className="history-session-start" type="button" disabled={ownerId === null || starting} onClick={() => void startSessionPreview()}>{starting ? "正在开启预览…" : "在首页临时预览"}</button><button type="button" onClick={reset}>重置临时编辑</button><small>预览快照可跨页、刷新保留；结束预览或关闭标签页后清除。</small>{previewError && <p role="alert">{previewError}</p>}</div>
     </header>
 
     <div className="history-theme-studio-layout">

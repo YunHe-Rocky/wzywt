@@ -14,6 +14,7 @@ export interface HistoryThemeDetailProps {
   theme: ThemeDetailView;
   homeHref?: string;
   onBack?: () => void;
+  backLabel?: string;
   onOther?: () => void;
 }
 
@@ -52,7 +53,7 @@ function HistoryBlock({ block }: { block: HistoryThemeBlockView }) {
   </section>;
 }
 
-export function HistoryThemeDetail({ theme, homeHref = "/", onBack, onOther }: HistoryThemeDetailProps) {
+export function HistoryThemeDetail({ theme, homeHref = "/", onBack, onOther, backLabel = "返回编辑" }: HistoryThemeDetailProps) {
   const requiresReviewSummary = theme.category === "MODERN_COMMEMORATION" || theme.category === "HISTORICAL_FIGURE";
   return <article className={`history-theme-detail history-theme-detail--${theme.category.toLowerCase()}`} data-history-theme-detail data-category={theme.category}>
     <header className="history-theme-detail-hero">
@@ -85,7 +86,7 @@ export function HistoryThemeDetail({ theme, homeHref = "/", onBack, onOther }: H
     </section>
 
     <nav className="history-theme-detail-actions" aria-label="历史主题导航">
-      {onBack ? <button type="button" onClick={onBack}>返回编辑</button> : <Link href={homeHref}>返回首页</Link>}
+      {onBack ? <button type="button" onClick={onBack}>{backLabel}</button> : <Link href={homeHref}>返回首页</Link>}
       {onOther ? <button type="button" onClick={onOther}>查看其他主题</button> : <Link href={homeHref}>查看其他主题</Link>}
     </nav>
   </article>;

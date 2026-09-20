@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { FeaturePortal } from "@/web/components/ui/FeaturePortal";
+import { useHistoryThemeSession } from "@/web/components/history-theme/HistoryThemeSessionProvider";
+import { HISTORY_PREVIEW_STYLES, historyPreviewStyle } from "@/features/history-theme/preview";
 
 const STORAGE_KEY = "yanwu:intro-seen:v1";
 const REPLAY_EVENT = "yanwu:replay-intro";
@@ -16,6 +18,8 @@ export function replayArenaIntro() {
 }
 
 function InkOpening({ motion, onComplete }: { motion: IntroMotion; onComplete: () => void }) {
+  const { preview } = useHistoryThemeSession();
+  const appearance = preview ? HISTORY_PREVIEW_STYLES[historyPreviewStyle(preview.theme)] : null;
   const skipRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -56,17 +60,19 @@ function InkOpening({ motion, onComplete }: { motion: IntroMotion; onComplete: (
     <svg className="arena-intro-mark" viewBox="0 0 160 160" aria-hidden="true">
       <rect x="25" y="24" width="110" height="110" />
       <path d="M42 52h76M48 78h64M48 104h64M63 39v82M96 39v82" />
-      <text x="80" y="100" textAnchor="middle">武</text>
+      <text x="80" y="100" textAnchor="middle">{appearance?.mark ?? "武"}</text>
     </svg>
     <svg className="arena-intro-ink" viewBox="0 0 600 36" preserveAspectRatio="none" aria-hidden="true">
       <path d="M8 22c73-8 121 5 191-2 82-8 128 5 201-1 70-6 119 4 192-3" />
     </svg>
-    <div className="arena-intro-caption"><p>王者演武堂</p><span>以武会友，以文知古</span><small>YANWU · FRIENDS &amp; PLAY</small></div>
+    <div className="arena-intro-caption"><p>{appearance?.name ?? "王者演武堂"}</p><span>{appearance?.caption ?? "以武会友，以文知古"}</span><small>YANWU · FRIENDS &amp; PLAY</small></div>
     <button ref={skipRef} type="button" className="arena-intro-skip" onClick={onComplete} aria-label="跳过开场动画">跳过</button>
   </div>;
 }
 
 export function ArenaIntro() {
+  const { preview } = useHistoryThemeSession();
+  const solemn = preview !== null && historyPreviewStyle(preview.theme) === "memorial";
   const [run, setRun] = useState(0);
   const [motion, setMotion] = useState<IntroMotion>("motion");
   const [active, setActive] = useState(false);
@@ -76,8 +82,11 @@ export function ArenaIntro() {
     setActive(false);
   }, []);
 
+  useEffect(() => { if (solemn) complete(); }, [complete, solemn]);
+
   useEffect(() => {
     const start = (manual: boolean) => {
+      if (solemn || document.documentElement.dataset.historyPreviewStyle === "memorial") return;
       if (activeRef.current) return;
       if (location.search.includes("_from=login")) return;
       if (document.querySelector('[role="dialog"][aria-modal="true"], dialog[open]')) return;
@@ -103,7 +112,7 @@ export function ArenaIntro() {
       activeRef.current = false;
       window.removeEventListener(REPLAY_EVENT, replay);
     };
-  }, []);
+  }, [solemn]);
 
-  return active ? <FeaturePortal><InkOpening key={run} motion={motion} onComplete={complete} /></FeaturePortal> : null;
+  return active && !solemn ? <FeaturePortal><InkOpening key={run} motion={motion} onComplete={complete} /></FeaturePortal> : null;
 }

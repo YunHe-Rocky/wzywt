@@ -62,10 +62,13 @@ jobs:
       - run: npm run test:next-stage
       - run: npm run test:connections
       - run: npm run test:combat-video
+      - run: npm run test:e2e:combat-streaming
       - run: npm run test:integration
       - run: npm run lint
       - run: npm run build
       - run: npx playwright install --with-deps chromium webkit
+      - name: History theme session preview regression
+        run: npm run test:e2e:history-theme
       - name: Combat feed and admin browser regression
         run: npm run test:e2e:combat-admin
       - name: Install isolated HTTPS proxy dependency
