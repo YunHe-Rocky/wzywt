@@ -3,6 +3,29 @@
   "project": "wangzhe-yanwutang",
   "releases": [
     {
+      "version": "1.0.2",
+      "internalId": "WZYWT-REL-0003",
+      "releaseType": "minor",
+      "releasedAt": "2026-09-20T10:36:51+08:00",
+      "timezone": "Asia/Shanghai",
+      "tag": "v1.0.2",
+      "previousVersion": "1.0.1",
+      "sourceRange": {
+        "fromCommit": "b408b66cd662d12b8e0b67cb82057b8c92ee8d64",
+        "toCommit": "e30f4b0e413b48291f747d59a164e2fe9e046f32",
+        "compareUrl": "https://github.com/YunHe-Rocky/wzywt/compare/b408b66cd662d12b8e0b67cb82057b8c92ee8d64...e30f4b0e413b48291f747d59a164e2fe9e046f32"
+      },
+      "pullRequests": [],
+      "summary": [
+        "修复 Next middleware 截断大视频上传，真实五分钟视频通过本地上传回归",
+        "超管会话临时预览覆盖四类完整主题，可手动结束并随身份和会话失效",
+        "拆分房间与战绩大组件，选将面板和页面样式按需加载",
+        "移除当前 Git 树的生成媒体，部署源码包约缩小 91%，清理约 950 MiB 中间文件",
+        "完成全站两端及工作区交互回归，保留原有权限与数据契约"
+      ],
+      "notes": "无对应 PR；代码提交位于 codex/history-theme-system，sourceRange 从上一版本标签到本轮实现提交，版本登记提交由 v1.0.2 标签指向。版本登记与代码上传不代表 main 已合并或生产已部署；未创建 GitHub Release。历史主题正式审核发布、后台持久化和自动排期尚未完成，浏览器回归使用隔离数据。Git 历史保留旧媒体，未重写历史。"
+    },
+    {
       "version": "1.0.1",
       "internalId": "WZYWT-REL-0002",
       "releaseType": "minor",

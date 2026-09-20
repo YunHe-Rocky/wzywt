@@ -2,6 +2,8 @@
 
 王者荣耀 5v5 朋友局/内战组织工具，提供赛事房间、报名、临时玩家、分路偏好、英雄战力与确定性分队。
 
+当前代码版本：[v1.0.2 / WZYWT-REL-0003](docs/releases/v1.0.2.md)（小版本；代码版本不代表生产已部署）。
+
 ## 技术栈
 
 Next.js 15、TypeScript、Tailwind CSS、Prisma/MySQL、Redis、iron-session、PM2、node-cron。
