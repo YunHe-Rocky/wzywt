@@ -68,8 +68,15 @@ test("OSS model keeps Web cache read-only, shares paths and disables automatic h
       })) };
   }
   validateStorageModel(model, s);
-  model.services.cron.volumes[0].bind.create_host_path = true;
-  assert.throws(() => validateStorageModel(model, s), /Incorrect OSS bind/);
+  // Compose 2.x JSON omits zero-valued false, then may omit the empty bind object.
+  for (const service of Object.values(model.services)) for (const volume of service.volumes) delete volume.bind.create_host_path;
+  validateStorageModel(model, s);
+  for (const service of Object.values(model.services)) for (const volume of service.volumes) delete volume.bind;
+  validateStorageModel(model, s);
+  for (const value of [true, "false", 1]) {
+    model.services.cron.volumes[0].bind = { create_host_path: value };
+    assert.throws(() => validateStorageModel(model, s), /Incorrect OSS bind/);
+  }
 });
 
 function fakeIo({ renameFailure = false } = {}) {

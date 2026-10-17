@@ -128,8 +128,11 @@ export function validateStorageModel(model, storage) {
     for (const [source, target] of paths) {
       const volume = model.services?.[service]?.volumes?.find((item) => item.target === target);
       const readOnly = service === "web" && source !== "media";
+      // Compose 2.x omits false in normalized JSON. Short bind syntax resolves
+      // to true, which must still fail this check.
+      const createHostPath = volume?.bind?.create_host_path;
       if (volume?.type !== "bind" || volume.source !== posix.join(storage.dataPath, source)
-        || Boolean(volume.read_only) !== readOnly || volume.bind?.create_host_path !== false) {
+        || Boolean(volume.read_only) !== readOnly || (createHostPath !== undefined && createHostPath !== false)) {
         throw new Error(`Incorrect OSS bind mount for ${service}: ${target}`);
       }
     }

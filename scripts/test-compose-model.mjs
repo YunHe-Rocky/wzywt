@@ -23,6 +23,9 @@ const run = (args, options = {}) => spawnSync(tool, [...prefix, ...args], {
 });
 let cases = 0;
 try {
+  const version = run(["version", "--short"]);
+  assert.ifError(version.error); assert.equal(version.status, 0, version.stderr);
+  console.log(`Compose model verification: ${version.stdout.trim()}`);
   for (const mysql of ["container", "external"]) for (const ocr of ["off", "container", "external"]) for (const mode of ["volume", "rclone"]) {
     const overrides = { MYSQL_MODE: mysql, OCR_MODE: ocr, MYSQL_HOST: mysql === "external" ? "host-machine" : "",
       MATCH_OCR_ENDPOINT: ocr === "external" ? "http://host-machine:8011/recognize" : "",
