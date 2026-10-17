@@ -1,3 +1,4 @@
+import { withRequestCapacity } from "@/lib/request-capacity";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
@@ -8,7 +9,7 @@ import { parseRouteId } from "@/lib/request-validation";
 
 type Context = { params: Promise<{ id: string; matchId: string }> };
 
-export async function POST(_request: NextRequest, context: Context) {
+async function handlePOST(_request: NextRequest, context: Context) {
   try {
     const params = await context.params;
     const task = await startMatchRecognition(parseRouteId(params.id, "赛事 ID"), parseRouteId(params.matchId, "比赛 ID"));
@@ -18,7 +19,7 @@ export async function POST(_request: NextRequest, context: Context) {
   }
 }
 
-export async function DELETE(_request: NextRequest, context: Context) {
+async function handleDELETE(_request: NextRequest, context: Context) {
   try {
     const params = await context.params;
     return NextResponse.json(await cancelMatchRecognition(parseRouteId(params.id, "赛事 ID"), parseRouteId(params.matchId, "比赛 ID")));
@@ -26,3 +27,6 @@ export async function DELETE(_request: NextRequest, context: Context) {
     return apiErrorResponse(error);
   }
 }
+
+export const POST = withRequestCapacity(handlePOST);
+export const DELETE = withRequestCapacity(handleDELETE);

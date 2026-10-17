@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { redis, warnRedisFailure } from "@/lib/redis";
+import { resourceTaskSignal } from "@/lib/resource-governor";
 import {
   assertTaskWriteAllowed,
   runWithTaskWriteFence,
@@ -130,6 +131,10 @@ export async function runExclusiveTask(
     }
     databaseLockAcquired = true;
     const controller = new AbortController();
+    const parentSignal = resourceTaskSignal();
+    const onParentAbort = () => controller.abort(parentSignal?.reason);
+    if (parentSignal?.aborted) onParentAbort();
+    else parentSignal?.addEventListener("abort", onParentAbort, { once: true });
     const fence: TaskWriteFence = { name, token, expiresAt, signal: controller.signal };
     const markLeaseLost = (reason: string) => {
       if (!controller.signal.aborted) controller.abort(new TaskWriteFenceError(name, reason));
@@ -167,7 +172,8 @@ export async function runExclusiveTask(
     databaseRenewalTimer.unref();
 
     await runWithTaskWriteFence(fence, async () => {
-      await operation(context);
+      try { await operation(context); }
+      finally { parentSignal?.removeEventListener("abort", onParentAbort); }
       await context.assertOwnership();
     });
     return true;

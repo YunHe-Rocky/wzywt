@@ -3,6 +3,8 @@ import { NextResponse } from "next/server";
 import { AuthError } from "@/lib/auth";
 import { PermissionError } from "@/lib/permissions";
 import { ServiceError } from "@/lib/service-error";
+import { runtimeLog } from "@/lib/runtime-log";
+import { requestContext } from "@/lib/request-context";
 
 export interface ApiErrorContext {
   request?: Request;
@@ -11,6 +13,8 @@ export interface ApiErrorContext {
 }
 
 function requestIdFor(request?: Request): string {
+  const current = requestContext.getStore();
+  if (current) return current.requestId;
   const candidate = request?.headers.get("x-request-id")?.trim();
   return candidate && /^[A-Za-z0-9._:-]{8,128}$/.test(candidate) ? candidate : randomUUID();
 }
@@ -29,15 +33,14 @@ function logFailure(error: unknown, status: number, code: string, requestId: str
     event: "api.failure",
     requestId,
     useCase: context.useCase ?? "unknown",
-    durationMs: context.startedAt === undefined ? undefined : Math.max(0, Date.now() - context.startedAt),
+    durationMs: context.startedAt === undefined && !requestContext.getStore() ? undefined
+      : Math.max(0, Date.now() - (context.startedAt ?? requestContext.getStore()!.startedAt)),
     status,
     code,
     errorName: error instanceof Error ? error.name : typeof error,
     stack: redactedStack(error),
   };
-  const message = JSON.stringify(entry);
-  if (status >= 500) console.error(message);
-  else console.warn(message);
+  runtimeLog("api.failure", { ...entry, error }, status >= 500 ? "error" : "warn");
 }
 
 export function apiErrorResponse(error: unknown, context: ApiErrorContext = {}): NextResponse {

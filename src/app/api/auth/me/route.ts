@@ -1,3 +1,4 @@
+import { withRequestCapacity } from "@/lib/request-capacity";
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
@@ -9,7 +10,7 @@ import { tryReadJsonRequest } from "@/lib/request-validation";
 import { apiErrorResponse } from "@/lib/api-errors";
 import { resourceScheduler } from "@/features/resource-scheduler/server/registry";
 
-export async function GET() {
+async function handleGET() {
   const session = await getSession();
   if (!session.userId) {
     return NextResponse.json({ user: null }, {
@@ -65,7 +66,7 @@ export async function GET() {
   });
 }
 
-export async function DELETE(req: NextRequest) {
+async function handleDELETE(req: NextRequest) {
   const auth = await authenticate();
   if (!auth.ok) return NextResponse.json({ error: auth.code === "BANNED" ? "账户已被封禁" : "请先登录" }, { status: auth.code === "BANNED" ? 403 : 401 });
   const { userId } = auth.user;
@@ -99,3 +100,6 @@ export async function DELETE(req: NextRequest) {
     return apiErrorResponse(error);
   }
 }
+
+export const GET = withRequestCapacity(handleGET);
+export const DELETE = withRequestCapacity(handleDELETE);

@@ -1,0 +1,52 @@
+# Selected automatically by scripts/compose.mjs when STORAGE_MODE=rclone.
+# Host paths must already exist on the active mount; Docker must not create them.
+x-oss-data-path: ${OSS_DATA_PATH:?Set OSS_DATA_PATH or use scripts/compose.mjs}
+
+services:
+  storage-init:
+    user: "1000:1000"
+    environment:
+      STORAGE_MANAGE_PERMISSIONS: "0"
+    volumes:
+      - type: bind
+        source: ${OSS_DATA_PATH}/media
+        target: /app/data/media
+        bind: { create_host_path: false }
+      - type: bind
+        source: ${OSS_DATA_PATH}/heroes/images
+        target: /app/public/heroes/images
+        bind: { create_host_path: false }
+      - type: bind
+        source: ${OSS_DATA_PATH}/heroes/skins
+        target: /app/public/heroes/skins
+        bind: { create_host_path: false }
+  web:
+    volumes:
+      - type: bind
+        source: ${OSS_DATA_PATH}/media
+        target: /app/data/media
+        bind: { create_host_path: false }
+      - type: bind
+        source: ${OSS_DATA_PATH}/heroes/images
+        target: /app/public/heroes/images
+        read_only: true
+        bind: { create_host_path: false }
+      - type: bind
+        source: ${OSS_DATA_PATH}/heroes/skins
+        target: /app/public/heroes/skins
+        read_only: true
+        bind: { create_host_path: false }
+  cron:
+    volumes:
+      - type: bind
+        source: ${OSS_DATA_PATH}/media
+        target: /app/data/media
+        bind: { create_host_path: false }
+      - type: bind
+        source: ${OSS_DATA_PATH}/heroes/images
+        target: /app/public/heroes/images
+        bind: { create_host_path: false }
+      - type: bind
+        source: ${OSS_DATA_PATH}/heroes/skins
+        target: /app/public/heroes/skins
+        bind: { create_host_path: false }

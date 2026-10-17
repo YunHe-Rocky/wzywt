@@ -1,3 +1,4 @@
+import { withRequestCapacity } from "@/lib/request-capacity";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
@@ -9,7 +10,7 @@ import { parseRouteId } from "@/lib/request-validation";
 
 type Context = { params: Promise<{ postId: string }> };
 
-export async function GET(request: NextRequest, context: Context) {
+async function handleGET(request: NextRequest, context: Context) {
   try {
     const { postId } = await context.params;
     const video = await openCombatPostVideo(parseRouteId(postId, "动态 ID"), request.headers.get("range"));
@@ -35,3 +36,5 @@ export async function GET(request: NextRequest, context: Context) {
     return apiErrorResponse(error);
   }
 }
+
+export const GET = withRequestCapacity(handleGET);

@@ -23,4 +23,6 @@ if (!globalForPrisma.taskWriteFenceInstalled) {
   globalForPrisma.taskWriteFenceInstalled = true;
 }
 
-if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
+// Node middleware and route bundles share one process. Keep the fenced client
+// singleton in production too, rather than sharing only its installation flag.
+globalForPrisma.prisma = prisma;

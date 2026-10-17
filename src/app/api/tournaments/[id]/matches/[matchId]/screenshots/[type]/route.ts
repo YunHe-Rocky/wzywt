@@ -1,3 +1,4 @@
+import { withRequestCapacity } from "@/lib/request-capacity";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
@@ -17,7 +18,7 @@ function parseParams(params: Awaited<Context["params"]>) {
   return { tournamentId: parseRouteId(params.id, "赛事 ID"), matchId: parseRouteId(params.matchId, "比赛 ID"), type: params.type };
 }
 
-export async function POST(request: NextRequest, context: Context) {
+async function handlePOST(request: NextRequest, context: Context) {
   try {
     const ids = parseParams(await context.params);
     const authorization = await authorizeMatchScreenshotUpload(ids.tournamentId, ids.matchId);
@@ -30,7 +31,7 @@ export async function POST(request: NextRequest, context: Context) {
   }
 }
 
-export async function GET(_request: NextRequest, context: Context) {
+async function handleGET(_request: NextRequest, context: Context) {
   try {
     const ids = parseParams(await context.params);
     const file = await getMatchScreenshotForAdmin(ids.tournamentId, ids.matchId, ids.type);
@@ -47,3 +48,6 @@ export async function GET(_request: NextRequest, context: Context) {
     return apiErrorResponse(error);
   }
 }
+
+export const POST = withRequestCapacity(handlePOST);
+export const GET = withRequestCapacity(handleGET);

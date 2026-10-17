@@ -131,7 +131,7 @@ const assert = require("node:assert/strict");
 const config = require(process.argv[2]);
 assert.deepEqual(config.apps.map((app) => app.name), ["renamed-app-web", "renamed-app-cron"]);
 assert.equal(config.apps[0].cwd, process.env.APP_DIR);
-assert.equal(config.apps[0].args, "start -H 127.0.0.2 -p 19090");
+assert.deepEqual(config.apps[0].args, ["start", "--hostname", "127.0.0.2", "--port", "19090"]);
 assert.equal(config.apps[0].env.DEPLOY_WEB_PORT, "19090");
 assert.equal(config.apps[0].env.PORT, "19090");
 NODE
@@ -143,7 +143,7 @@ node --input-type=commonjs - "$REPO_ROOT/ecosystem.config.js" <<'NODE'
 const assert = require("node:assert/strict");
 const config = require(process.argv[2]);
 assert.deepEqual(config.apps.map((app) => app.name), ["wangzhe-yanwutang-web", "wangzhe-yanwutang-cron"]);
-assert.equal(config.apps[0].args, "start -H 127.0.0.3 -p 19091");
+assert.deepEqual(config.apps[0].args, ["start", "--hostname", "127.0.0.3", "--port", "19091"]);
 assert.equal(config.apps[0].env.PORT, "19091");
 NODE
 

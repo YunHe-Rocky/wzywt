@@ -1,3 +1,4 @@
+import { withRequestCapacity } from "@/lib/request-capacity";
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
@@ -7,7 +8,7 @@ import { parseRouteId, readJsonRequest } from "@/lib/request-validation";
 
 type Context = { params: Promise<{ matchId: string }> };
 
-export async function PATCH(request: NextRequest, context: Context) {
+async function handlePATCH(request: NextRequest, context: Context) {
   try {
     const { matchId } = await context.params;
     return NextResponse.json(await correctMatchRecord(parseRouteId(matchId, "比赛 ID"), await readJsonRequest(request)));
@@ -15,3 +16,5 @@ export async function PATCH(request: NextRequest, context: Context) {
     return apiErrorResponse(error);
   }
 }
+
+export const PATCH = withRequestCapacity(handlePATCH);

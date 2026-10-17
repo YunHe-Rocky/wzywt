@@ -1,3 +1,4 @@
+import { withRequestCapacity } from "@/lib/request-capacity";
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
@@ -6,7 +7,7 @@ import { authenticate, hashPassword, verifyPassword } from "@/lib/auth";
 import { getSession } from "@/lib/session";
 import { tryReadJsonRequest } from "@/lib/request-validation";
 
-export async function POST(req: NextRequest) {
+async function handlePOST(req: NextRequest) {
   const auth = await authenticate();
   if (!auth.ok) return NextResponse.json({ error: auth.code === "BANNED" ? "账户已被封禁" : "请先登录" }, { status: auth.code === "BANNED" ? 403 : 401 });
   const { userId } = auth.user;
@@ -65,3 +66,5 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({ ok: true });
 }
+
+export const POST = withRequestCapacity(handlePOST);

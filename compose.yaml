@@ -1,0 +1,165 @@
+# Topology only. scripts/compose.mjs calls the shared runtime configuration and
+# supplies it as an in-memory override. Use that entrypoint for deployment.
+name: ${COMPOSE_PROJECT_NAME:-wzywt}
+x-managed-runtime: ${WZYWT_COMPOSE_MANAGED:?Use node scripts/compose.mjs to supply runtime configuration}
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+x-app: &app
+  image: wzywt:${APP_RELEASE_ID:-local}
+  build:
+    context: .
+    target: runtime
+    args:
+      NODE_IMAGE: ${NODE_IMAGE:-node:24-bookworm-slim}
+  init: true
+  restart: unless-stopped
+  extra_hosts:
+    - "host-machine:host-gateway"
+  security_opt:
+    - no-new-privileges:true
+  cap_drop: [ALL]
+  logging: *logging
+
+x-app-dependencies: &app-dependencies
+  mysql:
+    condition: service_healthy
+    required: false
+  redis:
+    condition: service_healthy
+  storage-init:
+    condition: service_completed_successfully
+  migrate:
+    condition: service_completed_successfully
+
+services:
+  mysql:
+    profiles: [mysql]
+    image: ${MYSQL_IMAGE:-mysql:8.4}
+    restart: unless-stopped
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: [CMD-SHELL, 'MYSQL_PWD="$$MYSQL_PASSWORD" mysql --protocol=TCP -h 127.0.0.1 -u "$$MYSQL_USER" "$$MYSQL_DATABASE" -Nse "SELECT 1" >/dev/null']
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+    logging: *logging
+
+  # Short-lived client only: never starts a server or mounts database files.
+  mysql-client:
+    profiles: [tools]
+    image: ${MYSQL_IMAGE:-mysql:8.4}
+    restart: "no"
+    entrypoint: [sh, -ec]
+    extra_hosts:
+      - "host-machine:host-gateway"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    logging: *logging
+
+  redis:
+    image: ${REDIS_IMAGE:-redis:7.4-alpine}
+    restart: unless-stopped
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    logging: *logging
+
+  # Only this short-lived job runs as root. No recursive ownership changes are
+  # needed: application processes create all files as uid/gid 1000 themselves.
+  storage-init:
+    <<: *app
+    user: "0:0"
+    restart: "no"
+    entrypoint: [node, docker/init-storage.mjs]
+    command: []
+    # Drop to uid/gid 1000 before probing actual application-user I/O.
+    cap_add: [CHOWN, FOWNER, DAC_OVERRIDE, SETUID, SETGID]
+    volumes:
+      - media:/app/data/media
+      - hero-images:/app/public/heroes/images
+      - hero-skins:/app/public/heroes/skins
+
+  migrate:
+    <<: *app
+    restart: "no"
+    command: [migrate]
+    depends_on:
+      mysql:
+        condition: service_healthy
+        required: false
+
+  web:
+    <<: *app
+    command: [web]
+    ports:
+      - "${BIND_ADDRESS:-0.0.0.0}:${PORT:-8001}:8001"
+    depends_on: *app-dependencies
+    volumes:
+      - media:/app/data/media
+      - hero-images:/app/public/heroes/images:ro
+      - hero-skins:/app/public/heroes/skins:ro
+    healthcheck:
+      test: [CMD, node, docker/healthcheck.mjs, web]
+      interval: 15s
+      timeout: 8s
+      retries: 12
+      start_period: 45s
+    stop_grace_period: 45s
+
+  cron:
+    <<: *app
+    command: [cron]
+    depends_on: *app-dependencies
+    volumes:
+      - media:/app/data/media
+      - hero-images:/app/public/heroes/images
+      - hero-skins:/app/public/heroes/skins
+    healthcheck:
+      test: [CMD, node, docker/healthcheck.mjs, cron]
+      interval: 15s
+      timeout: 8s
+      retries: 6
+      start_period: 45s
+    # The worker drains active tasks for at most 300 seconds on SIGTERM.
+    stop_grace_period: 310s
+
+  ocr:
+    profiles: [ocr]
+    image: wzywt-ocr:${APP_RELEASE_ID:-local}
+    build:
+      context: ./services/ocr
+    init: true
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8010/health', timeout=5).read()"]
+      interval: 15s
+      timeout: 8s
+      retries: 12
+      start_period: 120s
+    stop_grace_period: 100s
+    logging: *logging
+
+# Container MySQL, Redis and OCR have no published host ports. The manager
+# selects the mysql/ocr profiles; external services use their configured address.
+# host-machine maps the Docker host gateway, not the container's own loopback.
+volumes:
+  mysql-data:
+  redis-data:
+  media:
+  hero-images:
+  hero-skins:

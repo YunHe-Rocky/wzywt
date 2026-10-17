@@ -1,3 +1,4 @@
+import { withRequestCapacity } from "@/lib/request-capacity";
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
@@ -5,7 +6,7 @@ import { prisma } from "@/lib/db";
 import fs from "fs";
 import path from "path";
 
-export async function GET(req: NextRequest) {
+async function handleGET(req: NextRequest) {
   const slug = new URL(req.url).searchParams.get("slug");
 
   // Single entry: try DB first, fallback to files
@@ -47,3 +48,5 @@ export async function GET(req: NextRequest) {
     })),
   });
 }
+
+export const GET = withRequestCapacity(handleGET);

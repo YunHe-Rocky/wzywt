@@ -83,7 +83,7 @@ export function getRecognitionProviderUrl(): URL {
     throw new ServiceError("SERVICE_UNAVAILABLE", "尚未配置 MATCH_OCR_ENDPOINT，无法启动 OCR");
   }
   try {
-    return resolveOcrEndpoint(endpoint, process.env.DEPLOY_ENVIRONMENT, process.env.NODE_ENV === "production");
+    return resolveOcrEndpoint(endpoint, process.env.DEPLOY_ENVIRONMENT, process.env.NODE_ENV === "production", process.env.MATCH_OCR_INTERNAL_HOST);
   } catch (error) {
     throw new ServiceError("SERVICE_UNAVAILABLE", error instanceof Error ? error.message : "MATCH_OCR_ENDPOINT 配置无效");
   }

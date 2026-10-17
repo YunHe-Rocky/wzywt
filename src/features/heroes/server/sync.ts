@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { resourceCheckpoint, resourceGovernor } from "@/lib/resource-governor";
 import { load } from "cheerio";
 import * as iconv from "iconv-lite";
 import { createHash } from "crypto";
@@ -287,13 +288,13 @@ export async function syncHeroes(onProgress?: (p: SyncProgress) => void): Promis
   let imageFallbacks = 0;
   let detail404s = 0;
 
-  // Process in batches of 8 for speed
-  const batchSize = 8;
-  const totalBatches = Math.ceil(heroes.length / batchSize);
-  for (let b = 0; b < heroes.length; b += batchSize) {
+  // Adapt each batch to current pressure; an internal job can take longer
+  // instead of keeping the process at its peak concurrency throughout.
+  for (let b = 0; b < heroes.length;) {
+    await resourceCheckpoint("hero-details");
+    const batchSize = resourceGovernor.concurrency();
     const batch = heroes.slice(b, b + batchSize);
-    const batchNum = Math.floor(b / batchSize) + 1;
-    progress("sync", batchNum, totalBatches, `同步英雄数据 ${b + 1}/${heroes.length}...`);
+    progress("sync", b, heroes.length, `同步英雄数据 ${b + 1}/${heroes.length}...`);
     const results = await Promise.all(
       batch.map(async (h) => {
         const roleType = resolveRoleType(h);
@@ -400,6 +401,7 @@ export async function syncHeroes(onProgress?: (p: SyncProgress) => void): Promis
     }
 
     console.log(`[sync] ${Math.min(b + batchSize, heroes.length)}/${heroes.length} done`);
+    b += batchSize;
   }
 
   // 命格关系由确定 heroId 绑定；同步后自动恢复，避免依赖一次性迁移脚本。

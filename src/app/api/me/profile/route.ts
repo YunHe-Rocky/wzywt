@@ -1,3 +1,4 @@
+import { withRequestCapacity } from "@/lib/request-capacity";
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
@@ -6,7 +7,7 @@ import { prisma } from "@/lib/db";
 import { normalizeGameProfile } from "@/features/profile/model";
 import { tryReadJsonRequest } from "@/lib/request-validation";
 
-export async function PATCH(req: NextRequest) {
+async function handlePATCH(req: NextRequest) {
   const auth = await authenticate();
   if (!auth.ok) return NextResponse.json({ error: auth.code === "BANNED" ? "账号已被封禁" : "请先登录" }, { status: auth.code === "BANNED" ? 403 : 401 });
   const { userId } = auth.user;
@@ -36,3 +37,5 @@ export async function PATCH(req: NextRequest) {
 
   return NextResponse.json(user);
 }
+
+export const PATCH = withRequestCapacity(handlePATCH);

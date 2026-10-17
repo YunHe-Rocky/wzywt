@@ -12,6 +12,15 @@ import type {
   ResourceState,
 } from "@/features/resource-scheduler/model";
 import { ResourceSchedulerError } from "@/features/resource-scheduler/model";
+import { runtimeLog } from "@/lib/runtime-log";
+
+export interface SweepResult {
+  expiredLeases: number;
+  evicted: number;
+  emptyEntries: number;
+  failedDisposals: number;
+  remainingEntries: number;
+}
 
 interface ResourceEntry {
   definition: ResourceDefinition;
@@ -69,6 +78,7 @@ export class ResourceScheduler {
   private readonly now: () => number;
   private readonly createId: () => string;
   private readonly sweepTimer: ReturnType<typeof setInterval> | null;
+  private sweepInFlight: Promise<SweepResult> | null = null;
 
   constructor(options: ResourceSchedulerOptions = {}) {
     this.leaseTtlMs = options.leaseTtlMs ?? 90_000;
@@ -81,7 +91,7 @@ export class ResourceScheduler {
     if (options.autoSweep === false) {
       this.sweepTimer = null;
     } else {
-      this.sweepTimer = setInterval(() => void this.sweep(), options.sweepIntervalMs ?? 5_000);
+      this.sweepTimer = setInterval(() => void this.sweep().catch(error => runtimeLog("resource.sweep_failed", { error }, "warn")), options.sweepIntervalMs ?? 5_000);
       this.sweepTimer.unref?.();
     }
   }
@@ -190,24 +200,47 @@ export class ResourceScheduler {
     }
   }
 
-  async sweep(): Promise<void> {
+  async sweep(reclaimIdle = false): Promise<SweepResult> {
+    if (this.sweepInFlight) return this.sweepInFlight;
+    const operation = this.performSweep(reclaimIdle);
+    this.sweepInFlight = operation;
+    try { return await operation; }
+    finally { if (this.sweepInFlight === operation) this.sweepInFlight = null; }
+  }
+
+  private async performSweep(reclaimIdle: boolean): Promise<SweepResult> {
     const now = this.now();
     const expired = [...this.leases.values()].filter((lease) => lease.expiresAt <= now);
     for (const lease of expired) this.releaseLeaseUnchecked(lease);
+    const result: SweepResult = { expiredLeases: expired.length, evicted: 0, emptyEntries: 0, failedDisposals: 0, remainingEntries: 0 };
 
     for (const entry of this.entries.values()) {
-      if (entry.state !== "IDLE" || entry.loading || entry.idleSince === null) continue;
-      if (now - entry.idleSince < entry.definition.idleTtlMs) continue;
-      if (entry.value && entry.definition.dispose) await entry.definition.dispose(entry.value.data);
+      if (entry.leases.size || entry.loading || entry.idleSince === null) continue;
+      if (entry.state !== "IDLE" && entry.state !== "COLD") continue;
+      if (entry.value && !reclaimIdle && now - entry.idleSince < entry.definition.idleTtlMs) continue;
+      const hadValue = Boolean(entry.value);
+      try {
+        if (entry.value && entry.definition.dispose) await entry.definition.dispose(entry.value.data);
+      } catch (error) {
+        result.failedDisposals++;
+        runtimeLog("resource.dispose_failed", { resource: entry.definition.name, error }, "warn");
+        continue;
+      }
       entry.value = undefined;
       entry.loadedAt = null;
       entry.expiresAt = null;
       entry.idleSince = null;
       entry.state = "EVICTED";
-      entry.metrics.evictions++;
+      if (hadValue) { entry.metrics.evictions++; result.evicted++; }
+      else result.emptyEntries++;
       this.archiveMetrics(entry);
       this.entries.delete(entry.key);
     }
+    result.remainingEntries = this.entries.size;
+    if (result.expiredLeases || result.evicted || result.emptyEntries || result.failedDisposals) {
+      runtimeLog("resource.sweep_completed", { mode: reclaimIdle ? "pressure" : "ttl", ...result });
+    }
+    return result;
   }
 
   snapshots(): { resources: ResourceSnapshot[]; leases: LeaseSnapshot[] } {
@@ -314,6 +347,7 @@ export class ResourceScheduler {
         entry.metrics.loadErrors++;
         entry.lastError = error instanceof Error ? error.message : String(error);
         entry.state = entry.value ? (entry.leases.size > 0 ? "HOT" : "IDLE") : "COLD";
+        if (entry.leases.size === 0) entry.idleSince ??= this.now();
         throw error;
       })
       .finally(() => {
@@ -337,7 +371,7 @@ export class ResourceScheduler {
       const entry = this.entries.get(key);
       if (!entry) continue;
       entry.leases.delete(lease.id);
-      if (entry.leases.size === 0 && entry.state !== "COLD" && entry.state !== "EVICTED") {
+      if (entry.leases.size === 0 && entry.state !== "EVICTED") {
         entry.state = "IDLE";
         entry.idleSince = now;
       }

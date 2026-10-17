@@ -1,3 +1,4 @@
+import { withRequestCapacity } from "@/lib/request-capacity";
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
@@ -7,9 +8,9 @@ import {
   addTemporaryTournamentPlayer,
   TournamentCapacityError,
 } from "@/features/tournaments/server/capacity";
-import { tryReadJsonRequest } from "@/lib/request-validation";
+import { tryParseRouteId, tryReadJsonRequest } from "@/lib/request-validation";
 
-export async function PUT(
+async function handlePUT(
   req: NextRequest,
   props: { params: Promise<{ id: string; appId: string }> }
 ) {
@@ -19,8 +20,10 @@ export async function PUT(
   const { userId } = auth.user;
   if (!userId) return NextResponse.json({ error: "请先登录" }, { status: 401 });
 
-  const tournamentId = parseInt(params.id);
-  const appId = parseInt(params.appId);
+  const tournamentId = tryParseRouteId(params.id, "赛事 ID");
+  if (tournamentId instanceof NextResponse) return tournamentId;
+  const appId = tryParseRouteId(params.appId, "申请 ID");
+  if (appId instanceof NextResponse) return appId;
   const body = await tryReadJsonRequest<{ status?: unknown }>(req);
   if (!body.ok) return body.response;
   const { status } = body.value;
@@ -53,3 +56,5 @@ export async function PUT(
   await prisma.tempPlayerApplication.update({ where: { id: appId }, data: { status } });
   return NextResponse.json({ ok: true });
 }
+
+export const PUT = withRequestCapacity(handlePUT);

@@ -1,3 +1,4 @@
+import { withRequestCapacity } from "@/lib/request-capacity";
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
@@ -7,7 +8,7 @@ import { parseRouteId } from "@/lib/request-validation";
 
 type Context = { params: Promise<{ postId: string }> };
 
-export async function PUT(_request: NextRequest, context: Context) {
+async function handlePUT(_request: NextRequest, context: Context) {
   try {
     const { postId } = await context.params;
     return NextResponse.json(await likeCombatPost(parseRouteId(postId, "动态 ID")));
@@ -16,7 +17,7 @@ export async function PUT(_request: NextRequest, context: Context) {
   }
 }
 
-export async function DELETE(_request: NextRequest, context: Context) {
+async function handleDELETE(_request: NextRequest, context: Context) {
   try {
     const { postId } = await context.params;
     return NextResponse.json(await unlikeCombatPost(parseRouteId(postId, "动态 ID")));
@@ -24,3 +25,6 @@ export async function DELETE(_request: NextRequest, context: Context) {
     return apiErrorResponse(error);
   }
 }
+
+export const PUT = withRequestCapacity(handlePUT);
+export const DELETE = withRequestCapacity(handleDELETE);

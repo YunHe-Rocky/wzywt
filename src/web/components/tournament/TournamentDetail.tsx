@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { CalendarModal } from "@/web/components/ui/CalendarModal";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, usePathname, useRouter } from "next/navigation";
 import { useToast } from "@/web/components/ui/Toast";
 import { copyText } from "@/web/components/ui/clipboard";
 import { UserAvatar } from "@/web/components/ui/UserAvatar";
@@ -11,6 +12,7 @@ import { TeamBuilder } from "@/web/components/tournament/TeamBuilder";
 import { SplitExplanation } from "@/web/components/tournament/SplitExplanation";
 import { MatchArchivePanel } from "@/web/MatchArchivePanel";
 import { getCurrentUser } from "@/features/auth/client/api";
+import { protectedPageLoginRedirect } from "@/features/auth/redirect";
 import {
   addTemporaryPlayer,
   extendTournament,
@@ -118,12 +120,15 @@ function LineupPanel({
 export function TournamentDetail() {
   const params = useParams();
   const router = useRouter();
+  const pathname = usePathname();
+  const prefix = /^\/m(?:\/|$)/.test(pathname) ? "/m" : "";
   const id = params.id as string;
   const [tournament, setTournament] = useState<Tournament | null>(null);
   const [splitResult, setSplitResult] = useState<SplitResult | null>(null);
   const [adminMsg, setAdminMsg] = useState("");
   const [me, setMe] = useState<{ userId: number; role?: string } | null>(null);
-  const [authChecked, setAuthChecked] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [editingAnnouncement, setEditingAnnouncement] = useState(false);
   const [announcementText, setAnnouncementText] = useState("");
   const [promotingId, setPromotingId] = useState<number | null>(null);
@@ -133,28 +138,49 @@ export function TournamentDetail() {
   const [splitTab, setSplitTab] = useState("result");
   const { success, error: showError } = useToast();
 
-  const refreshTournament = useCallback(async () => {
-    const { ok, status, data } = await getTournament(id);
-    if (ok) {
-      setTournament(data.tournament);
-      setSplitResult(data.splitResult || null);
-    } else if (status === 401 || status === 403) {
-      router.replace("/login");
+  const redirectToLogin = useCallback(() => {
+    router.replace(protectedPageLoginRedirect(pathname + window.location.search));
+  }, [pathname, router]);
+
+  const refreshTournament = useCallback(async (signal?: AbortSignal) => {
+    try {
+      const { ok, status, data } = await getTournament(id, signal);
+      if (signal?.aborted) return;
+      if (ok && data.tournament) {
+        setLoadError(null);
+        setTournament(data.tournament);
+        setSplitResult(data.splitResult || null);
+      } else if (status === 401) {
+        redirectToLogin();
+      } else {
+        setLoadError(data.error || "战场加载失败，请稍后重试");
+      }
+    } catch (error) {
+      if (!signal?.aborted) setLoadError(error instanceof Error ? error.message : "战场加载失败，请稍后重试");
     }
-  }, [id, router]);
+  }, [id, redirectToLogin]);
 
   useEffect(() => {
-    getCurrentUser()
-      .then(({ data }) => {
-        setMe(data.user);
-        setAuthChecked(true);
-        if (!data.user) {
-          router.replace(`/login?redirect=/tournaments/${id}`);
+    const controller = new AbortController();
+    setTournament(null);
+    setSplitResult(null);
+    setLoadError(null);
+    getCurrentUser(controller.signal)
+      .then(async ({ ok, status, data }) => {
+        if (controller.signal.aborted) return;
+        if (status === 401 || (ok && !data.user)) {
+          redirectToLogin();
           return;
         }
-        void refreshTournament();
+        if (!ok) throw new Error(status === 403 ? "当前账号无法访问战场" : "登录状态检查失败，请稍后重试");
+        setMe(data.user);
+        await refreshTournament(controller.signal);
+      })
+      .catch((error: unknown) => {
+        if (!controller.signal.aborted) setLoadError(error instanceof Error ? error.message : "战场加载失败，请稍后重试");
       });
-  }, [id, refreshTournament, router]);
+    return () => controller.abort();
+  }, [loadAttempt, refreshTournament, redirectToLogin]);
 
   async function join() {
     const { ok, data } = await joinTournament(id);
@@ -177,7 +203,7 @@ export function TournamentDetail() {
     const { ok, data } = await splitTournament<SplitResult & { error?: string; isBeforeDeadline?: boolean }>(id);
     if (ok) {
       setSplitResult(data);
-      setTournament((prev) => prev ? { ...prev, status: "locked" } : null);
+      setTournament((prev) => prev ? { ...prev, status: "completed", splitResult: data } : null);
       if (data.isBeforeDeadline) {
         success("分队完成！（截止时间未到，提前锁定）");
       } else {
@@ -196,12 +222,25 @@ export function TournamentDetail() {
     else showError(data.error || "延长失败");
   }
 
+  if (loadError) return (
+    <div className="page-shell page-shell--medium">
+      <div className="card" role="alert">
+        <h1 className="text-xl font-bold text-text">暂时无法进入战场</h1>
+        <p className="mt-3 text-text-muted break-words">{loadError}</p>
+        <div className="mt-5 flex flex-wrap gap-3">
+          <button type="button" className="btn-primary" onClick={() => setLoadAttempt((attempt) => attempt + 1)}>重试</button>
+          <Link className="btn-secondary" href={`${prefix}/tournaments`}>返回战场列表</Link>
+        </div>
+      </div>
+    </div>
+  );
+
   // ── SKELETON LOADING ──
   if (!tournament) return (
     <div className="page-shell page-shell--medium">
       {/* Title skeleton */}
       <div className="skeleton" style={{ height: 40, width: 240, marginBottom: 12, borderRadius: "var(--radius-sm)" }} />
-      <div className="skeleton" style={{ height: 16, width: 320, marginBottom: 36, borderRadius: "var(--radius-sm)" }} />
+      <div className="skeleton" style={{ height: 16, width: 320, maxWidth: "100%", marginBottom: 36, borderRadius: "var(--radius-sm)" }} />
 
       {/* Card skeleton */}
       <div className="card" style={{ padding: "24px", marginBottom: 20 }}>

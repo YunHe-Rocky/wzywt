@@ -1,3 +1,4 @@
+import { withRequestCapacity } from "@/lib/request-capacity";
 import { NextRequest, NextResponse } from "next/server";
 import { authenticate } from "@/lib/auth";
 import { tryReadJsonRequest } from "@/lib/request-validation";
@@ -6,7 +7,7 @@ import { resourceSchedulerErrorResponse } from "@/features/resource-scheduler/se
 
 export const dynamic = "force-dynamic";
 
-export async function POST(request: NextRequest) {
+async function handlePOST(request: NextRequest) {
   try {
     const body = await tryReadJsonRequest<{ page?: unknown }>(request);
     if (!body.ok) return body.response;
@@ -19,7 +20,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-export async function PATCH(request: NextRequest) {
+async function handlePATCH(request: NextRequest) {
   try {
     const body = await tryReadJsonRequest<{ leaseId?: unknown }>(request);
     if (!body.ok) return body.response;
@@ -33,7 +34,7 @@ export async function PATCH(request: NextRequest) {
   }
 }
 
-export async function DELETE(request: NextRequest) {
+async function handleDELETE(request: NextRequest) {
   try {
     const body = await tryReadJsonRequest<{ leaseId?: unknown }>(request);
     if (!body.ok) return body.response;
@@ -47,3 +48,7 @@ export async function DELETE(request: NextRequest) {
     return resourceSchedulerErrorResponse(error);
   }
 }
+
+export const POST = withRequestCapacity(handlePOST);
+export const PATCH = withRequestCapacity(handlePATCH);
+export const DELETE = withRequestCapacity(handleDELETE);

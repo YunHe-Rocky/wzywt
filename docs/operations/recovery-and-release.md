@@ -1,6 +1,6 @@
 # 发布兼容与恢复手册
 
-本文定义应用 release、数据库 migration、SQL 备份与媒体备份之间的恢复边界。日常操作入口仍是 `docs/operations/deploy.md`；媒体清单和归档格式见 `docs/operations/media-operations.md`。
+本文定义应用 release、数据库 migration、SQL 备份与媒体备份之间的共同恢复边界。Compose 日常操作入口是 `docs/operations/docker.md`，原生 PM2 入口是 `docs/operations/deploy.md`；媒体清单和归档格式见 `docs/operations/media-operations.md`。
 
 ## 1. 不可混淆的回滚边界
 

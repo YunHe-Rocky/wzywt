@@ -32,7 +32,9 @@ Rocky Linux RPM 常见站点目录是 `/etc/nginx/conf.d/*.conf`；自编译 Ngi
 | 私钥 | `ssl_certificate_key` | 权限最小且与证书匹配 |
 | ACME webroot | 80 端口 challenge location 与 Certbot `-w` | 两处必须是同一路径 |
 
-应用默认只监听 `127.0.0.1:8001`。除非架构明确需要跨主机访问，不要改成 `0.0.0.0`。
+原生应用默认只监听 `127.0.0.1:8001`。Compose 在同机 Nginx 后运行时设置 `BIND_ADDRESS=127.0.0.1`、`PORT=8001`；仅局域网直连场景按 [Compose 手册](docker.md) 设置 `0.0.0.0`。
+
+容器应用复用同机回环 OCR 时，另有 [宿主 OCR 代理模板](nginx-ocr-host.conf.template)，仅在 Docker 宿主网关接口监听，不与公网网站站点混用。接入步骤与两项服务模式选择见 [Compose 手册](docker.md#25-复用同机-mysqlnginxocr-的最小配置)。
 
 ### 可信代理与客户端地址
 

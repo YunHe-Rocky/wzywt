@@ -25,7 +25,7 @@ for (const [mode, origin] of [["production", local.PUBLIC_ORIGIN], ["", local.PU
 console.log("Local deployment origin policy and HTTP session cookies passed.");
 
 // Catch NODE_ENV-only validation breaking OCR in a production-built local VM.
-const savedOcrEnvironment = new Map(["NODE_ENV", "DEPLOY_ENVIRONMENT", "MATCH_OCR_ENDPOINT"]
+const savedOcrEnvironment = new Map(["NODE_ENV", "DEPLOY_ENVIRONMENT", "MATCH_OCR_ENDPOINT", "MATCH_OCR_INTERNAL_HOST"]
   .map((key) => [key, process.env[key]]));
 function expectOcrRejected(endpoint: string) {
   process.env.MATCH_OCR_ENDPOINT = endpoint;
@@ -33,6 +33,7 @@ function expectOcrRejected(endpoint: string) {
     error instanceof ServiceError && error.code === "SERVICE_UNAVAILABLE", endpoint);
 }
 try {
+  delete process.env.MATCH_OCR_INTERNAL_HOST;
   Reflect.set(process.env, "NODE_ENV", "production");
   process.env.DEPLOY_ENVIRONMENT = "local";
   for (const host of ["localhost", "127.0.0.1", "127.0.0.2", "192.168.1.73", "10.0.0.2", "172.16.0.1", "172.31.255.254", "[::1]", "[fd00::1]", "[fc00::1]"]) {
@@ -70,6 +71,21 @@ try {
   process.env.DEPLOY_ENVIRONMENT = "locla";
   expectOcrRejected("http://127.0.0.1:8010/recognize");
   expectOcrRejected("https://ocr.example.com/recognize");
+  for (const mode of ["production", "local"]) {
+    process.env.DEPLOY_ENVIRONMENT = mode;
+    expectOcrRejected("http://ocr:8010/recognize");
+    process.env.MATCH_OCR_INTERNAL_HOST = "ocr";
+    process.env.MATCH_OCR_ENDPOINT = "http://ocr:8010/recognize";
+    assert.equal(getRecognitionProviderUrl().href, "http://ocr:8010/recognize");
+    for (const endpoint of ["http://ocr.evil.example:8010/recognize", "http://other-ocr:8010/recognize", "http://ocr@evil.example/recognize"]) {
+      expectOcrRejected(endpoint);
+    }
+    for (const host of ["*", "ocr.example.com", "http://ocr", "ocr:8010", "ocr/recognize", "ocr_1", "-ocr", "ocr-"]) {
+      process.env.MATCH_OCR_INTERNAL_HOST = host;
+      expectOcrRejected("http://ocr:8010/recognize");
+    }
+    delete process.env.MATCH_OCR_INTERNAL_HOST;
+  }
   delete process.env.DEPLOY_ENVIRONMENT;
   Reflect.set(process.env, "NODE_ENV", "test");
   process.env.MATCH_OCR_ENDPOINT = "http://ocr.test/recognize";

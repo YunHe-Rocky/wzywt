@@ -1,3 +1,4 @@
+import { withRequestCapacity } from "@/lib/request-capacity";
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
@@ -15,7 +16,7 @@ async function parseContext(context: Context) {
   return { tournamentId: parseRouteId(params.id, "赛事 ID"), matchId: parseRouteId(params.matchId, "比赛 ID"), side: params.side };
 }
 
-export async function GET(_request: NextRequest, context: Context) {
+async function handleGET(_request: NextRequest, context: Context) {
   try {
     const ids = await parseContext(context);
     return NextResponse.json(await getTacticRoom(ids.tournamentId, ids.matchId, ids.side));
@@ -24,7 +25,7 @@ export async function GET(_request: NextRequest, context: Context) {
   }
 }
 
-export async function POST(request: NextRequest, context: Context) {
+async function handlePOST(request: NextRequest, context: Context) {
   try {
     const ids = await parseContext(context);
     const input = await readJsonRequest(request);
@@ -36,3 +37,6 @@ export async function POST(request: NextRequest, context: Context) {
     return apiErrorResponse(error);
   }
 }
+
+export const GET = withRequestCapacity(handleGET);
+export const POST = withRequestCapacity(handlePOST);

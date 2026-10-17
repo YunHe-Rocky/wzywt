@@ -1,46 +1,39 @@
+import { withRequestCapacity } from "@/lib/request-capacity";
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { authenticate } from "@/lib/auth";
-import { tryReadJsonRequest } from "@/lib/request-validation";
+import { apiErrorResponse } from "@/lib/api-errors";
+import { getTournamentPicksForUser } from "@/features/tournaments/server/picks";
+import { tryParseRouteId, tryReadJsonRequest } from "@/lib/request-validation";
 
 const VALID_ROLES = ["top", "jungle", "mid", "adc", "support"];
 
 // GET 获取两队选人数据
-export async function GET(_req: NextRequest, props: { params: Promise<{ id: string }> }) {
+async function handleGET(_req: NextRequest, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
-  const tournamentId = parseInt(params.id);
-  const picks = await prisma.tournamentPick.findMany({
-    where: { tournamentId },
-    orderBy: { team: "asc" },
-  });
-
-  // Fetch hero names
-  const heroIds = Array.from(new Set(picks.map((p) => p.heroId)));
-  const heroes = await prisma.hero.findMany({
-    where: { heroId: { in: heroIds } },
-    select: { heroId: true, name: true, roleType: true },
-  });
-  const heroMap = new Map(heroes.map((h) => [h.heroId, h]));
-
-  const result = picks.map((p) => ({
-    ...p,
-    heroName: heroMap.get(p.heroId)?.name || "?",
-  }));
-
-  return NextResponse.json({ picks: result });
+  const auth = await authenticate();
+  if (!auth.ok) return NextResponse.json({ error: auth.code === "BANNED" ? "账号已被封禁" : "请先登录" }, { status: auth.code === "BANNED" ? 403 : 401 });
+  const tournamentId = tryParseRouteId(params.id, "赛事 ID");
+  if (tournamentId instanceof NextResponse) return tournamentId;
+  try {
+    return NextResponse.json({ picks: await getTournamentPicksForUser(tournamentId, auth.user.userId) });
+  } catch (error) {
+    return apiErrorResponse(error, { request: _req, useCase: "tournaments.picks.list" });
+  }
 }
 
 // PUT 保存选人
-export async function PUT(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+async function handlePUT(req: NextRequest, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const auth = await authenticate();
   if (!auth.ok) return NextResponse.json({ error: auth.code === "BANNED" ? "账号已被封禁" : "请先登录" }, { status: auth.code === "BANNED" ? 403 : 401 });
   const { userId } = auth.user;
   if (!userId) return NextResponse.json({ error: "请先登录" }, { status: 401 });
 
-  const tournamentId = parseInt(params.id);
+  const tournamentId = tryParseRouteId(params.id, "赛事 ID");
+  if (tournamentId instanceof NextResponse) return tournamentId;
 
   // Check admin or the player themselves
   const isAdmin = await prisma.tournamentAdmin.findFirst({ where: { tournamentId, userId } });
@@ -111,3 +104,6 @@ export async function PUT(req: NextRequest, props: { params: Promise<{ id: strin
 
   return NextResponse.json({ ok: true });
 }
+
+export const GET = withRequestCapacity(handleGET);
+export const PUT = withRequestCapacity(handlePUT);

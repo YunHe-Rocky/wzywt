@@ -1,3 +1,4 @@
+import { withRequestCapacity } from "@/lib/request-capacity";
 export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
@@ -5,7 +6,7 @@ import { authorizeSuperAdmin } from "@/lib/permissions";
 import { prisma } from "@/lib/db";
 import { parseHeroSyncProgress } from "@/features/heroes/server/sync-jobs";
 
-export async function GET() {
+async function handleGET() {
   const authorization = await authorizeSuperAdmin();
   const userId = authorization.ok ? authorization.user.userId : 0;
   if (!userId) return NextResponse.json({ error: "无权限" }, { status: 403 });
@@ -16,3 +17,5 @@ export async function GET() {
   }
   return NextResponse.json({ progress: parseHeroSyncProgress(row.value) });
 }
+
+export const GET = withRequestCapacity(handleGET);

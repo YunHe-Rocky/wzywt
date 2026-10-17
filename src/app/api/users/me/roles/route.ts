@@ -1,3 +1,4 @@
+import { withRequestCapacity } from "@/lib/request-capacity";
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
@@ -6,7 +7,7 @@ import { authenticate } from "@/lib/auth";
 import { normalizeRolePreferenceSettings } from "@/features/profile/model";
 import { tryReadJsonRequest } from "@/lib/request-validation";
 
-export async function GET() {
+async function handleGET() {
   const auth = await authenticate();
   if (!auth.ok) return NextResponse.json({ error: auth.code === "BANNED" ? "账号已被封禁" : "请先登录" }, { status: auth.code === "BANNED" ? 403 : 401 });
   const { userId } = auth.user;
@@ -22,7 +23,7 @@ export async function GET() {
   });
 }
 
-export async function PUT(req: NextRequest) {
+async function handlePUT(req: NextRequest) {
   const auth = await authenticate();
   if (!auth.ok) return NextResponse.json({ error: auth.code === "BANNED" ? "账号已被封禁" : "请先登录" }, { status: auth.code === "BANNED" ? 403 : 401 });
   const { userId } = auth.user;
@@ -69,3 +70,6 @@ export async function PUT(req: NextRequest) {
 
   return NextResponse.json({ ok: true });
 }
+
+export const GET = withRequestCapacity(handleGET);
+export const PUT = withRequestCapacity(handlePUT);

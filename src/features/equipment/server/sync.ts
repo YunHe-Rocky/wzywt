@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { resourceCheckpoint } from "@/lib/resource-governor";
 import { createHash } from "crypto";
 import { fetchWithRetry } from "@/lib/anti-bot";
 import { cacheDel, cacheDelPattern } from "@/lib/redis";
@@ -92,6 +93,7 @@ export async function syncItems(): Promise<{ inserted: number; updated: number }
   let updated = 0;
 
   for (const item of items) {
+    await resourceCheckpoint("equipment-items");
     const itemId = parseInt(item.item_id);
     if (!itemId || !item.item_name) continue;
 

@@ -12,9 +12,10 @@ import { checkAvatarStorageHealth } from "@/features/profile/server/avatar-stora
 import { prisma } from "@/lib/db";
 import { redis } from "@/lib/redis";
 import { getMediaStorage } from "@/lib/storage";
+import { resourceGovernor } from "@/lib/resource-governor";
 
 type CheckState = "ok" | "degraded" | "failed" | "skipped";
-type CheckName = "database" | "mediaStorage" | "avatarStorage" | "cron" | "redis";
+type CheckName = "database" | "mediaStorage" | "avatarStorage" | "cron" | "redis" | "runtime";
 const CHECK_TIMEOUT_MS = 1_800;
 
 let databaseCheckInFlight: Promise<unknown> | null = null;
@@ -123,11 +124,13 @@ export async function GET(request: NextRequest) {
     redisPromise,
     metricsPromise,
   ]);
-  const checks: Record<CheckName, CheckState> = { database, mediaStorage, avatarStorage, cron, redis: redisState };
+  const checks: Record<CheckName, CheckState> = { database, mediaStorage, avatarStorage, cron, redis: redisState,
+    runtime: resourceGovernor.isDraining() ? "failed" : "ok" };
   const healthy = Object.values(checks).every((state) => state !== "failed");
   const body: Record<string, unknown> = { ok: healthy, releaseId, mode: "readiness", checks };
   if (tokenMatches(request)) {
     body.metrics = {
+      runtime: resourceGovernor.snapshot(),
       mediaAvailableBytes,
       mediaMinimumFreeBytes: minimumFreeBytes,
       activeMediaReservations: metrics[0],

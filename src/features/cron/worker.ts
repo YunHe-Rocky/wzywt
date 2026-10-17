@@ -5,7 +5,7 @@ import { downloadAllImages } from "@/features/heroes/server/download-images";
 import { runQueuedHeroSync } from "@/features/heroes/server/sync-jobs";
 import { runMonitorCycle, runQueuedMonitorCycle } from "@/features/monitor/cycle";
 import { runExclusiveTask } from "@/features/cron/task-lock";
-import { recordCronHeartbeat } from "@/features/cron/heartbeat";
+import { recordCronHeartbeat, recordLocalCronHeartbeat } from "@/features/cron/heartbeat";
 import { lockExpiredTournaments } from "@/features/tournaments/server/lockExpiredTournaments";
 import { processPendingMediaCleanup } from "@/features/media/server/storage-cleanup";
 import { runQueuedMatchRecognitions } from "@/features/matches/server/recognition";
@@ -14,12 +14,14 @@ import { getMediaStorage } from "@/lib/storage";
 import { syncItems } from "@/features/equipment/server/sync";
 import { refreshOfficialNews } from "@/features/official-news/server/service";
 import { shouldBootstrapEquipment } from "@/features/cron/bootstrap-policy";
+import { resourceGovernor } from "@/lib/resource-governor";
+import { runtimeLog } from "@/lib/runtime-log";
 
 const HERO_SYNC_STAMP_KEY = "cron:hero_sync:last_success";
 const HERO_SYNC_RECENT_MS = 6 * 60 * 60 * 1000;
 
 function logError(scope: string, error: unknown): void {
-  console.error(`[${scope}]`, error instanceof Error ? error.message : error);
+  runtimeLog("cron.operation_failed", { task: scope, error }, "error");
 }
 
 async function wasHeroSyncRecent(): Promise<boolean> {
@@ -54,6 +56,7 @@ async function runHeroSync(label: string, skipWhenRecent = false): Promise<void>
     });
   } catch (error) {
     logError(`hero-sync:${label}`, error);
+    throw error;
   }
 }
 
@@ -121,15 +124,28 @@ export interface CronWorker {
 }
 
 export function startCronWorker(): CronWorker {
+  process.env.APP_ROLE = "cron";
+  resourceGovernor.start("cron");
   console.log("[cron] Starting cron jobs...");
   const inFlight = new Set<Promise<void>>();
+  const lightweightInFlight = new Map<string, Promise<void>>();
   let stopping = false;
   const track = (scope: string, operation: () => Promise<unknown>): Promise<void> => {
-    const task = operation()
+    // Deadline checks and heartbeats keep their own small lane even while a
+    // heavy task is paused. Other work shares one bounded, coalescing queue.
+    const lightweight = scope.startsWith("heartbeat") || scope === "deadline";
+    const lightKey = scope.replace(":initial", "");
+    if (lightweight && lightweightInFlight.has(lightKey)) {
+      // Keep process liveness independent even if the DB heartbeat is stuck.
+      if (lightKey === "heartbeat") recordLocalCronHeartbeat();
+      return lightweightInFlight.get(lightKey)!;
+    }
+    const task = (lightweight ? operation() : resourceGovernor.run(scope, operation))
       .then(() => undefined)
       .catch((error) => logError(scope, error))
-      .finally(() => inFlight.delete(task));
+      .finally(() => { inFlight.delete(task); if (lightweight) lightweightInFlight.delete(lightKey); });
     inFlight.add(task);
+    if (lightweight) lightweightInFlight.set(lightKey, task);
     return task;
   };
   const schedule = (scope: string, operation: () => Promise<unknown>) => {
@@ -168,15 +184,16 @@ export function startCronWorker(): CronWorker {
   return {
     async stop() {
       stopping = true;
+      resourceGovernor.stop();
       clearTimeout(initialSyncTimer);
       clearTimeout(initialEquipmentSyncTimer);
       tasks.forEach((task) => task.stop());
       const draining = Promise.allSettled([...inFlight]);
       let drained = false;
-      await Promise.race([
-        draining.then(() => { drained = true; }),
-        new Promise<void>((resolve) => setTimeout(resolve, 300_000)),
-      ]);
+      let drainTimer: ReturnType<typeof setTimeout> | undefined;
+      await Promise.race([draining.then(() => { drained = true; }),
+        new Promise<void>((resolve) => { drainTimer = setTimeout(resolve, 300_000); }),
+      ]).finally(() => { if (drainTimer) clearTimeout(drainTimer); });
       if (!drained) console.error(`[cron] forced shutdown with ${inFlight.size} task(s) still active`);
       await prisma.$disconnect();
     },

@@ -115,6 +115,14 @@ function createScheduler(): ResourceScheduler {
   return scheduler;
 }
 
-const globalScheduler = globalThis as unknown as { resourceScheduler?: ResourceScheduler };
+const globalScheduler = globalThis as unknown as { resourceScheduler?: ResourceScheduler; resourceReclaimerRegistered?: boolean };
 export const resourceScheduler = globalScheduler.resourceScheduler ?? createScheduler();
 globalScheduler.resourceScheduler = resourceScheduler;
+
+// Import lazily so build-time page registration does not start runtime probes.
+if (!globalScheduler.resourceReclaimerRegistered) {
+  globalScheduler.resourceReclaimerRegistered = true;
+  void import("@/lib/resource-governor").then(({ resourceGovernor }) => {
+    resourceGovernor.onReclaim(() => resourceScheduler.sweep(true), "page-cache");
+  });
+}

@@ -87,6 +87,7 @@ function crawlerFixture({ layout = "standard", namedFallback = false, configured
     throw new Error(`Unexpected fixture request: ${url}`);
   }
   const stubs = {
+    "@/lib/resource-governor": { resourceCheckpoint: async () => {}, resourceGovernor: { concurrency: () => 2 } },
     "@/lib/db": { prisma },
     "@/lib/redis": { cacheDel: async () => {}, cacheDelPattern: async () => {} },
     "@/lib/gicp": { GICP_CHANNELS: { announcement: "fixture" }, fetchGicpNews: async () => [{ title: "Unchanged" }] },

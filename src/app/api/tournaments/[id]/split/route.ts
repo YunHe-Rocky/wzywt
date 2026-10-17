@@ -1,3 +1,4 @@
+import { withRequestCapacity } from "@/lib/request-capacity";
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
@@ -6,7 +7,7 @@ import { apiErrorResponse } from "@/lib/api-errors";
 import { requireAuth } from "@/lib/auth";
 import { parseRouteId } from "@/lib/request-validation";
 
-export async function POST(request: NextRequest, props: { params: Promise<{ id: string }> }) {
+async function handlePOST(request: NextRequest, props: { params: Promise<{ id: string }> }) {
   const startedAt = Date.now();
   try {
     const [{ id }, user] = await Promise.all([props.params, requireAuth()]);
@@ -16,3 +17,5 @@ export async function POST(request: NextRequest, props: { params: Promise<{ id: 
     return apiErrorResponse(error, { request, useCase: "tournament.split", startedAt });
   }
 }
+
+export const POST = withRequestCapacity(handlePOST);

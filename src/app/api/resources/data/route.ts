@@ -1,3 +1,4 @@
+import { withRequestCapacity } from "@/lib/request-capacity";
 import { NextRequest, NextResponse } from "next/server";
 import { resourceScheduler } from "@/features/resource-scheduler/server/registry";
 import { authenticate } from "@/lib/auth";
@@ -5,7 +6,7 @@ import { resourceSchedulerErrorResponse } from "@/features/resource-scheduler/se
 
 export const dynamic = "force-dynamic";
 
-export async function GET(request: NextRequest) {
+async function handleGET(request: NextRequest) {
   try {
     const leaseId = request.nextUrl.searchParams.get("leaseId");
     const resource = request.nextUrl.searchParams.get("resource");
@@ -19,3 +20,5 @@ export async function GET(request: NextRequest) {
     return resourceSchedulerErrorResponse(error);
   }
 }
+
+export const GET = withRequestCapacity(handleGET);

@@ -12,8 +12,11 @@ export class TournamentValidationError extends Error {
 }
 
 export function parsePositiveInteger(value: unknown, label = "ID"): number {
+  if (typeof value !== "number" && (typeof value !== "string" || !/^[1-9]\d*$/.test(value))) {
+    throw new TournamentValidationError(`无效的${label}`);
+  }
   const parsed = typeof value === "number" ? value : Number(value);
-  if (!Number.isSafeInteger(parsed) || parsed <= 0) {
+  if (!Number.isSafeInteger(parsed) || parsed <= 0 || parsed > 2_147_483_647) {
     throw new TournamentValidationError(`无效的${label}`);
   }
   return parsed;

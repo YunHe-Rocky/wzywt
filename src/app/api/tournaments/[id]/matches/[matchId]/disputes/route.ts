@@ -1,3 +1,4 @@
+import { withRequestCapacity } from "@/lib/request-capacity";
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
@@ -7,7 +8,7 @@ import { parseRouteId, readJsonRequest } from "@/lib/request-validation";
 
 type Context = { params: Promise<{ id: string; matchId: string }> };
 
-export async function POST(request: NextRequest, context: Context) {
+async function handlePOST(request: NextRequest, context: Context) {
   try {
     const params = await context.params;
     return NextResponse.json(
@@ -18,3 +19,5 @@ export async function POST(request: NextRequest, context: Context) {
     return apiErrorResponse(error);
   }
 }
+
+export const POST = withRequestCapacity(handlePOST);

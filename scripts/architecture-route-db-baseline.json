@@ -16,7 +16,6 @@
   "src/app/api/me/avatar/route.ts",
   "src/app/api/me/profile/route.ts",
   "src/app/api/tournaments/[id]/admin/resign/route.ts",
-  "src/app/api/tournaments/[id]/admin/route.ts",
   "src/app/api/tournaments/[id]/extend/route.ts",
   "src/app/api/tournaments/[id]/kick/route.ts",
   "src/app/api/tournaments/[id]/leave/route.ts",

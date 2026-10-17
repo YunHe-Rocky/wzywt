@@ -1,3 +1,4 @@
+import { withRequestCapacity } from "@/lib/request-capacity";
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
@@ -15,7 +16,7 @@ async function parseContext(context: Context) {
   return { tournamentId: parseRouteId(params.id, "赛事 ID"), matchId: parseRouteId(params.matchId, "比赛 ID"), side: params.side, markerId: parseRouteId(params.markerId, "点位 ID") };
 }
 
-export async function PATCH(request: NextRequest, context: Context) {
+async function handlePATCH(request: NextRequest, context: Context) {
   try {
     const ids = await parseContext(context);
     return NextResponse.json(await updateOwnTacticMarker(ids.tournamentId, ids.matchId, ids.side, ids.markerId, await readJsonRequest(request)));
@@ -24,7 +25,7 @@ export async function PATCH(request: NextRequest, context: Context) {
   }
 }
 
-export async function DELETE(request: NextRequest, context: Context) {
+async function handleDELETE(request: NextRequest, context: Context) {
   try {
     const ids = await parseContext(context);
     const body = await readJsonRequest(request);
@@ -34,3 +35,6 @@ export async function DELETE(request: NextRequest, context: Context) {
     return apiErrorResponse(error);
   }
 }
+
+export const PATCH = withRequestCapacity(handlePATCH);
+export const DELETE = withRequestCapacity(handleDELETE);

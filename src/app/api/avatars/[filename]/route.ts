@@ -1,3 +1,4 @@
+import { withRequestCapacity } from "@/lib/request-capacity";
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
@@ -5,7 +6,7 @@ import { readFile } from "fs/promises";
 import { join } from "path";
 import { getAvatarDirectory } from "@/features/profile/server/avatar-storage";
 
-export async function GET(req: NextRequest, props: { params: Promise<{ filename: string }> }) {
+async function handleGET(req: NextRequest, props: { params: Promise<{ filename: string }> }) {
   const params = await props.params;
   const filename = params.filename;
   if (!/^\d+_\d+\.(?:jpg|png|webp)$/.test(filename)) {
@@ -31,3 +32,5 @@ export async function GET(req: NextRequest, props: { params: Promise<{ filename:
     },
   });
 }
+
+export const GET = withRequestCapacity(handleGET);

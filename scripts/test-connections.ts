@@ -10,7 +10,7 @@ import { isRetryableRecognitionFailure, recognitionFailureMessage } from "@/feat
 import { redisRetryDelay } from "@/lib/redis";
 import { resolveSessionCookieSecure } from "@/lib/session-config";
 import { shouldBootstrapEquipment } from "@/features/cron/bootstrap-policy";
-import { readFormDataRequest, readJsonRequest, tryReadJsonRequest } from "@/lib/request-validation";
+import { parseRouteId, tryParseRouteId, readFormDataRequest, readJsonRequest, tryReadJsonRequest } from "@/lib/request-validation";
 import { ServiceError } from "@/lib/service-error";
 import { LocalMediaStorage } from "@/lib/storage/local";
 import { setMediaStorageForTests } from "@/lib/storage";
@@ -33,6 +33,21 @@ function streamingRequest(chunks: Uint8Array[], contentType: string): Request {
 async function testRequestLimits(): Promise<void> {
   const valid = streamingRequest([new TextEncoder().encode('{"ok":true}')], "application/json");
   assert.deepEqual(await readJsonRequest(valid, 32), { ok: true });
+  for (const payload of ["null", "[]", "true", "1", '"text"']) {
+    const result = await tryReadJsonRequest(streamingRequest([new TextEncoder().encode(payload)], "application/json"));
+    assert.equal(result.ok, false, `object API must reject ${payload} before a handler destructures it`);
+    if (!result.ok) {
+      assert.equal(result.response.status, 400);
+      assert.equal((await result.response.json()).code, "VALIDATION_ERROR");
+    }
+  }
+  assert.equal(parseRouteId("2147483647", "赛事 ID"), 2_147_483_647);
+  for (const value of ["1abc", "1e2", "0x10", "01", "+1", " 1", "0", "-1", "1.5", "2147483648"]) {
+    assert.throws(() => parseRouteId(value, "赛事 ID"), (error: unknown) => error instanceof ServiceError && error.status === 400);
+    const result = tryParseRouteId(value, "赛事 ID");
+    assert.ok(result instanceof Response);
+    assert.equal(result.status, 400);
+  }
 
   const declaredTooLarge = new Request("http://localhost/test", {
     method: "POST",

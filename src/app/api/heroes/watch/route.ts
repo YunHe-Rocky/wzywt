@@ -1,3 +1,4 @@
+import { withRequestCapacity } from "@/lib/request-capacity";
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
@@ -11,7 +12,7 @@ import { queueMonitorCycle } from "@/features/monitor/cycle";
 import { apiErrorResponse } from "@/lib/api-errors";
 import { requireSuperAdmin } from "@/lib/permissions";
 
-export async function GET(req: NextRequest) {
+async function handleGET(req: NextRequest) {
   if (getHeroEventClientCount() >= MAX_HERO_EVENT_CLIENTS) {
     return NextResponse.json({ error: "实时连接数量已达上限" }, { status: 503 });
   }
@@ -39,7 +40,7 @@ export async function GET(req: NextRequest) {
   });
 }
 
-export async function POST() {
+async function handlePOST() {
   try {
     const user = await requireSuperAdmin();
     const request = await queueMonitorCycle(user.userId);
@@ -48,3 +49,6 @@ export async function POST() {
     return apiErrorResponse(error);
   }
 }
+
+export const GET = withRequestCapacity(handleGET);
+export const POST = withRequestCapacity(handlePOST);

@@ -53,9 +53,12 @@ jobs:
       - run: node --check scripts/check-shell-line-endings.mjs && node --check scripts/deploy-env.mjs && node --check scripts/inspect-deploy-host.mjs && node --check scripts/inspect-runtime-services.mjs && node --check scripts/run-deploy-tests.mjs && node --check scripts/verify-deploy-state.mjs && node --check scripts/media-manifest.mjs
       - run: npm run test:deploy
       - run: npm run check:architecture
+      - run: npm run test:docs
       - run: npm run typecheck
       - run: npm run test:core
       - run: npm run test:crawler
+      - run: npm run test:hero-assets
+      - run: npm run test:compose
       - run: npm run test:split-worker
       - run: npm run test:entry
       - run: npm run test:markdown
@@ -66,6 +69,19 @@ jobs:
       - run: npm run lint
       - run: npm run build
       - run: npx playwright install --with-deps chromium webkit
+      - name: Tournament error and split status regression (desktop and 320px mobile)
+        env:
+          DEPLOY_ENVIRONMENT: local
+          PUBLIC_ORIGIN: http://localhost:8001
+        run: |
+          node node_modules/next/dist/bin/next start --hostname 127.0.0.1 --port 8001 > /tmp/wzywt-boundaries.log 2>&1 &
+          boundary_pid=$!
+          trap 'kill "$boundary_pid" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://localhost:8001/robots.txt > /dev/null; then break; fi
+            sleep 1
+          done
+          npm run test:e2e:tournament-boundaries
       - name: Combat feed and admin browser regression
         run: npm run test:e2e:combat-admin
       - name: Install isolated HTTPS proxy dependency
@@ -75,6 +91,43 @@ jobs:
       - name: Local HTTP login and private resources (desktop, Android, WebKit)
         run: npm run test:e2e:local
 
+  containers:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 35
+    env:
+      DEPLOY_ENVIRONMENT: local
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Generate isolated container configuration
+        run: |
+          node scripts/compose.mjs init
+          node -e "const fs=require('node:fs');const p='.env.docker';fs.writeFileSync(p,fs.readFileSync(p,'utf8').replace(/^APP_RELEASE_ID=.*$/m,'APP_RELEASE_ID=ci-'+process.env.GITHUB_SHA))"
+      - name: Validate Compose including optional OCR and OSS storage
+        run: node scripts/test-compose-model.mjs
+      - name: Build, back up, migrate and verify desktop/mobile entry
+        run: node scripts/compose.mjs up
+      - name: Verify newly downloaded shared images without restarting Web
+        run: |
+          cron_id=$(docker ps --filter label=com.docker.compose.project=wzywt --filter label=com.docker.compose.service=cron --format '{{.ID}}')
+          test -n "$cron_id"
+          docker exec "$cron_id" node -e "require('node:fs').writeFileSync('/app/public/heroes/images/2147483646.jpg',Buffer.from([255,216,255,217]))"
+          node --input-type=module -e "import assert from 'node:assert/strict';for(const ua of ['Mozilla/5.0 Windows','Mozilla/5.0 iPhone Mobile']){const r=await fetch('http://localhost:8001/heroes/images/2147483646.jpg',{redirect:'manual',headers:{'User-Agent':ua}});assert.equal(r.status,200);assert.equal((await r.arrayBuffer()).byteLength,4)}"
+      - name: Container diagnostics
+        if: failure()
+        run: |
+          node scripts/compose.mjs status
+          for container_id in $(docker ps --all --filter label=com.docker.compose.project=wzywt --format '{{.ID}}'); do
+            docker logs --tail 100 "$container_id"
+          done
+      - name: Stop isolated stack
+        if: always()
+        run: |
+          if [ -f .env.docker ]; then
+            node scripts/compose.mjs down
+          fi
   database-compatibility:
     runs-on: ubuntu-22.04
     timeout-minutes: 15

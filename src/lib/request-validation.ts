@@ -1,5 +1,15 @@
 import { NextResponse } from "next/server";
 import { ServiceError } from "@/lib/service-error";
+import { requestContext } from "@/lib/request-context";
+import { runtimeLog } from "@/lib/runtime-log";
+
+function validationResponse(error: ServiceError): NextResponse {
+  const requestId = requestContext.getStore()?.requestId;
+  runtimeLog("request.validation_failed", { requestId, status: error.status, code: error.code, error }, "warn");
+  return NextResponse.json({ error: error.message, code: error.code, ...(requestId ? { requestId } : {}) }, {
+    status: error.status, headers: requestId ? { "x-request-id": requestId } : undefined,
+  });
+}
 
 export type JsonRequestResult<T> =
   | { ok: true; value: T }
@@ -7,10 +17,19 @@ export type JsonRequestResult<T> =
 
 export function parseRouteId(value: string, label: string): number {
   const id = Number(value);
-  if (!Number.isSafeInteger(id) || id <= 0) {
+  if (!/^[1-9]\d*$/.test(value) || !Number.isSafeInteger(id) || id > 2_147_483_647) {
     throw new ServiceError("VALIDATION_ERROR", `${label}无效`);
   }
   return id;
+}
+
+export function tryParseRouteId(value: string, label: string): number | NextResponse {
+  try {
+    return parseRouteId(value, label);
+  } catch (error) {
+    if (!(error instanceof ServiceError)) throw error;
+    return validationResponse(error);
+  }
 }
 
 function parseContentLength(request: Request, maxBytes: number): void {
@@ -66,17 +85,18 @@ export async function tryReadJsonRequest<T = unknown>(
   maxBytes = 256 * 1024,
 ): Promise<JsonRequestResult<T>> {
   try {
-    return { ok: true, value: await readJsonRequest(request, maxBytes) as T };
+    const value = await readJsonRequest(request, maxBytes);
+    if (typeof value !== "object" || value === null || Array.isArray(value)) {
+      throw new ServiceError("VALIDATION_ERROR", "JSON 请求体必须为对象");
+    }
+    return { ok: true, value: value as T };
   } catch (error) {
     const serviceError = error instanceof ServiceError
       ? error
       : new ServiceError("VALIDATION_ERROR", "JSON 请求体格式错误");
     return {
       ok: false,
-      response: NextResponse.json(
-        { error: serviceError.message, code: serviceError.code },
-        { status: serviceError.status },
-      ),
+      response: validationResponse(serviceError),
     };
   }
 }

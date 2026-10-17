@@ -1,3 +1,4 @@
+import { withRequestCapacity } from "@/lib/request-capacity";
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
@@ -11,7 +12,7 @@ import {
 import { parsePositiveInteger, TournamentValidationError } from "@/features/tournaments/model";
 import { tryReadJsonRequest } from "@/lib/request-validation";
 
-export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+async function handlePOST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const auth = await authenticate();
   if (!auth.ok) return NextResponse.json({ error: auth.code === "BANNED" ? "账户已被封禁" : "请先登录" }, { status: auth.code === "BANNED" ? 403 : 401 });
@@ -112,3 +113,5 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
     throw error;
   }
 }
+
+export const POST = withRequestCapacity(handlePOST);

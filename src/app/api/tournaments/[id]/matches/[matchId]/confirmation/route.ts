@@ -1,3 +1,4 @@
+import { withRequestCapacity } from "@/lib/request-capacity";
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
@@ -7,7 +8,7 @@ import { parseRouteId, readJsonRequest } from "@/lib/request-validation";
 
 type Context = { params: Promise<{ id: string; matchId: string }> };
 
-export async function PUT(request: NextRequest, context: Context) {
+async function handlePUT(request: NextRequest, context: Context) {
   try {
     const params = await context.params;
     return NextResponse.json(await confirmMatchPlayers(parseRouteId(params.id, "赛事 ID"), parseRouteId(params.matchId, "比赛 ID"), await readJsonRequest(request, 512 * 1024)));
@@ -15,3 +16,5 @@ export async function PUT(request: NextRequest, context: Context) {
     return apiErrorResponse(error);
   }
 }
+
+export const PUT = withRequestCapacity(handlePUT);

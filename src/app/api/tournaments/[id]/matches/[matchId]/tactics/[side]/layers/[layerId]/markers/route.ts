@@ -1,3 +1,4 @@
+import { withRequestCapacity } from "@/lib/request-capacity";
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
@@ -9,7 +10,7 @@ import { ServiceError } from "@/lib/service-error";
 
 type Context = { params: Promise<{ id: string; matchId: string; side: string; layerId: string }> };
 
-export async function POST(request: NextRequest, context: Context) {
+async function handlePOST(request: NextRequest, context: Context) {
   try {
     const params = await context.params;
     if (!isMatchSide(params.side)) throw new ServiceError("VALIDATION_ERROR", "战术阵营无效");
@@ -18,3 +19,5 @@ export async function POST(request: NextRequest, context: Context) {
     return apiErrorResponse(error);
   }
 }
+
+export const POST = withRequestCapacity(handlePOST);

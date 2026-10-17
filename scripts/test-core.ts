@@ -151,6 +151,10 @@ assert.equal(calcSkillDamage({ ...combatInput, rng: () => 0.49 }).isCrit, true);
 assert.equal(calcSkillDamage({ ...combatInput, rng: () => 0.5 }).isCrit, false);
 assert.equal(parsePositiveInteger("12", "赛事 ID"), 12);
 assert.throws(() => parsePositiveInteger("12x", "赛事 ID"), /无效/);
+assert.equal(parsePositiveInteger(2_147_483_647), 2_147_483_647);
+for (const invalid of [true, false, null, [1], {}, "01", "+1", " 1", "1.0", "1e2", "0x10", "0", -1, 1.5, 2_147_483_648]) {
+  assert.throws(() => parsePositiveInteger(invalid), /无效/, `reject invalid tournament ID ${JSON.stringify(invalid)}`);
+}
 assert.deepEqual(normalizeTournamentDraft({
   name: "  周五内战  ",
   deadline: "2026-07-25T12:00:00+08:00",

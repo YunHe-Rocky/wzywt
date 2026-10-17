@@ -5,10 +5,10 @@ import { resolveOcrEndpoint } from "../src/lib/public-origin.ts";
 // Only inspect local configuration: no HTTP requests, tokens or query strings in logs.
 export function checkOcrConfig(file) {
   const values = readDeployEnv(file);
-  const { MATCH_OCR_ENDPOINT: endpoint, MATCH_OCR_TOKEN: token } = readOcrEnv(file);
+  const { MATCH_OCR_ENDPOINT: endpoint, MATCH_OCR_TOKEN: token, MATCH_OCR_INTERNAL_HOST: internalHost } = readOcrEnv(file);
   if (!endpoint) return "[ocr-config] not configured; website OCR is disabled (independent OCR process is unaffected)";
   const mode = process.env.DEPLOY_ENVIRONMENT ?? values.get("DEPLOY_ENVIRONMENT");
-  const url = resolveOcrEndpoint(endpoint, mode, true);
+  const url = resolveOcrEndpoint(endpoint, mode, true, internalHost);
   if (token && !/^[\x21-\x7e]+$/.test(token)) {
     throw new Error("MATCH_OCR_TOKEN must be ASCII without whitespace; its contents were not printed");
   }

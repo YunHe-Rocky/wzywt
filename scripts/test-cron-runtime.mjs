@@ -39,7 +39,7 @@ for (const [mode, signal] of [
       const configuration = spawnSync(process.execPath, ["-e", `
         const app = require('./ecosystem.config.js').apps[1];
         console.log(JSON.stringify({ script: app.script, args: app.args,
-          nodeArgs: app.node_args, interpreter: app.interpreter }));
+          nodeArgs: app.node_args, interpreter: app.interpreter, role: app.env.APP_ROLE }));
       `], {
         cwd: repo,
         env: { ...process.env, APP_DIR: directory },
@@ -61,11 +61,18 @@ for (const [mode, signal] of [
         ...argumentsOf(app.nodeArgs), ...entryArguments, ...argumentsOf(app.args),
       ], {
         cwd: repo,
-        env: { ...process.env, NODE_ENV: "production", TSX_TSCONFIG_PATH: tsconfig },
+        env: { ...process.env, NODE_ENV: "production", APP_ROLE: app.role, TSX_TSCONFIG_PATH: tsconfig },
         encoding: "utf8", windowsHide: true, timeout: 15_000,
       });
       assert.ifError(runtime.error);
-      const events = runtime.stdout.split(/\r?\n/).filter(line => line.startsWith("{")).map(line => JSON.parse(line));
+      const output = runtime.stdout.split(/\r?\n/).filter(line => line.startsWith("{")).map(line => JSON.parse(line));
+      const events = output.flatMap(entry => {
+        if (entry.event !== "service.output") return [entry];
+        try { return [JSON.parse(entry.message)]; } catch { return []; }
+      }).filter(entry => ["started", "drained"].includes(entry.event));
+      assert.ok(output.some(entry => entry.event === "process.boot" && entry.pid === runtime.pid), `boot identity must be logged before worker imports: ${runtime.stdout} ${runtime.stderr}`);
+      assert.equal(output[0]?.event, "process.boot");
+      assert.equal(output[0]?.role, "cron");
       assert.equal(events[0]?.event, "started", runtime.stdout + runtime.stderr);
       assert.equal(events[0].pid, runtime.pid,
         "PM2 must monitor the actual cron PID, not a tsx launcher that hides child memory");

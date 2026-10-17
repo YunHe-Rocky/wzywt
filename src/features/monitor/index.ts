@@ -2,6 +2,7 @@
 // When changes are detected, triggers the corresponding scraper module.
 
 import { prisma } from "@/lib/db";
+import { resourceCheckpoint, resourceGovernor } from "@/lib/resource-governor";
 import { fetchWithRetry } from "@/lib/anti-bot";
 import { fetchGicpNews, GICP_CHANNELS } from "@/lib/gicp";
 import { parseSkinNames } from "@/features/heroes/model";
@@ -180,8 +181,9 @@ async function checkSkills(response: Promise<HeroListResponse>): Promise<Monitor
 
     let mismatchCount = 0;
     let checkedCount = 0;
-    const batchSize = 8;
-    for (let b = 0; b < samples.length; b += batchSize) {
+    for (let b = 0; b < samples.length;) {
+      await resourceCheckpoint("monitor-skills");
+      const batchSize = resourceGovernor.concurrency();
       const batch = samples.slice(b, b + batchSize);
       const results = await Promise.all(
         batch.map(async (h) => {
@@ -201,6 +203,7 @@ async function checkSkills(response: Promise<HeroListResponse>): Promise<Monitor
           };
         })
       );
+      b += batchSize;
 
       for (const r of results) {
         if (r.checked) checkedCount++;

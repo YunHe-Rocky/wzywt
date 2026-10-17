@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { NextRequest } from "next/server";
 import { middleware } from "../src/middleware";
+// Routing/auth boundaries are exercised separately from enabled-mode pressure
+// admission and streaming regressions in test-resource-governor.mjs.
+process.env.RESOURCE_GOVERNOR_ENABLED = "0";
 
 const desktop = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/140.0 Safari/537.36";
 const mobile = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148";
@@ -101,4 +104,15 @@ assert.equal(response("/monitor", desktop).headers.get("location"), null);
 assert.equal(response("/m/heroes", mobile).headers.get("location"), null);
 assert.equal(response("/art/arena.webp", mobile).headers.get("location"), null);
 assert.equal(response("/api/heroes", mobile).headers.get("location"), null);
+for (const path of ["/member", "/administer", "/meadow"]) {
+  assert.equal(response(path, desktop).headers.get("location"), null, `unknown ${path} must reach the 404 handler`);
+  assert.equal(response(`/m${path}`, mobile).headers.get("location"), null);
+}
+for (const path of ["/api/authorship", "/api/heroes-private", "/api/resources-admin", "/api/healthcheck"]) {
+  assert.equal(response(path, desktop).status, 401, `${path} must not inherit a public API prefix`);
+}
+for (const path of ["/api/auth/me", "/api/heroes/1", "/api/resources/leases"]) {
+  assert.equal(response(path, mobile).status, 200, `${path} must remain in its public API subtree`);
+}
+assert.equal(response("/robots.txt-extra", mobile).headers.get("location"), "https://arena.example/m/robots.txt-extra");
 console.log("Device routing tests passed: bidirectional redirects, query preservation, exact /m prefix and static assets.");

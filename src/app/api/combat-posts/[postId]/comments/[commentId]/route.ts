@@ -1,3 +1,4 @@
+import { withRequestCapacity } from "@/lib/request-capacity";
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
@@ -7,7 +8,7 @@ import { parseRouteId } from "@/lib/request-validation";
 
 type Context = { params: Promise<{ postId: string; commentId: string }> };
 
-export async function DELETE(_request: NextRequest, context: Context) {
+async function handleDELETE(_request: NextRequest, context: Context) {
   try {
     const params = await context.params;
     return NextResponse.json(await deleteCombatPostComment(parseRouteId(params.postId, "动态 ID"), parseRouteId(params.commentId, "评论 ID")));
@@ -15,3 +16,5 @@ export async function DELETE(_request: NextRequest, context: Context) {
     return apiErrorResponse(error);
   }
 }
+
+export const DELETE = withRequestCapacity(handleDELETE);

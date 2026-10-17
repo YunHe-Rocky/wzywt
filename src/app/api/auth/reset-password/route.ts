@@ -1,3 +1,4 @@
+import { withRequestCapacity } from "@/lib/request-capacity";
 export const dynamic = "force-dynamic";
 
 import { Prisma } from "@prisma/client";
@@ -26,7 +27,7 @@ function tooManyRequests(error: RateLimitError) {
   );
 }
 
-export async function POST(req: NextRequest) {
+async function handlePOST(req: NextRequest) {
   const parsedBody = await tryReadJsonRequest<Record<string, unknown>>(req);
   if (!parsedBody.ok) return parsedBody.response;
   const body = parsedBody.value;
@@ -111,3 +112,5 @@ async function completePasswordReset(body: Record<string, unknown>, resetToken: 
   await clearPasswordResetCompletionLimits(tokenHash, ip);
   return NextResponse.json({ ok: true });
 }
+
+export const POST = withRequestCapacity(handlePOST);

@@ -42,8 +42,8 @@ export const createTournament = (body: {
 export const joinTournamentByCode = (code: string): Promise<ApiResult<JoinRoomPreview>> =>
   jsonRequest("/api/tournaments/join-by-code", "POST", { code });
 
-export const getTournament = (id: string | number): Promise<ApiResult<TournamentResponse>> =>
-  apiRequest(`/api/tournaments/${id}`);
+export const getTournament = (id: string | number, signal?: AbortSignal): Promise<ApiResult<TournamentResponse>> =>
+  apiRequest(`/api/tournaments/${id}`, { signal });
 
 export const joinTournament = (id: string | number): Promise<ApiResult<TournamentResponse>> =>
   apiRequest(`/api/tournaments/${id}/join`, { method: "POST" });

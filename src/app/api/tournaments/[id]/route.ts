@@ -1,3 +1,4 @@
+import { withRequestCapacity } from "@/lib/request-capacity";
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
@@ -20,7 +21,7 @@ function parseTournamentId(value: string): number | NextResponse {
   }
 }
 
-export async function GET(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+async function handleGET(req: NextRequest, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const auth = await authenticate();
   if (!auth.ok) return NextResponse.json({ error: auth.code === "BANNED" ? "账户已被封禁" : "请先登录" }, { status: auth.code === "BANNED" ? 403 : 401 });
@@ -95,7 +96,7 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
   });
 }
 
-export async function DELETE(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+async function handleDELETE(req: NextRequest, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const auth = await authenticate();
   if (!auth.ok) return NextResponse.json({ error: auth.code === "BANNED" ? "账户已被封禁" : "请先登录" }, { status: auth.code === "BANNED" ? 403 : 401 });
@@ -116,7 +117,7 @@ export async function DELETE(req: NextRequest, props: { params: Promise<{ id: st
   return NextResponse.json({ ok: true });
 }
 
-export async function PUT(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+async function handlePUT(req: NextRequest, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const auth = await authenticate();
   if (!auth.ok) return NextResponse.json({ error: auth.code === "BANNED" ? "账户已被封禁" : "请先登录" }, { status: auth.code === "BANNED" ? 403 : 401 });
@@ -158,3 +159,7 @@ export async function PUT(req: NextRequest, props: { params: Promise<{ id: strin
 
   return NextResponse.json({ tournament: updated });
 }
+
+export const GET = withRequestCapacity(handleGET);
+export const DELETE = withRequestCapacity(handleDELETE);
+export const PUT = withRequestCapacity(handlePUT);

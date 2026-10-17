@@ -77,7 +77,16 @@ if [[ -z "$PM2_BIN" && -n "$NPM_BIN" ]]; then
   done
 fi
 [[ -n "$PM2_BIN" && -x "$PM2_BIN" ]] || { printf '[stop] ERROR: PM2 not found\n' >&2; exit 1; }
-PM2_HOME="${DEPLOY_PM2_HOME:-${PM2_HOME:-${HOME:-}/.pm2}}"
+LEGACY_PM2_HOME="${SOURCE_DIR}-pm2"
+if [[ -n "${DEPLOY_PM2_HOME:-}" ]]; then
+  PM2_HOME="$DEPLOY_PM2_HOME"
+elif [[ -n "${PM2_HOME:-}" ]]; then
+  PM2_HOME="$PM2_HOME"
+elif [[ -f "$LEGACY_PM2_HOME/dump.pm2" || -d "$LEGACY_PM2_HOME/logs" || -d "$LEGACY_PM2_HOME/pids" ]]; then
+  PM2_HOME="$LEGACY_PM2_HOME"
+else
+  PM2_HOME="${HOME:-}/.pm2"
+fi
 [[ "$PM2_HOME" == /* && "$PM2_HOME" != "/" ]] || { printf '[stop] ERROR: invalid PM2 home\n' >&2; exit 1; }
 export PM2_HOME
 

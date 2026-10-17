@@ -1,3 +1,4 @@
+import { withRequestCapacity } from "@/lib/request-capacity";
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
@@ -6,7 +7,7 @@ import { authenticate } from "@/lib/auth";
 import { normalizeHeroPowerScore, ROLES } from "@/core/game";
 import { tryReadJsonRequest } from "@/lib/request-validation";
 
-export async function GET() {
+async function handleGET() {
   const auth = await authenticate();
   if (!auth.ok) return NextResponse.json({ error: auth.code === "BANNED" ? "账号已被封禁" : "请先登录" }, { status: auth.code === "BANNED" ? 403 : 401 });
   const { userId } = auth.user;
@@ -21,7 +22,7 @@ export async function GET() {
   return NextResponse.json({ heroPowers: grouped });
 }
 
-export async function POST(req: NextRequest) {
+async function handlePOST(req: NextRequest) {
   const auth = await authenticate();
   if (!auth.ok) return NextResponse.json({ error: auth.code === "BANNED" ? "账号已被封禁" : "请先登录" }, { status: auth.code === "BANNED" ? 403 : 401 });
   const { userId } = auth.user;
@@ -67,7 +68,7 @@ export async function POST(req: NextRequest) {
   return NextResponse.json(created);
 }
 
-export async function DELETE(req: NextRequest) {
+async function handleDELETE(req: NextRequest) {
   const auth = await authenticate();
   if (!auth.ok) return NextResponse.json({ error: auth.code === "BANNED" ? "账号已被封禁" : "请先登录" }, { status: auth.code === "BANNED" ? 403 : 401 });
   const { userId } = auth.user;
@@ -83,3 +84,7 @@ export async function DELETE(req: NextRequest) {
   await prisma.heroPower.delete({ where: { id: parseInt(id) } });
   return NextResponse.json({ ok: true });
 }
+
+export const GET = withRequestCapacity(handleGET);
+export const POST = withRequestCapacity(handlePOST);
+export const DELETE = withRequestCapacity(handleDELETE);

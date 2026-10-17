@@ -2,6 +2,19 @@
 
 王者荣耀 5v5 内战分队系统，基于 Next.js 15、TypeScript、Prisma/MySQL、Redis 与 PM2。
 
+## 当前部署与客户端约定
+
+- 当前以本地、局域网和 Docker Compose 容器化部署为主，同时支持电脑和手机页面。
+- 容器入口为 `node scripts/compose.mjs`，配置为 `compose.yaml` / `.env.docker`，操作说明见 `docs/operations/docker.md`。
+- Compose 只维护拓扑；运行参数由 `scripts/compose-runtime.mjs` 调用共享环境和资源模块生成，通过标准输入合入。不要在 YAML 重新抄写应用环境、资源默认值或宿主发布逻辑。Docker/PM2 启动命令共用 `scripts/runtime-command.mjs`。
+- 容器运行职责、数据归属和 OSS 边界见 `docs/architecture/runtime-architecture.md`；实施人员只从 `docs/operations/docker.md` 开始，不拼接历史部署文档。
+- Web、Cron、MySQL、Redis、可选 OCR 按独立运行职责拆容器；电脑和手机共享同一 Web 服务、数据库和登录规则。
+- Compose 支持 `MYSQL_MODE=container|external`、`OCR_MODE=off|container|external`；复用已有服务时不管理外部进程。Nginx 沿用宿主配置，连接信息复用现有 env，不增加重复变量。
+- 新增配置或发布流程必须验证本地 HTTP、局域网 PUBLIC_ORIGIN、电脑/手机跳转与 Cookie；不能默认要求公网域名或 HTTPS。
+- 更新必须先构建、再停止写入并备份数据库/媒体/爬虫文件、再迁移和启动；日常停止不得删除持久卷。
+- rclone/OSS 只承载业务文件、爬虫文件和导出备份；容器 MySQL/Redis 活动数据使用本地 Docker 卷，外部 MySQL 保持已有存储。挂载未就绪时必须阻止应用写入本地同名目录。
+- 保留现有原生开发与 PM2 发布方式；生产数据库仍只能使用 `prisma migrate deploy`。
+
 ## 架构边界
 
 唯一权威说明：[docs/architecture/code-architecture.md](docs/architecture/code-architecture.md)。
@@ -56,8 +69,8 @@ npm run build
 
 ## 部署
 
-使用 `scripts/deploy.sh`：基于 `main` 构建独立 release，备份成功后执行 migration，原子切换 PM2，并通过 `/api/health` 验证和回滚。
+当前容器路线使用 `node scripts/compose.mjs`，实施、验收和故障处理以 `docs/operations/docker.md` 为准。只有明确采用原生 PM2 时才使用 `scripts/deploy.sh`：基于 `main` 构建独立 release，备份成功后执行 migration，原子切换 PM2，并通过 `/api/health` 验证和回切。
 
 - dirty production tree 必须人工处理，禁止自动 stash。
 - Hero Sync 与发布解耦。
-- Nginx/证书细节见 [docs/operations/deploy.md](docs/operations/deploy.md)。
+- 公网 Nginx/证书细节见 [docs/operations/nginx-configuration.md](docs/operations/nginx-configuration.md)。

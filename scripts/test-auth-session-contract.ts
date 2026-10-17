@@ -15,9 +15,15 @@ function countDestroyCalls(relativePath: string, functionName: string) {
     ts.ScriptKind.TS,
   );
 
+  const exported = source.statements.filter(ts.isVariableStatement).flatMap(node => node.declarationList.declarations)
+    .find(node => ts.isIdentifier(node.name) && node.name.text === functionName);
+  const wrapped = exported?.initializer;
+  const targetName = wrapped && ts.isCallExpression(wrapped)
+    && ts.isIdentifier(wrapped.expression) && wrapped.expression.text === "withRequestCapacity"
+    && wrapped.arguments.length === 1 && ts.isIdentifier(wrapped.arguments[0]) ? wrapped.arguments[0].text : functionName;
   const declaration = source.statements.find(
     (node): node is ts.FunctionDeclaration =>
-      ts.isFunctionDeclaration(node) && node.name?.text === functionName,
+      ts.isFunctionDeclaration(node) && node.name?.text === targetName,
   );
   assert.ok(declaration?.body, `${relativePath} must export ${functionName}()`);
 

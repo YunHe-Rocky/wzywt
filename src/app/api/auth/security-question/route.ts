@@ -1,3 +1,4 @@
+import { withRequestCapacity } from "@/lib/request-capacity";
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
@@ -17,7 +18,7 @@ const PRESET_QUESTIONS = [
   "你的座右铭是？",
 ];
 
-export async function GET(req: NextRequest) {
+async function handleGET(req: NextRequest) {
   const username = req.nextUrl.searchParams.get("username");
   if (!username) {
     return NextResponse.json({ error: "请输入用户名" }, { status: 400 });
@@ -39,7 +40,7 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ question: user.securityQuestion });
 }
 
-export async function POST(req: NextRequest) {
+async function handlePOST(req: NextRequest) {
   const auth = await authenticate();
   if (!auth.ok) return NextResponse.json({ error: auth.code === "BANNED" ? "账户已被封禁" : "请先登录" }, { status: auth.code === "BANNED" ? 403 : 401 });
   const { userId } = auth.user;
@@ -84,3 +85,6 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({ ok: true, question: finalQuestion });
 }
+
+export const GET = withRequestCapacity(handleGET);
+export const POST = withRequestCapacity(handlePOST);

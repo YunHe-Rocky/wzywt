@@ -34,7 +34,7 @@ export function isPrivateHostname(hostname: string): boolean {
 }
 
 /** OCR transport policy shared by the live caller and the deployment preflight. */
-export function resolveOcrEndpoint(value: string, environment?: string, production = true): URL {
+export function resolveOcrEndpoint(value: string, environment?: string, production = true, internalHost?: string): URL {
   let url: URL;
   try {
     url = new URL(value.trim());
@@ -48,10 +48,17 @@ export function resolveOcrEndpoint(value: string, environment?: string, producti
     throw new Error("MATCH_OCR_ENDPOINT 不得包含账号密码、片段、空白或反斜杠；鉴权请使用 MATCH_OCR_TOKEN");
   }
   const mode = resolveDeploymentEnvironment(environment);
-  if (mode === "local" && url.protocol === "http:" && !isPrivateHostname(url.hostname)) {
+  // An explicit single-label service name permits a private Compose network hop.
+  // Never treat a suffix match, arbitrary DNS name or user-supplied URL as trusted.
+  const host = internalHost?.trim() || "";
+  if (host && !/^[a-z][a-z0-9-]{0,61}[a-z0-9]$|^[a-z]$/.test(host)) {
+    throw new Error("MATCH_OCR_INTERNAL_HOST 必须是单个小写容器服务名，不得包含端口、域名或 URL");
+  }
+  const internal = host !== "" && url.hostname === host;
+  if (mode === "local" && url.protocol === "http:" && !isPrivateHostname(url.hostname) && !internal) {
     throw new Error("本地模式 HTTP MATCH_OCR_ENDPOINT 仅允许 localhost、回环或私有 IP 地址");
   }
-  if (production && mode !== "local" && url.protocol !== "https:" && !isLoopbackHostname(url.hostname)) {
+  if (production && mode !== "local" && url.protocol !== "https:" && !isLoopbackHostname(url.hostname) && !internal) {
     throw new Error("生产环境非回环 MATCH_OCR_ENDPOINT 必须使用 HTTPS；同机 OCR 可使用 http://127.0.0.1:8010/recognize");
   }
   return url;

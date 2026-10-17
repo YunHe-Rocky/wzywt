@@ -1,6 +1,10 @@
 # 王者演武堂部署指南
 
+当前优先使用本地/局域网或 Docker Compose 部署，电脑与手机共用站点。容器部署请先看 [容器部署与维护](docker.md)，使用 `node scripts/compose.mjs`；此页下面的 `deploy.sh` 是已有的 Linux/PM2 发布流程。Windows 下载源码压缩包后也可以通过 Compose 部署，不要求 Git 仓库或 Bash。
+
 正常部署只维护一份很小的 `.env`，然后运行一次预检和一次发布。项目路径、运行目录、当前用户、Git 分支、PM2 名称、Node 工具链、媒体目录、备份目录和健康检查参数都由脚本发现或使用项目默认值，不要重复写进 `.env`。
+
+资源预算、订阅限额、缓存/Worker 回收、高压排空及开机恢复见 [资源调度与自动恢复](resource-governor.md)。PM2 与调度器共用原生内存预算，在受限 cgroup 中仍按 Web 35% / Cron 20% 计算软预算；兜底重启阈值为软预算的 120%。原生 PM2 阈值不等同内核硬限额。发布前确认已有 Web/Cron 工作集能容纳于配置，按该手册安装固定 PM2_HOME 的 systemd 恢复服务。
 
 > 如果数据库密码、Redis 密码或 `SESSION_SECRET` 曾经发到聊天、工单或公开日志中，请先轮换。仓库里只能放变量名和示例，不能放真实值。
 
@@ -149,6 +153,8 @@ bash scripts/deploy.sh
 脚本从当前 upstream fetch 精确 commit 并建立独立 release。它不会自动 stash、reset、checkout、删除源码文件、启动系统级 MySQL/Redis/Nginx，也不会接管其他用户或其他 cwd 的 PM2 进程。
 
 ## 6. 发布后确认
+
+首次发布成功后，按 [资源调度与自动恢复](resource-governor.md) 生成并安装专用 PM2 的开机恢复服务和存活 watchdog。`pm2 save` 只保存列表，必须另外完成这一步。已有自定义 `PM2_HOME` 的现场应明确保留 `DEPLOY_PM2_HOME`，并核对计划中的路径和运行用户。
 
 ```bash
 curl --fail http://127.0.0.1:8001/api/health

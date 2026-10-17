@@ -69,7 +69,7 @@ export const RUNTIME_ENV_KEYS = Object.freeze([
   "HOST",
 ]);
 
-const OCR_ENV_KEYS = Object.freeze(["MATCH_OCR_ENDPOINT", "MATCH_OCR_TOKEN"]);
+const OCR_ENV_KEYS = Object.freeze(["MATCH_OCR_ENDPOINT", "MATCH_OCR_TOKEN", "MATCH_OCR_INTERNAL_HOST"]);
 
 function parseQuotedValue(rawValue, quote, lineNumber, key) {
   let value = "";
@@ -121,7 +121,7 @@ function parseValue(rawValue, lineNumber, key) {
   return (commentIndex >= 0 ? value.slice(0, commentIndex) : value).trimEnd();
 }
 
-function parseSelectedEnv(content, keys) {
+export function parseSelectedEnv(content, keys) {
   const allowedKeys = new Set(keys);
   const urlKeys = new Set(["PUBLIC_ORIGIN", "DATABASE_URL", "REDIS_URL", "MATCH_OCR_ENDPOINT"]);
   const result = new Map();
@@ -194,6 +194,7 @@ export function readOcrEnv(filePath) {
   return {
     MATCH_OCR_ENDPOINT: values.get("MATCH_OCR_ENDPOINT")?.trim() || "",
     MATCH_OCR_TOKEN: values.get("MATCH_OCR_TOKEN")?.trim() || "",
+    MATCH_OCR_INTERNAL_HOST: values.get("MATCH_OCR_INTERNAL_HOST")?.trim() || "",
   };
 }
 

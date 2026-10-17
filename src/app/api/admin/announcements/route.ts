@@ -1,3 +1,4 @@
+import { withRequestCapacity } from "@/lib/request-capacity";
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
@@ -9,7 +10,7 @@ import {
 } from "@/features/announcements/server/service";
 import { tryReadJsonRequest } from "@/lib/request-validation";
 
-export async function GET() {
+async function handleGET() {
   const authorization = await authorizeSuperAdmin();
   const userId = authorization.ok ? authorization.user.userId : 0;
   if (!userId) return NextResponse.json({ error: "无权限" }, { status: 403 });
@@ -24,7 +25,7 @@ export async function GET() {
   });
 }
 
-export async function POST(req: NextRequest) {
+async function handlePOST(req: NextRequest) {
   const authorization = await authorizeSuperAdmin();
   const userId = authorization.ok ? authorization.user.userId : 0;
   if (!userId) return NextResponse.json({ error: "无权限" }, { status: 403 });
@@ -41,3 +42,6 @@ export async function POST(req: NextRequest) {
     throw error;
   }
 }
+
+export const GET = withRequestCapacity(handleGET);
+export const POST = withRequestCapacity(handlePOST);

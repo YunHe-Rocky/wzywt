@@ -1,3 +1,4 @@
+import { withRequestCapacity } from "@/lib/request-capacity";
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
@@ -16,7 +17,7 @@ const DEFAULTS: Record<string, string> = {
 
 const KEY = "config:crawl_urls";
 
-export async function GET() {
+async function handleGET() {
   const authorization = await authorizeSuperAdmin();
   const userId = authorization.ok ? authorization.user.userId : 0;
   if (!userId) return NextResponse.json({ error: "无权限" }, { status: 403 });
@@ -29,7 +30,7 @@ export async function GET() {
   });
 }
 
-export async function PUT(req: NextRequest) {
+async function handlePUT(req: NextRequest) {
   const authorization = await authorizeSuperAdmin();
   const userId = authorization.ok ? authorization.user.userId : 0;
   if (!userId) return NextResponse.json({ error: "无权限" }, { status: 403 });
@@ -61,3 +62,6 @@ export async function PUT(req: NextRequest) {
     settings: { ...DEFAULTS, ...updates },
   });
 }
+
+export const GET = withRequestCapacity(handleGET);
+export const PUT = withRequestCapacity(handlePUT);

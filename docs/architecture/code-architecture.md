@@ -7,6 +7,8 @@
 - `web`：Next.js 页面和 API。
 - `cron`：`scripts/cron.ts` 启动的定时调度进程。
 
+在 Docker Compose 中，两个进程分别使用 `web`、`cron` 容器；MySQL、Redis 与可选 OCR 各自独立。`storage-init` 和 `migrate` 是一次性任务，分别准备/验证持久存储和执行应用数据库迁移。PC 与手机页面仍由同一个 Web 容器提供。容器职责与数据归属见 [Docker Compose 运行架构](runtime-architecture.md)，实施命令见 [Docker Compose 部署与运维](../operations/docker.md)。
+
 可选的外部 OCR 预览服务位于 `services/ocr`，由 `bash scripts/deploy.sh --ocr`
 默认作为独立的 `wzywt-ocr` PM2 后台进程启动；支持 `--check`、`--status`、`--logs` 和前台调试 `--serve`。
 它不属于上述两个网站进程，也不参与网站 release 切换。
@@ -116,6 +118,8 @@ cron ─────→ features ─────→ core / lib
 Lease 只管理页面派生数据、SSE/轮询和临时计算。Prisma、Redis client、Cron、媒体文件及已保存业务数据不注册释放器，也不随页面退出关闭。
 
 ## 自动边界检查
+
+`src/core/resource-policy.ts` 提供纯压力与请求分类策略，`src/core/resource-settings.ts` 提供共享验证与预算算法；`src/lib/resource-governor.ts` 适配主机/cgroup、普通请求与订阅的独立供给、共享重任务租约、任务检查点及有期限的高压排空。页面 Resource Scheduler 清理无租约的派生缓存与失败空条目，分队线程池按需创建并回收闲置线程。回收机制不管理持久数据生命周期。配置、PM2/Docker 边界、日志及验收见 [资源调度运行手册](../operations/resource-governor.md)。
 
 ```bash
 npm run check:architecture

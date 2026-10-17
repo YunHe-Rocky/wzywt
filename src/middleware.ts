@@ -1,18 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
 import { parsePublicOrigin, resolveDeploymentEntry } from "@/lib/public-origin";
+import { resourceGovernor } from "@/lib/resource-governor";
+import { randomUUID } from "node:crypto";
+import { externalRequestCost, externalRequestLane } from "@/core/resource-policy";
 
 const PUBLIC_PATHS = ["/login", "/register", "/heroes", "/tournaments", "/changelog", "/monitor", "/debug", "/equipment"];
 const PROTECTED_PREFIXES = ["/me", "/admin"];
+function matchesPath(path: string, prefix: string): boolean {
+  return path === prefix || path.startsWith(`${prefix}/`);
+}
 // 首页 "/" 也算公开（basePath 为空时处理）
 function isPublicPath(path: string): boolean {
   if (path === "/" || path === "") return true;
-  return PUBLIC_PATHS.some((p) => path.startsWith(p));
+  return PUBLIC_PATHS.some((p) => matchesPath(path, p));
 }
 function isProtectedPath(path: string): boolean {
-  return PROTECTED_PREFIXES.some((p) => path.startsWith(p));
+  return PROTECTED_PREFIXES.some((p) => matchesPath(path, p));
 }
 const PUBLIC_API = ["/api/health", "/api/auth", "/api/official-news", "/api/announcements", "/api/changelog", "/api/tournaments/public", "/api/heroes", "/api/equipment", "/api/resources"];
-const STATIC_PREFIXES = ["/_next", "/favicon", "/public", "/art/", "/robots.txt", "/sitemap.xml"];
+const STATIC_PREFIXES = ["/_next", "/public", "/art"];
+const STATIC_FILES = new Set(["/favicon.ico", "/robots.txt", "/sitemap.xml"]);
 const SESSION_COOKIE = "wzyt_session";
 
 const MOBILE_UA = /Android|iPhone|iPad|iPod|webOS|BlackBerry|Windows Phone|Mobile/i;
@@ -47,18 +54,18 @@ function externalRedirect(req: NextRequest, pathname: string, login = false): Ne
   }
 }
 
-export function middleware(req: NextRequest) {
+function routeRequest(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   // Allow static files
-  if (STATIC_PREFIXES.some((p) => pathname.startsWith(p))) {
+  if (STATIC_FILES.has(pathname) || STATIC_PREFIXES.some((p) => matchesPath(pathname, p))) {
     return NextResponse.next();
   }
 
   // Allow API routes (no mobile redirect)
   if (pathname.startsWith("/api/")) {
     // Auth check for protected APIs
-    if (!PUBLIC_API.some((p) => pathname.startsWith(p))) {
+    if (!PUBLIC_API.some((p) => matchesPath(pathname, p))) {
       if (!req.cookies.has(SESSION_COOKIE)) {
         return NextResponse.json({ error: "请先登录" }, { status: 401 });
       }
@@ -99,6 +106,32 @@ export function middleware(req: NextRequest) {
   return NextResponse.next();
 }
 
+export function middleware(req: NextRequest) {
+  resourceGovernor.start("web");
+  const path = req.nextUrl.pathname;
+  const requestId = randomUUID();
+  // Health must remain reachable when ordinary traffic is being shed.
+  if (path !== "/api/health" && !STATIC_FILES.has(path) && !STATIC_PREFIXES.some(prefix => matchesPath(path, prefix))) {
+    const cost = externalRequestCost(path, req.method, req.headers.get("content-type") || "");
+    const admission = resourceGovernor.admit(cost, externalRequestLane(path, req.method));
+    if (!admission.allowed) return NextResponse.json({ error: "当前访问繁忙，请稍后重试", code: "RESOURCE_BUSY", requestId }, {
+      status: 503, headers: { "Retry-After": String(admission.retryAfterSeconds), "Cache-Control": "no-store", "x-request-id": requestId },
+    });
+  }
+  const headers = new Headers(req.headers);
+  headers.set("x-request-id", requestId);
+  const routed = routeRequest(req);
+  // Pass a trusted generated ID through the middleware continuation only.
+  if (routed.headers.get("x-middleware-next") === "1") {
+    const response = NextResponse.next({ request: { headers } });
+    response.headers.set("x-request-id", requestId);
+    return response;
+  }
+  routed.headers.set("x-request-id", requestId);
+  return routed;
+}
+
 export const config = {
+  runtime: "nodejs",
   matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:ico|png|jpg|jpeg|webp|avif|svg|css|js)).*)"],
 };

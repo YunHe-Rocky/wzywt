@@ -2,7 +2,9 @@ import { prisma } from "@/lib/db";
 import * as fs from "fs/promises";
 import * as path from "path";
 import { validateCrawlUrl } from "@/lib/anti-bot";
-import { readResponseBytes } from "@/lib/http-response";
+import { streamResponseToFile } from "@/lib/stream-download";
+import { assertTaskWriteAllowed } from "@/lib/task-write-fence";
+import { resourceCheckpoint } from "@/lib/resource-governor";
 
 const HERO_IMG_DIR = path.join(process.cwd(), "public", "heroes", "images");
 const SKIN_IMG_DIR = path.join(process.cwd(), "public", "heroes", "skins");
@@ -14,7 +16,7 @@ async function pathExists(filePath: string): Promise<boolean> {
   return fs.access(filePath).then(() => true).catch(() => false);
 }
 
-async function fetchImage(url: string): Promise<Buffer | null> {
+async function fetchImage(url: string, temporaryPath: string): Promise<boolean> {
   try {
     const res = await fetch(validateCrawlUrl(url), {
       headers: {
@@ -26,12 +28,12 @@ async function fetchImage(url: string): Promise<Buffer | null> {
     });
     if (!res.ok || !res.headers.get("content-type")?.startsWith("image/")) {
       await res.body?.cancel();
-      return null;
+      return false;
     }
-    const buffer = Buffer.from(await readResponseBytes(res, 12 * 1024 * 1024));
-    return buffer.length >= 1024 ? buffer : null;
+    await streamResponseToFile(res, temporaryPath, 12 * 1024 * 1024, 1024);
+    return true;
   } catch {
-    return null;
+    return false;
   }
 }
 
@@ -45,14 +47,17 @@ async function downloadBestImage(
 
   for (const url of Array.from(new Set(candidates.filter(Boolean)))) {
     if (hasLocal && previousSource === url) return false;
-    const buffer = await fetchImage(url);
-    if (!buffer) continue;
     await fs.mkdir(path.dirname(localPath), { recursive: true });
     const tempPath = `${localPath}.${process.pid}.tmp`;
-    await fs.writeFile(tempPath, buffer);
-    // copyFile 可跨平台覆盖已有文件；rename 在 Windows 上无法替换现有目标。
-    await fs.copyFile(tempPath, localPath);
-    await fs.unlink(tempPath).catch(() => {});
+    try {
+      if (!await fetchImage(url, tempPath)) continue;
+      assertTaskWriteAllowed();
+      // Same-directory rename keeps concurrent readers on a complete old/new image.
+      await fs.rename(tempPath, localPath);
+    } finally {
+      await fs.unlink(tempPath).catch(() => {});
+    }
+    assertTaskWriteAllowed();
     await fs.writeFile(sourcePath, url, "utf8");
     return true;
   }
@@ -68,13 +73,15 @@ export async function downloadAllImages(): Promise<{ heroes: number; skins: numb
   let skinCount = 0;
 
   for (const hero of heroes) {
+    await resourceCheckpoint("hero-images");
     // Hero avatar
     const heroUrl = HERO_CDN.replace(/{id}/g, String(hero.heroId));
     const heroPath = path.join(HERO_IMG_DIR, `${hero.heroId}.jpg`);
     if (await downloadBestImage([heroUrl], heroPath)) heroCount++;
 
     const localUrl = `/heroes/images/${hero.heroId}.jpg`;
-    if (!hero.imageUrl.startsWith("/heroes/")) {
+    // A failed download must not replace a working remote URL with a missing file.
+    if (hero.imageUrl !== localUrl && await pathExists(heroPath)) {
       await prisma.hero.update({
         where: { heroId: hero.heroId },
         data: { imageUrl: localUrl },
@@ -82,14 +89,20 @@ export async function downloadAllImages(): Promise<{ heroes: number; skins: numb
     }
 
     // Skin images
-    let skins: { index: number; imageUrls?: string[] }[] = [];
+    let skins: unknown = [];
     try { if (hero.skinsJson) skins = JSON.parse(hero.skinsJson); } catch { continue; }
+    if (!Array.isArray(skins)) continue;
 
     for (const skin of skins) {
+      await resourceCheckpoint("skin-images");
+      if (!skin || typeof skin !== "object" || !Number.isSafeInteger(skin.index) || skin.index < 1) continue;
       const skinUrl = SKIN_CDN.replace(/{id}/g, String(hero.heroId)).replace("{idx}", String(skin.index));
       const standardUrl = skinUrl.replace("-bigskin-", "-mobileskin-");
       const skinPath = path.join(SKIN_IMG_DIR, String(hero.heroId), `${skin.index}.jpg`);
-      const candidates = skin.imageUrls ?? [skinUrl, standardUrl, heroUrl];
+      const candidates = Array.isArray(skin.imageUrls)
+        ? skin.imageUrls.filter((url: unknown): url is string => typeof url === "string" && url.length > 0)
+        : [];
+      if (candidates.length === 0) candidates.push(skinUrl, standardUrl, heroUrl);
       if (await downloadBestImage(candidates, skinPath)) skinCount++;
     }
   }

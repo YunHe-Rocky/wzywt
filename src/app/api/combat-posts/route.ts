@@ -1,3 +1,4 @@
+import { withRequestCapacity } from "@/lib/request-capacity";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
@@ -9,7 +10,7 @@ import { apiErrorResponse } from "@/lib/api-errors";
 import { requireAuth } from "@/lib/auth";
 import { getCombatVideoPolicy } from "@/features/combat-posts/server/video-policy";
 
-export async function GET(request: NextRequest) {
+async function handleGET(request: NextRequest) {
   try {
     return NextResponse.json(await listCombatPosts(request.nextUrl.searchParams.get("page") || 1));
   } catch (error) {
@@ -17,7 +18,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-export async function POST(request: NextRequest) {
+async function handlePOST(request: NextRequest) {
   try {
     const user = await requireAuth();
     const policy = getCombatVideoPolicy();
@@ -35,3 +36,6 @@ export async function POST(request: NextRequest) {
     return apiErrorResponse(error);
   }
 }
+
+export const GET = withRequestCapacity(handleGET);
+export const POST = withRequestCapacity(handlePOST);

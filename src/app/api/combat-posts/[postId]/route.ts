@@ -1,3 +1,4 @@
+import { withRequestCapacity } from "@/lib/request-capacity";
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
@@ -7,7 +8,7 @@ import { parseRouteId, readJsonRequest } from "@/lib/request-validation";
 
 type Context = { params: Promise<{ postId: string }> };
 
-export async function GET(request: NextRequest, context: Context) {
+async function handleGET(request: NextRequest, context: Context) {
   try {
     const { postId } = await context.params;
     return NextResponse.json(await getCombatPost(parseRouteId(postId, "动态 ID"), request.nextUrl.searchParams.get("commentCursor")));
@@ -16,7 +17,7 @@ export async function GET(request: NextRequest, context: Context) {
   }
 }
 
-export async function PATCH(request: NextRequest, context: Context) {
+async function handlePATCH(request: NextRequest, context: Context) {
   try {
     const { postId } = await context.params;
     const body = await readJsonRequest(request);
@@ -26,3 +27,6 @@ export async function PATCH(request: NextRequest, context: Context) {
     return apiErrorResponse(error);
   }
 }
+
+export const GET = withRequestCapacity(handleGET);
+export const PATCH = withRequestCapacity(handlePATCH);

@@ -8,7 +8,7 @@ import { parseDeployEnv } from "./deploy-env.mjs";
 
 const repo = resolve(import.meta.dirname, "..");
 test("preflight rejects duplicate OCR settings without leaking their values", () => {
-  for (const key of ["MATCH_OCR_ENDPOINT", "MATCH_OCR_TOKEN"]) {
+  for (const key of ["MATCH_OCR_ENDPOINT", "MATCH_OCR_TOKEN", "MATCH_OCR_INTERNAL_HOST"]) {
     assert.throws(() => parseDeployEnv(`${key}=private-first\n${key}=private-second\n`), (error) => {
       assert.match(error.message, /Duplicate environment key/);
       assert.match(error.message, /line 2/);
@@ -34,15 +34,15 @@ test("web and cron replace or clear stale OCR settings using release .env", () =
   try {
     for (const configured of [true, false]) {
       writeFileSync(join(dir, ".env"), configured
-        ? "MATCH_OCR_ENDPOINT=https://ocr.example/recognize\nMATCH_OCR_TOKEN=new-test-token\n"
+        ? "MATCH_OCR_ENDPOINT=http://ocr:8010/recognize\nMATCH_OCR_TOKEN=new-test-token\nMATCH_OCR_INTERNAL_HOST=ocr\n"
         : "# OCR disabled\n");
-      const result = spawnSync(process.execPath, ["-e", "console.log(JSON.stringify(require('./ecosystem.config.js').apps.map(app => ({ endpoint: app.env.MATCH_OCR_ENDPOINT, token: app.env.MATCH_OCR_TOKEN }))))"], {
+      const result = spawnSync(process.execPath, ["-e", "console.log(JSON.stringify(require('./ecosystem.config.js').apps.map(app => ({ endpoint: app.env.MATCH_OCR_ENDPOINT, token: app.env.MATCH_OCR_TOKEN, internalHost: app.env.MATCH_OCR_INTERNAL_HOST }))))"], {
         cwd: repo, encoding: "utf8", windowsHide: true,
-        env: { ...process.env, APP_DIR: dir, MATCH_OCR_ENDPOINT: "https://old.example/recognize", MATCH_OCR_TOKEN: "stale-test-token" },
+        env: { ...process.env, APP_DIR: dir, MATCH_OCR_ENDPOINT: "https://old.example/recognize", MATCH_OCR_TOKEN: "stale-test-token", MATCH_OCR_INTERNAL_HOST: "stale-host" },
       });
       assert.equal(result.status, 0, result.stderr);
       assert.deepEqual(JSON.parse(result.stdout), Array(2).fill({
-        endpoint: configured ? "https://ocr.example/recognize" : "", token: configured ? "new-test-token" : "",
+        endpoint: configured ? "http://ocr:8010/recognize" : "", token: configured ? "new-test-token" : "", internalHost: configured ? "ocr" : "",
       }));
     }
   } finally {
@@ -53,7 +53,7 @@ test("web and cron replace or clear stale OCR settings using release .env", () =
 test("deployment preflight checks OCR URL policy without contacting the provider or printing secrets", () => {
   const dir = mkdtempSync(join(tmpdir(), "wzywt-ocr-preflight-"));
   try {
-    for (const [mode, endpoint, accepted] of [
+    for (const [mode, endpoint, accepted, internalHost = ""] of [
       ["local", "http://127.0.0.1:8010/recognize", true],
       ["local", "http://192.168.1.73:8010/recognize", true],
       ["local", "http://public.example/recognize", false],
@@ -64,9 +64,14 @@ test("deployment preflight checks OCR URL policy without contacting the provider
       ["production", "http://public.example/recognize", false],
       ["production", "https://ocr.example/recognize?secret=private-query", true],
       ["production", "", true],
+      ["local", "http://ocr:8010/recognize", false],
+      ["local", "http://ocr:8010/recognize", true, "ocr"],
+      ["production", "http://ocr:8010/recognize", true, "ocr"],
+      ["production", "http://ocr.evil.example:8010/recognize", false, "ocr"],
+      ["production", "http://ocr:8010/recognize", false, "ocr:8010"],
     ]) {
       const file = join(dir, ".env");
-      writeFileSync(file, `DEPLOY_ENVIRONMENT=${mode}\nMATCH_OCR_ENDPOINT=${endpoint}\nMATCH_OCR_TOKEN=private-ocr-test-token\n`);
+      writeFileSync(file, `DEPLOY_ENVIRONMENT=${mode}\nMATCH_OCR_ENDPOINT=${endpoint}\nMATCH_OCR_TOKEN=private-ocr-test-token\nMATCH_OCR_INTERNAL_HOST=${internalHost}\n`);
       const result = spawnSync(process.execPath, ["scripts/check-ocr-config.mjs", file], {
         cwd: repo, encoding: "utf8", windowsHide: true,
         env: { ...process.env, DEPLOY_ENVIRONMENT: mode },

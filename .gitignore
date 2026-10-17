@@ -39,6 +39,8 @@ yarn-error.log*
 .env
 .env*.local
 .env.gh_token
+/.env.docker
+/data/docker-backups/
 
 # vercel
 .vercel
@@ -69,6 +71,8 @@ next-env.d.ts
 # development scripts & cache
 /verify_screenshots.py
 /.cache/
+.runtime-cron-heartbeat
+.runtime-cron-heartbeat.*.tmp
 
 # OCR Python environment and bytecode
 /.venv-ocr/

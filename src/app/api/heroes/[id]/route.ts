@@ -1,3 +1,4 @@
+import { withRequestCapacity } from "@/lib/request-capacity";
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
@@ -8,7 +9,7 @@ import { cacheDel, cacheGet, cacheSet } from "@/lib/redis";
 import { ROLE_LABELS, CLASS_LABELS, ROLES } from "@/core/game";
 import { tryReadJsonRequest } from "@/lib/request-validation";
 
-export async function GET(_req: NextRequest, props: { params: Promise<{ id: string }> }) {
+async function handleGET(_req: NextRequest, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const heroId = parseInt(params.id);
   if (!heroId) return NextResponse.json({ error: "无效ID" }, { status: 400 });
@@ -106,7 +107,7 @@ export async function GET(_req: NextRequest, props: { params: Promise<{ id: stri
   return NextResponse.json(result);
 }
 
-export async function PATCH(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+async function handlePATCH(req: NextRequest, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const authorization = await authorizeSuperAdmin();
   const userId = authorization.ok ? authorization.user.userId : 0;
@@ -166,3 +167,6 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
 
   return NextResponse.json({ ...hero, roleType, secondaryRoleTypes: normalizedSecondary });
 }
+
+export const GET = withRequestCapacity(handleGET);
+export const PATCH = withRequestCapacity(handlePATCH);

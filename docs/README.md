@@ -11,6 +11,7 @@
 ## 架构与设计
 
 - [代码分层架构](architecture/code-architecture.md)：唯一权威代码边界
+- [Docker Compose 运行架构](architecture/runtime-architecture.md)：容器职责、数据归属、OSS 与故障边界
 - [数据库概览](architecture/database.md)
 - [界面设计说明](design/design-spec.md)
 - [UI 系统](design/ui-system.md)
@@ -18,11 +19,14 @@
 
 ## 运维
 
-- [日常部署](operations/deploy.md)
+- [Docker Compose 部署与运维](operations/docker.md)：本地、局域网、云服务器与 OSS 的当前实施入口
+- [Compose 实施交付记录模板](operations/deployment-record-template.md)
+- [原生 PM2 部署](operations/deploy.md)：未采用容器时使用
 - [维护者入口](operations/maintenance.md)
 - [高级部署选项](operations/deploy-advanced.md)
 - [Nginx 与 TLS](operations/nginx-configuration.md)
 - [健康检查与告警](operations/observability.md)
+- [自适应资源调度与自动恢复](operations/resource-governor.md)
 - [发布与恢复边界](operations/recovery-and-release.md)
 - [媒体备份与恢复](operations/media-operations.md)
 - [依赖与 overrides](operations/dependencies.md)

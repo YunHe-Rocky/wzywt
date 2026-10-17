@@ -1,10 +1,11 @@
+import { withRequestCapacity } from "@/lib/request-capacity";
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { cacheGet, cacheSet } from "@/lib/redis";
 
-export async function GET(_req: NextRequest, props: { params: Promise<{ id: string }> }) {
+async function handleGET(_req: NextRequest, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const itemId = parseInt(params.id);
   if (!itemId) return NextResponse.json({ error: "无效ID" }, { status: 400 });
@@ -42,3 +43,5 @@ export async function GET(_req: NextRequest, props: { params: Promise<{ id: stri
 
   return NextResponse.json(result);
 }
+
+export const GET = withRequestCapacity(handleGET);

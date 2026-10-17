@@ -1,3 +1,4 @@
+import { withRequestCapacity } from "@/lib/request-capacity";
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
@@ -7,7 +8,7 @@ import { getRequestIp } from "@/lib/auth-rate-limit";
 import { readJsonRequest } from "@/lib/request-validation";
 import { getSession } from "@/lib/session";
 
-export async function POST(request: NextRequest) {
+async function handlePOST(request: NextRequest) {
   const startedAt = Date.now();
   try {
     const user = await registerAccount(await readJsonRequest(request), getRequestIp(request.headers));
@@ -22,3 +23,5 @@ export async function POST(request: NextRequest) {
     return apiErrorResponse(error, { request, useCase: "auth.register", startedAt });
   }
 }
+
+export const POST = withRequestCapacity(handlePOST);

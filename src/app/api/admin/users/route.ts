@@ -1,3 +1,4 @@
+import { withRequestCapacity } from "@/lib/request-capacity";
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
@@ -5,7 +6,7 @@ import { authorizeSuperAdmin } from "@/lib/permissions";
 import { prisma } from "@/lib/db";
 import { Prisma } from "@prisma/client";
 
-export async function GET(req: NextRequest) {
+async function handleGET(req: NextRequest) {
   const authorization = await authorizeSuperAdmin();
   const userId = authorization.ok ? authorization.user.userId : 0;
   if (!userId) return NextResponse.json({ error: "无权限" }, { status: 403 });
@@ -47,3 +48,5 @@ export async function GET(req: NextRequest) {
     totalPages: Math.ceil(total / pageSize),
   });
 }
+
+export const GET = withRequestCapacity(handleGET);
