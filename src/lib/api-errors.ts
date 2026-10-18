@@ -1,3 +1,5 @@
+import { Prisma } from "@prisma/client";
+import { RateLimitError } from "@/lib/auth-rate-limit";
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { AuthError } from "@/lib/auth";
@@ -54,6 +56,11 @@ export function apiErrorResponse(error: unknown, context: ApiErrorContext = {}):
   } else if (error instanceof PermissionError) {
     status = 403;
     body = { error: "无权限执行此操作", code: "FORBIDDEN", requestId };
+  } else if (error instanceof RateLimitError) {
+    status = 429; body = { error: "尝试次数过多，请稍后重试", code: "TOO_MANY_REQUESTS", requestId };
+    headers["Retry-After"] = String(error.retryAfterSeconds);
+  } else if (error instanceof Prisma.PrismaClientKnownRequestError && ["P2002", "P2003", "P2034"].includes(error.code)) {
+    status = 409; body = { error: "数据已变化或存在关联记录，请刷新后重试", code: "CONFLICT", requestId };
   } else if (error instanceof ServiceError) {
     status = error.status;
     body = { error: error.message, code: error.code, requestId };

@@ -76,6 +76,7 @@ export function resolveDeploymentEntry(value: string, environment?: string, cook
   if (configured && configured !== "0" && configured !== "1") {
     throw new Error("SESSION_COOKIE_SECURE must be 0 or 1 when configured");
   }
+  if (mode === "production" && configured === "0") throw new Error("Production HTTPS requires SESSION_COOKIE_SECURE=1");
   if (mode === "local" && configured && (configured === "1") !== secure) {
     throw new Error("SESSION_COOKIE_SECURE must match the local PUBLIC_ORIGIN protocol; remove the override to select automatically");
   }

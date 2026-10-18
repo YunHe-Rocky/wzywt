@@ -4,6 +4,8 @@ import { mkdir, open, stat } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { basename, dirname, join, parse, relative, resolve, sep } from "node:path";
 import { PrismaClient } from "@prisma/client";
+import { avatarFilenamePattern } from "../src/features/profile/avatar-file.ts";
+import { getAvatarDirectory } from "../src/features/profile/server/avatar-storage.ts";
 
 const { loadEnvConfig } = createRequire(import.meta.url)("@next/env");
 loadEnvConfig(process.cwd());
@@ -12,12 +14,12 @@ const outputArgument = process.argv[2];
 if (!outputArgument) throw new Error("usage: node scripts/media-manifest.mjs OUTPUT.json");
 const outputPath = resolve(outputArgument);
 const mediaRoot = resolve(process.env.MEDIA_STORAGE_DIR || join(process.cwd(), ".cache", "media"));
-const avatarRoot = resolve(process.env.AVATAR_DIR || join(process.cwd(), ".cache", "avatars"));
+const avatarRoot = getAvatarDirectory();
 for (const [label, path] of [["media", mediaRoot], ["avatar", avatarRoot]]) {
   if (path === parse(path).root) throw new Error(label + " storage cannot be a filesystem root");
 }
 const storageKeyPattern = /^(match-screenshots|post-videos)\/\d{4}\/\d{2}\/[a-f0-9-]+\.[a-z0-9]+$/;
-const avatarPattern = /^\d+_\d+\.(jpg|png|webp)$/;
+const avatarPattern = avatarFilenamePattern;
 
 function safeChild(root, value, pattern) {
   if (!pattern.test(value)) throw new Error("unsafe media path in database: " + value);

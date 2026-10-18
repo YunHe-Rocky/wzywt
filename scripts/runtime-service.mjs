@@ -44,6 +44,7 @@ export function resolveService(source = process.cwd(), environment = process.env
     node: realpathSync(get("DEPLOY_NODE_BIN") || process.execPath), configuration: resolve(base, "shared/runtime-service.json"),
     webName: get("DEPLOY_PM2_WEB_NAME") || `${name}-web`, cronName: get("DEPLOY_PM2_CRON_NAME") || `${name}-cron`,
     port: Number(get("DEPLOY_WEB_PORT") || get("PORT") || 8001),
+    host: get("DEPLOY_WEB_HOST") || get("HOST") || "127.0.0.1",
     heartbeatFile: resolve(current, ".runtime-cron-heartbeat"), stateFile: resolve(base, "shared/runtime-watchdog-state.json") };
   const dump = JSON.parse(readFileSync(resolve(config.pm2Home, "dump.pm2"), "utf8"));
   if (!Array.isArray(dump) || dump.length !== 2) throw new Error("Use a dedicated PM2 home with exactly the project's saved Web/Cron processes");

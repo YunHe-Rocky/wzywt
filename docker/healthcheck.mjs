@@ -7,6 +7,7 @@ try {
   if (process.argv[2] === "web") {
     const response = await fetch("http://127.0.0.1:8001/api/health", { signal: AbortSignal.timeout(6_000) });
     const body = await response.json();
+    console.log(JSON.stringify({ status: response.status, ok: body.ok, releaseId: body.releaseId, mode: body.mode, checks: body.checks }));
     if (!response.ok || body.ok !== true || body.releaseId !== process.env.APP_RELEASE_ID) throw new Error("not ready");
   } else if (process.argv[2] === "cron") {
     const { PrismaClient } = await import("@prisma/client");

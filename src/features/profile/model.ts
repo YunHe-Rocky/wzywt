@@ -1,6 +1,30 @@
+import { ROLES } from "@/core/game/constants";
+
 export interface GameProfile {
   gameNickname: string | null;
   gameId: string | null;
+}
+
+export function parseRolePreferences(value: unknown): RolePreferenceSettings[] {
+  if (!Array.isArray(value) || value.length !== 5) throw new RangeError("必须为全部 5 个分路设置偏好");
+  const roles = new Set<string>(); const ranks = new Set<number>();
+  const integer = (input: unknown, max: number, label: string, min = 0) => {
+    if (typeof input !== "number" || !Number.isSafeInteger(input) || input < min || input > max) throw new RangeError(`${label}必须为 ${min}-${max} 的整数`);
+    return input;
+  };
+  const preferences = value.map(item => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) throw new TypeError("分路偏好格式错误");
+    const role = item.role_type;
+    if (typeof role !== "string" || !ROLES.some(allowed => allowed === role) || roles.has(role)) throw new RangeError("分路必须恰好覆盖五路且不能重复");
+    const preferenceRank = integer(item.preference_rank, 5, "志愿", 1);
+    if (ranks.has(preferenceRank)) throw new RangeError("志愿必须是 1-5 的不重复排列");
+    roles.add(role); ranks.add(preferenceRank);
+    return { roleType: role, preferenceRank,
+      roleRank: integer(item.role_rank ?? 0, 10, "分路段位"),
+      peakRank: integer(item.peak_rank ?? 0, 10, "最高段位"),
+      peakScore: integer(item.peak_score ?? 0, 9999, "巅峰分数") };
+  });
+  return normalizeRolePreferenceSettings(preferences);
 }
 
 export const PEAK_TOURNAMENT_MIN_RANK = 7;

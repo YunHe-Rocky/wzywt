@@ -1,3 +1,4 @@
+import { parseAnnouncementPage } from "@/features/announcements/server/pagination";
 import { withRequestCapacity } from "@/lib/request-capacity";
 export const dynamic = "force-dynamic";
 
@@ -11,7 +12,9 @@ async function handleGET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const full = searchParams.get("full") === "true";
 
-  return NextResponse.json({ announcements: await listPublishedAnnouncements(full) });
+  const pagination = parseAnnouncementPage(searchParams);
+  if (pagination instanceof NextResponse) return pagination;
+  return NextResponse.json({ announcements: await listPublishedAnnouncements(full, pagination.page, pagination.pageSize), ...pagination });
 }
 
 async function handlePOST(req: NextRequest) {

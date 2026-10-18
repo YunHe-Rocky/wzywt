@@ -11,6 +11,7 @@ import { prisma } from "@/lib/db";
 import { PermissionError } from "@/lib/permissions";
 import { ServiceError } from "@/lib/service-error";
 import { requireMatchManager, requireMatchViewer } from "./access";
+import { serializable } from "@/lib/serializable";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -277,7 +278,8 @@ export async function createMatchDispute(tournamentId: number, matchId: number, 
   if (match.status !== "SUBMITTED") throw new ServiceError("BUSINESS_VALIDATION_FAILED", "只能对正式比赛档案提出异议");
   if (matchPlayerId && match.players.length !== 1) throw new ServiceError("VALIDATION_ERROR", "玩家记录不属于该比赛");
   if (matchPlayerId && !user.matchAccess.canManage && match.players[0].side !== user.matchAccess.ownSide) throw new PermissionError();
-  const recentCount = await prisma.matchDispute.count({
+  return serializable(async tx => {
+  const recentCount = await tx.matchDispute.count({
     where: { createdById: user.userId, createdAt: { gte: new Date(Date.now() - 60 * 60 * 1000) } },
   });
   if (recentCount >= 5) throw new ServiceError("TOO_MANY_REQUESTS", "异议提交过于频繁，请稍后再试");
@@ -285,9 +287,10 @@ export async function createMatchDispute(tournamentId: number, matchId: number, 
   const current = player && field
     ? (field in (player.stats ?? {}) ? (player.stats as unknown as Record<string, unknown>)[field] : (player as unknown as Record<string, unknown>)[field])
     : null;
-  return prisma.matchDispute.create({
+  return tx.matchDispute.create({
     data: { matchId, matchPlayerId, field, currentValue: jsonColumnValue(current), message, createdById: user.userId },
     select: { id: true, status: true, createdAt: true },
+  });
   });
 }
 

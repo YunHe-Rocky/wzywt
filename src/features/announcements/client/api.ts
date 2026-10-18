@@ -58,8 +58,8 @@ export function createAnnouncementDetailApiPath(routeSlug: string): string {
   return `/api/changelog?slug=${encodeURIComponent(slug)}`;
 }
 
-export const listAdminAnnouncements = (): Promise<ApiResult<AnnouncementListResponse>> =>
-  apiRequest("/api/admin/announcements");
+export const listAdminAnnouncements = (page = 1): Promise<ApiResult<AnnouncementListResponse>> =>
+  apiRequest(`/api/admin/announcements?page=${page}&pageSize=50`);
 
 export const createAdminAnnouncement = (
   body: AnnouncementWriteInput,

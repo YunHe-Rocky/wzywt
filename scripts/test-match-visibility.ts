@@ -21,6 +21,7 @@ let existingLayer: { id: number; roomId: number; name: string; sortOrder: number
 let layerWrites = 0;
 let layerRace = false;
 let submitBeforeTransaction = false;
+let layerCount = 1;
 const timestamp = new Date("2026-09-08T00:00:00.000Z");
 const players = Array.from({ length: 10 }, (_, index) => ({
   id: index + 101, memberId: index + 1, side: index < 5 ? "red" : "blue", slot: index % 5 + 1,
@@ -71,6 +72,7 @@ const prisma = {
   }; } },
   tacticRoom: { async findUnique(query: Query) { lastRoomQuery = query; return { id: 9, matchId: 20, side: "red", layers: [] }; } },
   tacticLayer: {
+    async count() { return layerCount; },
     async findFirst() { return existingLayer; },
     async create(query: { data: Omit<NonNullable<typeof existingLayer>, "id"> }) {
       layerWrites++;
@@ -160,6 +162,23 @@ async function main() {
     await assert.rejects(() => tactics.createTacticLayer(30, 20, side, { name: "并发提交" }), /只读复盘/);
     assert.equal(layerWrites, before);
   }
+  actor.userId = 1; adminRole = "owner"; status = "DRAFT"; layerCount = 20;
+  await assert.rejects(() => tactics.createTacticLayer(30, 20, "red", { name: "超额" }), /最多 20/);
+  layerCount = 1;
+  const mutations = [
+    () => tactics.updateTacticLayer(30, 20, "red", 51, {}),
+    () => tactics.deleteTacticLayer(30, 20, "red", 51, timestamp.toISOString()),
+    () => tactics.saveOwnTacticRoute(30, 20, "red", 51, {}),
+    () => tactics.deleteOwnTacticRoute(30, 20, "red", 1, 1),
+    () => tactics.createOwnTacticMarker(30, 20, "red", 51, {}),
+    () => tactics.updateOwnTacticMarker(30, 20, "red", 1, {}),
+    () => tactics.deleteOwnTacticMarker(30, 20, "red", 1, 1),
+  ];
+  for (const mutation of mutations) {
+    status = "DRAFT"; submitBeforeTransaction = true;
+    await assert.rejects(mutation, /只读复盘/);
+  }
+  adminRole = null;
   actor.userId = 99;
   status = "DRAFT";
   await assert.rejects(() => tactics.createTacticLayer(30, 20, "red", { name: "旁观者" }), /FORBIDDEN/);

@@ -292,7 +292,7 @@ async function main(): Promise<void> {
   assert.equal(redisRetryDelay(100), 5_000);
   assert.equal(resolveSessionCookieSecure({ NODE_ENV: "production", SESSION_COOKIE_SECURE: undefined }), true);
   assert.equal(resolveSessionCookieSecure({ NODE_ENV: "development", SESSION_COOKIE_SECURE: undefined }), false);
-  assert.equal(resolveSessionCookieSecure({ NODE_ENV: "production", SESSION_COOKIE_SECURE: "0" }), false);
+  assert.throws(() => resolveSessionCookieSecure({ NODE_ENV: "production", SESSION_COOKIE_SECURE: "0" }), /requires a Secure/);
   assert.equal(resolveSessionCookieSecure({ NODE_ENV: "development", SESSION_COOKIE_SECURE: "1" }), true);
   assert.throws(
     () => resolveSessionCookieSecure({ NODE_ENV: "production", SESSION_COOKIE_SECURE: "false" }),

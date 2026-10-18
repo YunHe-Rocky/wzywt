@@ -110,7 +110,7 @@ export function assertRcloneMount(storage, {
 export function prepareStorage(storage) {
   assertRcloneMount(storage);
   if (storage.mode !== "rclone") return;
-  for (const part of ["media", "heroes/images", "heroes/skins"]) {
+  for (const part of ["media", "media/avatars", "heroes/images", "heroes/skins"]) {
     mkdirSync(posix.join(storage.dataPath, part), { recursive: true });
   }
   mkdirSync(storage.backupPath, { recursive: true, mode: 0o700 });

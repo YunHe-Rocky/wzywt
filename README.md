@@ -91,7 +91,7 @@ npm run dev
 
 - `DEPLOY_ENVIRONMENT`：默认 `production`（HTTPS）；`local` 允许内网 HTTP，并按协议自动设置登录 Cookie。
 - `REDIS_URL` / `REDIS_REQUIRED`：Redis 与是否作为强制健康依赖。
-- `MATCH_OCR_ENDPOINT` / `MATCH_OCR_TOKEN`：六图 OCR；未配置时识别入口 fail-closed。自建 RapidOCR 的[单图预览服务与 Bash 启动说明](docs/operations/ocr.md)已提供，尚不可替代正式六图服务。
+- `MATCH_OCR_ENDPOINT` / `MATCH_OCR_TOKEN`：六图 OCR；未配置时识别入口 fail-closed。仓库 RapidOCR 支持六类结算截图结构化辅助识别，要求受支持的固定版式与六页输入，结果必须人工复核；[OCR 服务与验收说明](docs/operations/ocr.md)。
 - `HEALTH_DETAILS_TOKEN`：可选内部 readiness 指标令牌，只通过请求头发送。
 - `HOST` / `PORT`：仅在不用默认 `127.0.0.1:8001` 时设置。
 - `MEDIA_STORAGE_DIR` / `AVATAR_DIR`：本地开发可覆盖；生产部署脚本自动指向 runtime 的持久化 shared 目录。
@@ -123,6 +123,8 @@ npm run build
 
 - [维护者权威入口](docs/operations/maintenance.md)
 - [代码分层架构](docs/architecture/code-architecture.md)
+- [Redis API 数据路径](docs/architecture/redis-api-data-path.md)
+- [2026-10-18 审计修复处理记录](docs/audits/remediation-2026-10-18.md)
 - [Docker Compose 运行架构](docs/architecture/runtime-architecture.md)
 - [Docker Compose 部署与运维](docs/operations/docker.md)
 - [房间、比赛与分队规则](docs/product/product-rules.md)

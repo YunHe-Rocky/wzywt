@@ -289,6 +289,17 @@ model MediaUploadReservation {
   @@map("media_upload_reservations")
 }
 
+// Immutable successful-upload traffic. Replacing/deleting media never refunds it.
+model MediaUploadUsage {
+  id        String   @id @db.VarChar(64)
+  userId    Int      @map("user_id")
+  bytes     BigInt   @db.UnsignedBigInt
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([userId, createdAt])
+  @@map("media_upload_usage")
+}
+
 model Announcement {
   id        Int      @id @default(autoincrement())
   title     String   @db.VarChar(128)

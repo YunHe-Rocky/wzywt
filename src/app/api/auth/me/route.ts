@@ -1,10 +1,12 @@
+import { verifyRecoveryAnswer } from "@/features/auth/server/credentials";
+import { getRequestIp } from "@/lib/auth-rate-limit";
 import { withRequestCapacity } from "@/lib/request-capacity";
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/db";
-import { authenticate, verifyPassword } from "@/lib/auth";
+import { authenticate } from "@/lib/auth";
 import { deleteUserAndOwnedTournaments } from "@/features/users/server/deleteUser";
 import { tryReadJsonRequest } from "@/lib/request-validation";
 import { apiErrorResponse } from "@/lib/api-errors";
@@ -73,25 +75,9 @@ async function handleDELETE(req: NextRequest) {
 
   const body = await tryReadJsonRequest<{ answer?: unknown }>(req);
   if (!body.ok) return body.response;
-  const answer = typeof body.value.answer === "string" ? body.value.answer : "";
-  if (!answer) {
-    return NextResponse.json({ error: "请输入安全答案确认身份" }, { status: 400 });
-  }
-
-  const user = await prisma.user.findUnique({ where: { id: userId } });
-  if (!user) return NextResponse.json({ error: "用户不存在" }, { status: 404 });
-
-  if (!user.securityAnswerHash) {
-    return NextResponse.json({ error: "请先设置安全问题" }, { status: 400 });
-  }
-
-  const valid = await verifyPassword(answer.trim(), user.securityAnswerHash);
-  if (!valid) {
-    return NextResponse.json({ error: "安全答案错误" }, { status: 403 });
-  }
-
   try {
-    const deletion = await deleteUserAndOwnedTournaments(userId);
+    const verifiedUser = await verifyRecoveryAnswer(userId, body.value.answer, getRequestIp(req.headers), "delete-account");
+    const deletion = await deleteUserAndOwnedTournaments(userId, verifiedUser.sessionVersion);
     resourceScheduler.releaseUserLeases(userId);
     const session = await getSession();
     session.destroy();

@@ -4,6 +4,7 @@ import { runtimeLog } from "./runtime-log";
 import { requestContext } from "./request-context";
 import { externalRequestCost, externalRequestLane } from "@/core/resource-policy";
 import { readResourceSettings } from "@/core/resource-settings";
+import { acquireRedisRequest } from "./redis-query-cache";
 
 /** Hold the slot through streaming completion/cancellation, not just headers. */
 export function withRequestCapacity<Args extends unknown[]>(handler: (...args: Args) => Response | Promise<Response>, governor = resourceGovernor) {
@@ -19,15 +20,29 @@ export function withRequestCapacity<Args extends unknown[]>(handler: (...args: A
       status: 503, headers: { "Retry-After": "2", "Cache-Control": "no-store", "x-request-id": requestId },
     });
     const started = Date.now();
+    let releaseRedis: (() => Promise<void>) | undefined;
     let finished = false;
     const finish = (status: number, outcome: string) => {
       if (finished) return;
       finished = true; release();
+      void releaseRedis?.();
       runtimeLog("request.completed", { requestId, method: request?.method, lane, path,
         status, outcome, durationMs: Date.now() - started }, status >= 500 ? "warn" : "info");
     };
     try {
-      const response = await requestContext.run({ requestId, startedAt: started }, () => handler(...args));
+      if (path !== "/api/health") {
+        const settings = readResourceSettings(process.env);
+        try {
+          const acquired = await acquireRedisRequest(randomUUID(), lane,
+            lane === "subscription" ? settings.RESOURCE_SUBSCRIPTION_CONCURRENCY : settings.RESOURCE_EXTERNAL_CONCURRENCY);
+          if (!acquired) { finish(503, "redis-capacity"); return Response.json({ error: "当前访问繁忙，请稍后重试", code: "RESOURCE_BUSY" }, { status: 503, headers: { "Retry-After": "2" } }); }
+          releaseRedis = acquired;
+        } catch {
+          finish(503, "redis-unavailable");
+          return Response.json({ error: "缓存服务暂时不可用，请稍后重试", code: "REDIS_UNAVAILABLE" }, { status: 503 });
+        }
+      }
+      const response = await requestContext.run({ requestId, startedAt: started, method: request?.method }, () => handler(...args));
       const headers = new Headers(response.headers);
       headers.set("x-request-id", requestId);
       if (request?.method === "HEAD") {

@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { prisma } from "@/lib/db";
 import type { MediaStorage } from "@/lib/storage";
 import { processExpiredMediaReservations } from "./quota";
+import { processAvatarCleanup } from "@/features/profile/server/avatar-upload";
 
 const CLEANUP_PREFIX = "media_cleanup:";
 
@@ -31,6 +32,7 @@ export async function processPendingMediaCleanup(
   limit = 50,
 ): Promise<{ processed: number; failed: number; expiredReservations: number }> {
   const expired = await processExpiredMediaReservations(storage, new Date(), limit);
+  const avatars = await processAvatarCleanup(limit);
   const jobs = await prisma.kvCache.findMany({
     where: { key: { startsWith: CLEANUP_PREFIX } },
     orderBy: { key: "asc" },
@@ -49,5 +51,5 @@ export async function processPendingMediaCleanup(
       failed += 1;
     }
   }
-  return { processed, failed: failed + expired.failed, expiredReservations: expired.processed };
+  return { processed: processed + avatars.processed, failed: failed + expired.failed + avatars.failed, expiredReservations: expired.processed };
 }

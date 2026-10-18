@@ -96,8 +96,9 @@ function fakeIo({ renameFailure = false } = {}) {
 test("rclone initialization skips ownership changes and probes actual write/rename/read", async () => {
   const f = fakeIo();
   await initializeStorage({ managePermissions: "0", io: f.io, dropPrivileges: () => assert.fail("Already runs as uid 1000") });
-  assert.equal(f.calls.filter(([call]) => call === "write").length, 3);
+  assert.equal(f.calls.filter(([call]) => call === "write").length, 4);
   assert.ok(!f.calls.some(([call]) => ["chown", "chmod"].includes(call)));
+  assert.ok(f.calls.some(([call, path]) => call === "mkdir" && path === "/app/data/media/avatars"));
   assert.equal(f.files.size, 0);
 });
 

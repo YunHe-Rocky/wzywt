@@ -1,3 +1,4 @@
+import { browserDiagnostics } from "./diagnostics.mjs";
 import assert from "node:assert/strict";
 import { createHash, randomUUID } from "node:crypto";
 import bcrypt from "bcryptjs";
@@ -78,11 +79,13 @@ await prisma.user.create({
 });
 
 let browser;
+let saveDiagnostics;
 const browserErrors = [];
 try {
   browser = await launchBrowser(profile);
   const context = await browser.newContext({ ...profile.options, locale: "zh-CN", reducedMotion: "reduce", ignoreHTTPSErrors: true });
   const page = await context.newPage();
+  saveDiagnostics = await browserDiagnostics(context, page, profile.name || profile.id || String(profile.prefix));
   page.on("pageerror", (error) => browserErrors.push(error.message));
 
   const publicLeaseResponse = page.waitForResponse((response) => response.request().method() === "POST" && new URL(response.url()).pathname === "/api/resources/leases");
@@ -174,8 +177,10 @@ try {
     assert.ok(!(await missing.cookies()).some((cookie) => cookie.name === "wzyt_session"));
   } finally { await missing.close(); await transport.dispose(); }
   assert.deepEqual(browserErrors, []);
+  await saveDiagnostics?.(); saveDiagnostics = undefined;
   await context.close();
 } finally {
+  await saveDiagnostics?.();
   await browser?.close();
   await prisma.user.deleteMany({ where: { username } });
   await prisma.authRateLimit.deleteMany({ where: { scope: "login_account", keyHash: createHash("sha256").update(`login_account:${username}`).digest("hex") } });

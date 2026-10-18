@@ -1,3 +1,5 @@
+import { AsyncLocalStorage } from "node:async_hooks";
+import { serializable } from "@/lib/serializable";
 import { Prisma } from "@prisma/client";
 import { isMatchSide, type MatchSide } from "@/features/matches/model";
 import { canViewSharedTacticAnnotations, parseTacticGeometry, tacticColorForSlot, visibleTacticAnnotationOwnerId } from "@/features/tactics/model";
@@ -5,6 +7,11 @@ import { requireAuth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { PermissionError } from "@/lib/permissions";
 import { ServiceError } from "@/lib/service-error";
+
+const tacticTransaction = new AsyncLocalStorage<Prisma.TransactionClient>();
+const database = () => tacticTransaction.getStore() ?? prisma;
+const MAX_TACTIC_LAYERS = 20;
+const MAX_MARKERS_PER_PLAYER_LAYER = 100;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -39,7 +46,7 @@ function parseDate(value: unknown): Date {
 async function getTacticAccess(tournamentId: number, matchId: number, requestedSide: unknown) {
   const user = await requireAuth();
   if (!isMatchSide(requestedSide)) throw new ServiceError("VALIDATION_ERROR", "战术阵营无效");
-  const match = await prisma.internalMatch.findFirst({
+  const match = await database().internalMatch.findFirst({
     where: { id: matchId, tournamentId },
     select: {
       status: true,
@@ -65,7 +72,7 @@ async function requireLayerManager(tournamentId: number, matchId: number, side: 
 export async function getTacticRoom(tournamentId: number, matchId: number, side: MatchSide) {
   const access = await getTacticAccess(tournamentId, matchId, side);
   const visibleOwnerMemberId = visibleTacticAnnotationOwnerId(access.sharedAnnotationsVisible, access.user.userId);
-  const room = await prisma.tacticRoom.findUnique({
+  const room = await database().tacticRoom.findUnique({
     where: { matchId_side: { matchId, side } },
     include: {
       layers: {
@@ -99,30 +106,17 @@ export async function getTacticRoom(tournamentId: number, matchId: number, side:
   };
 }
 
-export async function initializeOwnTacticLayer(tournamentId: number, matchId: number, side: MatchSide) {
+async function initializeOwnTacticLayerImpl(tournamentId: number, matchId: number, side: MatchSide) {
   const access = await getTacticAccess(tournamentId, matchId, side);
   if (!access.canDraw) throw new ServiceError("CONFLICT", "比赛数据已提交，战术板已锁定为只读复盘");
-  for (let attempt = 0; attempt < 2; attempt++) {
-    try {
-      return await prisma.$transaction(async (tx) => {
-        const match = await tx.internalMatch.findFirst({ where: { id: matchId, tournamentId }, select: { status: true } });
-        if (!match) throw new ServiceError("NOT_FOUND", "比赛不存在");
-        if (canViewSharedTacticAnnotations(match.status)) throw new ServiceError("CONFLICT", "比赛数据已提交，战术板已锁定为只读复盘");
-        const room = await tx.tacticRoom.findUnique({ where: { matchId_side: { matchId, side } }, select: { id: true } });
-        if (!room) throw new ServiceError("NOT_FOUND", "战术室不存在");
-        const existing = await tx.tacticLayer.findFirst({ where: { roomId: room.id }, orderBy: { sortOrder: "asc" } });
-        if (existing) return existing;
-        return tx.tacticLayer.create({ data: { roomId: room.id, name: "基础图层", sortOrder: 0, createdById: access.user.userId } });
-      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
-    } catch (error) {
-      if (!(error instanceof Prisma.PrismaClientKnownRequestError) || !["P2002", "P2034"].includes(error.code)) throw error;
-      if (attempt === 1) throw new ServiceError("CONFLICT", "战术图层正在初始化，请刷新后重试");
-    }
-  }
-  throw new ServiceError("CONFLICT", "战术图层正在初始化，请刷新后重试");
+  const room = await database().tacticRoom.findUnique({ where: { matchId_side: { matchId, side } }, select: { id: true } });
+  if (!room) throw new ServiceError("NOT_FOUND", "战术室不存在");
+  const existing = await database().tacticLayer.findFirst({ where: { roomId: room.id }, orderBy: { sortOrder: "asc" } });
+  if (existing) return existing;
+  return database().tacticLayer.create({ data: { roomId: room.id, name: "基础图层", sortOrder: 0, createdById: access.user.userId } });
 }
 
-export async function createTacticLayer(tournamentId: number, matchId: number, side: MatchSide, input: unknown) {
+async function createTacticLayerImpl(tournamentId: number, matchId: number, side: MatchSide, input: unknown) {
   const access = await getTacticAccess(tournamentId, matchId, side);
   if (!access.canDraw) throw new ServiceError("CONFLICT", "比赛数据已提交，战术板已锁定为只读复盘");
   if (!isRecord(input)) throw new ServiceError("VALIDATION_ERROR", "图层数据格式错误");
@@ -133,20 +127,16 @@ export async function createTacticLayer(tournamentId: number, matchId: number, s
   const startTime = parseNonNegativeInt(input.startTime, "开始时间", true);
   const endTime = parseNonNegativeInt(input.endTime, "结束时间", true);
   if (startTime !== null && endTime !== null && endTime < startTime) throw new ServiceError("VALIDATION_ERROR", "结束时间不能早于开始时间");
-  const room = await prisma.tacticRoom.findUnique({ where: { matchId_side: { matchId, side } }, select: { id: true } });
+  const room = await database().tacticRoom.findUnique({ where: { matchId_side: { matchId, side } }, select: { id: true } });
   if (!room) throw new ServiceError("NOT_FOUND", "战术室不存在");
-  return prisma.$transaction(async (tx) => {
-    const match = await tx.internalMatch.findFirst({ where: { id: matchId, tournamentId }, select: { status: true } });
-    if (!match) throw new ServiceError("NOT_FOUND", "比赛不存在");
-    if (canViewSharedTacticAnnotations(match.status)) throw new ServiceError("CONFLICT", "比赛数据已提交，战术板已锁定为只读复盘");
-    const last = await tx.tacticLayer.findFirst({ where: { roomId: room.id }, orderBy: { sortOrder: "desc" }, select: { sortOrder: true } });
-    return tx.tacticLayer.create({
-      data: { roomId: room.id, name, description, startTime, endTime, sortOrder: (last?.sortOrder ?? -1) + 1, createdById: access.user.userId },
-    });
-  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+  const count = await database().tacticLayer.count({ where: { roomId: room.id } });
+  if (count >= MAX_TACTIC_LAYERS) throw new ServiceError("BUSINESS_VALIDATION_FAILED", "每个阵营最多 20 个战术图层");
+  const last = await database().tacticLayer.findFirst({ where: { roomId: room.id }, orderBy: { sortOrder: "desc" }, select: { sortOrder: true } });
+  return database().tacticLayer.create({ data: { roomId: room.id, name, description, startTime, endTime,
+    sortOrder: (last?.sortOrder ?? -1) + 1, createdById: access.user.userId } });
 }
 
-export async function updateTacticLayer(tournamentId: number, matchId: number, side: MatchSide, layerId: number, input: unknown) {
+async function updateTacticLayerImpl(tournamentId: number, matchId: number, side: MatchSide, layerId: number, input: unknown) {
   await requireLayerManager(tournamentId, matchId, side);
   if (!isRecord(input)) throw new ServiceError("VALIDATION_ERROR", "图层数据格式错误");
   const expectedUpdatedAt = parseDate(input.expectedUpdatedAt);
@@ -155,7 +145,7 @@ export async function updateTacticLayer(tournamentId: number, matchId: number, s
   const startTime = parseNonNegativeInt(input.startTime, "开始时间", true);
   const endTime = parseNonNegativeInt(input.endTime, "结束时间", true);
   if (startTime !== null && endTime !== null && endTime < startTime) throw new ServiceError("VALIDATION_ERROR", "结束时间不能早于开始时间");
-  const updated = await prisma.tacticLayer.updateMany({
+  const updated = await database().tacticLayer.updateMany({
     where: { id: layerId, updatedAt: expectedUpdatedAt, room: { matchId, side } },
     data: { name, description, startTime, endTime },
   });
@@ -163,9 +153,9 @@ export async function updateTacticLayer(tournamentId: number, matchId: number, s
   return { ok: true };
 }
 
-export async function deleteTacticLayer(tournamentId: number, matchId: number, side: MatchSide, layerId: number, expectedUpdatedAt: unknown) {
+async function deleteTacticLayerImpl(tournamentId: number, matchId: number, side: MatchSide, layerId: number, expectedUpdatedAt: unknown) {
   await requireLayerManager(tournamentId, matchId, side);
-  const deleted = await prisma.tacticLayer.deleteMany({ where: { id: layerId, updatedAt: parseDate(expectedUpdatedAt), room: { matchId, side } } });
+  const deleted = await database().tacticLayer.deleteMany({ where: { id: layerId, updatedAt: parseDate(expectedUpdatedAt), room: { matchId, side } } });
   if (deleted.count !== 1) throw new ServiceError("CONFLICT", "图层已变化，请刷新后重试");
   return { ok: true };
 }
@@ -175,42 +165,42 @@ async function requireOwnLayer(tournamentId: number, matchId: number, side: Matc
   const ownSlot = access.ownSlot;
   if (!ownSlot) throw new PermissionError();
   if (!access.canDraw) throw new ServiceError("CONFLICT", "比赛数据已提交，战术板已锁定为只读复盘");
-  const layer = await prisma.tacticLayer.findFirst({ where: { id: layerId, room: { matchId, side } }, select: { id: true } });
+  const layer = await database().tacticLayer.findFirst({ where: { id: layerId, room: { matchId, side } }, select: { id: true } });
   if (!layer) throw new ServiceError("NOT_FOUND", "战术图层不存在");
   return { ...access, ownSlot, layer };
 }
 
-export async function saveOwnTacticRoute(tournamentId: number, matchId: number, side: MatchSide, layerId: number, input: unknown) {
+async function saveOwnTacticRouteImpl(tournamentId: number, matchId: number, side: MatchSide, layerId: number, input: unknown) {
   const access = await requireOwnLayer(tournamentId, matchId, side, layerId);
   if (!isRecord(input)) throw new ServiceError("VALIDATION_ERROR", "路线数据格式错误");
   const geometry = parseTacticGeometry(input.geometry);
   if (!geometry) throw new ServiceError("VALIDATION_ERROR", "路线必须是 2-64 个相对坐标点");
   const expectedRevision = input.expectedRevision === undefined ? 0 : parseId(input.expectedRevision, "路线版本");
-  const current = await prisma.tacticRoute.findUnique({
+  const current = await database().tacticRoute.findUnique({
     where: { layerId_ownerMemberId: { layerId, ownerMemberId: access.user.userId } },
     select: { id: true, revision: true },
   });
   if (!current) {
     if (expectedRevision !== 0) throw new ServiceError("CONFLICT", "路线版本冲突，请刷新后重试");
-    return prisma.tacticRoute.create({
+    return database().tacticRoute.create({
       data: { layerId, ownerMemberId: access.user.userId, colorKey: tacticColorForSlot(access.ownSlot.slot), geometry: geometry as unknown as Prisma.InputJsonValue },
     });
   }
   if (current.revision !== expectedRevision) throw new ServiceError("CONFLICT", "路线已被更新，请刷新后重试");
-  const updated = await prisma.tacticRoute.updateMany({
+  const updated = await database().tacticRoute.updateMany({
     where: { id: current.id, ownerMemberId: access.user.userId, revision: expectedRevision },
     data: { geometry: geometry as unknown as Prisma.InputJsonValue, revision: { increment: 1 } },
   });
   if (updated.count !== 1) throw new ServiceError("CONFLICT", "路线已被更新，请刷新后重试");
-  return prisma.tacticRoute.findUniqueOrThrow({ where: { id: current.id } });
+  return database().tacticRoute.findUniqueOrThrow({ where: { id: current.id } });
 }
 
-export async function deleteOwnTacticRoute(tournamentId: number, matchId: number, side: MatchSide, routeId: number, expectedRevision: unknown) {
+async function deleteOwnTacticRouteImpl(tournamentId: number, matchId: number, side: MatchSide, routeId: number, expectedRevision: unknown) {
   const access = await getTacticAccess(tournamentId, matchId, side);
   if (!access.ownSlot) throw new PermissionError();
   if (!access.canDraw) throw new ServiceError("CONFLICT", "比赛数据已提交，战术板已锁定为只读复盘");
   const revision = parseId(expectedRevision, "路线版本");
-  const deleted = await prisma.tacticRoute.deleteMany({
+  const deleted = await database().tacticRoute.deleteMany({
     where: { id: routeId, ownerMemberId: access.user.userId, revision, layer: { room: { matchId, side } } },
   });
   if (deleted.count !== 1) throw new ServiceError("CONFLICT", "路线不存在、无权删除或版本已变化");
@@ -222,17 +212,19 @@ function parseCoordinate(value: unknown, label: string): number {
   return value;
 }
 
-export async function createOwnTacticMarker(tournamentId: number, matchId: number, side: MatchSide, layerId: number, input: unknown) {
+async function createOwnTacticMarkerImpl(tournamentId: number, matchId: number, side: MatchSide, layerId: number, input: unknown) {
   const access = await requireOwnLayer(tournamentId, matchId, side, layerId);
   if (!isRecord(input) || !["POINT", "TEXT"].includes(String(input.type))) throw new ServiceError("VALIDATION_ERROR", "点位类型无效");
   const type = String(input.type);
   const text = type === "TEXT" ? parseText(input.text, "文字", 1, 120) : null;
-  return prisma.tacticMarker.create({
+  const count = await database().tacticMarker.count({ where: { layerId, ownerMemberId: access.user.userId } });
+  if (count >= MAX_MARKERS_PER_PLAYER_LAYER) throw new ServiceError("BUSINESS_VALIDATION_FAILED", "每人在每个图层最多 100 个标记");
+  return database().tacticMarker.create({
     data: { layerId, ownerMemberId: access.user.userId, type, x: parseCoordinate(input.x, "X"), y: parseCoordinate(input.y, "Y"), text },
   });
 }
 
-export async function updateOwnTacticMarker(tournamentId: number, matchId: number, side: MatchSide, markerId: number, input: unknown) {
+async function updateOwnTacticMarkerImpl(tournamentId: number, matchId: number, side: MatchSide, markerId: number, input: unknown) {
   const access = await getTacticAccess(tournamentId, matchId, side);
   if (!access.ownSlot) throw new PermissionError();
   if (!access.canDraw) throw new ServiceError("CONFLICT", "比赛数据已提交，战术板已锁定为只读复盘");
@@ -240,7 +232,7 @@ export async function updateOwnTacticMarker(tournamentId: number, matchId: numbe
   if (!["POINT", "TEXT"].includes(String(input.type))) throw new ServiceError("VALIDATION_ERROR", "点位类型无效");
   const revision = parseId(input.expectedRevision, "点位版本");
   const type = String(input.type);
-  const updated = await prisma.tacticMarker.updateMany({
+  const updated = await database().tacticMarker.updateMany({
     where: { id: markerId, ownerMemberId: access.user.userId, revision, layer: { room: { matchId, side } } },
     data: {
       type,
@@ -254,13 +246,31 @@ export async function updateOwnTacticMarker(tournamentId: number, matchId: numbe
   return { ok: true };
 }
 
-export async function deleteOwnTacticMarker(tournamentId: number, matchId: number, side: MatchSide, markerId: number, expectedRevision: unknown) {
+async function deleteOwnTacticMarkerImpl(tournamentId: number, matchId: number, side: MatchSide, markerId: number, expectedRevision: unknown) {
   const access = await getTacticAccess(tournamentId, matchId, side);
   if (!access.ownSlot) throw new PermissionError();
   if (!access.canDraw) throw new ServiceError("CONFLICT", "比赛数据已提交，战术板已锁定为只读复盘");
-  const deleted = await prisma.tacticMarker.deleteMany({
+  const deleted = await database().tacticMarker.deleteMany({
     where: { id: markerId, ownerMemberId: access.user.userId, revision: parseId(expectedRevision, "点位版本"), layer: { room: { matchId, side } } },
   });
   if (deleted.count !== 1) throw new ServiceError("CONFLICT", "点位不存在、无权删除或版本已变化");
   return { ok: true };
 }
+
+export const initializeOwnTacticLayer = (...args: Parameters<typeof initializeOwnTacticLayerImpl>) => serializable(tx => tacticTransaction.run(tx, () => initializeOwnTacticLayerImpl(...args)), { retryUnique: true });
+
+export const createTacticLayer = (...args: Parameters<typeof createTacticLayerImpl>) => serializable(tx => tacticTransaction.run(tx, () => createTacticLayerImpl(...args)));
+
+export const updateTacticLayer = (...args: Parameters<typeof updateTacticLayerImpl>) => serializable(tx => tacticTransaction.run(tx, () => updateTacticLayerImpl(...args)));
+
+export const deleteTacticLayer = (...args: Parameters<typeof deleteTacticLayerImpl>) => serializable(tx => tacticTransaction.run(tx, () => deleteTacticLayerImpl(...args)));
+
+export const saveOwnTacticRoute = (...args: Parameters<typeof saveOwnTacticRouteImpl>) => serializable(tx => tacticTransaction.run(tx, () => saveOwnTacticRouteImpl(...args)));
+
+export const deleteOwnTacticRoute = (...args: Parameters<typeof deleteOwnTacticRouteImpl>) => serializable(tx => tacticTransaction.run(tx, () => deleteOwnTacticRouteImpl(...args)));
+
+export const createOwnTacticMarker = (...args: Parameters<typeof createOwnTacticMarkerImpl>) => serializable(tx => tacticTransaction.run(tx, () => createOwnTacticMarkerImpl(...args)));
+
+export const updateOwnTacticMarker = (...args: Parameters<typeof updateOwnTacticMarkerImpl>) => serializable(tx => tacticTransaction.run(tx, () => updateOwnTacticMarkerImpl(...args)));
+
+export const deleteOwnTacticMarker = (...args: Parameters<typeof deleteOwnTacticMarkerImpl>) => serializable(tx => tacticTransaction.run(tx, () => deleteOwnTacticMarkerImpl(...args)));

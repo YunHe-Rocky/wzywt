@@ -2,6 +2,20 @@ export const AUTH_USERNAME_MIN_LENGTH = 2;
 export const AUTH_USERNAME_MAX_LENGTH = 32;
 export const AUTH_PASSWORD_MIN_LENGTH = 11;
 export const BCRYPT_MAX_PASSWORD_BYTES = 72;
+export const PRESET_SECURITY_QUESTIONS = [
+  "你的出生城市是？", "你母亲的名字是？", "你父亲的名字是？", "你第一只宠物的名字是？",
+  "你最喜欢的电影角色是？", "你的小学名称是？", "你最好的朋友的名字是？", "你的座右铭是？",
+] as const;
+
+export function parseSecurityQuestion(value: unknown, customValue: unknown): string | null {
+  if (value === "__custom__") {
+    const custom = typeof customValue === "string" ? customValue.trim() : "";
+    return custom.length >= 2 && custom.length <= 255 ? custom : null;
+  }
+  if (typeof value !== "string") return null;
+  const normalize = (text: string) => text.replace(/[！-～]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+  return PRESET_SECURITY_QUESTIONS.some(question => normalize(question) === normalize(value)) ? value : null;
+}
 
 export function normalizeAuthUsername(value: unknown): string | null {
   if (typeof value !== "string") return null;

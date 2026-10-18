@@ -18,7 +18,7 @@ function createScheduler(): ResourceScheduler {
     maxAgeMs: 60_000,
     idleTtlMs: 30_000,
     async loader() {
-      const data = await listPublishedAnnouncements(true);
+      const data = await listPublishedAnnouncements(true, 1, 10);
       return { data, version: versionOf(data) };
     },
   });

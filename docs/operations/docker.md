@@ -568,3 +568,33 @@ rmdir .cache/compose-deploy.lock
 - 域名、TLS、防火墙、电脑和手机网络路径正常；
 - 上传媒体、Cron 同步、备份和远端对象核验通过；
 - 至少完成一次隔离恢复演练并记录 RPO/RTO。
+
+
+## 审计修复后的 Redis、发布与备份约定
+
+业务 API 在共用入口先取得 Redis 并发租约；普通数据读取按缓存策略先查 Redis，再回源 MySQL。
+登录缓存只定位账号，密码、封禁、权限及 sessionVersion 每次仍核对 MySQL。写入先提交数据库，
+提交成功后推进缓存代次；事务内状态检查不读缓存。细节与故障策略见
+[Redis API 数据路径](../architecture/redis-api-data-path.md)。
+
+Web 仍只支持单实例；页面资源租约与 SSE 仍含进程内状态。新增 Redis 数据缓存不能作为开启
+PM2 cluster 或增加多个 Web 容器的依据，扩容前仍要完成共享租约或粘性路由验收。
+
+`up/update` 自动生成包含源码内容摘要的唯一 release ID，并用于实际镜像标签和健康验收；
+不再要求实施人员手改 `APP_RELEASE_ID` 才能区分两次发布。备份 manifest 记录源码/锁文件摘要、
+前后镜像身份和文件 SHA-256。操作锁以 Docker daemon ID + Compose project 为范围，两个源码目录
+操作同一项目时互斥。锁中的 owner.json 可供人工核对；程序不自动删除疑似陈旧锁。
+
+备份后可对该次独立备份目录执行只读检查：
+
+```bash
+node scripts/backup-integrity.mjs /实施人员填写/本次备份目录
+```
+
+该命令核对 manifest、文件哈希和 tar 可读取性，截断或替换文件会失败。它不会导入 SQL、覆盖卷、
+自动回退数据库，也不会把本地校验写成远端已上传或恢复成功。已有旧 manifest 没有 SHA-256 时
+拒绝作为已校验集合；保留原备份，按恢复手册核验或新建备份。
+
+原生 PM2 发布现在采用停写窗口，顺序为构建、停止 Web/Cron、SQL+媒体/头像/英雄资源备份、迁移、
+激活。迁移集合发生变化时，激活失败保持写入停止，须核对 schema 后向前修复；不会自动切回旧程序。
+Linux 的完整激活与恢复演练仍是上线前门槛。

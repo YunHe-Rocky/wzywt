@@ -11,9 +11,11 @@ export type MediaUploadKind = "match-screenshot" | "combat-video";
 
 function configuredBytes(name: string, fallback: number): number {
   const value = process.env[name]?.trim();
-  if (!value || !/^\d+$/.test(value)) return fallback;
+  if (!value) return fallback;
+  if (!/^\d+$/.test(value)) throw new Error(`${name} must be a non-negative safe integer`);
   const parsed = Number(value);
-  return Number.isSafeInteger(parsed) && parsed >= 0 && parsed <= MAX_SAFE_QUOTA ? parsed : fallback;
+  if (!Number.isSafeInteger(parsed) || parsed < 0 || parsed > MAX_SAFE_QUOTA) throw new Error(`${name} must be a non-negative safe integer`);
+  return parsed;
 }
 
 function quotaLimits() {
@@ -79,8 +81,7 @@ export async function reserveMediaUpload(
           userVideos,
           allScreenshots,
           allVideos,
-          dailyScreenshots,
-          dailyVideos,
+          dailyUsage,
           userReserved,
           allReserved,
           dailyReserved,
@@ -89,15 +90,14 @@ export async function reserveMediaUpload(
           tx.combatPost.aggregate({ where: { authorId: userId, status: { not: "deleted" } }, _sum: { size: true } }),
           tx.matchScreenshot.aggregate({ _sum: { size: true } }),
           tx.combatPost.aggregate({ where: { status: { not: "deleted" } }, _sum: { size: true } }),
-          tx.matchScreenshot.aggregate({ where: { uploadedById: userId, createdAt: { gte: dayStart } }, _sum: { size: true } }),
-          tx.combatPost.aggregate({ where: { authorId: userId, status: { not: "deleted" }, createdAt: { gte: dayStart } }, _sum: { size: true } }),
+          tx.mediaUploadUsage.aggregate({ where: { userId, createdAt: { gte: dayStart } }, _sum: { bytes: true } }),
           tx.mediaUploadReservation.aggregate({ where: { userId, ...activeReservation }, _sum: { bytes: true } }),
           tx.mediaUploadReservation.aggregate({ where: activeReservation, _sum: { bytes: true } }),
-          tx.mediaUploadReservation.aggregate({ where: { userId, createdAt: { gte: dayStart }, ...activeReservation }, _sum: { bytes: true } }),
+          tx.mediaUploadReservation.aggregate({ where: { userId, ...activeReservation }, _sum: { bytes: true } }),
         ]);
         const userStored = sumNumber(userScreenshots._sum.size) + sumNumber(userVideos._sum.size) + sumNumber(userReserved._sum.bytes);
         const globalStored = sumNumber(allScreenshots._sum.size) + sumNumber(allVideos._sum.size) + sumNumber(allReserved._sum.bytes);
-        const userDaily = sumNumber(dailyScreenshots._sum.size) + sumNumber(dailyVideos._sum.size) + sumNumber(dailyReserved._sum.bytes);
+        const userDaily = sumNumber(dailyUsage._sum.bytes) + sumNumber(dailyReserved._sum.bytes);
         const exceeded = [
           { scope: "USER_STORED", current: userStored, limit: limits.userStored },
           { scope: "USER_DAILY", current: userDaily, limit: limits.userDaily },
@@ -143,7 +143,7 @@ export async function attachMediaReservation(
     throw new ServiceError("CONFLICT", "媒体上传预留已失效或实际大小超出预留");
   }
   const updated = await prisma.mediaUploadReservation.updateMany({
-    where: { id: reservationId, userId, state: "RESERVED", storageKey: null },
+    where: { id: reservationId, userId, state: "RESERVED", storageKey: null, expiresAt: { gt: new Date() } },
     data: { storageKey, bytes: BigInt(actualBytes) },
   });
   if (updated.count !== 1) throw new ServiceError("CONFLICT", "媒体上传预留状态已变化");
@@ -157,9 +157,10 @@ export async function consumeMediaReservation(
   actualBytes: number,
 ): Promise<void> {
   const removed = await tx.mediaUploadReservation.deleteMany({
-    where: { id: reservationId, userId, state: "RESERVED", storageKey, bytes: BigInt(actualBytes) },
+    where: { id: reservationId, userId, state: "RESERVED", storageKey, bytes: BigInt(actualBytes), expiresAt: { gt: new Date() } },
   });
   if (removed.count !== 1) throw new ServiceError("CONFLICT", "媒体上传预留已失效，请重新上传");
+  await tx.mediaUploadUsage.create({ data: { id: reservationId, userId, bytes: BigInt(actualBytes) } });
 }
 
 export async function releaseMediaReservation(reservationId: string, userId: number): Promise<void> {
@@ -172,7 +173,7 @@ export async function processExpiredMediaReservations(
   limit = 50,
 ): Promise<{ processed: number; failed: number }> {
   const reservations = await prisma.mediaUploadReservation.findMany({
-    where: { state: "RESERVED", expiresAt: { lte: now } },
+    where: { state: { in: ["RESERVED", "CLEANING"] }, expiresAt: { lte: now } },
     orderBy: { expiresAt: "asc" },
     take: Math.max(1, Math.min(200, limit)),
     select: { id: true, storageKey: true },
@@ -181,8 +182,16 @@ export async function processExpiredMediaReservations(
   let failed = 0;
   for (const reservation of reservations) {
     try {
-      if (reservation.storageKey) await storage.delete(reservation.storageKey);
-      await prisma.mediaUploadReservation.deleteMany({ where: { id: reservation.id, state: "RESERVED", expiresAt: { lte: now } } });
+      const claimed = await prisma.mediaUploadReservation.updateMany({
+        where: { id: reservation.id, expiresAt: { lte: now }, OR: [
+          { state: "RESERVED" }, { state: "CLEANING", updatedAt: { lte: new Date(now.getTime() - 5 * 60_000) } },
+        ] },
+        data: { state: "CLEANING" },
+      });
+      if (claimed.count !== 1) continue;
+      const owned = await prisma.mediaUploadReservation.findUnique({ where: { id: reservation.id }, select: { storageKey: true } });
+      if (owned?.storageKey) await storage.delete(owned.storageKey);
+      await prisma.mediaUploadReservation.deleteMany({ where: { id: reservation.id, state: "CLEANING" } });
       processed++;
     } catch {
       failed++;

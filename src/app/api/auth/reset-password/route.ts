@@ -17,6 +17,7 @@ import {
 import { prisma } from "@/lib/db";
 import { tryReadJsonRequest } from "@/lib/request-validation";
 import { normalizeAuthUsername, normalizeSecurityAnswer, passwordValidationError } from "@/features/auth/model";
+import { apiErrorResponse } from "@/lib/api-errors";
 
 const INVALID_CREDENTIALS = "账号或安全答案错误";
 
@@ -51,7 +52,7 @@ async function handlePOST(req: NextRequest) {
 
   const user = await prisma.user.findUnique({
     where: { username },
-    select: { id: true, securityAnswerHash: true, banned: true, isTemporary: true, deletedAt: true },
+    select: { id: true, securityAnswerHash: true, banned: true, isTemporary: true, deletedAt: true, sessionVersion: true },
   });
   const valid = user?.securityAnswerHash
     ? await verifyPassword(answer, user.securityAnswerHash)
@@ -60,7 +61,7 @@ async function handlePOST(req: NextRequest) {
     return NextResponse.json({ error: INVALID_CREDENTIALS }, { status: 401 });
   }
 
-  const token = await createPasswordResetToken(user.id);
+  const token = await createPasswordResetToken(user.id, user.sessionVersion);
   await clearPasswordResetLimits(username, ip);
   return NextResponse.json({ ok: true, resetToken: token, expiresIn: 600 });
 }
@@ -113,4 +114,7 @@ async function completePasswordReset(body: Record<string, unknown>, resetToken: 
   return NextResponse.json({ ok: true });
 }
 
-export const POST = withRequestCapacity(handlePOST);
+export const POST = withRequestCapacity(async (req: NextRequest) => {
+  try { return await handlePOST(req); }
+  catch (error) { return apiErrorResponse(error, { request: req, useCase: "auth.reset-password" }); }
+});

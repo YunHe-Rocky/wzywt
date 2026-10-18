@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { localHealthUrl } from "./local-health-url.mjs";
 
 export function validLocalHeartbeat(value, { pid, releaseId, startedAt, now = Date.now(), maxAgeMs = 90_000 }) {
   try {
@@ -9,13 +10,13 @@ export function validLocalHeartbeat(value, { pid, releaseId, startedAt, now = Da
   } catch { return false; }
 }
 
-export async function probeLiveness({ role, pid, releaseId, startedAt, heartbeatFile, port = 8001 }) {
+export async function probeLiveness({ role, pid, releaseId, startedAt, heartbeatFile, port = 8001, host = "127.0.0.1" }) {
   if (role === "cron") {
     try { return validLocalHeartbeat(readFileSync(heartbeatFile, "utf8"), { pid, releaseId, startedAt }); }
     catch { return false; }
   }
   try {
-    const response = await fetch(`http://127.0.0.1:${port}/api/health?mode=live`, { signal: AbortSignal.timeout(3_000), redirect: "error" });
+    const response = await fetch(localHealthUrl(host, port), { signal: AbortSignal.timeout(3_000), redirect: "error" });
     const data = await response.json();
     return response.ok && data.ok === true && data.mode === "liveness" && data.releaseId === releaseId;
   } catch { return false; }
@@ -41,7 +42,7 @@ export function watchChild(child, { role, environment, log, graceMs, intervalMs 
     busy = true;
     try {
       const live = await probe({ role, pid: child.pid, releaseId: environment.APP_RELEASE_ID || "development",
-        startedAt, heartbeatFile: environment.APP_HEARTBEAT_FILE, port: Number(environment.PORT || 8001) });
+        startedAt, heartbeatFile: environment.APP_HEARTBEAT_FILE, port: Number(environment.PORT || 8001), host: environment.HOST || "127.0.0.1" });
       if (live) {
         if (failed) log("supervisor.liveness_restored", { role, childPid: child.pid });
         failed = 0;

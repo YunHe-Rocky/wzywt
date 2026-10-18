@@ -5,11 +5,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { readFile } from "fs/promises";
 import { join } from "path";
 import { getAvatarDirectory } from "@/features/profile/server/avatar-storage";
+import { avatarFilenamePattern } from "@/features/profile/avatar-file";
 
 async function handleGET(req: NextRequest, props: { params: Promise<{ filename: string }> }) {
   const params = await props.params;
   const filename = params.filename;
-  if (!/^\d+_\d+\.(?:jpg|png|webp)$/.test(filename)) {
+  if (!avatarFilenamePattern.test(filename)) {
     return NextResponse.json({ error: "非法文件名" }, { status: 400 });
   }
 

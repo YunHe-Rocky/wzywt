@@ -13,8 +13,8 @@ export function createMatch<T>(tournamentId: string | number, playedAt?: string)
   return jsonRequest<T>(base(tournamentId), "POST", { playedAt });
 }
 
-export function getMatch<T>(tournamentId: string | number, matchId: string | number) {
-  return apiRequest<T>(matchBase(tournamentId, matchId));
+export function getMatch<T>(tournamentId: string | number, matchId: string | number, signal?: AbortSignal) {
+  return apiRequest<T>(matchBase(tournamentId, matchId), { signal });
 }
 
 export function uploadScreenshot<T>(tournamentId: string | number, matchId: string | number, type: string, file: File) {

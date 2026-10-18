@@ -1,3 +1,4 @@
+import { acquireComposeLock } from "./compose-lock.mjs";
 import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
@@ -56,6 +57,8 @@ function fixture({ failure, emptyDump = false, version = "2.30.0", running = "my
     if (failure?.(command)) throw new Error("simulated Docker failure");
     if (args[0] === "compose" && args[1] === "version") return version;
     if (args[0] === "info" && args.includes("{{.MemTotal}}")) return String(daemonMiB * 1_048_576);
+    if (args[0] === "info" && args.includes("{{.ID}}")) return root;
+    if (args[0] === "inspect" && args.includes("{{.Image}}")) return "sha256:fixture-image";
     if (args[0] === "inspect") {
       const service = model.services[args[1]];
       return JSON.stringify({ Memory: oldLimits ? 0 : service.mem_limit, NanoCpus: oldLimits ? 0 : service.cpus * 1e9, PidsLimit: oldLimits ? 0 : service.pids_limit });
@@ -305,6 +308,7 @@ test("missing OSS mount blocks deployment but down remains usable", async () => 
   const run = (args) => {
     f.calls.push({ args, command: args, options: {} });
     if (args[0] === "compose" && args[1] === "version") return "2.30.0";
+    if (args[0] === "info" && args.includes("{{.ID}}")) return f.root;
     return "";
   };
   const manage = createManager({ root: f.root, run, environment: {},
@@ -381,12 +385,12 @@ test("down preserves volumes and works with credentials that fail update validat
 
 test("existing lock prevents concurrent mutation; paths containing spaces stay single arguments", async () => {
   const f = fixture();
-  mkdirSync(join(f.root, ".cache/compose-deploy.lock"), { recursive: true });
+  const releaseLock = acquireComposeLock(f.root, "wzywt", "test");
   await assert.rejects(f.manage("update"), /Another operation holds/);
   assert.ok(!commands(f.calls).some((command) => /^(build|up|stop|run) /.test(command)));
   const config = f.calls.find(({ command }) => command[0] === "config");
   assert.ok(config.args.includes(join(f.root, ".env.docker")));
-  assert.ok(existsSync(join(f.root, ".cache/compose-deploy.lock")));
+  releaseLock();
 });
 
 test("optional OCR requires endpoint and participates only when requested", async () => {

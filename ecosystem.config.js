@@ -19,6 +19,7 @@ const redisEnvFile = resolve(appDir, ".env");
 const entryValues = existsSync(redisEnvFile) ? readDeployEnv(redisEnvFile) : new Map();
 // Explicit values also clear PM2's cached settings when changing deployment mode.
 const entryEnv = {
+  TRUST_PROXY: entryValues.get("TRUST_PROXY") ?? process.env.TRUST_PROXY ?? "",
   PUBLIC_ORIGIN: process.env.PUBLIC_ORIGIN ?? entryValues.get("PUBLIC_ORIGIN") ?? "",
   DEPLOY_ENVIRONMENT: process.env.DEPLOY_ENVIRONMENT ?? entryValues.get("DEPLOY_ENVIRONMENT") ?? "production",
   SESSION_COOKIE_SECURE: process.env.SESSION_COOKIE_SECURE ?? entryValues.get("SESSION_COOKIE_SECURE") ?? "",

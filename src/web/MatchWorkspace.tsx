@@ -171,10 +171,16 @@ export function MatchWorkspace() {
   const winnerSideRef = useRef<"red" | "blue">("red");
   const { success, error } = useToast();
 
+  const loadGeneration = useRef(0);
+  const loadController = useRef<AbortController | null>(null);
   const load = useCallback(async () => {
+    const generation = ++loadGeneration.current;
+    loadController.current?.abort();
+    const controller = new AbortController(); loadController.current = controller;
     setLoadError("");
     try {
-      const result = await getMatch<DetailData>(tournamentId, matchId);
+      const result = await getMatch<DetailData>(tournamentId, matchId, controller.signal);
+      if (controller.signal.aborted || generation !== loadGeneration.current) return;
       if (!result.ok) { setDetail(null); setPlayers([]); setLoadError(apiMessage(result.data, "比赛档案加载失败，请确认登录状态后重试")); return; }
       setDetail(result.data);
       const persistedPlayerIds = new Set(result.data.match.players.filter((player) => player.stats !== null).map((player) => player.id));
@@ -224,16 +230,22 @@ export function MatchWorkspace() {
         draftVersionRef.current = draftVersion;
       }
     } catch (cause) {
+      if (controller.signal.aborted || generation !== loadGeneration.current) return;
       setDetail(null); setPlayers([]); setLoadError(cause instanceof Error ? cause.message : "比赛档案加载失败，请检查网络后重试");
     }
   }, [matchId, tournamentId]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    void load();
+    return () => { loadController.current?.abort(); };
+  }, [load]);
   const recognitionActive = ["QUEUED", "RUNNING"].includes(detail?.match.recognition?.status || "");
   useEffect(() => {
     if (!recognitionActive) return;
-    const timer = window.setInterval(() => void load(), 2_000);
-    return () => window.clearInterval(timer);
+    let stopped = false; let timer: ReturnType<typeof setTimeout>;
+    const poll = async () => { if (stopped) return; if (document.visibilityState !== "hidden") await load(); if (!stopped) timer = setTimeout(() => void poll(), 2_000); };
+    timer = setTimeout(() => void poll(), 2_000);
+    return () => { stopped = true; clearTimeout(timer); };
   }, [load, recognitionActive]);
   const screenshotByType = useMemo(() => new Map(detail?.match.screenshots.map((item) => [item.type, item]) || []), [detail]);
   const recognizedPlayers = useMemo(() => recognitionPlayers(detail?.match.recognition?.normalizedResult), [detail]);

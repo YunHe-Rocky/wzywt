@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { assertContainerStorage } from "../scripts/compose-storage.mjs";
 
-const directories = ["/app/data/media", "/app/public/heroes/images", "/app/public/heroes/skins"];
+const directories = ["/app/data/media", "/app/data/media/avatars", "/app/public/heroes/images", "/app/public/heroes/skins"];
 
 export async function initializeStorage({ managePermissions = process.env.STORAGE_MANAGE_PERMISSIONS ?? "1",
   io = fs, dropPrivileges = () => { process.setgid(1000); process.setuid(1000); } } = {}) {

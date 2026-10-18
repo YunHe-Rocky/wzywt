@@ -1,3 +1,4 @@
+import { tryParseRouteId } from "@/lib/request-validation";
 import { withRequestCapacity } from "@/lib/request-capacity";
 export const dynamic = "force-dynamic";
 
@@ -12,9 +13,12 @@ async function handleGET(req: NextRequest) {
   if (!userId) return NextResponse.json({ error: "无权限" }, { status: 403 });
 
   const { searchParams } = new URL(req.url);
-  const page = parseInt(searchParams.get("page") || "1");
+  const page = tryParseRouteId(searchParams.get("page") || "1", "页码");
+  if (page instanceof NextResponse) return page;
+  if (page > 10000) return NextResponse.json({ error: "页码不能超过 10000" }, { status: 400 });
   const pageSize = 20;
   const search = searchParams.get("search") || "";
+  if (search.length > 64) return NextResponse.json({ error: "搜索内容不能超过 64 字" }, { status: 400 });
 
   const where: Prisma.UserWhereInput = {
     isTemporary: false,

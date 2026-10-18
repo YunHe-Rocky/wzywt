@@ -1,14 +1,9 @@
 import { Prisma } from "@prisma/client";
-import { normalizeAuthUsername, normalizeSecurityAnswer, passwordValidationError } from "@/features/auth/model";
+import { normalizeAuthUsername, normalizeSecurityAnswer, passwordValidationError, parseSecurityQuestion } from "@/features/auth/model";
 import { hashPassword } from "@/lib/auth";
 import { consumeRegistrationLimits, RateLimitError } from "@/lib/auth-rate-limit";
 import { prisma } from "@/lib/db";
 import { ServiceError } from "@/lib/service-error";
-
-const PRESET_QUESTIONS = [
-  "你的出生城市是？", "你母亲的名字是？", "你父亲的名字是？", "你第一只宠物的名字是？",
-  "你最喜欢的电影角色是？", "你的小学名称是？", "你最好的朋友的名字是？", "你的座右铭是？",
-];
 
 export interface RegistrationInput {
   username: string;
@@ -19,10 +14,6 @@ export interface RegistrationInput {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function normalizeQuestion(value: string): string {
-  return value.replace(/[！-～]/g, (character) => String.fromCharCode(character.charCodeAt(0) - 0xFEE0));
 }
 
 export function parseRegistrationInput(value: unknown): RegistrationInput {
@@ -38,16 +29,8 @@ export function parseRegistrationInput(value: unknown): RegistrationInput {
   if (password !== confirmPassword) throw new ServiceError("VALIDATION_ERROR", "两次密码不一致");
   if (!answer) throw new ServiceError("VALIDATION_ERROR", "安全问题答案不能为空且不能超过 72 字节");
 
-  let securityQuestion: string;
-  if (question === "__custom__") {
-    const custom = typeof value.customQuestion === "string" ? value.customQuestion.trim() : "";
-    if (custom.length < 2 || custom.length > 255) throw new ServiceError("VALIDATION_ERROR", "自定义安全问题长度应为 2-255 个字符");
-    securityQuestion = custom;
-  } else if (!PRESET_QUESTIONS.map(normalizeQuestion).includes(normalizeQuestion(question))) {
-    throw new ServiceError("VALIDATION_ERROR", "无效的安全问题");
-  } else {
-    securityQuestion = question;
-  }
+  const securityQuestion = parseSecurityQuestion(question, value.customQuestion);
+  if (!securityQuestion) throw new ServiceError("VALIDATION_ERROR", "无效安全问题，自定义问题须为 2-255 字");
   return { username, password, securityQuestion, securityAnswer: answer };
 }
 

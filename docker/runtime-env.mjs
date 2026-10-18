@@ -13,6 +13,8 @@ const defaults = Object.freeze({
 });
 export const applicationEnvironmentKeys = Object.freeze([...Object.keys(defaults),
   "SESSION_SECRET", "MYSQL_PASSWORD", "HEALTH_DETAILS_TOKEN", "MATCH_OCR_ENDPOINT", "MATCH_OCR_TOKEN", "MATCH_OCR_INTERNAL_HOST",
+  "TRUST_PROXY", "MEDIA_USER_STORED_QUOTA_BYTES", "MEDIA_USER_DAILY_QUOTA_BYTES",
+  "MEDIA_GLOBAL_STORED_QUOTA_BYTES", "MEDIA_MIN_FREE_BYTES", "MATCH_OCR_QUEUE_LIMIT",
   "COMBAT_VIDEO_UPLOAD_TIMEOUT_SECONDS", "COMBAT_VIDEO_MAX_SIZE_MB", "COMBAT_VIDEO_MAX_DURATION_SECONDS", ...resourceSettingKeys]);
 
 /** Shared by the deployment adapter and container startup. No admin credentials. */
@@ -22,6 +24,11 @@ export function applicationEnvironment(environment) {
     .map(key => [key, String(environment[key])]));
   const effective = { ...defaults, ...selected, ...containerBindings };
   readResourceSettings(effective);
+  for (const key of ["MEDIA_USER_STORED_QUOTA_BYTES", "MEDIA_USER_DAILY_QUOTA_BYTES", "MEDIA_GLOBAL_STORED_QUOTA_BYTES", "MEDIA_MIN_FREE_BYTES", "MATCH_OCR_QUEUE_LIMIT"]) {
+    const value = effective[key];
+    if (value !== undefined && value !== "" && (!/^\d+$/.test(value) || !Number.isSafeInteger(Number(value)) || Number(value) < (key === "MATCH_OCR_QUEUE_LIMIT" ? 1 : 0))) throw new Error(`${key} must be a valid non-negative safe integer`);
+  }
+  if (effective.TRUST_PROXY !== undefined && !["", "0", "1"].includes(effective.TRUST_PROXY)) throw new Error("TRUST_PROXY must be 0 or 1");
   return effective;
 }
 

@@ -4,7 +4,7 @@ import { ServiceError } from "@/lib/service-error";
 export const MAX_MATCH_SCREENSHOT_SIZE = 12 * 1024 * 1024;
 export const MAX_COMBAT_VIDEO_SIZE = 256 * 1024 * 1024;
 export const MAX_SCREENSHOT_DIMENSION = 8192;
-export const MAX_SCREENSHOT_PIXELS = 40_000_000;
+export const MAX_SCREENSHOT_PIXELS = 12_000_000;
 
 export interface ValidatedMediaFile {
   data: Buffer;

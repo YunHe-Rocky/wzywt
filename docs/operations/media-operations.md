@@ -42,7 +42,7 @@ MEDIA_BACKUP_DIR 应是受权限保护的异地挂载目录或会被独立同步
 ```bash
 export DEPLOY_PROJECT_NAME=wangzhe-yanwutang
 export MEDIA_STORAGE_DIR=/opt/apps/wzywt-runtime/shared/media
-export AVATAR_DIR=/opt/apps/wzywt-runtime/shared/avatars
+export AVATAR_DIR=/opt/apps/wzywt-runtime/shared/media/avatars
 export MEDIA_BACKUP_DIR=/mnt/offsite/wzywt/media
 bash scripts/media-backup.sh
 ```

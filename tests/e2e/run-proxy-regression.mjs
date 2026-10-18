@@ -79,7 +79,8 @@ pid ${quote(join(directory, "nginx.pid"))};
 error_log ${quote(join(directory, "nginx-error.log"))};
 events { worker_connections 128; }
 http {
-  access_log off;
+  log_format safe '$msec $request_method $uri $status $request_time';
+  access_log ${quote(join(directory, "nginx-access.log"))} safe;
   client_body_temp_path ${quote(join(directory, "body"))};
   proxy_temp_path ${quote(join(directory, "proxy"))};
   server {
@@ -90,7 +91,7 @@ http {
     location / {
       proxy_pass http://127.0.0.1:8001;
       proxy_http_version 1.1;
-      proxy_set_header Host localhost:8001;
+      proxy_set_header Host $http_host;
       proxy_set_header X-Real-IP $remote_addr;
       proxy_set_header X-Forwarded-For $remote_addr;
       proxy_set_header X-Forwarded-Host $http_host;
@@ -129,12 +130,12 @@ http {
   }
   if (!healthy) throw new Error("Test entry readiness timed out");
   await run(process.execPath, ["scripts/public-entry-smoke.mjs", origin, "development"], { env });
-  await run(process.execPath, ["tests/e2e/ci-auth-resource-regression.mjs"], { env });
-  await run(process.execPath, ["tests/e2e/login-transition-regression.mjs"], { env });
-  await run(process.execPath, ["tests/e2e/room-profile-regression.mjs"], { env });
-  await run(process.execPath, ["tests/e2e/room-archive-regression.mjs"], { env });
-  await run(process.execPath, ["tests/e2e/tactic-layer-regression.mjs"], { env });
-  await run(process.execPath, ["tests/e2e/changelog-regression.mjs"], { env });
+  const failures = [];
+  for (const name of ["ci-auth-resource", "login-transition", "room-profile", "room-archive", "tactic-layer", "changelog"]) {
+    try { await run(process.execPath, [`tests/e2e/${name}-regression.mjs`], { env }); }
+    catch (error) { failures.push(error); }
+  }
+  if (failures.length) throw new AggregateError(failures, `${failures.length} browser suites failed`);
 } catch (error) {
   for (const name of ["next.log", "nginx.log", "nginx-error.log"]) {
     console.error((await readFile(join(directory, name), "utf8").catch(() => "")).slice(-8000));
@@ -158,6 +159,13 @@ http {
     }
   } finally {
     await prisma.$disconnect();
+    const output = join(root, ".cache/ci-diagnostics", local ? "local" : "proxy", "server");
+    await mkdir(output, { recursive: true });
+    for (const name of ["next.log", "nginx.log", "nginx-error.log", "nginx-access.log"]) {
+      const value = await readFile(join(directory, name), "utf8").catch(() => "");
+      await writeFile(join(output, name), value.replace(/(password|secret|token|authorization|cookie)[=:][^\s&,]+/gi, "$1=<redacted>")
+        .replace(/mysql:\/\/[^\s]+/g, "mysql://<redacted>"));
+    }
     // Only the mkdtemp-owned test directory is removed.
     await rm(directory, { recursive: true, force: true, maxRetries: 3 });
   }

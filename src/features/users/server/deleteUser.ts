@@ -40,9 +40,11 @@ async function removeMutableAccountData(tx: Prisma.TransactionClient, userId: nu
 export async function deleteUserAndOwnedTournamentsInTransaction(
   tx: Prisma.TransactionClient,
   userId: number,
+  expectedVersion?: number,
 ): Promise<{ mode: "deleted" | "anonymized" }> {
-  const user = await tx.user.findUnique({ where: { id: userId }, select: { role: true, deletedAt: true } });
+  const user = await tx.user.findUnique({ where: { id: userId }, select: { role: true, deletedAt: true, sessionVersion: true } });
   if (!user) throw new ServiceError("NOT_FOUND", "用户不存在");
+  if (expectedVersion !== undefined && user.sessionVersion !== expectedVersion) throw new ServiceError("CONFLICT", "账户凭据已变化，请重新验证");
   if (user.deletedAt) return { mode: "anonymized" };
   if (user.role === "admin") throw new ServiceError("BUSINESS_VALIDATION_FAILED", "管理员账户不能从个人入口注销，请先由另一管理员完成权限交接");
   const ownedCount = await tx.tournamentAdmin.count({ where: { userId, role: "owner" } });
@@ -77,8 +79,8 @@ export async function deleteUserAndOwnedTournamentsInTransaction(
   return { mode: "anonymized" };
 }
 
-export async function deleteUserAndOwnedTournaments(userId: number): Promise<{ mode: "deleted" | "anonymized" }> {
-  return prisma.$transaction((tx) => deleteUserAndOwnedTournamentsInTransaction(tx, userId), {
+export async function deleteUserAndOwnedTournaments(userId: number, expectedVersion?: number): Promise<{ mode: "deleted" | "anonymized" }> {
+  return prisma.$transaction((tx) => deleteUserAndOwnedTournamentsInTransaction(tx, userId, expectedVersion), {
     isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
   });
 }

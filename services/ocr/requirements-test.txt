@@ -1,0 +1,2 @@
+-r requirements-http.txt
+httpx==0.28.1

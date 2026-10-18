@@ -1,4 +1,5 @@
 export type ServiceErrorCode =
+  | "INVALID_CREDENTIALS"
   | "VALIDATION_ERROR"
   | "NOT_FOUND"
   | "CONFLICT"
@@ -11,6 +12,7 @@ export type ServiceErrorCode =
   | "SERVICE_UNAVAILABLE";
 
 const STATUS_BY_CODE: Record<ServiceErrorCode, number> = {
+  INVALID_CREDENTIALS: 403,
   VALIDATION_ERROR: 400,
   NOT_FOUND: 404,
   CONFLICT: 409,

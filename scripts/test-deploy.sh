@@ -436,8 +436,17 @@ import { appendFileSync } from "node:fs";
 appendFileSync(process.env.TEST_COMMAND_LOG, "redis authentication check\n");
 if (process.env.TEST_REDIS_AUTH_FAILURE === "1") process.exit(1);
 JS
-  cat >"$archive/scripts/db-backup.mjs" <<'JS'
+  cat >"$archive/scripts/media-manifest.mjs" <<'JS'
 import { writeFileSync } from "node:fs";
+writeFileSync(process.argv[2], JSON.stringify({ complete: true, objects: [], problems: [] }));
+JS
+  cp -- "$SCRIPT_DIR/native-release-backup.mjs" "$SCRIPT_DIR/backup-integrity.mjs" "$archive/scripts/"
+  mkdir -p -- "$base/releases/old-release/prisma/migrations" "$archive/prisma/migrations"
+  cat >"$archive/scripts/db-backup.mjs" <<'JS'
+import { writeFileSync, mkdirSync } from "node:fs";
+import { resolve } from "node:path";
+mkdirSync(process.argv[2], { recursive: true });
+writeFileSync(resolve(process.argv[2], "fixture.sql"), "-- isolated fixture SQL\n");
 writeFileSync(process.env.TEST_BACKUP_MARKER, "backup-ok\n");
 JS
   ln -s -- "$base/releases/old-release" "$base/current"

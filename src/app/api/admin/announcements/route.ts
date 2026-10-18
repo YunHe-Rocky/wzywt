@@ -1,3 +1,4 @@
+import { parseAnnouncementPage } from "@/features/announcements/server/pagination";
 import { withRequestCapacity } from "@/lib/request-capacity";
 export const dynamic = "force-dynamic";
 
@@ -10,14 +11,17 @@ import {
 } from "@/features/announcements/server/service";
 import { tryReadJsonRequest } from "@/lib/request-validation";
 
-async function handleGET() {
+async function handleGET(req: NextRequest) {
   const authorization = await authorizeSuperAdmin();
   const userId = authorization.ok ? authorization.user.userId : 0;
   if (!userId) return NextResponse.json({ error: "无权限" }, { status: 403 });
 
-  const list = await listAdminAnnouncements();
+  const pagination = parseAnnouncementPage(new URL(req.url).searchParams);
+  if (pagination instanceof NextResponse) return pagination;
+  const list = await listAdminAnnouncements(pagination.page, pagination.pageSize);
 
   return NextResponse.json({
+    ...pagination,
     announcements: list.map((a) => ({
       ...a,
       date: a.createdAt.toISOString().split("T")[0],

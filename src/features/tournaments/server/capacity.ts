@@ -196,10 +196,14 @@ export async function reconcileTournamentCapacity(
   });
 
   if (status !== tournament.status) {
-    await database.tournament.update({
-      where: { id: tournamentId },
+    const changed = await database.tournament.updateMany({
+      where: { id: tournamentId, status: tournament.status, splitResult: { equals: Prisma.DbNull } },
       data: { status },
     });
+    if (changed.count !== 1) {
+      const current = await database.tournament.findUnique({ where: { id: tournamentId }, select: { status: true } });
+      return current ? { playerCount, status: current.status } : null;
+    }
   }
   return { playerCount, status };
 }

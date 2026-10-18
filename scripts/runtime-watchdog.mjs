@@ -38,7 +38,7 @@ export async function checkRuntime(config) {
     if (Date.now() - app.pm2_env.pm_uptime < 120_000 && app.pm2_env.status === "online") continue;
     const healthy = app.pm2_env.status === "online" && await probeLiveness({ role, pid: app.pid,
       releaseId: app.pm2_env.APP_RELEASE_ID || app.pm2_env.env?.APP_RELEASE_ID || "development",
-      startedAt: app.pm2_env.pm_uptime, heartbeatFile: config.heartbeatFile, port: config.port });
+      startedAt: app.pm2_env.pm_uptime, heartbeatFile: config.heartbeatFile, port: config.port, host: config.host });
     const decision = recoveryDecision(state[name], healthy, Date.now());
     if (!healthy) runtimeLog("watchdog.liveness_failed", { role, app: name, ...decision }, "warn");
     if (decision.restart) {

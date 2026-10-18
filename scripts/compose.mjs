@@ -1,8 +1,12 @@
+import { acquireComposeLock } from "./compose-lock.mjs";
+import { sourceIdentity } from "./source-identity.mjs";
+import { fileSha256 } from "./backup-integrity.mjs";
+import { parseSelectedEnv } from "./deploy-env.mjs";
 import { spawnSync } from "node:child_process";
 import { randomBytes, randomUUID } from "node:crypto";
 import {
   closeSync, existsSync, mkdirSync, openSync, readFileSync, renameSync,
-  rmdirSync, statSync, writeFileSync,
+  statSync, writeFileSync,
 } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -169,7 +173,10 @@ export function createManager({ root = repoRoot, run = runDocker, log = console.
     const selected = maintenance ? resolveServices("", { environment: {} })
       : resolveServices(content, { environment, ocr: options.ocr });
     const withOcr = selected.ocr === "container";
-    const runtimeInput = maintenance ? undefined : serializeRuntime(composeRuntime(content, { environment, selected, storage }));
+    const deployingAction = ["up", "update"].includes(options.action);
+    const identity = deployingAction ? sourceIdentity(root) : undefined;
+    const releaseEnvironment = identity ? { ...environment, APP_RELEASE_ID: `${Date.now()}-${identity.sourceSha256.slice(0, 12)}-${randomUUID().slice(0, 8)}` } : environment;
+    const runtimeInput = maintenance ? undefined : serializeRuntime(composeRuntime(content, { environment: releaseEnvironment, selected, storage }));
     const composeArgs = ["compose", "--project-directory", root, "--env-file", envFile, "-f", resolve(root, "compose.yaml")];
     if (storage.mode === "rclone") composeArgs.push("-f", resolve(root, "compose.oss.yaml"));
     if (runtimeInput !== undefined) composeArgs.push("-f", "-");
@@ -178,7 +185,7 @@ export function createManager({ root = repoRoot, run = runDocker, log = console.
     if (withOcr || maintenance) composeArgs.push("--profile", "ocr");
     const compose = (args, execution = {}) => docker([...composeArgs, ...args], {
       input: runtimeInput,
-      environment: { ...process.env, ...environment, ...storage.environment, ...selected.environment, WZYWT_COMPOSE_MANAGED: "1" }, ...execution,
+      environment: { ...process.env, ...releaseEnvironment, ...storage.environment, ...selected.environment, WZYWT_COMPOSE_MANAGED: "1" }, ...execution,
     });
     const version = docker(["compose", "version", "--short"], { capture: true }).trim().match(/^v?(\d+)\.(\d+)/);
     if (!version || Number(version[1]) < 2 || (Number(version[1]) === 2 && Number(version[2]) < 20)) {
@@ -201,17 +208,13 @@ export function createManager({ root = repoRoot, run = runDocker, log = console.
       }
     }
 
-    const lockDir = resolve(root, ".cache", "compose-deploy.lock");
-    let locked = false;
+    let releaseLock;
     try {
       if (options.action !== "check") {
-        mkdirSync(dirname(lockDir), { recursive: true });
-        try { mkdirSync(lockDir); }
-        catch (error) {
-          if (error.code === "EEXIST") throw new Error(`Another operation holds ${lockDir}. If its process has exited, remove that empty lock directory and retry.`);
-          throw error;
-        }
-        locked = true;
+        const daemon = docker(["info", "--format", "{{.ID}}"], { capture: true }).trim();
+        const values = parseSelectedEnv(content, ["COMPOSE_PROJECT_NAME"]);
+        const project = environment.COMPOSE_PROJECT_NAME || values.get("COMPOSE_PROJECT_NAME") || "wzywt";
+        releaseLock = acquireComposeLock(daemon, project, options.action);
       }
       if (options.action === "down") { compose(["down"]); return; }
       // Include one-shot tools in the model without enabling them for startup.
@@ -232,8 +235,11 @@ export function createManager({ root = repoRoot, run = runDocker, log = console.
         return;
       }
       const deploying = options.action === "up" || options.action === "update";
+      let candidateImages = [];
       if (deploying) {
         compose(["build", "web", "cron", "migrate", "storage-init", ...(withOcr ? ["ocr"] : [])]);
+        candidateImages = [...new Set(["web", "cron", "migrate"].map(name => model.services[name]?.image).filter(Boolean))]
+          .map(image => ({ reference: image, id: docker(["image", "inspect", image, "--format", "{{.Id}}"], { capture: true }).trim() }));
         prepare(storage);
         // Datastore upgrades are a separate maintenance operation after backup.
         compose(["up", "-d", "--no-recreate", "--wait", "--wait-timeout", "180", ...(selected.mysql === "container" ? ["mysql"] : []), "redis"]);
@@ -258,6 +264,8 @@ export function createManager({ root = repoRoot, run = runDocker, log = console.
       if (deploying && selected.ocr === "external") {
         compose(["run", "--rm", "--no-deps", "-T", "--entrypoint", "node", "web", "docker/probe-ocr.mjs"]);
       }
+      const previousImages = containers.filter(row => row.ID).map(row => ({ id: row.ID, service: row.Service,
+        imageId: docker(["inspect", row.ID, "--format", "{{.Image}}"], { capture: true }).trim() }));
       const writerServices = ["web", "cron"].filter((service) => containers.some(({ Service }) => Service === service));
       const writers = writerServices.filter((service) => containers.some(({ Service, State }) => Service === service && ["running", "restarting"].includes(State)));
       let stopped = false;
@@ -290,6 +298,12 @@ export function createManager({ root = repoRoot, run = runDocker, log = console.
         writeFileSync(resolve(backupDir, "manifest.json"), JSON.stringify({
           complete: true, createdAt: new Date().toISOString(), project: model.name,
           files: ["database.sql", "media.tar.gz", "hero-assets.tar.gz"],
+          sha256: Object.fromEntries(["database.sql", "media.tar.gz", "hero-assets.tar.gz"].map(name => [name, fileSha256(resolve(backupDir, name))])),
+          candidateSource: identity,
+          candidateReleaseId: model.services.web.environment.APP_RELEASE_ID,
+          previousContainers: previousImages,
+          candidateImages,
+          restoreVerified: false,
           storageMode: storage.mode,
           mysqlMode: selected.mysql,
           remoteUploadVerified: false,
@@ -308,6 +322,12 @@ export function createManager({ root = repoRoot, run = runDocker, log = console.
         }
       } catch (error) {
         if (migrationStarted) {
+          // Capture bounded health/state before stopping the failed application.
+          const diagnostic = resolve(backupDir || storage.backupPath, "readiness-diagnostics.json");
+          try {
+            const raw = compose(["exec", "-T", "web", "node", "docker/healthcheck.mjs", "web"], { capture: true });
+            writeFileSync(diagnostic, raw, { mode: 0o600 });
+          } catch { /* Docker health history still contains the sanitized output. */ }
           // A failed migration can be partial. Keep all writers quiet for recovery.
           try { compose(["stop", "web", "cron"]); } catch { /* Preserve the original deployment error. */ }
           throw new Error(`${error.message}\nDeployment stopped after migration began. Inspect logs and Prisma migration state before recovery. Backup: ${backupDir}`);
@@ -319,7 +339,7 @@ export function createManager({ root = repoRoot, run = runDocker, log = console.
         if (stopped && !migrationStarted && writers.length) compose(["up", "-d", "--no-deps", "--no-recreate", "--no-build", "--pull", "never", "--wait", "--wait-timeout", "180", ...writers]);
       }
     } finally {
-      if (locked) rmdirSync(lockDir);
+      releaseLock?.();
     }
   };
 }

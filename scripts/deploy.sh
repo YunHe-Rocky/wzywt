@@ -22,6 +22,10 @@ DEPLOY_LOG_DIR=""
 DEPLOY_SUCCEEDED=0
 PRESERVE_FAILED_RELEASE=0
 ACTIVATION_DIAGNOSTICS_COLLECTED=0
+MIGRATION_STARTED=0
+WRITERS_STOPPED=0
+AUTO_ROLLBACK_SAFE=0
+PREVIOUS_RUNNING_NAMES=()
 
 log() { printf '[deploy] %s\n' "$*"; }
 fail() { printf '[deploy] ERROR: %s\n' "$*" >&2; exit 1; }
@@ -92,6 +96,9 @@ path_within() {
 cleanup_on_exit() {
   local exit_code=$?
   local file current_target=""
+  if [[ "$DEPLOY_SUCCEEDED" != "1" && "$WRITERS_STOPPED" == "1" && "$MIGRATION_STARTED" == "0" && "${#PREVIOUS_RUNNING_NAMES[@]}" -gt 0 ]]; then
+    "$PM2_BIN" restart "${PREVIOUS_RUNNING_NAMES[@]}" >/dev/null 2>&1 || true
+  fi
   for file in "${TEMP_FILES[@]:-}"; do
     [[ -n "$file" ]] && rm -f -- "$file" 2>/dev/null || true
   done
@@ -675,8 +682,22 @@ log "verify Redis authentication with the release environment before build"
 log "build before touching the running service"
 "$NPM_BIN" run build
 
-log "create database backup"
-"$NODE_BIN" scripts/db-backup.mjs "$BACKUP_DIR"
+# A native release now uses an explicit stop-write window. PM2 stop honors the
+# configured graceful timeout; watchdogs preserve intentionally stopped apps.
+mapfile -t PREVIOUS_RUNNING_NAMES < <("$NODE_BIN" -e '
+const fs=require("node:fs");const rows=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));
+for(const row of rows){const e=row.pm2_env||row;const name=row.name||e.name;if([process.argv[2],process.argv[3]].includes(name)&&["online","launching"].includes(e.status))console.log(name);}
+' "$PM2_STATE_FILE" "$PM2_WEB_NAME" "$PM2_CRON_NAME")
+if [[ "$CURRENT_TARGET" != "-" ]]; then
+  "$PM2_BIN" stop "$PM2_WEB_NAME" "$PM2_CRON_NAME"
+  WRITERS_STOPPED=1
+  if diff -qr "$CURRENT_TARGET/prisma/migrations" "$RELEASE_DIR/prisma/migrations" >/dev/null 2>&1; then AUTO_ROLLBACK_SAFE=1; fi
+fi
+log "create a consistent SQL/media/avatar/hero backup set while writers are stopped"
+export MEDIA_STORAGE_DIR AVATAR_DIR
+APP_RELEASE_ID="$RELEASE_ID" DEPLOY_TAR_BIN="$TAR_BIN" "$NODE_BIN" scripts/native-release-backup.mjs "$BACKUP_DIR/$RELEASE_ID" "$CURRENT_TARGET"
+MIGRATION_STARTED=1
+PRESERVE_FAILED_RELEASE=1
 
 run_migrations() {
   "$NPX_BIN" --no-install prisma migrate deploy 2>&1 | tee "$MIGRATION_LOG"
@@ -814,6 +835,10 @@ rollback_release() {
   local reason="$1" rollback_ok=0
   log "activation failed: $reason"
   collect_activation_diagnostics
+  if [[ "$MIGRATION_STARTED" == "1" && "$AUTO_ROLLBACK_SAFE" != "1" ]]; then
+    "$PM2_BIN" stop "$PM2_WEB_NAME" "$PM2_CRON_NAME" >/dev/null 2>&1 || true
+    fail "migration set changed; automatic application rollback is disabled. Writers remain stopped. Preserve $BACKUP_DIR/$RELEASE_ID and inspect migration state before forward repair or isolated restore"
+  fi
   if [[ "$PREVIOUS_TARGET" != "-" && -d "$PREVIOUS_TARGET" ]]; then
     log "roll back current link and PM2 to $PREVIOUS_TARGET"
     if atomic_switch "$PREVIOUS_TARGET" \

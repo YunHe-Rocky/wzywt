@@ -19,16 +19,18 @@ async function getUniqueSlug(base: string, excludeId?: number): Promise<string> 
   return `${base.slice(0, 48)}-${Date.now().toString(36)}`;
 }
 
-export async function listAdminAnnouncements() {
+export async function listAdminAnnouncements(page = 1, pageSize = 50) {
   return prisma.announcement.findMany({
-    orderBy: { createdAt: "desc" },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    take: pageSize, skip: (page - 1) * pageSize,
   });
 }
 
-export async function listPublishedAnnouncements(full = false) {
+export async function listPublishedAnnouncements(full = false, page = 1, pageSize = 50) {
   const announcements = await prisma.announcement.findMany({
     where: { published: true },
-    orderBy: [{ version: "desc" }, { createdAt: "desc" }],
+    orderBy: [{ version: "desc" }, { createdAt: "desc" }, { id: "desc" }],
+    take: pageSize, skip: (page - 1) * pageSize,
     select: full
       ? { title: true, version: true, brief: true, content: true, slug: true, createdAt: true }
       : { title: true, version: true, brief: true, slug: true, createdAt: true },

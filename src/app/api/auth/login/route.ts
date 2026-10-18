@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { normalizeAuthUsername, passwordValidationError } from "@/features/auth/model";
-import { prisma } from "@/lib/db";
+import { findLoginAccount } from "@/features/auth/server/login";
 import { verifyPassword } from "@/lib/auth";
 import { clearLoginLimits, consumeLoginLimits, getRequestIp, RateLimitError } from "@/lib/auth-rate-limit";
 import { getSession } from "@/lib/session";
@@ -30,10 +30,7 @@ async function handlePOST(req: NextRequest) {
     throw error;
   }
 
-  const user = await prisma.user.findUnique({
-    where: { username },
-    select: { id: true, username: true, passwordHash: true, role: true, banned: true, isTemporary: true, sessionVersion: true, deletedAt: true },
-  });
+  const user = await findLoginAccount(username);
   const validPassword = await verifyPassword(password, user?.passwordHash ?? DUMMY_PASSWORD_HASH);
   if (!user || !validPassword || user.banned || user.isTemporary || user.deletedAt) {
     return NextResponse.json({ error: INVALID_CREDENTIALS }, { status: 401 });

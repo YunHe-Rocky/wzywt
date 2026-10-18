@@ -1,3 +1,4 @@
+import { apiErrorResponse } from "@/lib/api-errors";
 import { withRequestCapacity } from "@/lib/request-capacity";
 export const dynamic = "force-dynamic";
 
@@ -113,7 +114,9 @@ async function handleDELETE(req: NextRequest, props: { params: Promise<{ id: str
     if (!admin) return NextResponse.json({ error: "无权限" }, { status: 403 });
   }
 
-  await prisma.tournament.delete({ where: { id: tournamentId } });
+  if (await prisma.internalMatch.count({ where: { tournamentId } })) return NextResponse.json({ error: "该房间已有比赛档案，须保留历史，不能删除", code: "ROOM_HAS_HISTORY" }, { status: 409 });
+  try { await prisma.tournament.delete({ where: { id: tournamentId } }); }
+  catch (error) { return apiErrorResponse(error, { request: req, useCase: "tournaments.delete" }); }
   return NextResponse.json({ ok: true });
 }
 

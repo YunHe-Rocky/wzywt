@@ -11,11 +11,12 @@ permissions:
 jobs:
   validate:
     runs-on: ubuntu-22.04
-    timeout-minutes: 20
+    timeout-minutes: 35
     strategy:
       fail-fast: false
       matrix:
         node: [24, 26]
+        mode: [proxy, local]
     services:
       mysql:
         image: mysql:8.4
@@ -39,8 +40,8 @@ jobs:
       AVATAR_DIR: /tmp/wzywt-ci-avatars
 
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: ${{ matrix.node }}
           cache: npm
@@ -48,24 +49,11 @@ jobs:
       - run: npx prisma generate
       - run: npx prisma validate
       - run: npx prisma migrate deploy
-      - run: npm run check:shell-eol
       - run: bash -n scripts/*.sh
-      - run: node --check scripts/check-shell-line-endings.mjs && node --check scripts/deploy-env.mjs && node --check scripts/inspect-deploy-host.mjs && node --check scripts/inspect-runtime-services.mjs && node --check scripts/run-deploy-tests.mjs && node --check scripts/verify-deploy-state.mjs && node --check scripts/media-manifest.mjs
-      - run: npm run test:deploy
-      - run: npm run check:architecture
-      - run: npm run test:docs
-      - run: npm run typecheck
-      - run: npm run test:core
-      - run: npm run test:crawler
-      - run: npm run test:hero-assets
-      - run: npm run test:compose
-      - run: npm run test:split-worker
-      - run: npm run test:entry
-      - run: npm run test:markdown
-      - run: npm run test:next-stage
-      - run: npm run test:connections
-      - run: npm run test:combat-video
+      - name: Shared local and CI verification collection
+        run: npm run check
       - run: npm run test:integration
+      - run: npm run test:integration:audit
       - run: npm run lint
       - run: npm run build
       - run: npx playwright install --with-deps chromium webkit
@@ -86,10 +74,17 @@ jobs:
         run: npm run test:e2e:combat-admin
       - name: Install isolated HTTPS proxy dependency
         run: sudo apt-get update && sudo apt-get install -y nginx openssl
-      - name: HTTPS Nginx login and private resources (desktop, Android, WebKit)
-        run: npm run test:e2e:proxy
-      - name: Local HTTP login and private resources (desktop, Android, WebKit)
-        run: npm run test:e2e:local
+      - name: Browser regression in isolated deployment mode
+        run: npm run test:e2e:${{ matrix.mode }}
+      - name: Upload sanitized browser diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: browser-${{ matrix.node }}-${{ matrix.mode }}
+          path: .cache/ci-diagnostics/
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 7
 
   containers:
     runs-on: ubuntu-22.04
@@ -97,8 +92,8 @@ jobs:
     env:
       DEPLOY_ENVIRONMENT: local
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: 24
       - name: Generate isolated container configuration
@@ -118,10 +113,21 @@ jobs:
       - name: Container diagnostics
         if: failure()
         run: |
+          mkdir -p .cache/ci-diagnostics/containers
           node scripts/compose.mjs status
           for container_id in $(docker ps --all --filter label=com.docker.compose.project=wzywt --format '{{.ID}}'); do
+            docker inspect --format '{{json .State}}' "$container_id" > ".cache/ci-diagnostics/containers/$container_id-state.json"
             docker logs --tail 100 "$container_id"
           done
+      - name: Upload container state and readiness diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: containers
+          path: .cache/ci-diagnostics/
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Stop isolated stack
         if: always()
         run: |
@@ -155,8 +161,8 @@ jobs:
       MEDIA_STORAGE_DIR: /tmp/wzywt-db-matrix-media
       AVATAR_DIR: /tmp/wzywt-db-matrix-avatars
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: 24
           cache: npm
@@ -164,3 +170,46 @@ jobs:
       - run: npx prisma generate
       - run: npx prisma migrate deploy
       - run: npm run test:integration
+      - run: npm run test:integration:audit
+
+  ocr-contract:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24
+          cache: npm
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.12'
+      - run: npm ci
+      - run: python -m pip install -r services/ocr/requirements-test.txt
+      - run: python -m unittest discover -s services/ocr -p 'test_*.py'
+      - run: OCR_TEST_PYTHON=$(command -v python) node --import tsx scripts/test-ocr-contract.mjs
+
+  redis-contract:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    services:
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+    env:
+      REDIS_URL: redis://127.0.0.1:6379/15
+      ALLOW_REDIS_INTEGRATION_TEST: '1'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx prisma generate
+      - run: npm run test:redis:audit

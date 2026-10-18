@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { type FormEvent, useEffect, useRef, useState } from "react";
+import { type FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import {
   createAdminAnnouncement,
   deleteAdminAnnouncement,
@@ -42,6 +42,7 @@ const ANNOUNCEMENT_TEMPLATES = {
 export function AnnouncementManager() {
   const [list, setList] = useState<AdminAnnouncement[]>([]);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
@@ -53,17 +54,16 @@ export function AnnouncementManager() {
   const [slug, setSlug] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  useEffect(() => {
-    void load();
-  }, []);
-
-  async function load() {
+  const load = useCallback(async (nextPage = 1) => {
     setLoading(true);
-    const { ok, data } = await listAdminAnnouncements();
-    if (ok) setList(data.announcements);
-    else setError(data.error || "公告加载失败");
-    setLoading(false);
-  }
+    try {
+      const { ok, data } = await listAdminAnnouncements(nextPage);
+      if (ok) { setList(data.announcements); setPage(nextPage); }
+      else setError(data.error || "公告加载失败");
+    } catch { setError("公告加载失败，请检查网络后重试"); }
+    finally { setLoading(false); }
+  }, []);
+  useEffect(() => { void load(1); }, [load]);
 
   function openNew() {
     setEditId(null);
@@ -132,7 +132,7 @@ export function AnnouncementManager() {
     }
     setMessage(editId ? "公告已更新" : "公告已创建并发布");
     setShowForm(false);
-    await load();
+    await load(page);
   }
 
   async function togglePublish(announcement: AdminAnnouncement) {
@@ -145,7 +145,7 @@ export function AnnouncementManager() {
       setError(data.error || "状态更新失败");
       return;
     }
-    await load();
+    await load(page);
   }
 
   async function remove(announcement: AdminAnnouncement) {
@@ -156,7 +156,7 @@ export function AnnouncementManager() {
       return;
     }
     setMessage("公告已删除");
-    await load();
+    await load(page);
   }
 
   if (loading) {
@@ -320,6 +320,11 @@ export function AnnouncementManager() {
         </div>
       </div>
 
+      <nav aria-label="公告分页" className="flex items-center justify-end gap-3 mt-4">
+        <button type="button" className="btn-subtle min-h-11 px-3" disabled={loading || page === 1} onClick={() => void load(page - 1)}>上一页</button>
+        <span>第 {page} 页</span>
+        <button type="button" className="btn-subtle min-h-11 px-3" disabled={loading || list.length < 50} onClick={() => void load(page + 1)}>下一页</button>
+      </nav>
       <style jsx>{`
         .announcement-meta-grid,
         .announcement-editor-grid {
