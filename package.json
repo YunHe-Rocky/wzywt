@@ -1,6 +1,6 @@
 {
   "name": "wangzhe-yanwutang",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "private": true,
   "engines": {
     "node": ">=24",
@@ -56,7 +56,7 @@
     "test:e2e:room-profile": "node tests/e2e/room-profile-regression.mjs",
     "test:e2e:room-archive": "node tests/e2e/room-archive-regression.mjs && node tests/e2e/tactic-layer-regression.mjs",
     "audit:prod": "npm audit --omit=dev --audit-level=high",
-    "check": "npm run check:shell-eol && npm run test:release && npm run check:architecture && npm run test:docs && npm run typecheck && npm run test:core && npm run test:audit-repairs && npm run build:workers && npm run test:governor && npm run test:crawler && npm run test:split-worker && npm run test:entry && npm run test:markdown && npm run test:next-stage && npm run test:connections && npm run test:combat-video && npm run test:task-fence && npm run test:api-use-cases && npm run test:match-draft && npm run test:match-visibility && npm run test:mobile-routes && npm run test:deploy && npm run test:compose && npm run test:hero-assets",
+    "check": "npm run check:shell-eol && npm run test:release && npm run check:architecture && npm run test:docs && npm run typecheck && npm run test:core && npm run test:history-theme:core && npm run test:audit-repairs && npm run build:workers && npm run test:governor && npm run test:crawler && npm run test:split-worker && npm run test:entry && npm run test:markdown && npm run test:next-stage && npm run test:connections && npm run test:combat-video && npm run test:task-fence && npm run test:api-use-cases && npm run test:match-draft && npm run test:match-visibility && npm run test:mobile-routes && npm run test:deploy && npm run test:compose && npm run test:hero-assets",
     "test:e2e:arena": "node tests/e2e/arena-redesign.mjs && node tests/e2e/arena-motion.mjs && node tests/e2e/arena-glass.mjs && node tests/e2e/hero-live-refresh.mjs",
     "docker:init": "node scripts/compose.mjs init",
     "docker:check": "node scripts/compose.mjs check",
@@ -74,7 +74,11 @@
     "test:e2e:tournament-boundaries": "node tests/e2e/tournament-boundaries.mjs",
     "test:audit-repairs": "tsx scripts/test-audit-repairs.ts && node --test scripts/test-audit-operations.mjs",
     "test:integration:audit": "tsx scripts/test-audit-database.ts",
-    "test:redis:audit": "tsx scripts/test-audit-redis.ts"
+    "test:redis:audit": "tsx scripts/test-audit-redis.ts",
+    "test:history-theme:core": "tsx --test tests/unit/history-theme/*.test.ts",
+    "test:e2e:combat-streaming": "node tests/e2e/combat-video-streaming-regression.mjs",
+    "test:e2e:history-theme": "node tests/e2e/history-theme-ui-regression.mjs",
+    "test:e2e:yanwu": "node tests/e2e/yanwu-full-site.mjs"
   },
   "dependencies": {
     "@next/env": "^15.5.27",

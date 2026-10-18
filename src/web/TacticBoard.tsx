@@ -1,5 +1,7 @@
 "use client";
 
+import "@/web/styles/yanwu-workspaces.css";
+
 import Link from "next/link";
 import { useParams, usePathname } from "next/navigation";
 import { PointerEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -314,7 +316,7 @@ export function TacticBoard() {
         <div className="tactic-clock-presets">{CLOCK_PRESETS.map((value) => <button key={value} onClick={() => setClockSeconds(value)}>{formatTacticTime(value)}</button>)}</div>
       </div>
       <div className="tactic-resource-strip" aria-label="当前资源节奏">{quickResources.map((item) => <div key={item.id} data-state={item.state}><span>{item.name}</span><strong>{tacticResourceStateLabel(item, clockSeconds)}</strong></div>)}</div>
-      <details className="tactic-resource-details"><summary>记录击杀与查看完整刷新表</summary><div className="tactic-resource-table-wrap"><table className="tactic-resource-table"><thead><tr><th>资源</th><th>首刷</th><th>刷新规则</th><th>当前 / 下一次</th><th>本地推演</th></tr></thead><tbody>{timeline.map((item) => <tr key={item.id} data-state={item.state}><th>{item.name}</th><td>{formatTacticTime(item.firstSpawnAt)}</td><td>{item.id === "lane" ? `每 ${item.respawnSeconds}s` : `击杀后 ${item.respawnSeconds}s`}</td><td>{tacticResourceStateLabel(item, clockSeconds)}</td><td>{item.id === "lane" ? "自动计算" : <button disabled={item.state === "pending" || item.state === "retired"} onClick={() => recordClear(item.id)}>记为此刻击杀</button>}</td></tr>)}</tbody></table></div><p className="tactic-rule-note">龙与野怪从实际击杀时刻计算再次刷新。</p></details>
+      <details className="tactic-resource-details"><summary>记录击杀与查看完整刷新表</summary><div className="tactic-resource-table-wrap" role="region" tabIndex={0} aria-label="地图资源刷新时间表"><table className="tactic-resource-table"><thead><tr><th>资源</th><th>首刷</th><th>刷新规则</th><th>当前 / 下一次</th><th>本地推演</th></tr></thead><tbody>{timeline.map((item) => <tr key={item.id} data-state={item.state}><th>{item.name}</th><td>{formatTacticTime(item.firstSpawnAt)}</td><td>{item.id === "lane" ? `每 ${item.respawnSeconds}s` : `击杀后 ${item.respawnSeconds}s`}</td><td>{tacticResourceStateLabel(item, clockSeconds)}</td><td>{item.id === "lane" ? "自动计算" : <button disabled={item.state === "pending" || item.state === "retired"} onClick={() => recordClear(item.id)}>记为此刻击杀</button>}</td></tr>)}</tbody></table></div><p className="tactic-rule-note">龙与野怪从实际击杀时刻计算再次刷新。</p></details>
     </section>
     <section className="tactic-stage-panel tactic-stage-panel--focused">
         <div className="tactic-stage-switcher" aria-label="战术阶段"><div className="tactic-layer-list">{layers.map((layer, index) => <button key={layer.id} aria-current={index === activeIndex} onClick={() => { setFollowClock(false); setActiveLayerId(layer.id); }}><strong>{layer.name}</strong><small>{secondsLabel(layer.startTime)}{layer.endTime === null ? "" : ` – ${secondsLabel(layer.endTime)}`}</small></button>)}</div><button className="tactic-follow" aria-pressed={followClock} onClick={() => setFollowClock((value) => !value)}>{followClock ? "跟随时间" : "手动阶段"}</button></div>
@@ -330,8 +332,8 @@ export function TacticBoard() {
           <svg ref={svgRef} className="tactic-board" data-readonly={!data.access.canDraw} viewBox={`0 0 ${BOARD_WIDTH} ${BOARD_HEIGHT}`} role="img" aria-label={mapMissing ? (data.access.canDraw ? "战术坐标网格，按住并拖动绘制路线，点击添加点位" : "战术坐标网格，只读查看已公开标注") : (data.access.canDraw ? "王者峡谷战术板，按住并拖动绘制路线，点击添加点位" : "王者峡谷战术复盘，只读查看已公开标注")} aria-describedby={mapMissing ? "tactic-input-hint tactic-map-status" : "tactic-input-hint"} onPointerDown={boardPointerDown} onPointerMove={boardPointerMove} onPointerUp={finishRoutePointer} onPointerCancel={finishRoutePointer}>
             <image href="/images/tactic-map-source.jpg" x="-350" y="-90" width="2048" height="963" onError={() => setMapMissing(true)} onLoad={() => setMapMissing(false)} />
             {mapMissing && <g pointerEvents="none">
-              <defs><pattern id="tactic-coordinate-grid" width={BOARD_WIDTH / 10} height={BOARD_HEIGHT / 10} patternUnits="userSpaceOnUse"><path d={`M ${BOARD_WIDTH / 10} 0 H 0 V ${BOARD_HEIGHT / 10}`} fill="none" stroke="#64748b" strokeWidth="2" /></pattern></defs>
-              <rect width={BOARD_WIDTH} height={BOARD_HEIGHT} fill="#1e293b" />
+              <defs><pattern id="tactic-coordinate-grid" width={BOARD_WIDTH / 10} height={BOARD_HEIGHT / 10} patternUnits="userSpaceOnUse"><path d={`M ${BOARD_WIDTH / 10} 0 H 0 V ${BOARD_HEIGHT / 10}`} fill="none" stroke="var(--workspace-map-grid)" strokeWidth="2" /></pattern></defs>
+              <rect width={BOARD_WIDTH} height={BOARD_HEIGHT} fill="var(--workspace-map-fallback)" />
               <rect width={BOARD_WIDTH} height={BOARD_HEIGHT} fill="url(#tactic-coordinate-grid)" />
             </g>}
             <rect width={BOARD_WIDTH} height={BOARD_HEIGHT} fill="rgba(2, 12, 18, .08)" pointerEvents="none" />

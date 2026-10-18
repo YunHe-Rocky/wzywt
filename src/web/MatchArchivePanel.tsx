@@ -1,5 +1,7 @@
 "use client";
 
+import "@/web/styles/yanwu-workspaces.css";
+
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
@@ -71,7 +73,7 @@ export function MatchArchivePanel({ tournamentId, canManage, mode = "archive" }:
       <div className="feature-heading">
         <div>
           <p className="feature-kicker">{mode === "tactics" ? "TEAM TACTICS" : "MATCH ARCHIVE"}</p>
-          <h3 id="match-archive-title">{mode === "tactics" ? "本队战术" : "永久比赛档案"} {mode === "archive" && <span className="badge badge-gold" style={{ fontSize: 11, verticalAlign: "middle" }}>BETA 测试</span>}</h3>
+          <h3 id="match-archive-title">{mode === "tactics" ? "本队战术" : "永久比赛档案"} {mode === "archive" && <span className="badge badge-gold" style={{ fontSize: 12, verticalAlign: "middle" }}>BETA 测试</span>}</h3>
           <p>{mode === "tactics" ? "只显示自己所在队伍；赛前独立标注，战绩提交后队内复盘。" : canManage ? "管理员可录入和审核双方数据，正式提交后成员才能查看本队档案。" : "比赛结束并正式提交后开放，仅展示本队比赛数据。"}</p>
         </div>
         {canManage && !loading && !loadError && matches.length === 0 && (

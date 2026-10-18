@@ -835,11 +835,11 @@ rollback_release() {
   local reason="$1" rollback_ok=0
   log "activation failed: $reason"
   collect_activation_diagnostics
-  if [[ "$MIGRATION_STARTED" == "1" && "$AUTO_ROLLBACK_SAFE" != "1" ]]; then
-    "$PM2_BIN" stop "$PM2_WEB_NAME" "$PM2_CRON_NAME" >/dev/null 2>&1 || true
-    fail "migration set changed; automatic application rollback is disabled. Writers remain stopped. Preserve $BACKUP_DIR/$RELEASE_ID and inspect migration state before forward repair or isolated restore"
-  fi
   if [[ "$PREVIOUS_TARGET" != "-" && -d "$PREVIOUS_TARGET" ]]; then
+    if [[ "$MIGRATION_STARTED" == "1" && "$AUTO_ROLLBACK_SAFE" != "1" ]]; then
+      "$PM2_BIN" stop "$PM2_WEB_NAME" "$PM2_CRON_NAME" >/dev/null 2>&1 || true
+      fail "migration set changed; automatic application rollback is disabled. Writers remain stopped. Preserve $BACKUP_DIR/$RELEASE_ID and inspect migration state before forward repair or isolated restore"
+    fi
     log "roll back current link and PM2 to $PREVIOUS_TARGET"
     if atomic_switch "$PREVIOUS_TARGET" \
       && reload_release "$CURRENT_LINK" \
@@ -853,6 +853,8 @@ rollback_release() {
     fail "release $RELEASE_ID failed and the previous release could not be fully restored: $reason"
   fi
 
+  # First-install cleanup does not start an older application or reverse SQL.
+  # Keep the failed release and backup, but remove its active link and PM2 apps.
   if [[ -L "$CURRENT_LINK" && "$(readlink -f -- "$CURRENT_LINK" 2>/dev/null || true)" == "$RELEASE_DIR" ]]; then
     rm -- "$CURRENT_LINK"
   fi

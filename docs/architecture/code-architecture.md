@@ -52,6 +52,10 @@ cron ─────→ features ─────→ core / lib
 不得包含 Prisma 查询、Redis 操作、爬虫或分队算法。
 不得直接调用 `fetch()`；HTTP 路径、请求体和响应解析由对应的 `features/*/client/api.ts` 封装。
 
+大型页面采用容器与分区组件：`MatchWorkspace` 的视图及草稿/操作 hooks 位于 `components/match-workspace`，`TournamentDetail` 的类型和界面分区位于 `components/tournament/detail`。子组件不反向导入页面容器；权限值和操作回调通过明确的类型传入。选将面板仅在打开对应页签时加载。
+
+全站基础样式和主题变量由根布局引入；工作区、后台、调试页样式由各自组件引入，两端复用同一入口。调整入口时同步核验桌面和 `/m` 路由，避免只在隔离组件测试中有样式。
+
 ### `src/features`
 
 按业务功能组织可复用能力：

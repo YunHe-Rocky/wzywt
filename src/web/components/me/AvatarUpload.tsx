@@ -68,7 +68,7 @@ export function AvatarUpload({ avatar, username, size = 80, onUpdated }: Props) 
           />
         ) : null}
         <span
-          className={`w-full h-full flex items-center justify-center font-bold bg-blue/8 text-[#4488f0] ${avatarUrl ? "hidden" : ""}`}
+          className={`w-full h-full flex items-center justify-center font-bold bg-blue/8 text-[var(--blue)] ${avatarUrl ? "hidden" : ""}`}
           style={{ fontSize: size * 0.4 }}
         >
           {username[0]}
@@ -86,12 +86,12 @@ export function AvatarUpload({ avatar, username, size = 80, onUpdated }: Props) 
       <button
         type="button"
         disabled={uploading}
-        className="text-[11px] text-text-muted cursor-pointer bg-transparent border-0 p-1 disabled:opacity-50"
+        className="min-h-11 text-xs text-text-muted cursor-pointer bg-transparent border-0 p-1 disabled:opacity-50"
         onClick={() => inputRef.current?.click()}
       >
         {uploading ? "处理中..." : "更换头像"}
       </button>
-      {error && <span className="text-[11px] text-red">{error}</span>}
+      {error && <span className="text-xs text-red">{error}</span>}
     </div>
   );
 }

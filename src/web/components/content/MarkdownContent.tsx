@@ -111,7 +111,7 @@ export function MarkdownContent({
       nodes.push(level === 1
         ? <h1 key={key++} {...common} className={compact ? "text-base font-bold mt-4 mb-1" : undefined}>{renderInline(heading[2])}</h1>
         : level === 2
-          ? <h2 key={key++} {...common} className={compact ? "text-sm font-bold text-gold-light mt-3 mb-1" : undefined}>{renderInline(heading[2])}</h2>
+          ? <h2 key={key++} {...common} className={compact ? "text-base font-bold text-gold mt-3 mb-1" : undefined}>{renderInline(heading[2])}</h2>
           : <h3 key={key++} {...common} className={compact ? "text-xs font-semibold mt-2 mb-1" : undefined}>{renderInline(heading[2])}</h3>);
       index++;
       continue;
@@ -164,7 +164,7 @@ export function MarkdownContent({
       }
       const hasSeparator = rows.length > 1 && rows[1].every((cell) => /^:?-{3,}:?$/.test(cell));
       if (hasSeparator) {
-        nodes.push(<div key={key++} style={{ overflowX: "auto" }}><table><thead><tr>
+        nodes.push(<div key={key++} className="yanwu-table-scroll" role="region" aria-label="正文数据表" tabIndex={0}><table><thead><tr>
           {rows[0].map((cell, cellIndex) => <th key={cellIndex}>{renderInline(cell)}</th>)}
         </tr></thead><tbody>
           {rows.slice(2).map((row, rowIndex) => <tr key={rowIndex}>{row.map((cell, cellIndex) => <td key={cellIndex}>{renderInline(cell)}</td>)}</tr>)}
@@ -189,12 +189,12 @@ export function MarkdownContent({
       paragraph.push(lines[index].trim());
       index++;
     }
-    nodes.push(<p key={key++} style={{ margin: compact ? "2px 0" : "6px 0", color: "var(--text-secondary)", fontSize: compact ? 12 : 14, lineHeight: compact ? 1.65 : 1.75 }}>
+    nodes.push(<p key={key++}>
       {paragraph.map((item, paragraphIndex) => <Fragment key={paragraphIndex}>{paragraphIndex > 0 && <br />}{renderInline(item)}</Fragment>)}
     </p>);
   }
 
   return nodes.length > 0
-    ? <div className="markdown-content">{nodes}</div>
+    ? <div className={`markdown-content${compact ? " markdown-content--compact" : ""}`}>{nodes}</div>
     : <p style={{ color: "var(--text-muted)", fontSize: 13 }}>正文预览将在这里显示</p>;
 }

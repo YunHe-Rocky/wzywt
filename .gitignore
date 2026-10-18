@@ -79,6 +79,16 @@ next-env.d.ts
 **/__pycache__/
 
 # Generated promotional media (scripts and manifests remain tracked)
+/artifacts/promotional-video/**/.deps/
+/artifacts/promotional-video/**/*.bin
+/artifacts/promotional-video/**/*.jpeg
+/artifacts/promotional-video/**/*.jpg
+/artifacts/promotional-video/**/*.mp3
+/artifacts/promotional-video/**/*.mp4
+/artifacts/promotional-video/**/*.png
+/artifacts/promotional-video/**/*.pyc
+/artifacts/promotional-video/**/*.wav
+/artifacts/promotional-video/**/*.webm
 /artifacts/promotional-video/v2/.deps/
 /artifacts/promotional-video/v2/**/*.bin
 /artifacts/promotional-video/v2/**/*.jpeg

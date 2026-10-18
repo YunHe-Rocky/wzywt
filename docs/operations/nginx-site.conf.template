@@ -9,6 +9,7 @@ server {
     access_log /var/log/nginx/__PROJECT_NAME__-access.log;
     error_log  /var/log/nginx/__PROJECT_NAME__-error.log;
 
+    # 512 MiB video plus multipart overhead; keep aligned with the app policy.
     client_max_body_size 516m;
 
     location / {

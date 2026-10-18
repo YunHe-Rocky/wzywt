@@ -8,6 +8,7 @@ import { copyText } from "@/web/components/ui/clipboard";
 import { MarkdownContent } from "@/web/components/content/MarkdownContent";
 import { usePageResources } from "@/features/resource-scheduler/client";
 import { ArenaIcon } from "@/web/components/arena/ArenaIcon";
+import { HistoryThemeSessionHome } from "@/web/components/history-theme/HistoryThemeSessionHome";
 
 interface OfficialNews { title: string; date: string; url: string }
 interface PublicTournament { id: number; name: string; code: string; announcement: string | null; _count: { players: number }; deadline: string }
@@ -58,44 +59,36 @@ export function HomePage() {
 
   return <div className="page-shell page-shell--wide arena-home">
     <section className="arena-hero" aria-labelledby="arena-title">
-      <img className="arena-hero-art" src="/art/arena.webp" alt="" width="1984" height="793" fetchPriority="high" />
-      <div className="arena-hero-shade" />
-      <div className="arena-hero-sparks" aria-hidden="true">{Array.from({ length: 8 }, (_, i) => <i key={i} />)}</div>
+      <img className="arena-hero-art" src="/art/yanwu-ink.webp" alt="" width="1440" height="960" fetchPriority="high" />
       <div className="arena-hero-content">
         <div className="arena-eyebrow"><span />王者荣耀 · 好友内战</div>
-        <h1 id="arena-title">今晚，<span>峡谷见。</span></h1>
-        <p>平时并肩上分，今晚分个高下。<br />约上朋友，来一场刚刚好的较量。</p>
+        <h1 id="arena-title">以武会友，<span>于此相逢。</span></h1>
+        <p>把熟悉的朋友，分成势均力敌的对手。<br />约一场好局，留下下一次相聚的约定。</p>
         <div className="arena-hero-actions">
           <Link href={href("/tournaments")} className="btn-primary arena-main-cta"><ArenaIcon name="swords" />进入赛事大厅<ArenaIcon name="arrow" /></Link>
           <Link href={href("/tournaments#join-room")} className="arena-secondary-cta">房间号加入<ArenaIcon name="chevron" width="15" height="15" /></Link>
         </div>
         <div className="arena-hero-promises"><span><ArenaIcon name="shield" />按实力分队</span><span><ArenaIcon name="users" />照顾分路偏好</span></div>
       </div>
-      <div className="arena-hero-bottom"><span>熟悉的朋友，也可以是好对手。</span><span><i />5V5 好友局</span></div>
     </section>
 
-    <div className="arena-principles" aria-label="内战流程">
-      <div><span className="arena-step-number">01</span><ArenaIcon name="users" /><div><strong>喊朋友来</strong><span>发个房间号，人齐就出发</span></div></div>
-      <div><span className="arena-step-number">02</span><ArenaIcon name="shield" /><div><strong>分个好队</strong><span>参考战力和分路，尽量打得有来有回</span></div></div>
-      <div><span className="arena-step-number">03</span><ArenaIcon name="swords" /><div><strong>痛快打一场</strong><span>赛后看看战绩，下局再来</span></div></div>
-    </div>
+    <HistoryThemeSessionHome />
 
     <section className="arena-section" aria-labelledby="rooms-title">
-      <div className="arena-section-heading"><div><h2 id="rooms-title">一起开一局<span className="arena-live-tag"><i />公开房间</span></h2></div><Link href={href("/tournaments")} className="arena-text-link">全部赛事<ArenaIcon name="arrow" /></Link></div>
-      {error ? <LoadFailure message={error} onRetry={retry} /> : loading ? <LoadingCards /> : rooms.length === 0 ? <div className="arena-empty-room"><div className="arena-empty-emblem"><ArenaIcon name="swords" /></div><div><h3>第一局，你来组</h3><p>暂时没有公开房间。开一间，把房间号发给朋友。</p></div><Link href={href("/tournaments#create-room")} className="btn-ghost"><ArenaIcon name="plus" />创建房间</Link></div> : <div className="arena-room-grid">{rooms.slice(0, 6).map(room => {
+      <div className="arena-section-heading"><div><p className="arena-eyebrow">01 / 好友相聚</p><h2 id="rooms-title">三五好友，正好一局。</h2><p className="yanwu-section-note">公开房间 · 寻一席好对手</p></div><Link href={href("/tournaments")} className="arena-text-link">全部赛事<ArenaIcon name="arrow" /></Link></div>
+      {error ? <LoadFailure message={error} onRetry={retry} /> : loading ? <LoadingCards /> : rooms.length === 0 ? <div className="arena-empty-room"><div className="arena-empty-emblem"><ArenaIcon name="swords" /></div><div><h3>第一局，你来组</h3><p>暂时没有公开房间。开一间，把房间号发给朋友。</p></div><Link href={href("/tournaments#create-room")} className="btn-ghost"><ArenaIcon name="plus" />创建房间</Link></div> : <div className="arena-room-grid yanwu-open-rooms">{rooms.slice(0, 6).map(room => {
         const full = room._count.players >= 10;
         const closed = new Date(room.deadline).getTime() <= Date.now();
         return <article className="arena-room" key={room.id}>
           <div className="arena-room-top"><span className={`arena-room-state ${full || closed ? "is-closed" : ""}`}><i />{full ? "人齐了" : closed ? "报名截止" : "等你入队"}</span><button type="button" onClick={() => void copyCode(room.code)} className="arena-copy" aria-label={`复制房间号 ${room.code}`}>#{room.code}<ArenaIcon name="copy" width="13" height="13" /></button></div>
-          <Link className="arena-room-link" href={href(`/tournaments/${room.id}`)}><h3>{room.name}</h3><p>{room.announcement || "房间已开，进来看看还有哪个位置。"}</p><div className="arena-player-slots" aria-label={`已报名 ${room._count.players} 人，最多 10 人`}>{Array.from({ length: 10 }, (_, i) => <span key={i} className={i < room._count.players ? "is-filled" : ""}><ArenaIcon name="user" width="13" height="13" /></span>)}</div><div className="arena-room-footer"><span><b>{room._count.players}</b> / 10 召唤师</span><span>查看房间<ArenaIcon name="arrow" width="16" height="16" /></span></div></Link>
+          <Link className="arena-room-link" href={href(`/tournaments/${room.id}`)}><h3>{room.name}</h3><p>{room.announcement || "房间已开，进来看看还有哪个位置。"}</p><div className="arena-room-footer"><span><b>{room._count.players}</b> / 10 召唤师</span><span>查看房间<ArenaIcon name="arrow" width="16" height="16" /></span></div></Link>
         </article>;
       })}</div>}
     </section>
 
-    <section className="arena-preparation" aria-labelledby="prepare-title">
-      <div className="arena-preparation-intro"><div className="arena-eyebrow">等人时，随手看看</div><h2 id="prepare-title">这局，<br /><span>想玩点什么？</span></h2><p>翻翻英雄技能，看看装备搭配。<br />等朋友的这会儿，也不无聊。</p></div>
-      <Link className="arena-catalog-card arena-catalog-heroes" href={href("/heroes")}><span className="arena-catalog-index">01 / HEROES</span><div className="arena-catalog-art" aria-hidden="true"><ArenaIcon name="crest" /></div><div className="arena-catalog-copy"><h3>挑个拿手的</h3><p>技能与命格，一起看明白</p><span>探索英雄<ArenaIcon name="arrow" /></span></div></Link>
-      <Link className="arena-catalog-card arena-catalog-equipment" href={href("/equipment")}><span className="arena-catalog-index">02 / EQUIPMENT</span><div className="arena-catalog-art" aria-hidden="true"><ArenaIcon name="swords" /></div><div className="arena-catalog-copy"><h3>琢磨下出装</h3><p>属性、价格、合成，一眼找到</p><span>查看装备<ArenaIcon name="arrow" /></span></div></Link>
+    <section className="arena-preparation" aria-label="英雄与装备图鉴">
+      <Link className="arena-catalog-card" href={href("/heroes")}><ArenaIcon name="news" /><div><h2>知英雄，选所长。</h2><p>英雄图鉴 · 技能、命格与分路</p></div><ArenaIcon name="arrow" /></Link>
+      <Link className="arena-catalog-card" href={href("/equipment")}><ArenaIcon name="swords" /><div><h2>识兵器，善其事。</h2><p>装备图鉴 · 属性、价格与合成</p></div><ArenaIcon name="arrow" /></Link>
     </section>
 
     <div className="arena-intel-grid">

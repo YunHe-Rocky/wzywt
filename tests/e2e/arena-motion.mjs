@@ -9,8 +9,8 @@ try {
   const intro=page.getByRole('dialog',{name:'演武堂开场动画'});
   await intro.waitFor({timeout:10000});
   assert.equal(await page.locator('main').evaluate(el=>el.inert),true,'Background is inert during intro');
-  await page.waitForTimeout(1100);
-  await page.screenshot({path:'.cache/arena-redesign/intro-stars.png'});
+  await page.waitForTimeout(700);
+  await page.screenshot({path:'.cache/arena-redesign/intro-ink.png'});
   await intro.waitFor({state:'detached',timeout:6000});
   assert.equal(await page.locator('main').evaluate(el=>el.inert),false,'Background interaction restored');
   await page.reload({waitUntil:'domcontentloaded'}); await page.waitForTimeout(300);
@@ -25,8 +25,10 @@ try {
   const reduced=await browser.newContext({reducedMotion:'reduce'}); const still=await reduced.newPage();
   await still.goto(base,{waitUntil:'domcontentloaded'}); await still.waitForTimeout(300);
   assert.equal(await still.getByRole('dialog',{name:'演武堂开场动画'}).count(),0,'Reduced motion skips intro');
-  await still.getByRole('button',{name:'重播开场'}).click(); await still.waitForTimeout(100);
-  assert.equal(await still.getByRole('dialog',{name:'演武堂开场动画'}).count(),0,'Replay respects reduced motion');
+  await still.getByRole('button',{name:'重播开场'}).click();
+  const staticIntro=still.getByRole('dialog',{name:'演武堂开场动画'}); await staticIntro.waitFor();
+  assert.equal(await staticIntro.getAttribute('data-motion'),'static','Reduced motion replay uses the static mark');
+  await staticIntro.waitFor({state:'detached',timeout:1200});
   await reduced.close();
-  console.log('Arena motion passed: convergence intro, automatic end, once per tab, replay, Escape, touch skip, focus restoration and reduced motion.');
+  console.log('Arena motion passed: ink intro, automatic end, once per tab, replay, Escape, touch skip, focus restoration and reduced-motion static replay.');
 } finally {await browser.close();}

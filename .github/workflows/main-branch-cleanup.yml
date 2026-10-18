@@ -1,0 +1,69 @@
+name: Main branch cleanup
+
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/main-branch-cleanup.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: main-branch-cleanup
+  cancel-in-progress: false
+
+jobs:
+  remove-consolidated-branches:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 1
+          filter: blob:none
+          sparse-checkout: .github/workflows
+      - name: Verify ancestry and delete only the approved branch heads
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import { execFileSync } from 'node:child_process';
+
+          const repo = process.env.GITHUB_REPOSITORY;
+          const api = process.env.GITHUB_API_URL;
+          const headers = {
+            Accept: 'application/vnd.github+json',
+            Authorization: `Bearer ${process.env.GH_TOKEN}`,
+            'X-GitHub-Api-Version': '2022-11-28',
+          };
+          // These are the two branch heads approved for consolidation on 2026-10-18.
+          // A moved head requires another explicit review; no other branch is eligible.
+          const branches = [
+            ['codex/audit-redis-20261018-65a98fe', '65a98fe2d51eb6e398a8a2a7ee70c6a611fed753'],
+            ['codex/history-theme-system', '9ccaee7def63525619e20216950525613aafe1d8'],
+          ];
+          async function get(path, allowMissing = false) {
+            const response = await fetch(`${api}/repos/${repo}/${path}`, { headers });
+            if (allowMissing && response.status === 404) return null;
+            if (!response.ok) throw new Error(`GitHub verification failed: HTTP ${response.status}`);
+            return response.json();
+          }
+          for (const [branch, expected] of branches) {
+            const ref = await get(`git/ref/heads/${branch}`, true);
+            if (!ref) { console.log(`${branch}: already absent`); continue; }
+            if (ref.object.sha !== expected) throw new Error(`${branch}: head changed; leaving it intact`);
+            const main = await get('git/ref/heads/main');
+            const comparison = await get(`compare/${expected}...${main.object.sha}`);
+            if (comparison.behind_by !== 0 || !['ahead', 'identical'].includes(comparison.status)) {
+              throw new Error(`${branch}: main does not contain the approved history`);
+            }
+            execFileSync('git', ['push', '--porcelain',
+              `--force-with-lease=refs/heads/${branch}:${expected}`,
+              'origin', `:refs/heads/${branch}`], { stdio: 'inherit' });
+          }
+          NODE

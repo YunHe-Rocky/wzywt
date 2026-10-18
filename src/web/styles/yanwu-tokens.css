@@ -1,0 +1,109 @@
+:root,
+[data-theme="yanwu"] {
+  color-scheme: light;
+
+  /* Brand surfaces and type */
+  --bg-root: #f5f2ea;
+  --bg-card: #fffdf8;
+  --text: #252b28;
+  --text-secondary: #515c51;
+  --text-muted: #697064;
+  --brand-accent: #a43e32;
+  --brand-accent-hover: #8f342a;
+  --brand-accent-shadow: rgba(164, 62, 50, .12);
+  --on-accent: #fffdf8;
+  --brand-ink: #426855;
+  --brand-stamp-border: #873027;
+  --brand-stamp-ink: rgba(255, 253, 248, .34);
+  --brand-dock: #29382f;
+  --brand-dock-border: #1e2b24;
+  --brand-dock-text: #e4e8df;
+  --brand-dock-shadow: 0 8px 28px rgba(27, 38, 31, .22);
+  --skeleton-base: #ece9df;
+  --overlay-scrim: rgba(37, 43, 40, .48);
+  --border: #dcdccf;
+  --radius-sm: 4px;
+  --radius: 8px;
+  --radius-lg: 12px;
+  --font-display: "Songti SC", "SimSun", serif;
+  --font-body: "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  --workspace-table-head: #efeee5;
+  --workspace-review: #78520b;
+  --workspace-media: #171e1b;
+  --workspace-media-placeholder: #293d34;
+  --workspace-media-text: #fffdf8;
+  --workspace-map-surface: #18302f;
+  --workspace-map-fallback: #1e293b;
+  --workspace-map-grid: #64748b;
+
+  /* Compatibility aliases used by existing page families. */
+  --bg-nav: rgba(245, 242, 234, .96);
+  --bg-card-glass: var(--bg-card);
+  --bg-hover: rgba(66, 104, 85, .08);
+  --bg-input: #fffdf8;
+  --border-light: rgba(81, 92, 81, .18);
+  --border-top: var(--border);
+  --border-gold: rgba(164, 62, 50, .28);
+  --gold: var(--brand-accent);
+  --gold-light: var(--brand-accent);
+  --gold-dim: #7d3028;
+  --gold-alpha-04: rgba(164, 62, 50, .04);
+  --gold-alpha-08: rgba(164, 62, 50, .08);
+  --gold-alpha-10: rgba(164, 62, 50, .1);
+  --gold-alpha-20: rgba(164, 62, 50, .2);
+  --red: #b42318;
+  --red-dim: #8f1d14;
+  --red-alpha-04: rgba(180, 35, 24, .04);
+  --red-alpha-06: rgba(180, 35, 24, .06);
+  --red-alpha-08: rgba(180, 35, 24, .08);
+  --red-alpha-15: rgba(180, 35, 24, .15);
+  --blue: #2e5e91;
+  --blue-dim: #244b74;
+  --green: #39755a;
+  --green-dim: #2d6049;
+  --arena-teal: var(--brand-ink);
+  --purple: #79518a;
+  --role-top: #835b32;
+  --role-jungle: #397047;
+  --role-mid: #79518a;
+  --role-adc: #895c1c;
+  --role-support: #2e6583;
+  --orb-1: transparent;
+  --orb-2: transparent;
+  --orb-3: transparent;
+  --glass-highlight: none;
+  --glass-shadow: 0 12px 30px rgba(47, 56, 49, .08);
+  --mobile-glass-shadow: 0 8px 24px rgba(27, 38, 31, .14);
+  --ease-glass: cubic-bezier(.22, 1, .36, 1);
+
+  /* Shared layers and layout */
+  --layer-content: 0;
+  --layer-sticky: 100;
+  --layer-dock: 200;
+  --layer-overlay: 1000;
+  --layer-modal: 1010;
+  --layer-popover: 1020;
+  --layer-toast: 1100;
+  --layer-transition: 1200;
+  --layout-gutter: clamp(20px, 4vw, 64px);
+  --layout-block: clamp(24px, 4vw, 48px);
+  --layout-bottom-clearance: 36px;
+  --content-narrow: 720px;
+  --content-medium: 960px;
+  --content-wide: 1200px;
+  --orb-mx: .5;
+  --orb-my: .5;
+}
+
+@media (max-width: 900px) {
+  :root,
+  [data-theme="yanwu"] {
+    --layout-gutter: 20px;
+    --layout-bottom-clearance: calc(96px + env(safe-area-inset-bottom));
+  }
+}
+
+@media (max-width: 340px) {
+  :root,
+  [data-theme="yanwu"] { --layout-gutter: 16px; }
+}

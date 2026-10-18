@@ -3,6 +3,52 @@
   "project": "wangzhe-yanwutang",
   "releases": [
     {
+      "version": "1.0.2",
+      "internalId": "WZYWT-REL-0003",
+      "releaseType": "minor",
+      "releasedAt": "2026-09-20T10:36:51+08:00",
+      "timezone": "Asia/Shanghai",
+      "tag": "v1.0.2",
+      "previousVersion": "1.0.1",
+      "sourceRange": {
+        "fromCommit": "b408b66cd662d12b8e0b67cb82057b8c92ee8d64",
+        "toCommit": "e30f4b0e413b48291f747d59a164e2fe9e046f32",
+        "compareUrl": "https://github.com/YunHe-Rocky/wzywt/compare/b408b66cd662d12b8e0b67cb82057b8c92ee8d64...e30f4b0e413b48291f747d59a164e2fe9e046f32"
+      },
+      "pullRequests": [],
+      "summary": [
+        "修复 Next middleware 截断大视频上传，真实五分钟视频通过本地上传回归",
+        "超管会话临时预览覆盖四类完整主题，可手动结束并随身份和会话失效",
+        "拆分房间与战绩大组件，选将面板和页面样式按需加载",
+        "移除当前 Git 树的生成媒体，部署源码包约缩小 91%，清理约 950 MiB 中间文件",
+        "完成全站两端及工作区交互回归，保留原有权限与数据契约"
+      ],
+      "notes": "无对应 PR；代码提交位于 codex/history-theme-system，sourceRange 从上一版本标签到本轮实现提交，版本登记提交由 v1.0.2 标签指向。版本登记与代码上传不代表 main 已合并或生产已部署；未创建 GitHub Release。历史主题正式审核发布、后台持久化和自动排期尚未完成，浏览器回归使用隔离数据。Git 历史保留旧媒体，未重写历史。"
+    },
+    {
+      "version": "1.0.1",
+      "internalId": "WZYWT-REL-0002",
+      "releaseType": "minor",
+      "releasedAt": "2026-09-19T21:13:44+08:00",
+      "timezone": "Asia/Shanghai",
+      "tag": "v1.0.1",
+      "previousVersion": "1.0.0",
+      "sourceRange": {
+        "fromCommit": "5ae8e2ebe4c833bb6dd0f3eadec71fa08c792d7a",
+        "toCommit": "dc8dd0803ba6fa5a888006bd97f67fd747280d21",
+        "compareUrl": "https://github.com/YunHe-Rocky/wzywt/compare/5ae8e2ebe4c833bb6dd0f3eadec71fa08c792d7a...dc8dd0803ba6fa5a888006bd97f67fd747280d21"
+      },
+      "pullRequests": [],
+      "summary": [
+        "26 类正式页面统一为纸白、墨色与朱砂的新中式演武馆 UI",
+        "手机端改为四项书签导航，个人入口保留在顶部，后台使用独立折叠菜单",
+        "增加轻量朱印与墨线开屏，完善跳过、重播、减少动态效果和切页清理",
+        "修复窄屏遮挡、表格固定层级、退出失败反馈和设置加载失败状态",
+        "保留历史主题 UI-only 与来源说明边界，交付全站两端截图和交互回归证据"
+      ],
+      "notes": "本次为当前开发分支上的 UI 小版本登记，未推送、未创建 GitHub Release、未部署。无对应 PR；sourceRange 记录此次获批 UI 专项实施范围，不代表 v1.0.0 以来全部提交。真实服务/数据库联调、历史主题正式发布及原爬虫内存和 CI 专项不在本次完成声明内。"
+    },
+    {
       "version": "1.0.0",
       "internalId": "WZYWT-REL-0001",
       "releaseType": "major",

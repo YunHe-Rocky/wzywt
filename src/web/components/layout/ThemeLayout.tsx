@@ -28,7 +28,7 @@ export function ThemeLayout({ children }: { children: React.ReactNode }) {
         <LoginReveal />
       </Suspense>
       <a className="arena-skip" href="#main-content">跳至内容</a>
-      <ArenaIntro />
+      <ArenaIntro key={pathname} />
       <Header />
       <main className="main-content" id="main-content" tabIndex={-1}>{children}
         <footer className="arena-footer"><div className="arena-footer-brand"><ArenaIcon name="crest" width="18" height="18" /><span>王者演武堂 · 和朋友，好好打一场</span></div><div className="arena-footer-links"><button type="button" onClick={replayArenaIntro}>重播开场</button><Link href={`${prefix}/changelog`}>更新日志</Link><Link href={`${prefix}/tournaments`}>去组一局<ArenaIcon name="arrow" width="14" height="14" /></Link></div></footer>

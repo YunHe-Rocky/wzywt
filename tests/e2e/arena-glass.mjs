@@ -10,26 +10,19 @@ try {
   page.on('pageerror', error => errors.push(error.message));
   await page.goto(base);
   await page.getByRole('dialog', { name: '演武堂开场动画' }).waitFor({ state: 'detached' });
-  await page.locator('.arena-ambient').waitFor({ state: 'attached' });
+  assert.equal(await page.locator('.arena-ambient').count(), 0, 'Obsolete ambient orbs are not mounted');
   const card = page.locator('.arena-catalog-card').first();
   await card.scrollIntoViewIfNeeded();
   await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
   await card.hover();
-  await page.waitForFunction(() => document.querySelector('.arena-catalog-card')?.hasAttribute('data-glass-active'));
-  const light = await card.evaluate(el => ({ x: el.style.getPropertyValue('--light-x'), transform: el.style.transform, shadow: el.style.boxShadow }));
-  assert.ok(light.x.endsWith('px'), 'Pointer lights the card under the cursor');
-  assert.equal(light.transform, '', 'Lighting does not overwrite component transforms');
-  assert.equal(light.shadow, '', 'Lighting does not overwrite component shadows');
+  assert.equal(await page.locator('[data-glass-active]').count(), 0, 'Pointer lighting is no longer active');
   await page.emulateMedia({ reducedMotion: 'reduce' });
-  await page.waitForFunction(() => !document.querySelector('[data-glass-active]'));
-  assert.equal(await card.evaluate(el => el.style.getPropertyValue('--light-x')), '', 'Motion preference change clears lighting');
   await page.mouse.move(0, 0); await card.hover();
   assert.equal(await page.locator('[data-glass-active]').count(), 0, 'Reduced motion stays still after mouse movement');
   await page.emulateMedia({ reducedMotion: 'no-preference' });
   await page.mouse.move(0, 0); await card.hover();
-  await page.waitForFunction(() => document.querySelector('[data-glass-active]'));
   await page.mouse.wheel(0, -400);
-  await page.waitForFunction(() => !document.querySelector('[data-glass-active]'));
+  assert.equal(await page.locator('[data-glass-active]').count(), 0, 'Normal motion does not restore obsolete cursor lighting');
   await page.mouse.move(0, 0); await page.evaluate(() => scrollTo(0, 0));
   await page.screenshot({ path: '.cache/arena-redesign/glass-desktop.png', fullPage: true });
   await context.close();
@@ -45,7 +38,7 @@ try {
   assert.equal(await selection.getAttribute('data-index'), '2', 'Glass selection follows the opened catalog');
   await phone.getByRole('button', { name: '关闭图鉴菜单' }).tap();
   assert.equal(await selection.getAttribute('data-index'), '0', 'Closing catalog restores the current route selection');
-  await dock.getByRole('link', { name: '赛事', exact: true }).tap();
+  await dock.getByRole('link', { name: '演武', exact: true }).tap();
   await phone.waitForURL(/\/m\/tournaments/);
   assert.equal(await selection.getAttribute('data-index'), '1');
   assert.equal(await phone.locator('[data-glass-active]').count(), 0, 'Touch does not enable cursor light');
@@ -55,5 +48,5 @@ try {
   await phone.screenshot({ path: '.cache/arena-redesign/glass-mobile.png', fullPage: true });
   await mobile.close();
   assert.deepEqual(errors, []);
-  console.log('Glass interaction passed: pointer light, cleanup, dynamic reduced motion, touch, dock selection, mobile routing and runtime errors.');
+  console.log('Paper interaction passed: obsolete lighting stays removed while touch, dock selection, mobile routing and runtime checks remain.');
 } finally { await browser.close(); }

@@ -1,5 +1,7 @@
 "use client";
 
+import "@/web/styles/yanwu-workspaces.css";
+
 import { useMonitorDashboard } from "@/features/monitor/client/useMonitorDashboard";
 
 const MODULES = [
@@ -38,7 +40,7 @@ export function MonitorDashboard() {
 
   return (
     <main className="page-shell page-shell--medium monitor-page">
-      <header className="feature-hero monitor-hero">
+      <header className="yanwu-workspace-hero monitor-hero">
         <div>
           <p className="feature-kicker">RESOURCE OBSERVABILITY</p>
           <h1>数据监控中心</h1>
@@ -66,7 +68,7 @@ export function MonitorDashboard() {
         {MODULES.map((module) => {
           const latest = logs.find((log) => log.module === module.key);
           return (
-            <article key={module.key} className="card monitor-module" data-status={latest?.status || "idle"}>
+            <article key={module.key} className="monitor-module" data-status={latest?.status || "idle"}>
               <h3>{module.label}</h3>
               <p>{module.description}</p>
               <strong>{statusLabel(latest?.status)}</strong>
@@ -75,7 +77,7 @@ export function MonitorDashboard() {
         })}
       </section>
 
-      <section className="card monitor-section" aria-labelledby="resource-lifecycle-title">
+      <section className="monitor-section" aria-labelledby="resource-lifecycle-title">
         <div className="feature-heading">
           <div><h2 id="resource-lifecycle-title">动态资源生命周期</h2><p>公共与用户作用域资源的加载、复用和释放状态。</p></div>
         </div>
@@ -97,7 +99,7 @@ export function MonitorDashboard() {
         </div>
       </section>
 
-      <section className="card monitor-section" aria-labelledby="monitor-log-title">
+      <section className="monitor-section" aria-labelledby="monitor-log-title">
         <div className="feature-heading">
           <div><h2 id="monitor-log-title">监控日志</h2><p>{lastCycle > 0 ? `最近完成第 ${lastCycle} 轮检查` : "等待首次监控检查"}</p></div>
         </div>

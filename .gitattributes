@@ -2,3 +2,11 @@
 .gitattributes text eol=lf
 *.sh text eol=lf
 *.bash text eol=lf
+
+# Production uses git archive: authoring media and working notes are not runtime files.
+/artifacts export-ignore
+/.planning export-ignore
+/.superpowers export-ignore
+/task_plan.md export-ignore
+/findings.md export-ignore
+/progress.md export-ignore

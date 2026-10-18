@@ -45,7 +45,7 @@ export function GameProfileEditor({ gameNickname, gameId }: Props) {
   }
 
   return (
-    <form onSubmit={save} className="card flex flex-col gap-4" aria-label="游戏资料">
+    <form onSubmit={save} className="yanwu-profile-section flex flex-col gap-4" aria-label="游戏资料">
       <div>
         <h2 className="text-base font-bold text-text m-0">游戏身份</h2>
         <p className="text-xs text-text-muted mt-1 mb-0">仅赛事房主和次房主可在成员列表中查看。</p>

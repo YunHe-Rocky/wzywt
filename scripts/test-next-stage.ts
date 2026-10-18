@@ -162,7 +162,7 @@ async function main() {
   assert.equal(parseTacticGeometry({ version: 1, arrow: true, points: [{ x: 0, y: 0 }, { x: 1, y: 1 }] })?.points.length, 2);
   assert.equal(parseTacticGeometry({ version: 1, arrow: true, points: [{ x: -0.1, y: 0 }, { x: 1, y: 1 }] }), null);
   assert.deepEqual(Array.from({ length: 5 }, (_, index) => tacticColorForSlot(index + 1)), ["crimson", "azure", "amber", "jade", "violet"]);
-  const tacticCss = await readFile(new URL("../src/app/globals.css", import.meta.url), "utf8");
+  const tacticCss = await readFile(new URL("../src/web/styles/yanwu-workspaces.css", import.meta.url), "utf8");
   const factionPalettes = {
     red: ["#ff4d5f", "#f76f7c", "#dc3548", "#ff8878", "#c62845"],
     blue: ["#3b82f6", "#60a5fa", "#2563eb", "#38bdf8", "#1d4ed8"],

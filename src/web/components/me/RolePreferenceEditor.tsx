@@ -51,7 +51,7 @@ function RankBadge({ value, size = 48 }: { value: number; size?: number }) {
 
 function LaneIcon({ role, size = 20 }: { role: string; size?: number }) {
   const s = size;
-  const c: Record<string, string> = { top: "#D4A574", jungle: "#7EC87B", mid: "#C08ED8", adc: "#E8A040", support: "#6BB5D8" };
+  const c: Record<string, string> = { top: "var(--role-top)", jungle: "var(--role-jungle)", mid: "var(--role-mid)", adc: "var(--role-adc)", support: "var(--role-support)" };
   const color = c[role] || "#888";
   if (role === "top") return <svg width={s} height={s} viewBox="0 0 24 24" className="shrink-0"><path d="M8 2 L16 2 L16 18 L8 18 Z" fill="none" stroke={color} strokeWidth={2} strokeLinejoin="round" /><line x1={12} y1={4} x2={12} y2={16} stroke={color} strokeWidth={1} opacity={0.5} /></svg>;
   if (role === "jungle") return <svg width={s} height={s} viewBox="0 0 24 24" className="shrink-0"><path d="M12 2 L22 10 L19 16 L15 16 L17 22 L7 22 L9 16 L5 16 L2 10 Z" fill="none" stroke={color} strokeWidth={1.8} strokeLinejoin="round" /><circle cx={12} cy={10} r={3} fill="none" stroke={color} strokeWidth={1} opacity={0.5} /></svg>;
@@ -87,7 +87,7 @@ export function RolePreferenceEditor() {
         const old = olds.find(o => o.key === key);
         if (!old) return;
         const delta = old.top - el.getBoundingClientRect().top;
-        if (Math.abs(delta) < 1) return;
+        if (Math.abs(delta) < 1 || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
         el.style.transition = "none";
         el.style.transform = `translateY(${delta}px)`;
         // Play
@@ -106,10 +106,10 @@ export function RolePreferenceEditor() {
   const canSetPeakScore = hasPeakTournamentAccess(peakRank);
 
   return (
-    <div className="card animate-slide-up">
+    <div className="yanwu-profile-section">
 
       {/* ── 段位信息 ── */}
-      <div className="section-title">段位信息</div>
+      <h2 className="section-title">段位信息</h2>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="flex items-center gap-4 p-4 rounded-lg bg-input/50 border border-border/50">
           <div key={sharedRank} style={{ animation: "rank-pop 0.35s ease-out" }}>
@@ -117,7 +117,7 @@ export function RolePreferenceEditor() {
           </div>
           <div className="flex-1 min-w-0">
             <div className="text-xs font-semibold text-text-muted mb-1.5 tracking-wider uppercase">当前段位</div>
-            <select value={sharedRank} onChange={e => setSharedRankAndSync(parseInt(e.target.value))}
+            <select aria-label="当前段位" value={sharedRank} onChange={e => setSharedRankAndSync(parseInt(e.target.value))}
               className="text-base font-bold px-3 py-2.5 rounded-md bg-input border border-border text-text focus:border-gold/30 transition-colors w-full">
               {RANK_TIERS.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
             </select>
@@ -129,7 +129,7 @@ export function RolePreferenceEditor() {
           </div>
           <div className="flex-1 min-w-0">
             <div className="text-xs font-semibold text-text-muted mb-1.5 tracking-wider uppercase">历史最高段位</div>
-            <select value={prefs[0]?.peakRank || 0}
+            <select aria-label="历史最高段位" value={prefs[0]?.peakRank || 0}
               onChange={e => { const v = parseInt(e.target.value); setPeakRank("all", v); }}
               className="text-base font-bold px-3 py-2.5 rounded-md bg-input border border-border text-text focus:border-gold/30 transition-colors w-full">
               {RANK_TIERS.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
@@ -142,7 +142,7 @@ export function RolePreferenceEditor() {
       <div className="my-6 h-px bg-gradient-to-r from-transparent via-border to-transparent" />
 
       {/* ── 分路配置 & 英雄战力 ── */}
-      <div className="section-title">分路配置 & 英雄战力</div>
+      <h2 className="section-title">分路配置 & 英雄战力</h2>
 
       {/* 分路优先级排序 — 参考 #1 结构风格 */}
       <div className="mb-5">
@@ -154,23 +154,23 @@ export function RolePreferenceEditor() {
               <span className="text-gold-light font-bold text-sm w-5 shrink-0 text-right flex items-center">{p.preferenceRank}</span>
               <button
                 onClick={() => setActiveTab(p.roleType)}
-                className={`flex items-center gap-2 px-3 py-2.5 rounded-md text-sm font-semibold shrink-0 transition-all flex-1 border
+                className={`yanwu-lane-select flex items-center gap-2 px-3 py-2.5 rounded-md text-sm font-semibold transition-all flex-1 border
                   ${activeTab === p.roleType
                     ? "bg-card text-gold-light border-gold/20 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
                     : "text-text-secondary border-transparent hover:bg-hover hover:border-border"}`}>
                 <LaneIcon role={p.roleType} size={18} />
                 <span>{ROLE_LABELS[p.roleType]}</span>
-                <span className={`text-xs ml-auto flex items-center gap-1.5 ${activeTab === p.roleType ? "opacity-70" : "opacity-40"}`}>
+                <span className="text-xs ml-auto flex items-center gap-1.5 text-text-muted">
                   <span>{heroesByRole[p.roleType]?.length || 0}/3</span>
                   <span style={{ opacity: 0.6 }}>·</span>
                   <span>{formatLanePowerRank(calculateLanePowerRank(heroesByRole[p.roleType] || []))}段</span>
                 </span>
               </button>
-              <div className="role-order-actions flex flex-col gap-0.5 shrink-0">
-                <button className="flex-1 flex items-center justify-center rounded bg-card border border-border/50 text-text-muted hover:text-gold-light hover:border-gold/20 text-[10px] disabled:opacity-20 disabled:cursor-default transition-colors"
+              <div className="role-order-actions flex flex-row gap-1 shrink-0">
+                <button className="yanwu-role-move disabled:opacity-20 disabled:cursor-default"
                   aria-label={`上移${ROLE_LABELS[p.roleType]}`}
                   onClick={() => flip(() => moveUp(i))} disabled={i === 0}>▲</button>
-                <button className="flex-1 flex items-center justify-center rounded bg-card border border-border/50 text-text-muted hover:text-gold-light hover:border-gold/20 text-[10px] disabled:opacity-20 disabled:cursor-default transition-colors"
+                <button className="yanwu-role-move disabled:opacity-20 disabled:cursor-default"
                   aria-label={`下移${ROLE_LABELS[p.roleType]}`}
                   onClick={() => flip(() => moveDown(i))} disabled={i === 4}>▼</button>
               </div>
@@ -185,7 +185,7 @@ export function RolePreferenceEditor() {
           <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-border-light">
             <LaneIcon role={activePref.roleType} size={24} />
             <span className="text-base font-bold text-text">{ROLE_LABELS[activePref.roleType]}</span>
-            <span className="badge badge-gold text-[11px] px-2 py-0.5">P{activePref.preferenceRank}</span>
+            <span className="badge badge-gold text-xs px-2 py-0.5">P{activePref.preferenceRank}</span>
             <span className="ml-auto text-xs font-bold px-2 py-0.5 rounded" style={{
               background: "var(--gold-alpha-08)", color: "var(--gold-light)", border: "1px solid var(--gold-alpha-20)",
             }}>{formatLanePowerRank(calculateLanePowerRank(activeHeroes))}段</span>
@@ -195,7 +195,7 @@ export function RolePreferenceEditor() {
           {activeHeroes.length > 0 ? (
             <div className="flex flex-col gap-2 mb-4">
               {activeHeroes.map((h, idx) => (
-                <div key={h.id} className="card !p-3 !rounded-lg"
+                <div key={h.id} className="yanwu-role-row"
                   style={{ animation: `role-item-in 0.25s ease-out ${idx * 0.05}s both` }}>
                   <div className="flex items-center gap-3">
                     <HeroPortrait heroId={h.heroId} name={h.heroName} />
@@ -257,7 +257,7 @@ export function RolePreferenceEditor() {
             className="w-full text-base font-bold px-4 py-2.5 rounded-md bg-input border border-border text-text disabled:cursor-not-allowed disabled:opacity-55" />
           <p
             id="peak-score-hint"
-            className={`mt-1.5 mb-0 text-[11px] leading-5 ${canSetPeakScore ? "text-text-muted" : "text-gold-dim"}`}
+            className={`mt-1.5 mb-0 text-xs leading-5 ${canSetPeakScore ? "text-text-muted" : "text-gold-dim"}`}
             aria-live="polite"
           >
             {canSetPeakScore

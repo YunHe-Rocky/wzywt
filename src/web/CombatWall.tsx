@@ -1,5 +1,7 @@
 "use client";
 
+import "@/web/styles/yanwu-workspaces.css";
+
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { FormEvent, useEffect, useRef, useState } from "react";
@@ -82,9 +84,9 @@ export function CombatWall() {
   }
 
   return <div className="page-shell page-shell--wide combat-wall">
-    <header className="feature-hero combat-hub-hero"><div><p className="feature-kicker">COMBAT FEED</p><h1>演武动态</h1><p>分享高光时刻，复盘每一次团战。</p></div>{user && <button className="btn-primary" aria-expanded={composerOpen} aria-controls="combat-publisher" onClick={() => setComposerOpen(v => !v)} disabled={publishing}><ArenaIcon name="plus" width="16" height="16" />{composerOpen ? "收起发布" : "发布动态"}</button>}</header>
+    <header className="yanwu-workspace-hero combat-hub-hero"><div><p className="feature-kicker">COMBAT FEED</p><h1>演武动态</h1><p>分享高光时刻，复盘每一次团战。</p></div>{user && <button className="btn-primary" aria-expanded={composerOpen} aria-controls="combat-publisher" onClick={() => setComposerOpen(v => !v)} disabled={publishing}><ArenaIcon name="plus" width="16" height="16" />{composerOpen ? "收起发布" : "发布动态"}</button>}</header>
     {!loaded ? <div className="feature-empty" role="status">正在确认登录状态…</div> : !user ? <section className="feature-empty"><h2>和队友一起交流复盘</h2><p>登录后可以浏览视频、发布动态和参与评论。</p><Link className="btn-primary" prefetch={false} href={protectedPageLoginRedirect(pathname)}>登录查看动态</Link></section> : <>
-    {composerOpen && <section id="combat-publisher" className="feature-section combat-publisher" aria-labelledby="publish-title">
+    {composerOpen && <section id="combat-publisher" className="yanwu-workspace-section combat-publisher" aria-labelledby="publish-title">
       <div><p className="feature-kicker">SHARE YOUR PLAY</p><h2 id="publish-title">发布复盘</h2><p className="combat-upload-hint">{policy ? `支持 MP4 / WebM，最长 ${policy.maxDurationSeconds / 60} 分钟，最大 ${policy.maxBytes / 1024 ** 2} MiB。` : "正在读取上传限制…"}</p>{policyError && <p role="alert">{policyError} <button className="text-action" onClick={() => setRevision(v => v + 1)}>重试</button></p>}</div>
       <form onSubmit={publish} aria-busy={publishing}>
         <label>标题<input name="title" minLength={2} maxLength={128} required placeholder="这场团战为什么能赢" disabled={publishing} /></label>

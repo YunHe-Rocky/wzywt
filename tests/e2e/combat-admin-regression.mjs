@@ -22,9 +22,9 @@ const bundled = await build({
     import { Dock } from "@/web/components/layout/alternate/Dock";
     import { ToastProvider } from "@/web/components/ui/Toast";
     const pathname=location.pathname;
-    const content=pathname.includes("admin") ? <AdminShell username="测试管理员">{pathname.endsWith("/combat") ? <CombatPostManager/> : <AdminDashboard/>}</AdminShell> : pathname==="/player" ? <CombatVideoPlayer src="/video"/> : <><CombatWall/><Dock/></>;
+    const content=pathname.includes("admin") ? <AdminShell userId={1} username="测试管理员">{pathname.endsWith("/combat") ? <CombatPostManager/> : <AdminDashboard/>}</AdminShell> : pathname==="/player" ? <CombatVideoPlayer src="/video"/> : <><CombatWall/><Dock/></>;
     createRoot(document.getElementById("root")).render(<React.StrictMode><ToastProvider>{content}</ToastProvider></React.StrictMode>);`, loader: "tsx", resolveDir: process.cwd() },
-  bundle: true, write: false, format: "iife", jsx: "automatic", define: { "process.env.NODE_ENV": JSON.stringify(process.env.E2E_REACT_MODE || "development") },
+  bundle: true, write: false, outdir: ".cache/component-bundle", format: "iife", jsx: "automatic", define: { "process.env.NODE_ENV": JSON.stringify(process.env.E2E_REACT_MODE || "development") },
   plugins: [{ name: "test-navigation-and-session", setup(builder) {
     builder.onResolve({ filter: /^(next\/link|next\/navigation|@\/features\/auth\/client)$/ }, args => ({ path: args.path, namespace: "test" }));
     builder.onLoad({ filter: /.*/, namespace: "test" }, args => ({ loader: "jsx", resolveDir: process.cwd(), contents:
@@ -36,6 +36,7 @@ const bundled = await build({
 });
 let styles = (await readFile("src/app/globals.css", "utf8")).replace(/^@import[^\n]*\n/gm, "");
 for (const file of ["arena.css", "arena-motion.css", "arena-glass.css", "admin.css"]) styles += await readFile(`src/web/styles/${file}`, "utf8");
+styles += bundled.outputFiles.filter(file => file.path.endsWith(".css")).map(file => file.text).join("\n");
 const css = (await postcss([tailwindcss]).process(styles, { from: path.resolve("src/app/globals.css") })).css;
 const title = "第一场团战复盘";
 let status = "published"; let deleted = false; let listFailure = false; let overviewFailure = false; let uploaded = false; let moderationFailure = false;
@@ -66,7 +67,7 @@ const server = createServer(async (req, res) => {
     return json({ posts: [post()], totalPages: 2, total: 13, page: Number(url.searchParams.get("page") || 1) });
   }
   if (url.pathname === "/video") {
-    const file = path.resolve("artifacts/promotional-video/yanwu-arena-promo-1080p.mp4");
+    const file = path.resolve("tests/fixtures/combat-video.mp4");
     const { size } = await stat(file); const range = /^bytes=(\d+)-(\d*)$/.exec(req.headers.range || "");
     const start = range ? Number(range[1]) : 0; const end = range?.[2] ? Math.min(size - 1, Number(range[2])) : size - 1;
     res.writeHead(range ? 206 : 200, { "Content-Type": "video/mp4", "Accept-Ranges": "bytes", "Content-Length": end - start + 1, ...(range ? { "Content-Range": `bytes ${start}-${end}/${size}` } : {}) });
@@ -85,9 +86,16 @@ try {
     const prefix = width < 768 ? "/m" : "";
     await page.goto(`${base}${prefix}/admin`); await page.getByRole("heading", { name: "运营工作台" }).waitFor();
     await page.getByText("20", { exact: true }).waitFor();
+    if (width < 768) await page.getByRole("button", { name: "管理菜单", exact: true }).click();
     const nav = page.getByRole("navigation", { name: "后台导航" });
-    assert.equal(await nav.getByRole("link").count(), 8);
-    assert.equal(await nav.getByRole("link", { name: /公告管理/ }).getAttribute("href"), `${prefix}/admin/announcements`);
+    const requiredAdminEntries = [
+      ["工作台", "/admin"], ["用户管理", "/admin/users"], ["赛事管理", "/admin/tournaments"],
+      ["动态管理", "/admin/combat"], ["公告管理", "/admin/announcements"], ["历史主题", "/admin/history-themes"],
+      ["英雄管理", "/admin/heroes"], ["运行监控", "/admin/monitor"], ["系统设置", "/admin/settings"],
+    ];
+    for (const [label, route] of requiredAdminEntries) {
+      assert.equal(await nav.getByRole("link", { name: new RegExp(label) }).getAttribute("href"), `${prefix}${route}`);
+    }
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `admin overflow at ${width}`);
     await page.screenshot({ path: path.join(output, `admin-${width}.png`), fullPage: true });
     await nav.getByRole("link", { name: /动态管理/ }).click(); await page.getByRole("heading", { name: title }).waitFor();
@@ -113,7 +121,7 @@ try {
   await page.getByRole("button", { name: "下一页" }).click(); await page.getByText("第 2 / 2 页").waitFor();
   await page.getByRole("button", { name: "发布动态", exact: true }).click();
   await page.getByLabel("标题", { exact: true }).fill("浏览器视频上传测试"); await page.getByLabel("正文", { exact: true }).fill("这是独立浏览器上传测试，不写入真实数据库。");
-  await page.getByLabel("复盘视频", { exact: true }).setInputFiles("artifacts/promotional-video/yanwu-arena-promo-1080p.mp4");
+  await page.getByLabel("复盘视频", { exact: true }).setInputFiles("tests/fixtures/combat-video.mp4");
   await page.locator("form").getByRole("button", { name: "发布动态", exact: true }).click();
   await page.getByText("演武动态已发布", { exact: true }).waitFor(); await page.getByText("第 1 / 2 页").waitFor(); assert.ok(uploaded); assert.equal(uploadRequests, 1);
   listFailure = true; await page.getByRole("button", { name: "刷新", exact: true }).click(); await page.getByRole("button", { name: "重新加载", exact: true }).waitFor();
@@ -125,5 +133,5 @@ try {
   await page.waitForFunction(() => document.querySelector("video")?.currentTime >= 10 && !document.querySelector("video")?.paused);
   await page.locator("video").evaluate(video => { video.pause(); video.dispatchEvent(new Event("error")); });
   await page.getByRole("button", { name: "重新加载视频" }).click(); await page.waitForFunction(() => document.querySelector("video")?.currentTime >= 10);
-  assert.deepEqual(errors, []); console.log("PASS: desktop/390/320 layout, eight admin entries, moderation confirmation, search, error recovery, guest guard, publish from page 2, actual MP4 playback/seek/retry.");
+  assert.deepEqual(errors, []); console.log("PASS: desktop/390/320 layout, required admin entries, moderation confirmation, search, error recovery, guest guard, publish from page 2, actual MP4 playback/seek/retry.");
 } finally { await browser?.close(); server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); }

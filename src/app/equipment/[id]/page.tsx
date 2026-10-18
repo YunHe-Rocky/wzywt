@@ -51,7 +51,7 @@ export default function EquipmentDetailPage() {
 
   if (loading) {
     return (
-      <div className="page-shell page-shell--narrow">
+      <div className="page-shell page-shell--narrow equipment-detail">
         <div className="skeleton" style={{ height: 300 }} />
       </div>
     );
@@ -59,8 +59,8 @@ export default function EquipmentDetailPage() {
 
   if (!item) {
     return (
-      <div className="page-shell page-shell--narrow" style={{ textAlign: "center" }}>
-        <p style={{ color: "var(--text-secondary)", fontSize: 16 }}>装备不存在</p>
+      <div className="page-shell page-shell--narrow equipment-detail" style={{ textAlign: "center" }}>
+        <p style={{ color: "var(--text-secondary)", fontSize: 16 }}>装备暂不可用</p>
         <button onClick={() => router.push("/equipment")} className="btn-ghost" style={{ marginTop: 16 }}>
           返回图鉴
         </button>
@@ -71,7 +71,7 @@ export default function EquipmentDetailPage() {
   const activeStats = STATS.filter((s) => item[s.key] > 0);
 
   return (
-    <div className="page-shell page-shell--narrow">
+    <div className="page-shell page-shell--narrow equipment-detail">
       <button
         onClick={() => router.push("/equipment")}
         className="btn-subtle"
@@ -81,11 +81,7 @@ export default function EquipmentDetailPage() {
       </button>
 
       <div className="equipment-detail-header">
-        <div style={{
-          width: 100, height: 100, borderRadius: 16, flexShrink: 0,
-          overflow: "hidden", background: "var(--bg-card)",
-          border: "1px solid var(--border)",
-        }}>
+        <div className="yanwu-equipment-image">
           {imgError ? (
             <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 32, color: "var(--text-muted)" }}>
               {item.name[0]}
@@ -100,7 +96,7 @@ export default function EquipmentDetailPage() {
           )}
         </div>
 
-        <div style={{ flex: 1 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
           <h1 style={{ fontSize: 24, fontWeight: 700, color: "var(--text)", margin: "0 0 4px" }}>
             {item.name}
           </h1>
@@ -115,15 +111,9 @@ export default function EquipmentDetailPage() {
           <h2 style={{ fontSize: 18, fontWeight: 600, color: "var(--text)", margin: "0 0 12px" }}>
             属性
           </h2>
-          <div style={{
-            display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
-            gap: 8, marginBottom: 24,
-          }}>
+          <div className="yanwu-stat-list">
             {activeStats.map((s) => (
-              <div key={s.key} className="card" style={{
-                padding: "10px 14px", display: "flex", justifyContent: "space-between",
-                alignItems: "center",
-              }}>
+              <div key={s.key}>
                 <span style={{ fontSize: 13, color: "var(--text-secondary)" }}>{s.label}</span>
                 <span style={{ fontSize: 14, fontWeight: 600, color: "var(--blue)" }}>
                   +{item[s.key]}{s.suffix || ""}
@@ -140,12 +130,12 @@ export default function EquipmentDetailPage() {
             被动效果
           </h2>
           {item.passiveJson.map((p, i) => (
-            <div key={i} className="card" style={{ padding: "14px 18px", marginBottom: 8 }}>
+            <div key={i} className="yanwu-passive">
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
                 <span style={{ fontSize: 14, fontWeight: 600, color: "var(--text)" }}>{p.name}</span>
-                {p.unique && <span style={{ fontSize: 11, color: "var(--gold)", padding: "1px 6px", border: "1px solid var(--gold)", borderRadius: 4 }}>唯一</span>}
+                {p.unique && <span style={{ fontSize: 12, color: "var(--gold)", padding: "1px 6px", border: "1px solid var(--gold)", borderRadius: 4 }}>唯一</span>}
               </div>
-              <p style={{ fontSize: 13, color: "var(--text-secondary)", margin: 0, lineHeight: 1.6 }}>
+              <p style={{ fontSize: 16, color: "var(--text-secondary)", margin: 0, lineHeight: 1.9 }}>
                 {p.desc}
               </p>
             </div>

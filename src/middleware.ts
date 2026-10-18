@@ -133,5 +133,8 @@ export function middleware(req: NextRequest) {
 
 export const config = {
   runtime: "nodejs",
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:ico|png|jpg|jpeg|webp|avif|svg|css|js)).*)"],
+  // This exact collection endpoint authenticates GET in listCombatPosts and
+  // POST with requireAuth. Let uploads reach its streaming parser directly:
+  // Next's middleware body clone truncates at 10 MiB and buffers in memory.
+  matcher: ["/((?!api/combat-posts/?$|_next/static|_next/image|favicon.ico|.*\\.(?:ico|png|jpg|jpeg|webp|avif|svg|css|js)).*)"],
 };

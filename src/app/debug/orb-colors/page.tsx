@@ -1,5 +1,7 @@
 "use client";
 
+import "@/web/styles/yanwu-debug.css";
+
 import { useState } from "react";
 
 const PALETTES = [
@@ -34,15 +36,15 @@ export default function OrbColorDemo() {
   const p = PALETTES[selected];
 
   return (
-    <div style={{
-      minHeight: "100vh", background: "#efeff2",
+    <div className="yanwu-debug-page yanwu-debug-orbs" style={{
+      minHeight: "100vh", background: "var(--bg-root)", color: "var(--text)",
       display: "flex", flexDirection: "column",
       alignItems: "center", padding: "24px 16px",
     }}>
-      <h1 style={{ fontSize: 20, fontWeight: 800, color: "#333", margin: "0 0 4px" }}>
+      <h1 style={{ fontSize: 20, fontWeight: 800, color: "var(--text)", margin: "0 0 4px" }}>
         #2 光球配色预览
       </h1>
-      <p style={{ fontSize: 13, color: "#888", margin: "0 0 20px" }}>
+      <p style={{ fontSize: 13, color: "var(--text-muted)", margin: "0 0 20px" }}>
         点击切换配色，晃动鼠标看光球互动效果
       </p>
 
@@ -73,7 +75,7 @@ export default function OrbColorDemo() {
       {/* 光球预览区 */}
       <div id="orb-preview" style={{
         width: "100%", maxWidth: 500, height: 400,
-        background: "#efeff2", borderRadius: 16, overflow: "hidden",
+        background: "var(--bg-card)", borderRadius: 16, overflow: "hidden",
         position: "relative",
         border: "1px solid rgba(0,0,0,0.06)",
         boxShadow: "0 4px 24px rgba(0,0,0,0.04)",

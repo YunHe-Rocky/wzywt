@@ -57,6 +57,8 @@ jobs:
       - run: npm run lint
       - run: npm run build
       - run: npx playwright install --with-deps chromium webkit
+      - name: Complete video streaming through the Next entry
+        run: npm run test:e2e:combat-streaming
       - name: Tournament error and split status regression (desktop and 320px mobile)
         env:
           DEPLOY_ENVIRONMENT: local
@@ -70,6 +72,8 @@ jobs:
             sleep 1
           done
           npm run test:e2e:tournament-boundaries
+      - name: History theme session preview regression
+        run: npm run test:e2e:history-theme
       - name: Combat feed and admin browser regression
         run: npm run test:e2e:combat-admin
       - name: Install isolated HTTPS proxy dependency
