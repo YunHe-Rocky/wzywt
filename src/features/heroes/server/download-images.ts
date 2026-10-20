@@ -9,8 +9,7 @@ import { resourceCheckpoint } from "@/lib/resource-governor";
 const HERO_IMG_DIR = path.join(process.cwd(), "public", "heroes", "images");
 const SKIN_IMG_DIR = path.join(process.cwd(), "public", "heroes", "skins");
 
-const HERO_CDN = "https://game.gtimg.cn/images/yxzj/img201606/heroimg/{id}/{id}.jpg";
-const SKIN_CDN = "https://game.gtimg.cn/images/yxzj/img201606/skin/hero-info/{id}/{id}-bigskin-{idx}.jpg";
+import { getCrawlConfig } from "@/features/heroes/server/crawl-config";
 
 async function pathExists(filePath: string): Promise<boolean> {
   return fs.access(filePath).then(() => true).catch(() => false);
@@ -65,6 +64,7 @@ async function downloadBestImage(
 }
 
 export async function downloadAllImages(): Promise<{ heroes: number; skins: number }> {
+  const config = await getCrawlConfig();
   const heroes = await prisma.hero.findMany({
     select: { heroId: true, imageUrl: true, skinsJson: true },
   });
@@ -75,7 +75,7 @@ export async function downloadAllImages(): Promise<{ heroes: number; skins: numb
   for (const hero of heroes) {
     await resourceCheckpoint("hero-images");
     // Hero avatar
-    const heroUrl = HERO_CDN.replace(/{id}/g, String(hero.heroId));
+    const heroUrl = config.hero_img_base.replace(/{id}/g, String(hero.heroId));
     const heroPath = path.join(HERO_IMG_DIR, `${hero.heroId}.jpg`);
     if (await downloadBestImage([heroUrl], heroPath)) heroCount++;
 
@@ -96,13 +96,12 @@ export async function downloadAllImages(): Promise<{ heroes: number; skins: numb
     for (const skin of skins) {
       await resourceCheckpoint("skin-images");
       if (!skin || typeof skin !== "object" || !Number.isSafeInteger(skin.index) || skin.index < 1) continue;
-      const skinUrl = SKIN_CDN.replace(/{id}/g, String(hero.heroId)).replace("{idx}", String(skin.index));
+      const skinUrl = config.skin_img_base.replace(/{id}/g, String(hero.heroId)).replace(/{idx}/g, String(skin.index));
       const standardUrl = skinUrl.replace("-bigskin-", "-mobileskin-");
       const skinPath = path.join(SKIN_IMG_DIR, String(hero.heroId), `${skin.index}.jpg`);
-      const candidates = Array.isArray(skin.imageUrls)
+      const candidates = [skinUrl, standardUrl, ...(Array.isArray(skin.imageUrls)
         ? skin.imageUrls.filter((url: unknown): url is string => typeof url === "string" && url.length > 0)
-        : [];
-      if (candidates.length === 0) candidates.push(skinUrl, standardUrl, heroUrl);
+        : []), heroUrl];
       if (await downloadBestImage(candidates, skinPath)) skinCount++;
     }
   }

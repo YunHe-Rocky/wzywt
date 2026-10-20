@@ -104,7 +104,7 @@ function crawlerFixture({ layout = "standard", namedFallback = false, configured
     function localRequire(specifier) {
       if (Object.hasOwn(stubs, specifier)) return stubs[specifier];
       if (["crypto", "cheerio", "iconv-lite"].includes(specifier)) return nativeRequire(specifier);
-      if (["@/features/heroes/model", "@/features/heroes/server/sync", "@/lib/anti-bot", "@/lib/http-response"].includes(specifier)) {
+      if (["@/core/crawl-url", "@/features/heroes/crawl-config", "@/features/heroes/server/crawl-config", "@/features/heroes/model", "@/features/heroes/server/sync", "@/lib/anti-bot", "@/lib/http-response"].includes(specifier)) {
         return load(`src/${specifier.slice(2)}.ts`);
       }
       throw new Error(`Unmocked import refused: ${specifier}`);

@@ -1,5 +1,7 @@
 # 王者演武堂部署指南
 
+本次视频兼容处理依赖 FFmpeg（含 `libx264` 与 `aac` 编码器）。原生/PM2 发布前先安装组件并执行 `npm run check:video-runtime`，非 PATH 安装位置可在应用 `.env` 配置 `FFMPEG_BIN`。具体行为与手机验收见 [媒体运行说明](media-operations.md#视频上传配置)；容器运行镜像已内置该组件。
+
 当前优先使用本地/局域网或 Docker Compose 部署，电脑与手机共用站点。容器部署请先看 [容器部署与维护](docker.md)，使用 `node scripts/compose.mjs`；此页下面的 `deploy.sh` 是已有的 Linux/PM2 发布流程。Windows 下载源码压缩包后也可以通过 Compose 部署，不要求 Git 仓库或 Bash。
 
 正常部署只维护一份很小的 `.env`，然后运行一次预检和一次发布。项目路径、运行目录、当前用户、Git 分支、PM2 名称、Node 工具链、媒体目录、备份目录和健康检查参数都由脚本发现或使用项目默认值，不要重复写进 `.env`。

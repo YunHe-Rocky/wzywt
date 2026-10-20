@@ -62,7 +62,7 @@ test("asset HTTP responses never cache missing files and return image bytes when
   assert.deepEqual(new Uint8Array(await found.arrayBuffer()), value);
 });
 
-test("image sync preserves remote URLs on failure, uses existing images and tolerates malformed skin metadata", async () => {
+test("image sync uses configured sources, preserves remote URLs on failure and tolerates malformed skin metadata", async () => {
   const rows = [
     { heroId: 1, imageUrl: "https://cdn.example/1.jpg", skinsJson: "null" },
     { heroId: 2, imageUrl: "https://cdn.example/2.jpg", skinsJson: '{}' },
@@ -80,6 +80,7 @@ test("image sync preserves remote URLs on failure, uses existing images and tole
     async unlink(path) { files.delete(path); },
   };
   const { downloadAllImages } = load("src/features/heroes/server/download-images.ts", {
+    "@/features/heroes/server/crawl-config": { getCrawlConfig: async () => ({ hero_img_base: "https://game.gtimg.cn/configured-avatar/{id}/{id}.jpg", skin_img_base: "https://game.gtimg.cn/configured-skin/{id}/{idx}.jpg" }) },
     "@/lib/db": { prisma: { hero: { findMany: async () => rows, update: async args => updates.push(args) } } },
     "fs/promises": filesystem,
     "@/lib/anti-bot": { validateCrawlUrl: value => value },
@@ -96,5 +97,7 @@ test("image sync preserves remote URLs on failure, uses existing images and tole
   });
   assert.deepEqual(await downloadAllImages(), { heroes: 1, skins: 1 });
   assert.deepEqual(updates.map(value => value.where.heroId), [2, 3], "failed avatar must keep its remote URL");
+  assert.ok(requests.some(value => value.includes("/configured-avatar/3/3.jpg")), "avatar download must use saved configuration");
+  assert.ok(requests.some(value => value.includes("/configured-skin/3/1.jpg")), "skin download must use saved configuration");
   assert.ok(requests.every(value => !value.includes("escape")), "invalid skin indices must not reach paths/requests");
 });

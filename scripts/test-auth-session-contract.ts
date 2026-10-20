@@ -48,8 +48,21 @@ assert.equal(passwordValidationError("12345678901"), null);
 assert.match(passwordValidationError("😀".repeat(19)) || "", /72/);
 assert.equal(normalizeSecurityAnswer("  answer  "), "answer");
 assert.equal(normalizeRequestIp("::ffff:127.0.0.1"), "127.0.0.1");
-assert.equal(getRequestIp(new Headers({ "x-real-ip": "203.0.113.8", "x-forwarded-for": "198.51.100.9" })), "203.0.113.8");
-assert.equal(getRequestIp(new Headers({ "x-forwarded-for": "198.51.100.9" })), "unknown");
+const previousProxy = process.env.TRUST_PROXY;
+const previousDeployment = process.env.DEPLOY_ENVIRONMENT;
+try {
+  const headers = new Headers({ "x-real-ip": "203.0.113.8", "x-forwarded-for": "198.51.100.9" });
+  process.env.TRUST_PROXY = "1";
+  assert.equal(getRequestIp(headers), "203.0.113.8");
+  assert.equal(getRequestIp(new Headers({ "x-forwarded-for": "198.51.100.9" })), "unknown");
+  process.env.TRUST_PROXY = "0";
+  assert.equal(getRequestIp(headers), "direct", "untrusted clients cannot supply their own rate-limit identity");
+  delete process.env.TRUST_PROXY; process.env.DEPLOY_ENVIRONMENT = "local";
+  assert.equal(getRequestIp(headers), "direct", "LAN mode ignores proxy headers unless explicitly enabled");
+} finally {
+  if (previousProxy === undefined) delete process.env.TRUST_PROXY; else process.env.TRUST_PROXY = previousProxy;
+  if (previousDeployment === undefined) delete process.env.DEPLOY_ENVIRONMENT; else process.env.DEPLOY_ENVIRONMENT = previousDeployment;
+}
 
 const deleted = resolveAuthState(
   { userId: 7, sessionVersion: 2 },

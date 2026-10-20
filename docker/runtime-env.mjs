@@ -15,7 +15,7 @@ export const applicationEnvironmentKeys = Object.freeze([...Object.keys(defaults
   "SESSION_SECRET", "MYSQL_PASSWORD", "HEALTH_DETAILS_TOKEN", "MATCH_OCR_ENDPOINT", "MATCH_OCR_TOKEN", "MATCH_OCR_INTERNAL_HOST",
   "TRUST_PROXY", "MEDIA_USER_STORED_QUOTA_BYTES", "MEDIA_USER_DAILY_QUOTA_BYTES",
   "MEDIA_GLOBAL_STORED_QUOTA_BYTES", "MEDIA_MIN_FREE_BYTES", "MATCH_OCR_QUEUE_LIMIT",
-  "COMBAT_VIDEO_UPLOAD_TIMEOUT_SECONDS", "COMBAT_VIDEO_MAX_SIZE_MB", "COMBAT_VIDEO_MAX_DURATION_SECONDS", ...resourceSettingKeys]);
+  "COMBAT_VIDEO_UPLOAD_TIMEOUT_SECONDS", "COMBAT_VIDEO_MAX_SIZE_MB", "COMBAT_VIDEO_MAX_DURATION_SECONDS", "FFMPEG_BIN", ...resourceSettingKeys]);
 
 /** Shared by the deployment adapter and container startup. No admin credentials. */
 export function applicationEnvironment(environment) {

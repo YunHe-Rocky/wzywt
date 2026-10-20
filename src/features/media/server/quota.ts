@@ -61,6 +61,7 @@ export async function reserveMediaUpload(
   requestedBytes: number,
   now = new Date(),
   ttlMs = RESERVATION_TTL_MS,
+  replacingReservationId?: string,
 ): Promise<{ id: string; bytes: number; expiresAt: Date }> {
   if (!Number.isSafeInteger(requestedBytes) || requestedBytes <= 0) {
     throw new ServiceError("VALIDATION_ERROR", "媒体预留大小无效");
@@ -75,7 +76,12 @@ export async function reserveMediaUpload(
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
       return await prisma.$transaction(async (tx) => {
-        const activeReservation = { state: "RESERVED", expiresAt: { gt: now } };
+        const previous = replacingReservationId ? await tx.mediaUploadReservation.findFirst({
+          where: { id: replacingReservationId, userId, kind, state: "RESERVED", storageKey: null, expiresAt: { gt: now } },
+          select: { id: true, expiresAt: true },
+        }) : null;
+        if (replacingReservationId && !previous) throw new ServiceError("CONFLICT", "媒体上传预留已失效，请重新上传");
+        const activeReservation = { state: "RESERVED", expiresAt: { gt: now }, ...(previous ? { id: { not: previous.id } } : {}) };
         const [
           userScreenshots,
           userVideos,
@@ -113,7 +119,10 @@ export async function reserveMediaUpload(
           });
         }
         const expiresAt = new Date(now.getTime() + ttlMs);
-        const reservation = await tx.mediaUploadReservation.create({
+        const reservation = previous ? await tx.mediaUploadReservation.update({
+          where: { id: previous.id }, data: { bytes: BigInt(requestedBytes) },
+          select: { id: true, bytes: true, expiresAt: true },
+        }) : await tx.mediaUploadReservation.create({
           data: { id: randomUUID(), userId, kind, bytes: BigInt(requestedBytes), expiresAt },
           select: { id: true, bytes: true, expiresAt: true },
         });

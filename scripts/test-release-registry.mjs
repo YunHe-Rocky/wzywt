@@ -10,6 +10,7 @@ assert.equal(existsSync(registryPath), true, "release registry must exist at doc
 
 const registry = JSON.parse(readFileSync(registryPath, "utf8"));
 const packageJson = JSON.parse(readFileSync(packagePath, "utf8"));
+const packageLock = JSON.parse(readFileSync(resolve(root, "package-lock.json"), "utf8"));
 
 assert.equal(registry.schemaVersion, 1, "release registry schemaVersion must be 1");
 assert.equal(registry.project, "wangzhe-yanwutang", "release registry project must match the package name");
@@ -30,6 +31,7 @@ for (const release of registry.releases) {
   assert.match(release.releasedAt, timestampPattern, "releasedAt must include date, time to seconds, and +08:00 offset");
   assert.equal(release.timezone, "Asia/Shanghai", "release timezone must be Asia/Shanghai");
   assert.equal(release.tag, `v${release.version}`, "release tag must match the public version");
+  assert.equal(existsSync(resolve(root, "docs", "releases", `v${release.version}.md`)), true, "each registered release needs detailed notes");
   assert.match(release.sourceRange.fromCommit, commitPattern, "source range start must be a full Git commit");
   assert.match(release.sourceRange.toCommit, commitPattern, "source range end must be a full Git commit");
   assert.ok(Array.isArray(release.pullRequests), "pullRequests must be an array");
@@ -51,4 +53,6 @@ for (const release of registry.releases) {
 }
 
 assert.equal(packageJson.version, registry.releases[0].version, "package version must match the latest registered release");
+assert.equal(packageLock.version, packageJson.version, "lockfile version must match the package");
+assert.equal(packageLock.packages[""].version, packageJson.version, "lockfile root package version must match the package");
 console.log("Release registry tests passed");

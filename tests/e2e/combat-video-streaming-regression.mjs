@@ -37,7 +37,9 @@ const route = await build({
     export async function POST(request) {
       if (!request.headers.get("cookie")?.includes("wzyt_session=fixture")) return Response.json({error:"Unauthorized"}, {status:401});
       try {
-        const result = await readCombatPostUpload(request, "fixture", 1, async () => {});
+        // This fixture isolates multipart and the Next middleware size boundary;
+        // real decoding/conversion is required by video-compatibility-regression.
+        const result = await readCombatPostUpload(request, "fixture", 1, async () => {}, async (_storage, stored) => stored);
         const storage = getMediaStorage();
         try { return Response.json({size: result.video.size, duration: await inspectVideoDuration(storage,result.video.key,result.video.size,result.video.mimeType)}); }
         finally { await storage.delete(result.video.key); }
@@ -46,7 +48,7 @@ const route = await build({
   bundle: true, platform: "node", format: "esm", packages: "external", write: false,
   plugins: [{ name: "no-database", setup(builder) {
     builder.onResolve({ filter: /features\/media\/server\/quota$/ }, () => ({ path: "quota", namespace: "fixture" }));
-    builder.onLoad({ filter: /.*/, namespace: "fixture" }, () => ({ contents: "export function attachMediaReservation(){throw new Error('Unexpected database access');}" }));
+    builder.onLoad({ filter: /.*/, namespace: "fixture" }, () => ({ contents: "export function attachMediaReservation(){throw new Error('Unexpected database access');} export function reserveMediaUpload(){throw new Error('Unexpected database access');}" }));
   } }],
 });
 await writeFile(path.join(fixture, "src/app/api/combat-posts/handler.js"), route.outputFiles[0].contents);

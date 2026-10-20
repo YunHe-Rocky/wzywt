@@ -26,6 +26,9 @@ RUN NODE_ENV=production DEPLOY_ENVIRONMENT=local \
     MEDIA_STORAGE_DIR=/tmp/build-media npm run build
 
 FROM base AS runtime
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
 ENV NODE_ENV=production PORT=8001 HOST=0.0.0.0
 # Keep the locked tsx/Prisma toolchain: cron executes TypeScript and the migrate
 # job uses the same image/schema as web, without downloading tools on startup.

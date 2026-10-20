@@ -13,31 +13,9 @@ import {
   type HeroCatalogRecord,
 } from "@/features/heroes/model";
 
-const DEFAULTS = {
-  hero_list_page: "https://pvp.qq.com/web201605/herolist.shtml",
-  hero_list_json: "https://pvp.qq.com/web201605/js/herolist.json",
-  hero_detail_base: "https://pvp.qq.com/web201605/herodetail",
-  hero_img_base: "https://game.gtimg.cn/images/yxzj/img201606/heroimg/{id}/{id}.jpg",
-  skin_img_base: "https://game.gtimg.cn/images/yxzj/img201606/skin/hero-info/{id}/{id}-bigskin-{idx}.jpg",
-};
-
-type CrawlConfig = typeof DEFAULTS;
-
-export async function getCrawlConfig(): Promise<CrawlConfig> {
-  const row = await prisma.kvCache.findUnique({ where: { key: "config:crawl_urls" } });
-  if (!row) return { ...DEFAULTS };
-  try {
-    const saved = JSON.parse(row.value) as Partial<CrawlConfig>;
-    const config = { ...DEFAULTS, ...saved };
-    for (const key of Object.keys(DEFAULTS) as Array<keyof CrawlConfig>) {
-      config[key] = validateCrawlUrl(config[key]);
-    }
-    return config;
-  } catch (error) {
-    console.warn("[sync] invalid crawl configuration; using trusted defaults", error instanceof Error ? error.message : error);
-    return { ...DEFAULTS };
-  }
-}
+import { getCrawlConfig } from "@/features/heroes/server/crawl-config";
+import type { CrawlConfig } from "@/features/heroes/crawl-config";
+export { getCrawlConfig } from "@/features/heroes/server/crawl-config";
 
 interface RawHero {
   ename: number;

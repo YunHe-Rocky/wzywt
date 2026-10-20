@@ -2,26 +2,8 @@
 
 import { readResponseJson, readResponseText } from "@/lib/http-response";
 
-const ALLOWED_CRAWL_HOSTS = new Set(["pvp.qq.com", "game.gtimg.cn"]);
-
-export function validateCrawlUrl(value: string): string {
-  let url: URL;
-  try {
-    url = new URL(value);
-  } catch {
-    throw new TypeError("爬取地址格式无效");
-  }
-  if (
-    url.protocol !== "https:"
-    || url.username
-    || url.password
-    || !ALLOWED_CRAWL_HOSTS.has(url.hostname.toLowerCase())
-  ) {
-    throw new TypeError("爬取地址仅允许受信任的 HTTPS 官方域名");
-  }
-  // 保留 `{id}` 等受控路径模板，URL 对象仅用于协议和主机校验。
-  return value.trim();
-}
+import { validateCrawlUrl } from "@/core/crawl-url";
+export { validateCrawlUrl } from "@/core/crawl-url";
 
 const USER_AGENTS = [
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",

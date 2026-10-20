@@ -100,7 +100,9 @@ async function testStreamingCombatUpload(): Promise<void> {
     form.set("title", "测试视频");
     form.set("content", "流式上传内容");
     form.set("video", new File([mp4], "clip.mp4", { type: "video/mp4" }));
-    const upload = await readCombatPostUpload(new Request("http://localhost/upload", { method: "POST", body: form }), "test-reservation", 1, async () => undefined);
+    // This fixture verifies multipart transport, signature rejection and cleanup.
+    // Real decoding uses actual encoded samples in test:e2e:video-compatibility.
+    const upload = await readCombatPostUpload(new Request("http://localhost/upload", { method: "POST", body: form }), "test-reservation", 1, async () => undefined, async (_storage, stored) => stored);
     assert.equal(upload.fields.title, "测试视频");
     assert.equal(upload.video.size, mp4.length);
     assert.equal(await storage.exists(upload.video.key), true);
@@ -169,9 +171,11 @@ async function testOcrTransportGuards(): Promise<void> {
   const originalEndpoint = process.env.MATCH_OCR_ENDPOINT;
   const originalToken = process.env.MATCH_OCR_TOKEN;
   const originalNodeEnv = process.env.NODE_ENV;
+  const originalDeployment = process.env.DEPLOY_ENVIRONMENT;
   const files = [{ type: "DATA", filename: "data.png", mimeType: "image/png", data: Buffer.from("image") }];
   try {
     Reflect.set(process.env, "NODE_ENV", "test");
+    delete process.env.DEPLOY_ENVIRONMENT;
     process.env.MATCH_OCR_ENDPOINT = "http://ocr.test/recognize";
     process.env.MATCH_OCR_TOKEN = "test-token";
     let observedInit: RequestInit | undefined;
@@ -238,6 +242,8 @@ async function testOcrTransportGuards(): Promise<void> {
     else process.env.MATCH_OCR_TOKEN = originalToken;
     if (originalNodeEnv === undefined) Reflect.deleteProperty(process.env, "NODE_ENV");
     else Reflect.set(process.env, "NODE_ENV", originalNodeEnv);
+    if (originalDeployment === undefined) delete process.env.DEPLOY_ENVIRONMENT;
+    else process.env.DEPLOY_ENVIRONMENT = originalDeployment;
   }
 }
 

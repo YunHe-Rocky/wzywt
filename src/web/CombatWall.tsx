@@ -65,14 +65,16 @@ export function CombatWall() {
     if (uploadRef.current || !policy) return;
     const formElement = event.currentTarget; const form = new FormData(formElement);
     const video = form.get("video");
-    if (!(video instanceof File) || video.size === 0) return error("请选择 MP4 或 WebM 视频");
+    if (!(video instanceof File) || video.size === 0) return error("请选择 MP4、MOV 或 WebM 视频");
     if (video.size > policy.maxBytes) return error(`文件不能超过 ${policy.maxBytes / 1024 ** 2} MiB`);
     const controller = new AbortController(); uploadRef.current = controller;
     setPublishing(true); setProgress(0);
     try {
-      const seconds = await readLocalVideoDuration(video);
+      const seconds = await readLocalVideoDuration(video).catch(() => null);
       if (controller.signal.aborted) return;
-      if (seconds > policy.maxDurationSeconds) return error(`视频时长不能超过 ${policy.maxDurationSeconds} 秒`);
+      // A browser unable to decode a phone recording must not block server-side
+      // conversion. The server independently enforces duration and full decode.
+      if (seconds !== null && seconds > policy.maxDurationSeconds) return error(`视频时长不能超过 ${policy.maxDurationSeconds} 秒`);
       const result = await publishCombatPost<{ error?: string }>({
         title: String(form.get("title") || ""), content: String(form.get("content") || ""), video,
         matchId: String(form.get("matchId") || "") || undefined, tournamentId: String(form.get("tournamentId") || "") || undefined,
@@ -87,15 +89,15 @@ export function CombatWall() {
     <header className="yanwu-workspace-hero combat-hub-hero"><div><p className="feature-kicker">COMBAT FEED</p><h1>演武动态</h1><p>分享高光时刻，复盘每一次团战。</p></div>{user && <button className="btn-primary" aria-expanded={composerOpen} aria-controls="combat-publisher" onClick={() => setComposerOpen(v => !v)} disabled={publishing}><ArenaIcon name="plus" width="16" height="16" />{composerOpen ? "收起发布" : "发布动态"}</button>}</header>
     {!loaded ? <div className="feature-empty" role="status">正在确认登录状态…</div> : !user ? <section className="feature-empty"><h2>和队友一起交流复盘</h2><p>登录后可以浏览视频、发布动态和参与评论。</p><Link className="btn-primary" prefetch={false} href={protectedPageLoginRedirect(pathname)}>登录查看动态</Link></section> : <>
     {composerOpen && <section id="combat-publisher" className="yanwu-workspace-section combat-publisher" aria-labelledby="publish-title">
-      <div><p className="feature-kicker">SHARE YOUR PLAY</p><h2 id="publish-title">发布复盘</h2><p className="combat-upload-hint">{policy ? `支持 MP4 / WebM，最长 ${policy.maxDurationSeconds / 60} 分钟，最大 ${policy.maxBytes / 1024 ** 2} MiB。` : "正在读取上传限制…"}</p>{policyError && <p role="alert">{policyError} <button className="text-action" onClick={() => setRevision(v => v + 1)}>重试</button></p>}</div>
+      <div><p className="feature-kicker">SHARE YOUR PLAY</p><h2 id="publish-title">发布复盘</h2><p className="combat-upload-hint">{policy ? `支持 MP4 / MOV / WebM，最长 ${policy.maxDurationSeconds / 60} 分钟，最大 ${policy.maxBytes / 1024 ** 2} MiB；发布前会生成兼容播放版本。` : "正在读取上传限制…"}</p>{policyError && <p role="alert">{policyError} <button className="text-action" onClick={() => setRevision(v => v + 1)}>重试</button></p>}</div>
       <form onSubmit={publish} aria-busy={publishing}>
         <label>标题<input name="title" minLength={2} maxLength={128} required placeholder="这场团战为什么能赢" disabled={publishing} /></label>
         <label className="combat-content-field">正文<textarea name="content" minLength={2} maxLength={10000} rows={4} required placeholder="记录关键节点、决策依据和可复用经验" disabled={publishing} /></label>
         <label>关联赛事 ID（可选）<input name="tournamentId" type="number" min="1" inputMode="numeric" disabled={publishing} /></label>
         <label>关联比赛 ID（可选）<input name="matchId" type="number" min="1" inputMode="numeric" disabled={publishing} /></label>
-        <label className="combat-video-field">复盘视频<input name="video" type="file" accept="video/mp4,video/webm" required disabled={publishing} /></label>
+        <label className="combat-video-field">复盘视频<input name="video" type="file" accept="video/mp4,video/quicktime,video/webm,.mp4,.mov,.m4v,.webm" required disabled={publishing} /></label>
         <button className="btn-primary" disabled={publishing || !policy}>{publishing ? progress === 100 ? "正在完成发布…" : `上传中 ${progress}%` : "发布动态"}</button>
-        {publishing && <div className="combat-upload-progress"><progress max={100} value={progress} aria-label="视频上传进度" /><span role="status">{progress === 100 ? "视频已上传，正在验证并保存" : `已上传 ${progress}%`}</span><button type="button" className="btn-subtle" onClick={() => uploadRef.current?.abort()}>取消上传</button></div>}
+        {publishing && <div className="combat-upload-progress"><progress max={100} value={progress} aria-label="视频上传进度" /><span role="status">{progress === 100 ? "视频已上传，正在处理兼容播放版本，请稍候" : `已上传 ${progress}%`}</span><button type="button" className="btn-subtle" onClick={() => uploadRef.current?.abort()}>取消上传</button></div>}
       </form>
     </section>}
     <section aria-labelledby="feed-title"><div className="feature-heading"><div><p className="feature-kicker">LATEST</p><h2 id="feed-title">最新动态 <small>{total} 条</small></h2></div><button className="btn-subtle" disabled={loading} onClick={() => setRevision(v => v + 1)}>刷新</button></div>

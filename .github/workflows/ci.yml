@@ -57,6 +57,12 @@ jobs:
       - run: npm run lint
       - run: npm run build
       - run: npx playwright install --with-deps chromium webkit
+      - name: Install video runtime
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Phone video conversion and playback regression
+        run: npm run test:e2e:video-compatibility
+      - name: System settings desktop and mobile regression
+        run: npm run test:e2e:settings
       - name: Complete video streaming through the Next entry
         run: npm run test:e2e:combat-streaming
       - name: Tournament error and split status regression (desktop and 320px mobile)

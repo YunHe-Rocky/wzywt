@@ -9,6 +9,7 @@ import { releaseMediaReservation, reserveMediaUpload } from "@/features/media/se
 import { apiErrorResponse } from "@/lib/api-errors";
 import { requireAuth } from "@/lib/auth";
 import { getCombatVideoPolicy } from "@/features/combat-posts/server/video-policy";
+import { assertVideoRuntime } from "@/lib/video-normalization";
 
 async function handleGET(request: NextRequest) {
   try {
@@ -21,6 +22,7 @@ async function handleGET(request: NextRequest) {
 async function handlePOST(request: NextRequest) {
   try {
     const user = await requireAuth();
+    await assertVideoRuntime();
     const policy = getCombatVideoPolicy();
     const maximum = policy.maxBytes;
     const declared = Number(request.headers.get("content-length"));

@@ -10,6 +10,7 @@ import {
 } from "@/lib/media-validation";
 import { getCombatVideoPolicy } from "@/features/combat-posts/server/video-policy";
 import { inspectVideoDuration } from "@/lib/video-duration";
+import { prepareCombatVideo } from "@/features/combat-posts/server/prepare-video";
 import { ServiceError } from "@/lib/service-error";
 import { getMediaStorage } from "@/lib/storage";
 
@@ -53,6 +54,7 @@ export async function readCombatPostUpload(
   reservationId: string,
   userId: number,
   attachReservation: typeof attachMediaReservation = attachMediaReservation,
+  prepareVideo: typeof prepareCombatVideo = prepareCombatVideo,
 ): Promise<CombatPostUpload> {
   const policy = getCombatVideoPolicy();
   assertDeclaredSize(request, policy.maxBytes);
@@ -61,6 +63,7 @@ export async function readCombatPostUpload(
   const storage = getMediaStorage();
   if (!storage.saveStream) throw new ServiceError("SERVICE_UNAVAILABLE", "媒体存储不支持流式上传");
   const fields: Record<string, string> = {};
+  const deadline = new AbortController();
   let fatalError: unknown;
   let storedVideo: StreamedCombatVideo | null = null;
   let videoPromise: Promise<StreamedCombatVideo> | null = null;
@@ -98,7 +101,7 @@ export async function readCombatPostUpload(
       fail(new ServiceError("VALIDATION_ERROR", "只允许上传一个 video 文件"));
       return;
     }
-    const claimed = info.mimeType === "video/mp4"
+    const claimed = ["video/mp4", "video/quicktime", "video/x-m4v", "application/octet-stream"].includes(info.mimeType)
       ? { mimeType: "video/mp4" as const, extension: "mp4" }
       : info.mimeType === "video/webm"
         ? { mimeType: "video/webm" as const, extension: "webm" }
@@ -127,14 +130,26 @@ export async function readCombatPostUpload(
         throw new ServiceError("VALIDATION_ERROR", "文件不能为空");
       }
       const detected = detectVideo(stored.header);
-      if (!detected || detected.mimeType !== claimed.mimeType) {
+      if (!detected || (info.mimeType !== "application/octet-stream" && detected.mimeType !== claimed.mimeType)) {
         await storage.delete(stored.key);
         throw new ServiceError("UNSUPPORTED_MEDIA_TYPE", "仅支持真实的 MP4 或 WebM 视频");
       }
       try {
-        const duration = await inspectVideoDuration(storage, stored.key, stored.size, claimed.mimeType);
-        if (duration > policy.maxDurationSeconds) throw new ServiceError("VALIDATION_ERROR", `视频时长不能超过 ${policy.maxDurationSeconds} 秒`);
-        await attachReservation(reservationId, userId, stored.key, stored.size);
+        const duration = await inspectVideoDuration(storage, stored.key, stored.size, detected.mimeType).catch(error => {
+          // Browser-recorded WebM can omit a container duration. Full decoding
+          // determines it below; an unreadable header is never a publish pass.
+          if (error instanceof ServiceError && error.code === "UNSUPPORTED_MEDIA_TYPE") return null;
+          throw error;
+        });
+        if (duration !== null && duration > policy.maxDurationSeconds) throw new ServiceError("VALIDATION_ERROR", `视频时长不能超过 ${policy.maxDurationSeconds} 秒`);
+        const prepared = await prepareVideo(storage, stored, detected.mimeType, policy, reservationId, userId, AbortSignal.any([request.signal, deadline.signal]));
+        try {
+          await attachReservation(reservationId, userId, prepared.key, prepared.size);
+        } catch (error) {
+          await storage.delete(prepared.key).catch(() => undefined);
+          throw error;
+        }
+        stored = prepared;
       } catch (error) {
         await storage.delete(stored.key).catch(() => undefined);
         throw error;
@@ -144,7 +159,7 @@ export async function readCombatPostUpload(
         key: stored.key,
         size: stored.size,
         sha256: stored.sha256,
-        mimeType: claimed.mimeType,
+        mimeType: "video/mp4",
         originalFilename: cleanOriginalFilename(info.filename),
       };
       return storedVideo;
@@ -177,7 +192,10 @@ export async function readCombatPostUpload(
   });
   resetIdleTimer(limiter);
   const source = Readable.fromWeb(request.body as unknown as NodeReadableStream);
-  const deadlineTimer = setTimeout(() => source.destroy(new ServiceError("REQUEST_TIMEOUT", "视频上传超时，请重试")), policy.uploadTimeoutMs);
+  const deadlineTimer = setTimeout(() => {
+    const error = new ServiceError("REQUEST_TIMEOUT", "视频上传超时（含处理阶段），请重试");
+    deadline.abort(error); source.destroy(error);
+  }, policy.uploadTimeoutMs);
   const onAbort = () => source.destroy(new ServiceError("REQUEST_TIMEOUT", "上传连接已中断"));
   request.signal.addEventListener("abort", onAbort, { once: true });
   if (request.signal.aborted) onAbort();

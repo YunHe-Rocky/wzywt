@@ -61,6 +61,12 @@ try {
     const videoStartedAt = new Date();
     const videoReservation = await reserveMediaUpload(userIds[0], "combat-video", 80, videoStartedAt, 61 * 60_000);
     assert.equal(videoReservation.expiresAt.getTime() - videoStartedAt.getTime(), 61 * 60_000, "long video uploads must retain their quota reservation through the upload deadline");
+    const resized = await reserveMediaUpload(userIds[0], "combat-video", 90, new Date(), undefined, videoReservation.id);
+    assert.equal(resized.id, videoReservation.id, "conversion must resize the same reservation");
+    assert.equal(resized.bytes, 90);
+    assert.equal(resized.expiresAt.getTime(), videoReservation.expiresAt.getTime(), "resizing must not extend the deadline");
+    await assert.rejects(() => reserveMediaUpload(userIds[0], "combat-video", 101, new Date(), undefined, videoReservation.id), /配额不足/);
+    await assert.rejects(() => reserveMediaUpload(userIds[1], "combat-video", 90, new Date(), undefined, videoReservation.id), /预留已失效/);
     await releaseMediaReservation(videoReservation.id, userIds[0]);
   } finally {
     for (const [key, value] of Object.entries({

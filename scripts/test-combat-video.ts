@@ -9,6 +9,10 @@ import { inspectVideoDuration } from "@/lib/video-duration";
 import { parseCombatVideoPolicy } from "@/features/combat-posts/video-policy";
 import { isCombatModerationAction } from "@/features/combat-posts/model";
 
+// Parser/duration unit boundaries use synthetic containers. Actual decoding and
+// phone-format conversion run separately in test:e2e:video-compatibility.
+const readParserUpload = (request: Request) => readCombatPostUpload(request, "test", 1, async () => undefined, async (_storage, stored) => stored);
+
 function box(type: string, body: Buffer) {
   const head = Buffer.alloc(8); head.writeUInt32BE(body.length + 8); head.write(type, 4); return Buffer.concat([head, body]);
 }
@@ -36,9 +40,9 @@ try {
     return new Request("http://localhost/upload", { method: "POST", body: form });
   };
   // The backend must enforce the limit even when the browser is bypassed.
-  await assert.rejects(() => readCombatPostUpload(request(301), "test", 1, async () => undefined), /时长/);
+  await assert.rejects(() => readParserUpload(request(301)), /时长/);
   assert.equal((await readdir(root, { recursive: true, withFileTypes: true })).filter(item => item.isFile()).length, 0, "overlong uploads must be removed");
-  const accepted = await readCombatPostUpload(request(300), "test", 1, async () => undefined);
+  const accepted = await readParserUpload(request(300));
   assert.equal(await storage.exists(accepted.video.key), true);
   await storage.delete(accepted.video.key);
   for (const [mimeType, data, expected] of [["video/mp4", movie(299), 299], ["video/webm", webm(300), 300], ["video/webm", webm(301), 301]] as const) {
