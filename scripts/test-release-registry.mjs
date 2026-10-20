@@ -27,7 +27,7 @@ const commitPattern = /^[0-9a-f]{40}$/;
 for (const release of registry.releases) {
   assert.match(release.version, semverPattern, "release version must use x.y.z format");
   assert.match(release.internalId, internalIdPattern, "internal release id must use WZYWT-REL-0001 format");
-  assert.ok(["major", "minor"].includes(release.releaseType), "releaseType must be major or minor");
+  assert.ok(["major", "minor", "patch"].includes(release.releaseType), "releaseType must be major, minor or patch");
   assert.match(release.releasedAt, timestampPattern, "releasedAt must include date, time to seconds, and +08:00 offset");
   assert.equal(release.timezone, "Asia/Shanghai", "release timezone must be Asia/Shanghai");
   assert.equal(release.tag, `v${release.version}`, "release tag must match the public version");
@@ -52,7 +52,34 @@ for (const release of registry.releases) {
   tags.add(release.tag);
 }
 
-assert.equal(packageJson.version, registry.releases[0].version, "package version must match the latest registered release");
+const development = registry.currentDevelopment;
+if (development !== undefined) {
+  assert.match(development.version, semverPattern, "internal version must use x.y.z format");
+  assert.match(development.internalId, internalIdPattern, "internal version needs its own release id");
+  assert.equal(development.status, "internal", "development version must remain explicitly internal");
+  assert.match(development.registeredAt, timestampPattern, "internal registration needs a timestamp with +08:00 offset");
+  assert.equal(development.timezone, "Asia/Shanghai");
+  assert.equal(development.previousVersion, registry.releases[0].version, "internal version must identify its registered baseline");
+  assert.equal(versions.has(development.version), false, "internal version cannot duplicate a registered release");
+  assert.equal(internalIds.has(development.internalId), false, "internal version cannot reuse a registered release id");
+  assert.equal(existsSync(resolve(root, "docs", "releases", `v${development.version}.md`)), true, "internal version needs detailed notes");
+  assert.match(development.source.baseCommit, commitPattern, "internal version needs an honest base commit");
+  assert.ok(["working-tree", "committed"].includes(development.source.state), "internal source must describe its actual state");
+  if (development.source.state === "committed") assert.match(development.source.commit, commitPattern, "committed internal source needs its actual implementation commit");
+  else assert.equal(development.source.commit, undefined, "uncommitted source must not invent an implementation commit");
+  assert.equal(development.tag, undefined, "internal registration must not imply a created release tag");
+  assert.equal(development.releasedAt, undefined, "internal registration is not a formal release timestamp");
+  assert.ok(Array.isArray(development.summary) && development.summary.length > 0, "internal changes must be described");
+  const [major, minor, patch] = development.previousVersion.split(".").map(Number);
+  const nextVersion = {
+    major: `${major + 1}.0.0`,
+    minor: `${major}.${minor + 1}.0`,
+    patch: `${major}.${minor}.${patch + 1}`,
+  }[development.releaseType];
+  assert.ok(nextVersion, "internal update type must be major, minor or patch");
+  assert.equal(development.version, nextVersion, "version positions must follow major.minor.patch update levels");
+}
+assert.equal(packageJson.version, development?.version ?? registry.releases[0].version, "package version must match the current internal version or latest registered release");
 assert.equal(packageLock.version, packageJson.version, "lockfile version must match the package");
 assert.equal(packageLock.packages[""].version, packageJson.version, "lockfile root package version must match the package");
 console.log("Release registry tests passed");

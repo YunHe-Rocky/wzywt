@@ -1,6 +1,26 @@
 {
   "schemaVersion": 1,
   "project": "wangzhe-yanwutang",
+  "currentDevelopment": {
+    "version": "1.1.0",
+    "internalId": "WZYWT-REL-0005",
+    "releaseType": "minor",
+    "status": "internal",
+    "registeredAt": "2026-10-20T10:26:28+08:00",
+    "timezone": "Asia/Shanghai",
+    "previousVersion": "1.0.3",
+    "source": {
+      "baseCommit": "d4394e85bd12ebdb320abb4e7ace82a721bbc975",
+      "state": "committed",
+      "commit": "d78b4725a7332f06dd788f885bfe1ee8f11594d5"
+    },
+    "summary": [
+      "电脑与手机分别按任务重排首页导航、图鉴、个人配置、房间、对局、战术、动态及后台操作布局",
+      "补齐配置读取失败恢复、保存中继续编辑的状态保护、触控尺寸、弹窗初始焦点与发布后的焦点恢复",
+      "完成26类页面52张两端截图、七种尺寸、系统设置与动态视频回归，以及使用隔离API的真实本地Next页面检查"
+    ],
+    "notes": "内部小更新，第二位表示小更新，第三位留给子更新；下一子更新为1.1.1。实现源码由source.commit记录，版本登记在后续提交中维护；GitHub同步状态以远端分支为准。未发布站内公告、未创建本版Git Tag或GitHub Release、未部署。既有1.0.x历史编号与分类保留原记录。"
+  },
   "releases": [
     {
       "version": "1.0.3",

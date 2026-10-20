@@ -28,7 +28,7 @@
 
 运行参数只维护在选定环境文件中，Compose 调用共享脚本生成配置。具体预算、恢复条件和验收边界见 [资源调度与自动恢复](docs/operations/resource-governor.md) 与 [部署手册](docs/operations/docker.md)。
 
-当前代码版本：[v1.0.3 / WZYWT-REL-0004](docs/releases/v1.0.3.md)（小版本；代码版本不代表生产已部署）。
+当前内部版本：[v1.1.0 / WZYWT-REL-0005](docs/releases/v1.1.0.md)（小更新，实现源码已提交；代码版本不代表生产已部署）。版本号按「大更新.小更新.子更新」排列，下一子更新为 `v1.1.1`；上一已登记代码版本为 [v1.0.3](docs/releases/v1.0.3.md)。
 
 ## 技术栈
 
