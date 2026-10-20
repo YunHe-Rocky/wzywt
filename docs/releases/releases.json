@@ -3,6 +3,29 @@
   "project": "wangzhe-yanwutang",
   "releases": [
     {
+      "version": "1.0.3",
+      "internalId": "WZYWT-REL-0004",
+      "releaseType": "minor",
+      "releasedAt": "2026-10-20T09:29:13+08:00",
+      "timezone": "Asia/Shanghai",
+      "tag": "v1.0.3",
+      "previousVersion": "1.0.2",
+      "sourceRange": {
+        "fromCommit": "9ccaee7def63525619e20216950525613aafe1d8",
+        "toCommit": "f5ecc63a81e1592c87aa16d5fe8003c6e4329b22",
+        "compareUrl": "https://github.com/YunHe-Rocky/wzywt/compare/9ccaee7def63525619e20216950525613aafe1d8...f5ecc63a81e1592c87aa16d5fe8003c6e4329b22"
+      },
+      "pullRequests": [],
+      "summary": [
+        "系统设置增加默认来源引导、保存并同步、地址示例与刷新后进度恢复，图片下载实际读取保存配置",
+        "新上传视频统一生成 H.264/AAC MP4，补齐手机点击播放、缓冲超时和错误恢复",
+        "归并 Compose 统一入口、外部 MySQL/OCR、OSS 文件存储、资源回收与完整备份流程",
+        "归并账号凭据、媒体上传账本、业务并发和 Redis 缓存失效修复，授权与事务继续以 MySQL 为准",
+        "补充系统设置两端操作回归、视频兼容检查和版本一致性检查，归档固定基线审计材料"
+      ],
+      "notes": "本次归并 main 上 v1.0.2 以来的直接提交、合并提交与本轮实施提交，未新建 PR；版本标签指向后续版本登记提交。npm run check、生产构建和系统设置 Chromium 1280/390/320px 回归通过；Windows 的完整 Unix 发布激活用例由原测试明确 SKIP。Windows WebKit 视频回归仍因原生时间控件异常失败，纯 HTML 已独立复现，未屏蔽该门禁。真实 MySQL/Redis、容器、外部服务、恢复和手机验收仍待各自环境验证。本版含 20261018090000_media_upload_usage migration，原生 PM2 需 FFmpeg。旧视频不会自动转码。本次为本地代码版本登记，未推送、未创建 GitHub Release、未部署生产。"
+    },
+    {
       "version": "1.0.2",
       "internalId": "WZYWT-REL-0003",
       "releaseType": "minor",
