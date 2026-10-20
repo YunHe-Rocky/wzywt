@@ -1,6 +1,6 @@
 "use client";
 
-import { type KeyboardEvent, useMemo } from "react";
+import { type KeyboardEvent, useMemo, useState } from "react";
 import { MATCH_SCREENSHOT_TYPES, STAT_FIELDS_BY_SCREENSHOT, type MatchScreenshotType, type MatchStatField } from "@/features/matches/model";
 import { SCREEN_LABELS, STAT_LABELS, recognitionPlayers, type DetailData, type EditablePlayer } from "./model";
 
@@ -22,6 +22,7 @@ interface MatchStatsSheetProps {
 }
 
 export function MatchStatsSheet({ detail, players, canEdit, busy, visibleSides, redTotalKills, blueTotalKills, confirm, updatePlayer, updateStat, activeType, setActiveType }: MatchStatsSheetProps) {
+  const [sideFilter, setSideFilter] = useState<"all" | "red" | "blue">("all");
   const recognizedPlayers = useMemo(() => recognitionPlayers(detail.match.recognition?.normalizedResult), [detail]);
   const activeStatFields = STAT_FIELDS_BY_SCREENSHOT[activeType];
   const tableColumnCount = 6 + activeStatFields.length;
@@ -43,18 +44,21 @@ export function MatchStatsSheet({ detail, players, canEdit, busy, visibleSides, 
   }
 
   return (
-    <section className="match-sheet" aria-labelledby="confirm-title">
+    <section id="match-review" tabIndex={-1} className="match-sheet match-review-sheet" aria-labelledby="confirm-title">
       <div className="match-section-heading">
         <div className="match-section-copy">
-          <span className="match-section-index">01</span>
+          <span className="match-section-index">02</span>
           <div>
             <span className="match-section-label">比赛数据</span>
             <h2 id="confirm-title">{detail.access.canManage ? "十人数据复核" : "本队比赛数据"}</h2>
             <p>{detail.access.canManage ? "识别结果仅作录入辅助，成员身份与比赛数据仍需人工确认。" : "仅展示自己所在队伍已正式提交的比赛记录。"}</p>
           </div>
         </div>
-        {canEdit && <button className="btn-primary feature-action" disabled={Boolean(busy)} onClick={confirm}>{busy === "confirm" ? "保存中…" : "保存复核结果"}</button>}
       </div>
+      {visibleSides.length > 1 && <div className="match-team-filter" role="group" aria-label="筛选比赛阵营">
+        <span>查看阵营</span>
+        {(["all", "red", "blue"] as const).map(side => <button key={side} type="button" aria-pressed={sideFilter === side} aria-controls="match-data-panel" onClick={() => setSideFilter(side)}>{side === "all" ? "双方对照" : side === "red" ? `红方 ${redPlayers.length} 人` : `蓝方 ${bluePlayers.length} 人`}</button>)}
+      </div>}
       <div className="data-tabs" role="tablist" aria-label="数据分类">{MATCH_SCREENSHOT_TYPES.map((type) => <button
         id={`match-data-tab-${type}`}
         key={type}
@@ -65,7 +69,7 @@ export function MatchStatsSheet({ detail, players, canEdit, busy, visibleSides, 
         onKeyDown={(event) => moveDataTab(event, type)}
         onClick={() => setActiveType(type)}
       >{SCREEN_LABELS[type]}</button>)}</div>
-      <p className="match-result-table-hint" id="match-result-table-hint">{detail.access.canManage ? "桌面端按双方对照；" : "当前为本队数据；"}窄屏会自动排成逐选手记录，无需横向滑动。</p>
+      <p className="match-result-table-hint" id="match-result-table-hint">{detail.access.canManage ? "先核对选手身份，再按数据分类逐项检查；可切换阵营集中复核。" : "当前仅展示本队已正式提交的数据。"}</p>
       <div
         id="match-data-panel"
         className="match-result-table-wrap"
@@ -88,7 +92,7 @@ export function MatchStatsSheet({ detail, players, canEdit, busy, visibleSides, 
           {visibleSides.map((side) => {
             const sidePlayers = side === "red" ? redPlayers : bluePlayers;
             const totalKills = side === "red" ? redTotalKills : blueTotalKills;
-            return <tbody className={`match-result-team match-result-team--${side}`} key={side}>
+            return <tbody className={`match-result-team match-result-team--${side}`} key={side} hidden={sideFilter !== "all" && sideFilter !== side}>
               <tr className="match-result-team-heading">
                 <th colSpan={tableColumnCount} scope="rowgroup">
                   <span>{side === "red" ? "红方阵容" : "蓝方阵容"}</span>
@@ -107,6 +111,10 @@ export function MatchStatsSheet({ detail, players, canEdit, busy, visibleSides, 
           })}
         </table>
       </div>
+      {canEdit && <div className="match-review-actions">
+        <p>复核后保存，再到赛果确认正式提交。</p>
+        <button className="btn-primary feature-action" disabled={Boolean(busy)} onClick={confirm}>{busy === "confirm" ? "保存中…" : "保存复核结果"}</button>
+      </div>}
     </section>
 
   );

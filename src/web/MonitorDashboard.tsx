@@ -55,6 +55,7 @@ export function MonitorDashboard() {
           </button>
         </div>
       </header>
+      <nav className="monitor-task-nav" aria-label="监控分区"><a href="#monitor-sources">数据源状态</a><a href="#monitor-resources">资源概况</a><a href="#monitor-events">最近日志</a></nav>
 
       {(leaseError || resourceError) && (
         <div className="feature-error" role="alert">
@@ -63,7 +64,7 @@ export function MonitorDashboard() {
         </div>
       )}
 
-      <section className="monitor-modules" aria-labelledby="monitor-modules-title">
+      <section id="monitor-sources" className="monitor-modules" aria-labelledby="monitor-modules-title">
         <h2 id="monitor-modules-title" className="sr-only">数据源状态</h2>
         {MODULES.map((module) => {
           const latest = logs.find((log) => log.module === module.key);
@@ -77,11 +78,11 @@ export function MonitorDashboard() {
         })}
       </section>
 
-      <section className="monitor-section" aria-labelledby="resource-lifecycle-title">
+      <section id="monitor-resources" className="monitor-section" aria-labelledby="resource-lifecycle-title">
         <div className="feature-heading">
           <div><h2 id="resource-lifecycle-title">动态资源生命周期</h2><p>公共与用户作用域资源的加载、复用和释放状态。</p></div>
         </div>
-        <p className="data-table-hint" id="resource-table-hint">移动端可在表格区域内横向滑动查看完整指标。</p>
+        <p className="data-table-hint" id="resource-table-hint">每项资源显示当前状态、租约与缓存指标；版本用于核对数据更新。</p>
         <div className="data-table-wrap" role="region" tabIndex={0} aria-label="动态资源生命周期表" aria-describedby="resource-table-hint">
           <table className="monitor-table">
             <caption>动态资源生命周期、作用域、租约和缓存指标</caption>
@@ -90,8 +91,8 @@ export function MonitorDashboard() {
               {resources.length === 0 ? <tr><td colSpan={8}>暂无可显示的资源快照</td></tr> : resources.map((resource) => (
                 <tr key={resource.key}>
                   <th scope="row">{resource.name}</th>
-                  <td><span className="resource-state" data-state={resource.state}>{RESOURCE_STATE_LABELS[resource.state]}</span></td>
-                  <td>{RESOURCE_SCOPE_LABELS[resource.scope]}</td><td>{resource.leases}</td><td>{resource.loads} / {resource.sharedLoads}</td><td>{resource.cacheHits} / {resource.staleHits}</td><td>{resource.evictions}</td><td className="monitor-version">{resource.version?.slice(0, 8) ?? "—"}</td>
+                  <td data-label="状态"><span className="resource-state" data-state={resource.state}>{RESOURCE_STATE_LABELS[resource.state]}</span></td>
+                  <td data-label="作用域">{RESOURCE_SCOPE_LABELS[resource.scope]}</td><td data-label="租约">{resource.leases}</td><td data-label="加载 / 复用">{resource.loads} / {resource.sharedLoads}</td><td data-label="命中 / 过期">{resource.cacheHits} / {resource.staleHits}</td><td data-label="释放">{resource.evictions}</td><td data-label="版本" className="monitor-version">{resource.version?.slice(0, 8) ?? "—"}</td>
                 </tr>
               ))}
             </tbody>
@@ -99,7 +100,7 @@ export function MonitorDashboard() {
         </div>
       </section>
 
-      <section className="monitor-section" aria-labelledby="monitor-log-title">
+      <section id="monitor-events" className="monitor-section" aria-labelledby="monitor-log-title">
         <div className="feature-heading">
           <div><h2 id="monitor-log-title">监控日志</h2><p>{lastCycle > 0 ? `最近完成第 ${lastCycle} 轮检查` : "等待首次监控检查"}</p></div>
         </div>

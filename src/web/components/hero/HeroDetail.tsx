@@ -1,7 +1,9 @@
 "use client";
 
+import "@/web/styles/public-workflows.css";
+
 import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, usePathname, useRouter } from "next/navigation";
 import { useHero } from "@/features/heroes/client";
 import { createHeroImageCandidates } from "@/features/heroes/model";
 
@@ -81,6 +83,8 @@ function SkinThumbnail({ hero, skin }: { hero: Hero; skin: HeroSkin }) {
 export function HeroDetailView() {
   const params = useParams();
   const router = useRouter();
+  const pathname = usePathname();
+  const prefix = pathname.startsWith("/m/") ? "/m" : "";
   const heroId = params.id as string;
   const [minggeHero, setMinggeHero] = useState<Hero | null>(null);
   const [activeForm, setActiveForm] = useState<"base" | "mingge">("base");
@@ -174,7 +178,7 @@ export function HeroDetailView() {
     return (
       <div className="page-shell page-shell--narrow" style={{ textAlign: "center" }}>
         <p style={{ color: "var(--text-secondary)", fontSize: 16 }}>英雄不存在</p>
-        <button onClick={() => router.push("/heroes")} className="btn-ghost" style={{ marginTop: 16 }}>
+        <button onClick={() => router.push(`${prefix}/heroes`)} className="btn-ghost" style={{ marginTop: 16 }}>
           返回图鉴
         </button>
       </div>
@@ -184,10 +188,10 @@ export function HeroDetailView() {
   const skillLabels = ["被动", "一技能", "二技能", "三技能"];
 
   return (
-    <div className="hero-detail page-shell page-shell--narrow">
+    <div className="hero-detail hero-reference-page page-shell page-shell--wide">
       {/* Back link */}
       <button
-        onClick={() => router.push("/heroes")}
+        onClick={() => router.push(`${prefix}/heroes`)}
         className="btn-subtle"
         style={{ marginBottom: 24, fontSize: 13 }}
       >
@@ -221,14 +225,17 @@ export function HeroDetailView() {
             return (
               <div style={{ marginTop: 10 }}>
                 <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 6 }}>皮肤</div>
-                <div style={{ display: "flex", gap: 4, flexWrap: "wrap", maxWidth: 200 }}>
+                <div className="hero-skin-options">
                   {skins.map((s) => (
                     <button
                       key={s.index}
+                      type="button"
                       onClick={() => setSelectedIndex(s.index)}
                       title={s.name}
+                      aria-label={s.name}
+                      aria-pressed={selectedIndex === s.index}
                       style={{
-                        width: 36, height: 48, borderRadius: 4, overflow: "hidden", cursor: "pointer",
+                        width: 48, height: 60, borderRadius: 4, overflow: "hidden", cursor: "pointer",
                         border: selectedIndex === s.index ? "2px solid var(--gold)" : "2px solid var(--border)",
                         background: "var(--bg-hover)", padding: 0, transition: "border-color 0.15s",
                       }}
@@ -247,8 +254,8 @@ export function HeroDetailView() {
         <div style={{ flex: 1, paddingTop: 4 }}>
           {/* 命格切换标签 */}
           {(hero as any)?.mingge && (hero as any).minggeRelatedId && (
-            <div style={{ display: "flex", gap: 0, marginBottom: 12 }}>
-              <button onClick={() => setActiveForm("base")} style={{
+            <div className="hero-form-tabs" style={{ display: "flex", gap: 0, marginBottom: 12 }}>
+              <button type="button" aria-pressed={activeForm === "base"} onClick={() => setActiveForm("base")} style={{
                 padding: "6px 16px", fontSize: 13, fontWeight: activeForm === "base" ? 700 : 500,
                 border: activeForm === "base" ? "2px solid var(--gold)" : "2px solid var(--border)",
                 borderRight: "none", borderRadius: "var(--radius-sm) 0 0 var(--radius-sm)",
@@ -256,7 +263,7 @@ export function HeroDetailView() {
                 color: activeForm === "base" ? "var(--gold)" : "var(--text-muted)",
                 cursor: "pointer", transition: "all 0.15s",
               }}>本命 · {hero.name}</button>
-              <button onClick={() => setActiveForm("mingge")} style={{
+              <button type="button" aria-pressed={activeForm === "mingge"} onClick={() => setActiveForm("mingge")} style={{
                 padding: "6px 16px", fontSize: 13, fontWeight: activeForm === "mingge" ? 700 : 500,
                 border: activeForm === "mingge" ? "2px solid var(--gold)" : "2px solid var(--border)",
                 borderRadius: "0 var(--radius-sm) var(--radius-sm) 0",
@@ -293,6 +300,10 @@ export function HeroDetailView() {
           </div>
         </div>
       </div>
+
+      <nav className="reference-section-nav" aria-label="英雄资料章节"><a href="#hero-skills">技能介绍</a><a href="#hero-stats">基础属性</a></nav>
+      <div className="hero-reference-body">
+      <section className="hero-reference-stats" id="hero-stats" aria-label="基础属性">
 
       {/* Base Stats */}
       {(() => {
@@ -340,8 +351,10 @@ export function HeroDetailView() {
           </>
         );
       })()}
+      </section>
 
       {/* Skills */}
+      <section className="hero-reference-skills" id="hero-skills" aria-label="技能介绍">
       <h2 style={{ fontSize: 18, fontWeight: 600, color: "var(--text)", margin: "0 0 16px" }}>
         技能介绍
       </h2>
@@ -371,6 +384,8 @@ export function HeroDetailView() {
             </p>
           </div>
         ))}
+      </div>
+      </section>
       </div>
 
     </div>

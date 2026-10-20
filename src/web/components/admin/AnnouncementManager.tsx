@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { type FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import {
   createAdminAnnouncement,
@@ -10,6 +11,7 @@ import {
   type AdminAnnouncement,
 } from "@/features/announcements/client";
 import { MarkdownContent } from "@/web/components/content/MarkdownContent";
+import { adminRoutePrefix } from "@/features/admin/navigation";
 
 const ANNOUNCEMENT_TEMPLATES = {
   update: `# 主要更新
@@ -40,6 +42,7 @@ const ANNOUNCEMENT_TEMPLATES = {
 } as const;
 
 export function AnnouncementManager() {
+  const prefix = adminRoutePrefix(usePathname());
   const [list, setList] = useState<AdminAnnouncement[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
@@ -52,6 +55,7 @@ export function AnnouncementManager() {
   const [version, setVersion] = useState("");
   const [content, setContent] = useState("");
   const [slug, setSlug] = useState("");
+  const [editorView, setEditorView] = useState<"write" | "preview">("write");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const load = useCallback(async (nextPage = 1) => {
@@ -74,6 +78,7 @@ export function AnnouncementManager() {
     setMessage("");
     setError("");
     setShowForm(true);
+    setEditorView("write");
   }
 
   function openEdit(announcement: AdminAnnouncement) {
@@ -85,6 +90,7 @@ export function AnnouncementManager() {
     setMessage("");
     setError("");
     setShowForm(true);
+    setEditorView("write");
   }
 
   function insertMarkdown(prefix: string, suffix = "", placeholder = "") {
@@ -234,7 +240,8 @@ export function AnnouncementManager() {
                   <button type="button" onClick={() => applyTemplate("maintenance")} className="btn-subtle min-h-11 px-3 text-xs">维护通知模板</button>
                 </div>
               </div>
-              <div className="announcement-editor-grid">
+              <div className="announcement-editor-switch" aria-label="公告编辑视图"><button type="button" className="btn-subtle" aria-pressed={editorView === "write"} onClick={() => setEditorView("write")}>编写正文</button><button type="button" className="btn-subtle" aria-pressed={editorView === "preview"} onClick={() => setEditorView("preview")}>阅读预览</button></div>
+              <div className="announcement-editor-grid" data-view={editorView}>
                 <label className="flex flex-col gap-1.5">
                   <span className="text-[12px] text-text-muted">编辑区</span>
                   <textarea
@@ -261,7 +268,7 @@ export function AnnouncementManager() {
               </div>
             </div>
 
-            <div className="flex justify-end gap-3">
+            <div className="announcement-save-actions flex justify-end gap-3">
               <button type="button" onClick={() => setShowForm(false)} disabled={saving} className="btn-ghost min-h-11 px-5">
                 取消
               </button>
@@ -274,10 +281,10 @@ export function AnnouncementManager() {
       )}
 
       <div className="">
-        <div className="admin-table-wrap" role="region" aria-label="公告管理表格" tabIndex={0}>
-          <table className="admin-table">
-            <caption>发布状态与公告记录 · 窄屏可在表格内横向滚动</caption><thead>
-              <tr >
+        <div className="admin-table-wrap admin-card-table-wrap" role="region" aria-label="公告管理表格" tabIndex={0}>
+          <table className="admin-table admin-card-table" role="table">
+            <caption>查看发布状态，编辑内容或管理公告。</caption><thead>
+              <tr role="row">
                 <th scope="col">版本号 + 公告主题名称</th>
                 <th scope="col">状态</th>
                 <th scope="col">日期</th>
@@ -288,24 +295,24 @@ export function AnnouncementManager() {
               {list.length === 0 ? (
                 <tr><td colSpan={4} className="py-16 text-center text-text-muted">暂无公告</td></tr>
               ) : list.map((announcement) => (
-                <tr key={announcement.id} >
-                  <td className="admin-name">
+                <tr key={announcement.id} role="row">
+                  <td className="admin-name admin-card-title" data-label="公告" role="cell">
                     <div className="flex items-center gap-2 font-semibold text-text">
                       <span className="badge badge-gold">v{announcement.version || "-"}</span>
                       <span>{announcement.title}</span>
                     </div>
                     <div className="text-[12px] text-text-muted mt-1 line-clamp-1">{announcement.brief}</div>
                   </td>
-                  <td className="py-3 px-5">
+                  <td className="py-3 px-5" data-label="发布状态" role="cell">
                     <button type="button" onClick={() => void togglePublish(announcement)} className={`min-h-11 rounded-full px-3 text-[12px] font-semibold ${announcement.published ? "bg-green/10 text-green" : "bg-gold/10 text-gold"}`}>
                       {announcement.published ? "已发布" : "草稿"}
                     </button>
                   </td>
-                  <td className="py-3 px-5 text-xs text-text-muted">{announcement.date}</td>
-                  <td className="py-3 px-5">
-                    <div className="flex gap-2">
+                  <td className="py-3 px-5 text-xs text-text-muted" data-label="发布日期" role="cell">{announcement.date}</td>
+                  <td className="py-3 px-5 admin-card-actions" data-label="管理操作" role="cell">
+                    <div className="admin-row-actions">
                       {announcement.published && (
-                        <Link href={`/changelog/${announcement.slug}`} className="btn-subtle min-h-11 px-3 inline-flex items-center text-xs no-underline">
+                        <Link href={`${prefix}/changelog/${announcement.slug}`} className="btn-subtle min-h-11 px-3 inline-flex items-center text-xs no-underline">
                           查看
                         </Link>
                       )}

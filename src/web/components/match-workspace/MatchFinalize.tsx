@@ -11,13 +11,13 @@ interface MatchFinalizeProps {
 
 export function MatchFinalize({ status, canEdit, busy, winnerSide, redTotalKills, blueTotalKills, updateWinnerSide, requestSubmit }: MatchFinalizeProps) {
   return (
-    <section className="match-sheet match-finalize" aria-labelledby="submit-title">
+    <section id="match-finalization" tabIndex={-1} className="match-sheet match-finalize" aria-labelledby="submit-title">
       <div className="match-section-copy">
         <span className="match-section-index">03</span>
         <div>
           <span className="match-section-label">赛果确认</span>
           <h2 id="submit-title">正式提交</h2>
-          <p>提交后锁定比分、十人数据与战术标注。</p>
+          <p>{status === "SUBMITTED" ? "比赛已提交，档案已锁定。" : status === "CONFIRMED" ? "复核已保存，确认胜方与比分后即可提交。" : "请先保存数据复核结果，再正式提交。"}</p>
         </div>
       </div>
       <div className="match-score-editor">

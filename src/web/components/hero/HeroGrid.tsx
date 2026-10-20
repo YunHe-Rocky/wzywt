@@ -2,8 +2,9 @@
 
 import { PageHeading } from "@/web/components/arena/PageHeading";
 
-import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { CatalogWorkspace } from "./CatalogWorkspace";
 import { useHeroes } from "@/features/heroes/client";
 import { createHeroImageCandidates } from "@/features/heroes/model";
 import { cardStagger } from "@/web/animation";
@@ -169,6 +170,8 @@ function CardInfo({ hero, form, minggeHero }: { hero: Hero; form: string; mingge
 
 export function HeroGrid() {
   const router = useRouter();
+  const pathname = usePathname();
+  const prefix = pathname === "/m" || pathname.startsWith("/m/") ? "/m" : "";
   const [roleFilter, setRoleFilter] = useState("");
   const [classFilter, setClassFilter] = useState("");
   const [search, setSearch] = useState("");
@@ -227,28 +230,22 @@ export function HeroGrid() {
   return (
     <div className="stagger-enter page-shell page-shell--wide arena-catalog-page">
       {/* Header */}
-      <PageHeading eyebrow="分路 · 技能 · 命格" title="英雄图鉴" description={`共 ${heroes.length} 位英雄 · 搜搜本命，或按分路找个新选择。`} icon="crest" />
+      <PageHeading eyebrow="分路 · 技能 · 命格" title="英雄图鉴" description="先选分路，再找拿手英雄。技能、属性与命格都在这里。" icon="crest" />
 
       {/* Filters */}
-      <div className="arena-filter-panel">
-        {/* Search */}
-        <input
-          type="text"
-          aria-label="搜索英雄名称" placeholder="搜索英雄名称..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          style={{ maxWidth: 260, marginBottom: 16 }}
-        />
+      <CatalogWorkspace kind="heroes" search={search} onSearch={setSearch} searchLabel="搜索英雄名称" count={filtered.length} loading={loading} activeCount={Number(Boolean(roleFilter)) + Number(Boolean(classFilter))} onReset={() => { setSearch(""); setRoleFilter(""); setClassFilter(""); }} filters={<>
 
         {/* 分路筛选 */}
-        <div style={{ marginBottom: 10 }}>
-          <span style={{ fontSize: 14, fontWeight: 600, color: "var(--text-muted)", marginRight: 10, letterSpacing: 1 }}>
+        <fieldset className="catalog-filter-group">
+          <legend>
             分路
-          </span>
-          <div style={{ display: "inline-flex", gap: 4, flexWrap: "wrap" }}>
+          </legend>
+          <div className="catalog-filter-options">
             {ROLE_FILTERS.map((r) => (
               <button
                 key={r.value}
+                type="button"
+                aria-pressed={roleFilter === r.value}
                 onClick={() => setRoleFilter(r.value)}
                 className={roleFilter === r.value ? "btn-primary" : "btn-subtle"}
                 style={{ padding: "8px 12px", fontSize: 14, fontWeight: roleFilter === r.value ? 600 : 400 }}
@@ -257,17 +254,19 @@ export function HeroGrid() {
               </button>
             ))}
           </div>
-        </div>
+        </fieldset>
 
         {/* 职业筛选 */}
-        <div>
-          <span style={{ fontSize: 14, fontWeight: 600, color: "var(--text-muted)", marginRight: 10, letterSpacing: 1 }}>
+        <fieldset className="catalog-filter-group">
+          <legend>
             职业
-          </span>
-          <div style={{ display: "inline-flex", gap: 4, flexWrap: "wrap" }}>
+          </legend>
+          <div className="catalog-filter-options">
             {CLASS_FILTERS.map((c) => (
               <button
                 key={c.value}
+                type="button"
+                aria-pressed={classFilter === c.value}
                 onClick={() => setClassFilter(c.value)}
                 className={classFilter === c.value ? "btn-primary" : "btn-subtle"}
                 style={{ padding: "8px 12px", fontSize: 14, fontWeight: classFilter === c.value ? 600 : 400 }}
@@ -276,9 +275,8 @@ export function HeroGrid() {
               </button>
             ))}
           </div>
-        </div>
-
-      </div>
+        </fieldset>
+      </>}>
 
       {/* Error state */}
       {fetchError && (
@@ -316,7 +314,7 @@ export function HeroGrid() {
             >
               <button
                 type="button"
-                onClick={() => router.push(`/heroes/${hero.id}`)}
+                onClick={() => router.push(`${prefix}/heroes/${hero.id}`)}
                 aria-label={`查看${hero.name}详情`}
                 style={{
                   display: "block",
@@ -369,7 +367,7 @@ export function HeroGrid() {
           没有找到匹配的英雄{search ? `：“${search}”` : ""}
         </p>
       )}
-
+      </CatalogWorkspace>
     </div>
   );
 }

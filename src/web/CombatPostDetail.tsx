@@ -1,6 +1,7 @@
 "use client";
 
 import "@/web/styles/yanwu-workspaces.css";
+import "@/web/styles/public-workflows.css";
 
 import Link from "next/link";
 import { useParams, usePathname, useRouter } from "next/navigation";
@@ -95,12 +96,16 @@ export function CombatPostDetail() {
   }
   if (!data) return <main className="page-shell page-shell--medium"><div className="feature-empty">{loadError ? <><p role="alert">{loadError}</p><button className="btn-subtle" onClick={() => void load()}>重新加载</button><Link className="btn-subtle" href={`${routePrefix}/combat`}>返回动态</Link></> : "正在读取复盘…"}</div></main>;
   const { post } = data;
-  return <main className="page-shell page-shell--medium combat-detail">
+  return <main className="page-shell page-shell--wide combat-detail">
     <nav className="feature-breadcrumb"><Link href={`${routePrefix}/combat`}>演武动态</Link><span>/</span><span>#{post.id}</span></nav>
     <header className="yanwu-workspace-hero"><div><p className="feature-kicker">COMBAT REVIEW</p><h1>{post.title}</h1><p>{post.author.username} · {new Date(post.createdAt).toLocaleString("zh-CN")}</p></div>{post.status !== "published" && <span className="feature-status">{POST_STATUS_LABELS[post.status] || post.status}</span>}</header>
+    <nav className="reference-section-nav" aria-label="复盘章节"><a href="#combat-review-video">观看视频</a><a href="#combat-discussion">评论交流 · {post._count.comments}</a></nav>
+    <div className="combat-review-layout"><div className="combat-review-main" id="combat-review-video">
     <CombatVideoPlayer key={post.id} src={post.videoUrl} />
     <article className="yanwu-workspace-section combat-article"><p>{post.content}</p><div className="feature-row-actions"><button className={post.likedByMe ? "btn-primary" : "btn-subtle"} aria-pressed={post.likedByMe} disabled={Boolean(busy)} onClick={toggleLike}>{busy === "like" ? "处理中…" : post.likedByMe ? "已赞" : "点赞"} · {post._count.likes}</button>{data.access.canModerate && <><button className="btn-subtle" disabled={Boolean(busy)} onClick={() => void moderate(post.status === "hidden" ? "RESTORE" : "HIDE")}>{busy?.startsWith("moderate-") ? "处理中…" : post.status === "hidden" ? "恢复" : "隐藏"}</button><button className="btn-danger" disabled={Boolean(busy)} onClick={() => setConfirmation({ kind: "post" })}>删除动态</button></>}</div></article>
-    <section className="yanwu-workspace-section"><div className="feature-heading"><div><p className="feature-kicker">DISCUSSION</p><h2>评论 {post._count.comments}</h2></div></div><form className="comment-form" aria-busy={busy === "comment"} onSubmit={comment}><label>复盘意见<textarea name="content" rows={3} maxLength={1000} required placeholder="留下具体、有帮助的复盘意见" /></label><button className="btn-primary" disabled={Boolean(busy)}>{busy === "comment" ? "发送中…" : "发表评论"}</button></form><div className="comment-list">{post.comments.map((item) => <article key={item.id}><div className="feature-meta-row"><strong>{item.author.username}</strong><span>{new Date(item.createdAt).toLocaleString("zh-CN")}</span></div><p>{item.content}</p>{(item.authorId === userId || data.access.canModerate) && <button className="text-action" disabled={Boolean(busy)} onClick={() => setConfirmation({ kind: "comment", id: item.id })}>删除评论</button>}</article>)}</div>{data.commentPage?.hasMore && <button className="btn-subtle" disabled={Boolean(busy)} onClick={() => void loadMoreComments()}>{busy === "comments-more" ? "加载中…" : "加载更早评论"}</button>}</section>
+    </div>
+    <section className="yanwu-workspace-section combat-discussion" id="combat-discussion"><div className="feature-heading"><div><p className="feature-kicker">与队友交流</p><h2>评论 {post._count.comments}</h2></div></div><form className="comment-form" aria-busy={busy === "comment"} onSubmit={comment}><label>复盘意见<textarea name="content" rows={3} maxLength={1000} required placeholder="留下具体、有帮助的复盘意见" disabled={busy === "comment"} /></label><button className="btn-primary" disabled={Boolean(busy)}>{busy === "comment" ? "发送中…" : "发表评论"}</button></form><div className="comment-list">{post.comments.length === 0 && <p className="combat-comment-empty">还没有评论。分享一个你注意到的团战细节吧。</p>}{post.comments.map((item) => <article key={item.id}><div className="feature-meta-row"><strong>{item.author.username}</strong><span>{new Date(item.createdAt).toLocaleString("zh-CN")}</span></div><p>{item.content}</p>{(item.authorId === userId || data.access.canModerate) && <button className="text-action" disabled={Boolean(busy)} onClick={() => setConfirmation({ kind: "comment", id: item.id })}>删除评论</button>}</article>)}</div>{data.commentPage?.hasMore && <button className="btn-subtle" disabled={Boolean(busy)} onClick={() => void loadMoreComments()}>{busy === "comments-more" ? "加载中…" : "加载更早评论"}</button>}</section>
+    </div>
     <ConfirmDialog open={confirmation?.kind === "post"} title="永久删除这条演武动态？" description="视频、点赞和评论都会一并删除，此操作无法撤销。" confirmLabel="永久删除动态" busy={busy === "moderate-DELETE"} onClose={() => setConfirmation(null)} onConfirm={() => void moderate("DELETE")} />
     <ConfirmDialog open={confirmation?.kind === "comment"} title="删除这条评论？" description="删除后评论内容将无法恢复。" confirmLabel="删除评论" busy={Boolean(confirmation?.kind === "comment" && busy === `comment-${confirmation.id}`)} onClose={() => setConfirmation(null)} onConfirm={() => { if (confirmation?.kind === "comment") void removeComment(confirmation.id); }} />
   </main>;

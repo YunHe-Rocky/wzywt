@@ -111,7 +111,7 @@ const verification = {
   ],
   limitations: [
     "Isolated component fixtures; not real Next server, database, production authorization, or hydration E2E",
-    "Actual Next runtime smoke NOT RUN",
+    "This suite does not start a Next server; separately executed runtime checks have separate evidence",
     "Microsoft Edge only; no Safari/WebKit or native browser zoom claim",
   ],
   suites: suiteEvidence.map(({ root, verification: suite }) => ({ root, passed: suite.passed, checks: suite.checks, limitations: suite.limitations })),

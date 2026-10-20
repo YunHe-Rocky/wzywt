@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useCallback, useEffect } from "react";
+import { useRef, useCallback, useEffect, useState } from "react";
 import { useToast } from "@/web/components/ui/Toast";
 import { HeroSelect } from "@/web/components/hero/HeroSelect";
 import { HeroPortrait } from "@/web/components/hero/HeroPortrait";
@@ -65,7 +65,7 @@ interface HeroEntry { id: number; heroId: number; heroName: string; powerScore: 
 
 export function RolePreferenceEditor() {
   const {
-    prefs, heroesByRole, sharedRank, activeTab, selHero, selHeroName, selPower, saving,
+    prefs, heroesByRole, sharedRank, activeTab, selHero, selHeroName, selPower, saving, loading, loadError, retry, hasSavedPreferences,
     setActiveTab, setSelHero, setSelHeroName, setSelPower,
     moveUp, moveDown, setSharedRankAndSync, setPeakScore, setPeakRank, savePrefs, addHero, removeHero,
   } = useRolePreferences();
@@ -104,12 +104,23 @@ export function RolePreferenceEditor() {
   const isFull = activeHeroes.length >= 3;
   const peakRank = prefs[0]?.peakRank || 0;
   const canSetPeakScore = hasPeakTournamentAccess(peakRank);
+  const snapshot = JSON.stringify(prefs);
+  const [savedSnapshot, setSavedSnapshot] = useState<string | null>(null);
+  useEffect(() => {
+    if (prefs.length > 0 && savedSnapshot === null) setSavedSnapshot(snapshot);
+  }, [prefs.length, savedSnapshot, snapshot]);
+  const dirty = !hasSavedPreferences || (savedSnapshot !== null && savedSnapshot !== snapshot);
+
+  if (loading) return <div className="yanwu-profile-section" role="status"><p>正在读取分路配置与英雄战力…</p><div className="skeleton" style={{ height: 240 }} /></div>;
+  if (loadError) return <div className="yanwu-profile-section"><h2>分队配置暂时无法读取</h2><p role="alert">{loadError}</p><button type="button" className="btn-primary" onClick={retry}>重新读取配置</button></div>;
 
   return (
-    <div className="yanwu-profile-section">
+    <div className="yanwu-profile-section profile-preferences">
+
+      <div className="profile-section-heading"><span className="profile-step-number" aria-hidden="true">02</span><div><h2>分队配置</h2><p>段位与分路排序需要保存；英雄战力添加或删除后立即生效。</p></div></div>
 
       {/* ── 段位信息 ── */}
-      <h2 className="section-title">段位信息</h2>
+      <h3 className="section-title">段位信息</h3>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="flex items-center gap-4 p-4 rounded-lg bg-input/50 border border-border/50">
           <div key={sharedRank} style={{ animation: "rank-pop 0.35s ease-out" }}>
@@ -142,17 +153,21 @@ export function RolePreferenceEditor() {
       <div className="my-6 h-px bg-gradient-to-r from-transparent via-border to-transparent" />
 
       {/* ── 分路配置 & 英雄战力 ── */}
-      <h2 className="section-title">分路配置 & 英雄战力</h2>
+      <h3 className="section-title">分路配置 & 英雄战力</h3>
 
       {/* 分路优先级排序 — 参考 #1 结构风格 */}
-      <div className="mb-5">
+      <div className="profile-lane-workspace">
+      <div className="profile-lane-priority mb-5">
         <div className="text-xs font-semibold text-text-muted tracking-wider uppercase mb-3">分路优先级排序</div>
+        <p className="profile-help">越靠前越优先。点选分路填写战力，用右侧箭头调整顺序。</p>
         <div className="flex flex-col gap-1.5">
           {prefs.map((p, i) => (
             <div key={p.roleType} className="flex items-stretch gap-2"
               ref={el => { if (el) rowRefs.current.set(p.roleType, el); else rowRefs.current.delete(p.roleType); }}>
               <span className="text-gold-light font-bold text-sm w-5 shrink-0 text-right flex items-center">{p.preferenceRank}</span>
               <button
+                type="button"
+                aria-pressed={activeTab === p.roleType}
                 onClick={() => setActiveTab(p.roleType)}
                 className={`yanwu-lane-select flex items-center gap-2 px-3 py-2.5 rounded-md text-sm font-semibold transition-all flex-1 border
                   ${activeTab === p.roleType
@@ -239,6 +254,7 @@ export function RolePreferenceEditor() {
           )}
         </div>
       )}
+      </div>
 
       {/* ── Footer: 巅峰分数 + 保存 ── */}
       <div className="profile-footer mt-6 pt-5 border-t border-border-light">
@@ -265,7 +281,10 @@ export function RolePreferenceEditor() {
               : "🔒 历史最高段位尚未达到“最强王者”，当前实力暂未满足巅峰赛准入要求。"}
           </p>
         </div>
-        <button className="btn-primary shrink-0 text-base font-semibold py-3 px-10" onClick={() => savePrefs(() => success("已保存"), (msg) => error(msg))} disabled={saving}>
+      </div>
+      <div className="profile-save-bar" aria-label="保存分队配置">
+        <p role="status"><strong>{!hasSavedPreferences ? "尚未保存分队配置" : dirty ? "分队配置有未保存修改" : "分队配置已保存"}</strong><span>{dirty ? "保存后用于下一次分队" : "段位、分路优先级与巅峰分数"}</span></p>
+        <button className="btn-primary shrink-0 text-base font-semibold py-3 px-10" onClick={() => savePrefs(() => { setSavedSnapshot(snapshot); success("已保存"); }, (msg) => error(msg))} disabled={saving || !dirty || prefs.length === 0}>
           {saving ? "保存中..." : "保存配置"}
         </button>
       </div>

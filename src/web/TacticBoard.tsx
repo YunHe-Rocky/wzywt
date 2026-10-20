@@ -22,7 +22,7 @@ interface RouteItem { id: number; ownerMemberId: number; colorKey: TacticColorKe
 interface MarkerItem { id: number; ownerMemberId: number; type: "POINT" | "TEXT"; x: number; y: number; text: string | null; revision: number; canEdit: boolean; ownerMember: { username: string } }
 interface LayerItem { id: number; name: string; description: string | null; startTime: number | null; endTime: number | null; updatedAt: string; routes: RouteItem[]; markers: MarkerItem[] }
 interface RoomData { room: { id: number; side: "red" | "blue"; layers: LayerItem[] }; access: { userId: number; canManageLayers: boolean; canDraw: boolean; ownColorKey: TacticColorKey | null; sharedAnnotationsVisible: boolean } }
-type ToolMode = "route" | "point" | "text";
+type ToolMode = "browse" | "route" | "point" | "text";
 type TacticConfirmation = { kind: "layer" | "route" } | { kind: "marker"; marker: MarkerItem } | null;
 // colorKey remains a stable member-slot identity; the room faction supplies its visual palette.
 const COLOR: Record<TacticColorKey, string> = { crimson: "var(--tactic-member-1)", azure: "var(--tactic-member-2)", amber: "var(--tactic-member-3)", jade: "var(--tactic-member-4)", violet: "var(--tactic-member-5)" };
@@ -49,6 +49,7 @@ export function TacticBoard() {
   const [followClock, setFollowClock] = useState(true);
   const [clockSeconds, setClockSeconds] = useState(0);
   const [playing, setPlaying] = useState(false);
+  const [timelineExpanded, setTimelineExpanded] = useState(true);
   const [clearRecords, setClearRecords] = useState<TacticClearRecords>({});
   const [mode, setMode] = useState<ToolMode>("route");
   const [draft, setDraft] = useState<TacticPoint[]>([]);
@@ -81,6 +82,13 @@ export function TacticBoard() {
     }
   }, [matchId, side, tournamentId]);
   useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    const mobile = window.matchMedia("(max-width: 900px)");
+    const adaptTimeline = () => setTimelineExpanded(!mobile.matches);
+    adaptTimeline();
+    mobile.addEventListener("change", adaptTimeline);
+    return () => mobile.removeEventListener("change", adaptTimeline);
+  }, []);
 
   const layers = useMemo(() => data?.room.layers || [], [data?.room.layers]);
   const activeIndex = layers.findIndex((layer) => layer.id === activeLayerId);
@@ -161,7 +169,7 @@ export function TacticBoard() {
     if (next.length !== draftRef.current.length || next.at(-1) !== draftRef.current.at(-1)) replaceDraft(next);
   }
   function boardPointerDown(event: PointerEvent<SVGSVGElement>) {
-    if (!data?.access.canDraw || !activeLayer || busy || (event.pointerType === "mouse" && event.button !== 0)) return;
+    if (mode === "browse" || !data?.access.canDraw || !activeLayer || busy || (event.pointerType === "mouse" && event.button !== 0)) return;
     event.preventDefault();
     const point = normalizedPoint(event.clientX, event.clientY, event.currentTarget);
     if (mode !== "route") {
@@ -200,6 +208,7 @@ export function TacticBoard() {
     }
   }
   async function addAccessiblePoint() {
+    if (mode === "browse") return;
     const point = { x: Number(coordinate.x), y: Number(coordinate.y) };
     if (![point.x, point.y].every((value) => Number.isFinite(value) && value >= 0 && value <= 1)) return error("坐标必须在 0 到 1 之间");
     if (mode === "route") pushDraft([...draft, point].slice(-64)); else await addMarkerAt(point);
@@ -308,6 +317,8 @@ export function TacticBoard() {
   return <main className={`tactic-shell tactic-shell--${side}`}>
     <header className="tactic-header"><div><nav className="feature-breadcrumb" aria-label="面包屑"><Link href={`${routePrefix}/tournaments/${tournamentId}`}>赛事房间</Link><span>/</span><span>{side === "red" ? "红方" : "蓝方"}战术室</span></nav><h1>{side === "red" ? "红方" : "蓝方"}战术推演</h1><p>一个比赛时钟同时驱动时间图层、兵线、野区和远古生物。</p></div><span className="feature-status">{data.access.sharedAnnotationsVisible ? "复盘只读" : "队内私密"}</span></header>
     <div className="tactic-privacy-notice" data-open={data.access.sharedAnnotationsVisible} role="status"><strong>{data.access.sharedAnnotationsVisible ? "复盘已公开" : "独立标注中"}</strong><span>{data.access.sharedAnnotationsVisible ? "房主已正式提交比赛数据，现在可以查看队友标注；战术板已锁定为只读。" : "当前只显示你的路线与点位，房主也无法查看。房主正式提交比赛数据后，全队标注才会公开。"}</span></div>
+    <details className="tactic-clock-disclosure" open={timelineExpanded} onToggle={event => setTimelineExpanded(event.currentTarget.open)}>
+    <summary><span>比赛时间轴 <strong>{formatTacticTime(clockSeconds)}</strong></span><span>{timelineExpanded ? "收起节奏" : "查看时间与资源"}</span></summary>
     <section className="tactic-clock-panel" aria-label="比赛时间轴">
       <div className="tactic-clock-control">
         <button className="tactic-play" aria-label={playing ? "暂停比赛时钟" : "播放比赛时钟"} onClick={() => setPlaying((value) => !value)}>{playing ? "暂停" : "播放"}</button>
@@ -318,18 +329,17 @@ export function TacticBoard() {
       <div className="tactic-resource-strip" aria-label="当前资源节奏">{quickResources.map((item) => <div key={item.id} data-state={item.state}><span>{item.name}</span><strong>{tacticResourceStateLabel(item, clockSeconds)}</strong></div>)}</div>
       <details className="tactic-resource-details"><summary>记录击杀与查看完整刷新表</summary><div className="tactic-resource-table-wrap" role="region" tabIndex={0} aria-label="地图资源刷新时间表"><table className="tactic-resource-table"><thead><tr><th>资源</th><th>首刷</th><th>刷新规则</th><th>当前 / 下一次</th><th>本地推演</th></tr></thead><tbody>{timeline.map((item) => <tr key={item.id} data-state={item.state}><th>{item.name}</th><td>{formatTacticTime(item.firstSpawnAt)}</td><td>{item.id === "lane" ? `每 ${item.respawnSeconds}s` : `击杀后 ${item.respawnSeconds}s`}</td><td>{tacticResourceStateLabel(item, clockSeconds)}</td><td>{item.id === "lane" ? "自动计算" : <button disabled={item.state === "pending" || item.state === "retired"} onClick={() => recordClear(item.id)}>记为此刻击杀</button>}</td></tr>)}</tbody></table></div><p className="tactic-rule-note">龙与野怪从实际击杀时刻计算再次刷新。</p></details>
     </section>
+    </details>
     <section className="tactic-stage-panel tactic-stage-panel--focused">
         <div className="tactic-stage-switcher" aria-label="战术阶段"><div className="tactic-layer-list">{layers.map((layer, index) => <button key={layer.id} aria-current={index === activeIndex} onClick={() => { setFollowClock(false); setActiveLayerId(layer.id); }}><strong>{layer.name}</strong><small>{secondsLabel(layer.startTime)}{layer.endTime === null ? "" : ` – ${secondsLabel(layer.endTime)}`}</small></button>)}</div><button className="tactic-follow" aria-pressed={followClock} onClick={() => setFollowClock((value) => !value)}>{followClock ? "跟随时间" : "手动阶段"}</button></div>
-        <div className="tactic-toolbar" aria-label="绘制工具">
-          {(["route", "point", "text"] as ToolMode[]).map((tool) => <button key={tool} disabled={!data.access.canDraw} aria-pressed={mode === tool} onClick={() => setMode(tool)}>{tool === "route" ? "拖动路线" : tool === "point" ? "添加点位" : "添加文字"}</button>)}
+        <div className="tactic-toolbar" role="group" aria-label="绘制工具">
+          {(["browse", "route", "point", "text"] as ToolMode[]).map((tool) => <button key={tool} disabled={tool !== "browse" && !data.access.canDraw} aria-pressed={data.access.canDraw ? mode === tool : tool === "browse"} onClick={() => setMode(tool)}>{tool === "browse" ? "浏览地图" : tool === "route" ? "拖动路线" : tool === "point" ? "添加点位" : "添加文字"}</button>)}
           {mode === "text" && <input className="tactic-inline-text" aria-label="地图文字" disabled={!data.access.canDraw} value={markerText} maxLength={120} placeholder="输入文字后点地图" onChange={(event) => setMarkerText(event.target.value)} />}
-          <span className="tactic-toolbar-spacer" />
-          <button disabled={!data.access.canDraw || history.length === 0} onClick={undo}>撤销</button><button disabled={!data.access.canDraw || future.length === 0} onClick={redo}>重做</button><button className="toolbar-primary" disabled={!data.access.canDraw || busy || draft.length < 2} onClick={saveCurrentRoute}>保存路线</button>
         </div>
-        <p className="tactic-input-hint" id="tactic-input-hint">触控或鼠标可直接在地图上拖动/点按；键盘用户可展开“图层与精确编辑”，按 X、Y 坐标添加路线点或标记。</p>
+        <p className="tactic-input-hint" id="tactic-input-hint" role="status">{!data.access.canDraw ? "当前为只读复盘，可浏览已公开标注。" : mode === "browse" ? "浏览模式：在地图上滑动可滚动页面，不会留下标注。" : mode === "route" ? "按住并拖动绘制路线，完成后点击地图下方的“保存路线”；切换“浏览地图”可滚动页面。" : mode === "point" ? "点击地图添加点位，点位会立即保存。" : "输入文字后点击地图，文字标记会立即保存。"} 也可展开“图层与精确编辑”，按 X、Y 坐标添加。</p>
         {activeLayer && mapMissing && <p className="tactic-input-hint" id="tactic-map-status" role="status">地图底图缺失，当前仅显示坐标网格，不代表真实峡谷地形</p>}
         {!activeLayer ? <div className="feature-empty"><p>{data.access.sharedAnnotationsVisible ? "本场比赛没有战术图层可供复盘。" : "本队尚未创建战术图层。"}</p>{data.access.canDraw && !data.access.sharedAnnotationsVisible && <button className="btn-subtle" disabled={busy} onClick={() => void initializeOwnLayer()}>初始化本队图层</button>}</div> : <div className="tactic-board-wrap">
-          <svg ref={svgRef} className="tactic-board" data-readonly={!data.access.canDraw} viewBox={`0 0 ${BOARD_WIDTH} ${BOARD_HEIGHT}`} role="img" aria-label={mapMissing ? (data.access.canDraw ? "战术坐标网格，按住并拖动绘制路线，点击添加点位" : "战术坐标网格，只读查看已公开标注") : (data.access.canDraw ? "王者峡谷战术板，按住并拖动绘制路线，点击添加点位" : "王者峡谷战术复盘，只读查看已公开标注")} aria-describedby={mapMissing ? "tactic-input-hint tactic-map-status" : "tactic-input-hint"} onPointerDown={boardPointerDown} onPointerMove={boardPointerMove} onPointerUp={finishRoutePointer} onPointerCancel={finishRoutePointer}>
+          <svg ref={svgRef} className="tactic-board" data-readonly={!data.access.canDraw} data-browse={mode === "browse" || !data.access.canDraw} viewBox={`0 0 ${BOARD_WIDTH} ${BOARD_HEIGHT}`} role="img" aria-label={mapMissing ? (data.access.canDraw ? "战术坐标网格，按住并拖动绘制路线，点击添加点位" : "战术坐标网格，只读查看已公开标注") : (data.access.canDraw ? "王者峡谷战术板，按住并拖动绘制路线，点击添加点位" : "王者峡谷战术复盘，只读查看已公开标注")} aria-describedby={mapMissing ? "tactic-input-hint tactic-map-status" : "tactic-input-hint"} onPointerDown={boardPointerDown} onPointerMove={boardPointerMove} onPointerUp={finishRoutePointer} onPointerCancel={finishRoutePointer}>
             <image href="/images/tactic-map-source.jpg" x="-350" y="-90" width="2048" height="963" onError={() => setMapMissing(true)} onLoad={() => setMapMissing(false)} />
             {mapMissing && <g pointerEvents="none">
               <defs><pattern id="tactic-coordinate-grid" width={BOARD_WIDTH / 10} height={BOARD_HEIGHT / 10} patternUnits="userSpaceOnUse"><path d={`M ${BOARD_WIDTH / 10} 0 H 0 V ${BOARD_HEIGHT / 10}`} fill="none" stroke="var(--workspace-map-grid)" strokeWidth="2" /></pattern></defs>
@@ -346,6 +356,10 @@ export function TacticBoard() {
           </svg>
           <div className="tactic-board-caption"><strong>{formatTacticTime(clockSeconds)} · {activeLayer.name}</strong><span>{activeLayer.description || (mapMissing ? "坐标网格 · 可继续编辑标注" : "点击真实峡谷地图开始标记")}</span></div>
         </div>}
+        <div className="tactic-route-actions" role="group" aria-label="路线编辑操作">
+          <span role="status">{data.access.canDraw ? `当前路线 ${draft.length} 个点${draft.length < 2 ? "，至少需要 2 个点" : "，保存后仍为独立标注"}` : "已提交 · 只读复盘"}</span>
+          <button disabled={!data.access.canDraw || history.length === 0} onClick={undo}>撤销</button><button disabled={!data.access.canDraw || future.length === 0} onClick={redo}>重做</button><button className="toolbar-primary" disabled={!data.access.canDraw || busy || draft.length < 2} onClick={saveCurrentRoute}>{busy ? "保存中…" : "保存路线"}</button>
+        </div>
         <details className="tactic-advanced"><summary>图层与精确编辑</summary><div className="tactic-advanced-grid">
           {data.access.canDraw && !data.access.sharedAnnotationsVisible && <div className="tactic-layer-manager">
             <h3>{data.access.canManageLayers ? "管理时间图层" : "新建本队图层"}</h3>
@@ -359,7 +373,7 @@ export function TacticBoard() {
               </>}
             </div>
           </div>}
-          <div><h3>精确坐标</h3><div className="tactic-accessible-editor"><label>X（0–1）<input disabled={!data.access.canDraw} type="number" min="0" max="1" step="0.01" value={coordinate.x} onChange={(event) => setCoordinate({ ...coordinate, x: event.target.value })} /></label><label>Y（0–1）<input disabled={!data.access.canDraw} type="number" min="0" max="1" step="0.01" value={coordinate.y} onChange={(event) => setCoordinate({ ...coordinate, y: event.target.value })} /></label><button className="btn-subtle" disabled={!data.access.canDraw || !activeLayer || busy} onClick={addAccessiblePoint}>按坐标添加</button></div><button className="text-action" disabled={!data.access.canDraw || !ownRoute || busy} onClick={() => setConfirmation({ kind: "route" })}>删除本人路线</button></div>
+          <div><h3>精确坐标</h3><p className="tactic-input-hint">X 从左到右，Y 从上到下；0 为起点，1 为终点。</p><div className="tactic-accessible-editor"><label>X（0–1）<input disabled={!data.access.canDraw} type="number" inputMode="decimal" min="0" max="1" step="0.01" value={coordinate.x} onChange={(event) => setCoordinate({ ...coordinate, x: event.target.value })} /></label><label>Y（0–1）<input disabled={!data.access.canDraw} type="number" inputMode="decimal" min="0" max="1" step="0.01" value={coordinate.y} onChange={(event) => setCoordinate({ ...coordinate, y: event.target.value })} /></label><button className="btn-subtle" disabled={!data.access.canDraw || !activeLayer || busy || mode === "browse"} onClick={addAccessiblePoint}>按坐标添加</button></div><button className="text-action" disabled={!data.access.canDraw || !ownRoute || busy} onClick={() => setConfirmation({ kind: "route" })}>删除本人路线</button></div>
         </div>{activeLayer && <div className="tactic-owned-items"><p>本人点位</p>{activeLayer.markers.filter((marker) => marker.canEdit).map((marker) => <button className="text-action" key={marker.id} disabled={!data.access.canDraw || busy} onClick={() => setConfirmation({ kind: "marker", marker })}>删除 {marker.type === "TEXT" ? marker.text : `(${marker.x.toFixed(2)}, ${marker.y.toFixed(2)})`}</button>)}</div>}</details>
         <ConfirmDialog open={confirmation?.kind === "layer"} title="删除当前战术图层？" description="该图层中的全部路线和点位都会永久删除，此操作无法撤销。" confirmLabel="永久删除图层" busy={busy} onClose={() => setConfirmation(null)} onConfirm={() => void removeLayer()} />
         <ConfirmDialog open={confirmation?.kind === "route"} title="删除本人路线？" description="当前图层中的本人路线会被删除，此操作无法撤销。" confirmLabel="删除路线" busy={busy} onClose={() => setConfirmation(null)} onConfirm={() => void removeOwnRoute()} />

@@ -7,7 +7,7 @@ import { hero, formHero, equipmentDetail, entries, markdown, user, fixtureImage 
 const output = path.resolve("test-results/yanwu-public");
 await mkdir(output, { recursive: true });
 await Promise.all(["manifest.json", "verification.json"].map(f => rm(path.join(output, f), { force: true })));
-const mutations = []; let session = null;
+const mutations = []; let session = null; let profileReadFailed = false;
 const host = await startYanwuHost({ entry: "tests/e2e/yanwu/public-entry.tsx", aliases: {
   "next/navigation": "tests/e2e/yanwu/public-navigation.tsx",
   "@/features/auth/client/api": "src/features/auth/client/api.ts",
@@ -31,11 +31,15 @@ const host = await startYanwuHost({ entry: "tests/e2e/yanwu/public-entry.tsx", a
   if (method === "GET" && ["/api/heroes/105", "/api/heroes/205"].includes(pathname)) return { body: scenario === "empty" ? { error: "不可用" } : pathname.endsWith("205") ? formHero : { ...hero, ...(scenario === "long" ? { name: "很长的英雄名称ABCDEFGHIJKLMNOPQRSTUVWXYZ", title: "一段很长的称号说明，需要自然换行并保留可读性" } : {}), ...(scenario === "no-skins" ? { skinsJson: "[]", skills: [], mingge: false, meta: {} } : {}) } };
   if (method === "GET" && pathname === "/api/equipment/1136") return { body: scenario === "empty" ? { error: "不可用" } : { ...equipmentDetail, ...(scenario === "no-stats" ? { atk: 0, passiveJson: null } : {}), ...(scenario === "long" ? { name: "超长装备名称ABCDEFGHIJKLMNOPQRSTUVWXYZ" } : {}) } };
   if (method === "GET" && pathname === "/api/changelog") return { status: fail ? 503 : 200, body: fail ? { error: "不可用" } : url.searchParams.has("slug") ? { content: scenario === "empty" ? "" : scenario === "no-toc" ? "# 简短公告\n\n本期没有更多章节。" : scenario === "missing-image" ? markdown : (scenario === "long" ? markdown.replace("# 演武新章 · 相聚山河之间", "# 超长更新标题ABCDEFGHIJKLMNOPQRSTUVWXYZ山河之间反复阅读的长标题") : markdown).replace(/\n\n!\[.*$/, "") } : { entries: scenario === "empty" ? [] : entries } };
-  if (method === "GET" && pathname === "/api/users/me/roles") return { body: { preferences: [] } };
+  if (method === "GET" && pathname === "/api/users/me/roles") {
+    if (scenario === "profile-load-error" && !profileReadFailed) { profileReadFailed = true; return { status: 503, body: { error: "测试：配置读取失败" } }; }
+    return { body: { preferences: scenario === "empty" ? [] : ["top", "jungle", "mid", "adc", "support"].map((roleType, index) => ({ roleType, preferenceRank: index + 1, roleRank: 0, peakRank: 0, peakScore: 0 })) } };
+  }
   if (method === "GET" && pathname === "/api/users/me/heroes") return { body: { heroPowers: scenario === "empty" ? {} : { top: [{ id: 1, heroId: 105, heroName: "廉颇", powerScore: 5600 }] } } };
   if (["PUT", "PATCH", "POST"].includes(method) && ["/api/users/me/roles", "/api/me/profile", "/api/me/avatar"].includes(pathname)) {
     let raw = ""; for await (const chunk of request) raw += chunk;
     mutations.push({ pathname, body: pathname.endsWith("avatar") ? raw : JSON.parse(raw) });
+    if (scenario === "save-during-edit" && pathname.endsWith("roles")) await new Promise(resolve => setTimeout(resolve, 400));
     return fail ? { status: 503, body: { error: "测试：保存失败" } } : { body: pathname.endsWith("profile") ? JSON.parse(raw) : {} };
   }
   return null;
@@ -132,17 +136,69 @@ try {
       await context.close();
     }
     for (const [width, height] of [[320, 812], [375, 812], [768, 1024], [812, 375], [1024, 768]]) {
-      ({ context, page } = await open(route, width, height, role)); await noOverflow(page, `${family}-${width}`); await context.close();
+      ({ context, page } = await open(route, width, height, role)); await noOverflow(page, `${family}-${width}`);
+      if (family === "04") {
+        const targets = await page.locator(".yanwu-role-move").evaluateAll(nodes => nodes.map(node => { const r = node.getBoundingClientRect(); return { width: r.width, height: r.height }; }));
+        assert.ok(targets.length > 0 && targets.every(target => target.width >= 44 && target.height >= 44), `profile order controls remain reachable at ${width}px, including tablets`);
+      }
+      await context.close();
     }
     console.log(`Checked family ${family}: desktop/mobile baselines and seven widths`);
   }
   ({ context, page } = await open("/m/heroes"));
   await page.getByLabel("搜索英雄名称").fill("不存在的测试名称"); assert.ok(await page.getByText("没有找到匹配的英雄", { exact: false }).isVisible()); await context.close();
   ({ context, page } = await open("/m/equipment")); await page.getByLabel("搜索装备名称").fill("不存在"); assert.ok(await page.getByText("未找到匹配", { exact: false }).isVisible()); await context.close();
+  // A computer keeps filters beside results; a phone starts with search and reveals
+  // filters on demand. Exercise the same controls and state across a viewport change.
+  ({ context, page } = await open("/m/heroes"));
+  assert.equal(await page.locator(".catalog-filter-disclosure").evaluate(element => element.open), false);
+  await page.locator(".catalog-filter-disclosure > summary").click();
+  await page.getByRole("button", { name: "中路", exact: true }).click();
+  assert.equal(await page.getByRole("button", { name: "中路", exact: true }).getAttribute("aria-pressed"), "true");
+  await page.getByRole("button", { name: "查看小乔详情", exact: true }).waitFor();
+  assert.equal(await page.getByRole("button", { name: "查看廉颇详情", exact: true }).count(), 0);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.waitForFunction(() => { const controls = document.querySelector(".catalog-control-panel").getBoundingClientRect(), results = document.querySelector(".catalog-results").getBoundingClientRect(); return controls.right < results.left; });
+  await page.getByRole("button", { name: "清除搜索和筛选", exact: true }).click();
+  await page.getByRole("button", { name: "查看廉颇详情", exact: true }).waitFor();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole("button", { name: "查看廉颇详情", exact: true }).click();
+  await page.waitForURL(url => url.pathname === "/m/heroes/105");
+  await context.close();
+  ({ context, page } = await open("/m/equipment"));
+  await page.getByLabel("搜索装备名称").fill("破军");
+  await page.getByRole("button", { name: "清除搜索和筛选", exact: true }).click();
+  await page.getByRole("link", { name: "铁剑", exact: true }).waitFor();
+  assert.equal(await page.locator(".equipment-effects").evaluate(element => element.open), false);
+  await page.locator(".equipment-effects > summary").click();
+  await page.locator(".equipment-effects .yanwu-equipment-passive").filter({ hasText: "目标生命值低于一半时，造成额外伤害。" }).waitFor();
+  await context.close();
   ({ context, page } = await open("/m", 390, 844, "guest", "error")); await page.getByRole("button", { name: "重新加载" }).first().click(); await page.getByText("今晚不加班", { exact: true }).waitFor(); await context.close();
   ({ context, page } = await open("/m/login")); await page.getByLabel("召唤师名称", { exact: true }).fill("云中客"); await page.getByLabel("密码", { exact: true }).fill("fictional-password"); await page.getByRole("button", { name: "显示密码", exact: true }).click(); assert.equal(await page.locator("#password").getAttribute("type"), "text"); await page.getByRole("button", { name: "登录", exact: true }).click(); await page.waitForURL(url => !url.pathname.endsWith("login")); assert.equal(mutations.at(-1).pathname, "/api/auth/login"); await context.close();
   ({ context, page } = await open("/m/login", 390, 844, "guest", "missing-session")); await page.locator("#username").fill("云中客"); await page.locator("#password").fill("fictional-password"); await page.getByRole("button", { name: "登录", exact: true }).click(); await page.getByText(/登录状态未能保存/).waitFor(); assert.ok(page.url().includes("login")); await context.close();
-  ({ context, page } = await open("/me", 390, 844, "user", "error")); await page.getByRole("button", { name: "保存配置" }).click(); await page.getByText("保存失败", { exact: true }).waitFor(); assert.equal(mutations.at(-1).pathname, "/api/users/me/roles"); await context.close();
+  ({ context, page } = await open("/me", 390, 844, "user", "error")); assert.equal(await page.getByRole("button", { name: "保存配置" }).isDisabled(), true); await page.getByLabel("当前段位", { exact: true }).selectOption("1"); await page.getByRole("button", { name: "保存配置" }).click(); await page.getByText("保存失败", { exact: true }).waitFor(); assert.equal(mutations.at(-1).pathname, "/api/users/me/roles"); assert.equal(await page.getByRole("button", { name: "保存配置" }).isEnabled(), true, "failed save keeps the modified form recoverable"); await context.close();
+  ({ context, page } = await open("/m/me", 390, 844, "user", "profile-load-error"));
+  await page.getByRole("heading", { name: "分队配置暂时无法读取", exact: true }).waitFor();
+  assert.equal(await page.getByRole("button", { name: "保存配置", exact: true }).count(), 0, "failed reads never expose a default configuration as saved");
+  await page.getByRole("button", { name: "重新读取配置", exact: true }).click();
+  await page.getByLabel("当前段位", { exact: true }).waitFor();
+  assert.equal(await page.getByRole("button", { name: "保存配置", exact: true }).isDisabled(), true);
+  await context.close();
+  ({ context, page } = await open("/m/me", 390, 844, "user", "empty"));
+  await page.getByText("尚未保存分队配置", { exact: true }).waitFor();
+  await page.getByRole("button", { name: "保存配置", exact: true }).click();
+  await page.waitForFunction(() => document.querySelector(".profile-save-bar button")?.disabled);
+  assert.equal(mutations.at(-1).body.preferences.length, 5, "an empty account can explicitly save its five default lanes");
+  await context.close();
+  ({ context, page } = await open("/m/me", 390, 844, "user", "save-during-edit"));
+  await page.getByLabel("当前段位", { exact: true }).selectOption("7");
+  await page.getByRole("button", { name: "保存配置", exact: true }).click();
+  await page.getByLabel("当前段位", { exact: true }).selectOption("9");
+  await page.getByText("已保存", { exact: true }).waitFor();
+  assert.equal(mutations.at(-1).body.preferences[0].role_rank, 7, "the response confirms the submitted values");
+  assert.equal(await page.getByLabel("当前段位", { exact: true }).inputValue(), "9");
+  assert.equal(await page.getByRole("button", { name: "保存配置", exact: true }).isEnabled(), true, "editing during a save leaves the later change unsaved");
+  await context.close();
   const before = host.apiRequests.length; ({ context, page } = await open("/me", 390, 844, "guest")); assert.ok(page.url().includes("login")); assert.ok(!host.apiRequests.slice(before).some(p => p.includes("/api/users/me") || p.includes("/api/me/"))); await context.close();
 
   // Concrete state fixtures are supplementary, never substitutes for normal baselines.
@@ -169,20 +225,24 @@ try {
 
   for (const route of ["/login", "/register"]) { ({ context, page } = await open(route, 390, 844, "guest", "error")); await page.locator("#username").fill("新来客"); if (route === "/register") { await page.locator("#security-question").selectOption("你的出生城市是？"); await page.locator("#security-answer-reg").fill("青山"); await page.locator("#confirm-password").fill("fictional-password"); } await page.getByLabel("密码", { exact: true }).fill("fictional-password"); await page.getByRole("button", { name: route === "/login" ? "登录" : "注册", exact: true }).click(); await page.getByText("测试：操作失败，请重试", { exact: true }).waitFor(); await supplement(page, route === "/login" ? "02" : "03", route, "AuthForm", "guest", "submit-error"); await context.close(); }
 
-  ({ context, page } = await open("/m/me", 320, 812, "user")); await page.getByLabel("游戏昵称").fill("新昵称"); await page.getByLabel("游戏 ID").fill("new-game-id"); await page.getByRole("button", { name: "保存游戏资料" }).click(); await page.getByText("游戏资料已保存", { exact: true }).waitFor(); assert.deepEqual(mutations.at(-1).body, { gameNickname: "新昵称", gameId: "new-game-id" }); await page.getByRole("button", { name: "下移对抗路" }).click(); await page.getByRole("button", { name: "保存配置" }).click(); await page.getByText("已保存", { exact: true }).waitFor(); assert.equal(mutations.at(-1).body.preferences[1].role_type, "top"); await context.close();
+  ({ context, page } = await open("/m/me", 320, 812, "user")); await page.getByLabel("游戏昵称").fill("新昵称"); await page.getByLabel("游戏 ID").fill("new-game-id"); await page.getByRole("button", { name: "保存游戏资料" }).click(); await page.getByText("游戏资料已保存", { exact: true }).waitFor(); assert.deepEqual(mutations.at(-1).body, { gameNickname: "新昵称", gameId: "new-game-id" }); assert.equal(await page.getByRole("button", { name: "保存游戏资料" }).isDisabled(), true); await page.getByRole("button", { name: "下移对抗路" }).click(); await page.getByRole("button", { name: "保存配置" }).scrollIntoViewIfNeeded();
+  const profileSaveGeometry = await page.getByRole("button", { name: "保存配置" }).evaluate(element => { const rect = element.getBoundingClientRect(); const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2); const dock = document.querySelector(".yanwu-dock")?.getBoundingClientRect(); return { width: rect.width, height: rect.height, exposed: hit === element || element.contains(hit), bottom: rect.bottom, dockTop: dock?.top ?? innerHeight }; });
+  assert.ok(profileSaveGeometry.width >= 44 && profileSaveGeometry.height >= 44 && profileSaveGeometry.exposed && profileSaveGeometry.bottom <= profileSaveGeometry.dockTop, `profile save remains exposed above mobile navigation: ${JSON.stringify(profileSaveGeometry)}`);
+  await page.getByRole("button", { name: "保存配置" }).click(); await page.getByText("已保存", { exact: true }).waitFor(); assert.equal(mutations.at(-1).body.preferences[1].role_type, "top"); assert.equal(await page.getByRole("button", { name: "保存配置" }).isDisabled(), true); await context.close();
 
   ({ context, page } = await open("/m/me", 390, 844, "user", "error")); const png = await page.evaluate(() => { const c = document.createElement("canvas"); c.width = c.height = 16; const ctx = c.getContext("2d"); ctx.fillStyle = "#426855"; ctx.fillRect(0, 0, 16, 16); return c.toDataURL("image/png").split(",")[1]; }); await page.locator('input[type="file"]').setInputFiles({ name: "fictional-avatar.png", mimeType: "image/png", buffer: Buffer.from(png, "base64") }); await page.getByText("测试：保存失败", { exact: true }).waitFor(); assert.equal(mutations.at(-1).pathname, "/api/me/avatar"); await supplement(page, "04", "/m/me", "MePage", "user", "avatar-upload-error"); await context.close();
   for (const route of ["/m", "/m/heroes/105", "/m/changelog/版本更新", "/m/me"]) { ({ context, page } = await open(route, 768, 1024, route.endsWith("me") ? "user" : "guest", "long")); await page.evaluate(() => { document.body.style.zoom = "2"; }); await noOverflow(page, `200% CSS scale at 768px ${route}`); await supplement(page, "zoom", route, "ActualPublicComponent", route.endsWith("me") ? "user" : "guest", `200-percent-${encodeURIComponent(route)}`); await context.close(); }
   ({ context, page } = await open("/m", 390, 844));
   await page.evaluate(() => { const nodes = [...document.querySelectorAll('h1,h2,h3,p,span,strong,small,a,button,input,label,select')].map(e => [e, parseFloat(getComputedStyle(e).fontSize)]); for (const [element, size] of nodes) element.style.fontSize = `${size * 2}px`; });
   const textScale = await page.evaluate(() => ({ viewport: innerWidth, scrollWidth: document.documentElement.scrollWidth, overflow: [...document.querySelectorAll('body *')].filter(e => e.getBoundingClientRect().right > innerWidth + 1).slice(0, 15).map(e => `${e.tagName}.${e.className}`) }));
+  assert.ok(textScale.scrollWidth <= textScale.viewport && textScale.overflow.length === 0, `390px text enlargement remains contained: ${JSON.stringify(textScale)}`);
   textScaleObservations.push({ route: "/m", method: "390px text enlargement: initial computed font sizes multiplied by 2 for headings/body/controls; no CSS/browser zoom", ...textScale });
   const textScaleFile = path.join(output, "01-text-200-observed.png"); await page.screenshot({ path: textScaleFile, fullPage: true }); manifest.push({ family: "01", route: "/m", component: "HomePage", viewport: { width: 390, height: 844 }, profile: "mobile", role: "guest", fixture: "home-text-200-v1", state: textScale.scrollWidth > 390 ? "text-200-known-overflow" : "text-200", source: "isolated-component-fixture", file: textScaleFile }); await context.close();
   assert.deepEqual(host.violations, []); assert.deepEqual(errors, []); assert.deepEqual(external, []);
   if (process.env.YANWU_FAMILY) { console.log("Focused development checks passed; no success manifest written."); } else {
   assert.equal(manifest.filter(r => r.state === "baseline").length, 20);
   await writeFile(path.join(output, "manifest.json"), JSON.stringify(manifest, null, 2));
-  await writeFile(path.join(output, "verification.json"), JSON.stringify({ passed: true, browser: "local Microsoft Edge / Chromium", contrast, textScaleObservations, checks: ["20 baseline page/profile records", "seven viewport widths per family", "home CTA ordering", "search", "retry", "password visibility", "real auth/register/reset HTTP and session rejection", "profile HTTP save success/failure and role reordering", "visitor protected requests", "empty/error/loading/long/missing-image/no-toc/no-skins/no-stats", "CSS scale 200% at 768px (not browser chrome zoom)", "computed contrast", "zero violations/errors/external requests"], limitations: ["isolated component fixtures; no database/server E2E", "resource hook boundary fixtures", "normal images are local illustrative SVG test media; missing-image cases deliberately fail all image candidates", "only local Edge available", "390px text-200 simulation observations are recorded separately; any shared Header overflow is deferred to Task5, not called passed"] }, null, 2));
+  await writeFile(path.join(output, "verification.json"), JSON.stringify({ passed: true, browser: "local Microsoft Edge / Chromium", contrast, textScaleObservations, checks: ["20 baseline page/profile records", "seven viewport widths per family", "home CTA ordering", "search, collapsed phone filters, desktop side panel and retained mobile routes", "retry", "password visibility", "real auth/register/reset HTTP and session rejection", "profile HTTP save success/failure, load recovery, first-save, concurrent editing and role reordering", "320px profile save target exposed above mobile navigation", "visitor protected requests", "empty/error/loading/long/missing-image/no-toc/no-skins/no-stats", "CSS scale 200% at 768px (not browser chrome zoom)", "390px computed text enlargement to 200% without page overflow", "computed contrast", "zero violations/errors/external requests"], limitations: ["isolated component fixtures; no database/server E2E", "resource hook boundary fixtures", "normal images are local illustrative SVG test media; missing-image cases deliberately fail all image candidates", "only local Chromium available", "computed text enlargement and CSS scale are simulations; no native browser zoom or phone acceptance claim"] }, null, 2));
   await writeFile(path.join(output, "index.html"), '<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>演武公共页验收</title><style>body{font:16px system-ui;background:#f5f2ea;color:#252b28;margin:32px}section{margin:32px 0}img{max-width:100%;border:1px solid #dcdccf}a{color:#426855}</style><h1>公共页真实组件夹具验收</h1><p>图鉴为明确标记的本地示意测试媒体，不是官方角色/装备原画。手机 viewport 图反映固定导航位置；full-page 长图中的 Dock 位置属于浏览器合成。</p>' + manifest.map(r => `<section><h2>${r.family} · ${r.profile} · ${r.state}</h2><p>${r.route} · ${r.component} · ${r.role} · ${r.fixture} · ${r.viewport.width}×${r.viewport.height}</p><a href="${path.basename(r.file)}"><img loading="lazy" src="${path.basename(r.file)}" style="max-height:900px" alt="${r.family} ${r.state}"></a>${r.fullPageFile ? `<p><a href="${path.basename(r.fullPageFile)}">手机完整长图（合成）</a></p>` : ''}</section>`).join('') + '</html>');
   console.log("PASS: Yanwu public pages; 20 baseline records and seven widths.");
   }

@@ -1,16 +1,15 @@
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { createReadStream } from "node:fs";
-import { readFile, mkdir, stat } from "node:fs/promises";
+import { mkdir, stat } from "node:fs/promises";
 import path from "node:path";
 import { build } from "esbuild";
-import postcss from "postcss";
-import tailwindcss from "tailwindcss";
 import { chromium } from "playwright";
+import { compileStyles } from "./yanwu/host.mjs";
 
 // Component-level browser regression: real React components and HTTP, isolated data.
 // This harness never connects to the project's database or creates real users/posts.
-const output = path.resolve(".planning/2026-09-16-combat-admin/browser");
+const output = path.resolve(".cache/test-artifacts/combat-admin");
 await mkdir(output, { recursive: true });
 const bundled = await build({
   stdin: { contents: `import React from "react"; import { createRoot } from "react-dom/client";
@@ -34,10 +33,7 @@ const bundled = await build({
     }));
   } }],
 });
-let styles = (await readFile("src/app/globals.css", "utf8")).replace(/^@import[^\n]*\n/gm, "");
-for (const file of ["arena.css", "arena-motion.css", "arena-glass.css", "admin.css"]) styles += await readFile(`src/web/styles/${file}`, "utf8");
-styles += bundled.outputFiles.filter(file => file.path.endsWith(".css")).map(file => file.text).join("\n");
-const css = (await postcss([tailwindcss]).process(styles, { from: path.resolve("src/app/globals.css") })).css;
+const css = await compileStyles(path.resolve("src/app/layout.tsx"), bundled.outputFiles.filter(file => file.path.endsWith(".css")).map(file => file.text).join("\n"));
 const title = "第一场团战复盘";
 let status = "published"; let deleted = false; let listFailure = false; let overviewFailure = false; let uploaded = false; let moderationFailure = false;
 let listRequests = 0; let uploadRequests = 0;
@@ -122,8 +118,12 @@ try {
   await page.getByRole("button", { name: "发布动态", exact: true }).click();
   await page.getByLabel("标题", { exact: true }).fill("浏览器视频上传测试"); await page.getByLabel("正文", { exact: true }).fill("这是独立浏览器上传测试，不写入真实数据库。");
   await page.getByLabel("复盘视频", { exact: true }).setInputFiles("tests/fixtures/combat-video.mp4");
+  await page.getByRole("button", { name: "收起发布", exact: true }).click();
+  await page.getByRole("button", { name: "发布动态", exact: true }).click();
+  assert.equal(await page.getByLabel("复盘视频", { exact: true }).evaluate(input => input.files.length), 1, "collapsing the composer keeps the actual selected file");
   await page.locator("form").getByRole("button", { name: "发布动态", exact: true }).click();
   await page.getByText("演武动态已发布", { exact: true }).waitFor(); await page.getByText("第 1 / 2 页").waitFor(); assert.ok(uploaded); assert.equal(uploadRequests, 1);
+  await page.waitForFunction(() => document.activeElement?.classList.contains("combat-open-publisher"));
   listFailure = true; await page.getByRole("button", { name: "刷新", exact: true }).click(); await page.getByRole("button", { name: "重新加载", exact: true }).waitFor();
   listFailure = false; await page.getByRole("button", { name: "重新加载", exact: true }).click(); await page.getByRole("heading", { name: title }).waitFor();
   await page.goto(`${base}/player`, { waitUntil: "networkidle" });

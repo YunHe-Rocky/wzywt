@@ -88,6 +88,11 @@
   --layout-gutter: clamp(20px, 4vw, 64px);
   --layout-block: clamp(24px, 4vw, 48px);
   --layout-bottom-clearance: 36px;
+  --header-height: 72px;
+  --control-height: 44px;
+  --control-height-touch: 48px;
+  --mobile-nav-clearance: calc(84px + env(safe-area-inset-bottom));
+  --actionbar-bottom: calc(90px + env(safe-area-inset-bottom));
   --content-narrow: 720px;
   --content-medium: 960px;
   --content-wide: 1200px;
@@ -99,6 +104,7 @@
   :root,
   [data-theme="yanwu"] {
     --layout-gutter: 20px;
+    --header-height: 64px;
     --layout-bottom-clearance: calc(96px + env(safe-area-inset-bottom));
   }
 }

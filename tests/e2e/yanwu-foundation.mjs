@@ -27,7 +27,8 @@ try {
   assert.equal(await page.getByRole("navigation", { name: "主导航" }).isVisible(), false);
   const dock = page.getByRole("navigation", { name: "底部导航" });
   const dockTargets = dock.locator(":scope > a, :scope > button");
-  assert.equal(await dockTargets.count(), 4, "mobile dock has four primary destinations");
+  assert.equal(await dockTargets.count(), 5, "mobile dock exposes all five frequent destinations, including profile");
+  assert.equal(await dock.getByRole("link", { name: "我的", exact: true }).getAttribute("href"), "/m/me", "profile configuration is reachable without the top account menu");
   assert.equal(await dock.getByText("演武", { exact: true }).count(), 1, "mobile tournament destination uses the approved visible label");
   assert.equal(await dock.getByRole("link", { name: "演武", exact: true }).count(), 1, "mobile tournament accessible name contains its visible label");
   assert.equal(await page.locator(".header-brand-link .arena-brand-mark text").textContent(), "武", "header brand uses the local seal rather than the legacy crest");

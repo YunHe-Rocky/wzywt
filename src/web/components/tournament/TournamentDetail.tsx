@@ -53,6 +53,7 @@ export function TournamentDetail() {
   const [showExtendCalendar, setShowExtendCalendar] = useState(false);
   const [addingFiller, setAddingFiller] = useState(false);
   const [splitTab, setSplitTab] = useState("result");
+  const [primaryAction, setPrimaryAction] = useState<"join" | "leave" | "split" | null>(null);
   const { success, error: showError } = useToast();
 
   const redirectToLogin = useCallback(() => {
@@ -100,35 +101,50 @@ export function TournamentDetail() {
   }, [loadAttempt, refreshTournament, redirectToLogin]);
 
   async function join() {
-    const { ok, data } = await joinTournament(id);
-    if (ok) { void refreshTournament(); success("已加入战场！"); }
-    else showError(data.error || "加入失败");
+    if (primaryAction) return;
+    setPrimaryAction("join");
+    try {
+      const { ok, data } = await joinTournament(id);
+      if (ok) { void refreshTournament(); success("已加入战场！"); }
+      else showError(data.error || "加入失败");
+    } catch { showError("加入失败，请检查连接后重试"); }
+    finally { setPrimaryAction(null); }
   }
 
   async function leave() {
-    const { ok, data } = await leaveTournament(id);
-    if (ok) { void refreshTournament(); success("已退出战场"); }
-    else showError(data.error || "退出失败");
+    if (primaryAction || !confirm("确定退出赛事吗？退出后将不再占用参赛位置。")) return;
+    setPrimaryAction("leave");
+    try {
+      const { ok, data } = await leaveTournament(id);
+      if (ok) { void refreshTournament(); success("已退出战场"); }
+      else showError(data.error || "退出失败");
+    } catch { showError("退出失败，请检查连接后重试"); }
+    finally { setPrimaryAction(null); }
   }
 
   async function doSplit() {
+    if (primaryAction) return;
     setAdminMsg("");
     if (playerCount !== 10) {
       setAdminMsg(`分队需要正好10人，当前${playerCount}人`);
       return;
     }
-    const { ok, data } = await splitTournament<SplitResult & { error?: string; isBeforeDeadline?: boolean }>(id);
-    if (ok) {
-      setSplitResult(data);
-      setTournament((prev) => prev ? { ...prev, status: "completed", splitResult: data } : null);
-      if (data.isBeforeDeadline) {
-        success("分队完成！（截止时间未到，提前锁定）");
+    setPrimaryAction("split");
+    try {
+      const { ok, data } = await splitTournament<SplitResult & { error?: string; isBeforeDeadline?: boolean }>(id);
+      if (ok) {
+        setSplitResult(data);
+        setTournament((prev) => prev ? { ...prev, status: "completed", splitResult: data } : null);
+        if (data.isBeforeDeadline) {
+          success("分队完成！（截止时间未到，提前锁定）");
+        } else {
+          success("分队完成！");
+        }
       } else {
-        success("分队完成！");
+        setAdminMsg(data.error || "分队失败");
       }
-    } else {
-      setAdminMsg(data.error || "分队失败");
-    }
+    } catch { setAdminMsg("分队失败，请检查连接后重试；当前成员名单会保留。"); }
+    finally { setPrimaryAction(null); }
   }
 
   async function doExtend(datetime: string) {
@@ -258,12 +274,18 @@ export function TournamentDetail() {
     : undefined;
 
   return (
-    <div className="tournament-detail page-shell page-shell--medium animate-fade-in">
+    <div className="tournament-detail page-shell page-shell--wide animate-fade-in">
       <RoomHeader tournament={tournament} permissions={permissions} playerCount={playerCount}
         hasSplitResult={!!splitResult} onCopyCode={copyRoomCode} onExtend={() => setShowExtendCalendar(true)} />
+      {(isPlayer || isAdmin) && <nav className="room-task-nav" aria-label="房间任务导航">
+        {ownTeam && <a href="#my-lineup">我的分队</a>}
+        <a href="#room-members">选手名单 <span>{playerCount}/10</span></a>
+        {isAdmin && <a href="#room-management">房间管理</a>}
+        {splitResult && <a href="#room-results">分队与比赛档案</a>}
+      </nav>}
       <CalendarModal open={showExtendCalendar} onClose={() => setShowExtendCalendar(false)} onSelect={doExtend} initialValue={tournament.deadline} minValue={tournament.deadline} title="延长报名截止时间" confirmLabel="确认延长" />
       {splitResult && ownTeam && (
-        <section aria-labelledby="my-split-title" style={{ marginBottom: 24 }}>
+        <section id="my-lineup" className="room-own-lineup" aria-labelledby="my-split-title" tabIndex={-1}>
           <h2 id="my-split-title" className="section-title">我的分队结果</h2>
           <p className="yanwu-own-role">我的分路：{ROLE_LABELS[ownSlot?.roleType || ""] || "待确认"}</p>
           <LineupPanel teamColor={ownTeam} splitResult={splitResult} currentUserId={me?.userId} />
@@ -271,12 +293,14 @@ export function TournamentDetail() {
       )}
       {/* Visitor preview excludes private member identities. */}
       {!isPlayer && !isAdmin && tournament.status === "recruiting" && tournament.isPublic && (
-        <RoomVisitorPreview tournament={tournament} playerCount={playerCount} onJoin={join} />
+        <RoomVisitorPreview tournament={tournament} playerCount={playerCount} joining={primaryAction === "join"} onJoin={join} />
       )}
       {adminMsg && <RoomAdminMessage adminMsg={adminMsg} />}
+      <div className="room-workspace-layout" data-has-sidebar={isPlayer || isAdmin}>
+      {(isPlayer || isAdmin) && <aside className="room-workspace-sidebar" aria-label="房间信息与管理">
       {isAdmin && (
         <RoomAdminControls tournament={tournament} isOwner={isOwner} playerCount={playerCount}
-          hasSplitResult={!!splitResult} addingFiller={addingFiller}
+          hasSplitResult={!!splitResult} addingFiller={addingFiller} splitting={primaryAction === "split"}
           actions={{ split: doSplit, addFiller, togglePublic, resignAdmin }} />
       )}
       <RoomAnnouncement announcement={tournament.announcement} canView={isPlayer || isAdmin} isAdmin={isAdmin}
@@ -284,23 +308,32 @@ export function TournamentDetail() {
         onTextChange={setAnnouncementText} onSave={saveAnnouncement}
         onCancel={() => setEditingAnnouncement(false)}
         onEdit={() => { setEditingAnnouncement(true); setAnnouncementText(tournament.announcement || ""); }} />
-      {(isPlayer || isAdmin) && (
-        <RoomMembers tournament={tournament} splitResult={splitResult} currentUserId={me?.userId}
-          permissions={permissions} counts={counts} promotingId={promotingId} demotingId={demotingId}
-          actions={{ promotePlayer, demotePlayer, kickPlayer }} />
-      )}
       {!isAdmin && isPlayer && tournament.status === "recruiting" && (
-        <div style={{ display: "flex", gap: 12, marginBottom: 24 }}>
-          <button onClick={leave} className="btn-danger" style={{ fontSize: 14, padding: "12px 28px" }}>
-            退出赛事
+        <div className="room-membership-actions">
+          <p>已为你保留参赛位置，等待人齐后由房主分队。</p>
+          <button onClick={leave} disabled={Boolean(primaryAction)} className="btn-subtle room-leave-button">
+            {primaryAction === "leave" ? "退出中…" : "退出赛事"}
           </button>
         </div>
       )}
+      </aside>}
+      <div className="room-workspace-main">
+      {(isPlayer || isAdmin) && (
+        <section id="room-members" tabIndex={-1} aria-label="选手名单">
+        <RoomMembers tournament={tournament} splitResult={splitResult} currentUserId={me?.userId}
+          permissions={permissions} counts={counts} promotingId={promotingId} demotingId={demotingId}
+          actions={{ promotePlayer, demotePlayer, kickPlayer }} />
+        </section>
+      )}
       {splitResult && (
+        <section id="room-results" tabIndex={-1} aria-label="分队与比赛档案">
         <RoomResultWorkspace tournament={tournament} splitResult={splitResult} ownTeam={ownTeam}
           currentUserId={me?.userId} isOwner={isOwner} canManageArchive={isAdmin || me?.role === "admin"}
           splitTab={splitTab} onTabChange={setSplitTab} />
+        </section>
       )}
+      </div>
+      </div>
     </div>
   );
 }

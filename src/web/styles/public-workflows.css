@@ -1,0 +1,209 @@
+/* Public tasks use a persistent workspace on a computer and progressive steps on a phone. */
+.catalog-kind-nav { display:flex; gap:8px; margin:0 0 28px; border-bottom:1px solid var(--border); }
+.catalog-kind-nav a { display:grid; gap:3px; min-height:64px; padding:10px 22px 14px; border-bottom:3px solid transparent; color:var(--text-secondary); font-size:17px; font-weight:700; text-decoration:none; }
+.catalog-kind-nav a span { font-size:13px; font-weight:400; color:var(--text-muted); }
+.catalog-kind-nav a[aria-current="page"] { color:var(--brand-accent); border-color:var(--brand-accent); }
+.catalog-workbench { display:grid; grid-template-columns:244px minmax(0,1fr); align-items:start; gap:32px; }
+.catalog-control-panel { position:sticky; top:calc(var(--header-height,72px) + 20px); padding:22px; background:var(--bg-card); border:1px solid var(--border); border-radius:8px; min-width:0; }
+.catalog-search { display:grid; gap:10px; font-size:14px; color:var(--text-secondary); font-weight:700; }
+.catalog-search input { width:100%; min-width:0; min-height:48px; font-size:16px; padding:10px 12px; }
+.catalog-filter-disclosure { margin-top:22px; }
+.catalog-filter-disclosure summary { min-height:48px; cursor:pointer; font-size:15px; font-weight:700; }
+.catalog-filter-disclosure summary span { float:right; margin-right:8px; color:var(--text-muted); font-size:13px; font-weight:400; }
+.catalog-filter-fields { display:grid; gap:22px; }
+.catalog-filter-group { padding:0; border:0; margin:0; min-width:0; }
+.catalog-filter-group legend { margin-bottom:10px; font-size:14px; font-weight:700; color:var(--text-secondary); }
+.catalog-filter-options { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px; }
+.catalog-filter-options button { min-height:44px; padding:8px 10px; font-size:14px; }
+.catalog-reset { width:100%; margin-top:22px; min-height:44px; font-size:14px; }
+.catalog-results { min-width:0; }
+.catalog-results-toolbar { display:flex; flex-wrap:wrap; gap:8px 16px; align-items:center; justify-content:space-between; margin-bottom:20px; padding:0 0 14px; border-bottom:1px solid var(--border); }
+.catalog-results-toolbar p { margin:0; font-size:15px; color:var(--text-secondary); }
+.catalog-results-toolbar strong { font-size:20px; color:var(--text); font-variant-numeric:tabular-nums; }
+.catalog-results-toolbar > span { font-size:13px; color:var(--text-muted); }
+.catalog-results .hero-catalog-grid { gap:18px; grid-template-columns:repeat(auto-fill,minmax(min(156px,100%),1fr)); }
+.catalog-results .hero-card-name { font-size:22px; }
+.catalog-results .arena-equipment-grid { gap:0 28px; }
+.catalog-results .yanwu-equipment-row { align-items:start; padding:24px 0; }
+.catalog-results .yanwu-equipment-title h2 a { display:inline-flex; align-items:center; min-height:44px; }
+.catalog-results .yanwu-equipment-stats { font-size:14px; line-height:1.8; }
+.equipment-effects { margin-top:12px; }
+.equipment-effects summary { min-height:44px; padding:10px 0; color:var(--brand-ink); font-size:14px; cursor:pointer; font-weight:600; }
+.equipment-effects summary > span { margin-left:8px; font-size:13px; color:var(--text-muted); font-weight:400; }
+.equipment-effects .yanwu-equipment-passive { font-size:15px; line-height:1.8; overflow-wrap:anywhere; }
+.reference-section-nav { display:flex; gap:8px; margin:0 0 28px; padding:8px 0; border-top:1px solid var(--border); border-bottom:1px solid var(--border); }
+.reference-section-nav a { display:inline-flex; min-height:44px; align-items:center; padding:10px 18px; color:var(--brand-ink); font-weight:700; font-size:15px; text-decoration:none; border-radius:4px; }
+.reference-section-nav a:hover { background:var(--bg-hover); }
+.hero-reference-page .hero-header { grid-template-columns:200px minmax(0,1fr); align-items:start; }
+.hero-skin-options { display:flex; flex-wrap:wrap; max-width:220px; gap:6px; }
+.hero-reference-body { display:grid; grid-template-columns:minmax(0,1.45fr) minmax(280px,1fr); align-items:start; gap:40px; }
+.hero-reference-skills { grid-column:1; grid-row:1; }
+.hero-reference-stats { grid-column:2; grid-row:1; padding-left:28px; border-left:1px solid var(--border); }
+.hero-reference-body section { min-width:0; scroll-margin-top:calc(var(--header-height,72px) + 20px); }
+.hero-reference-body .hero-stat-grid { grid-template-columns:minmax(0,1fr); }
+.hero-reference-body .hero-skill { padding:22px 0; }
+.hero-reference-body .hero-skill-heading { gap:8px 14px; align-items:center; }
+.hero-reference-body .hero-skill > p { font-size:16px !important; line-height:1.9 !important; }
+.hero-reference-page .hero-header button { min-height:44px; }
+
+.profile-section-nav { display:flex; gap:12px; padding-bottom:18px; border-bottom:1px solid var(--border); }
+.profile-workspace .arena-page-heading { margin-bottom:0; }
+.profile-workspace .arena-profile-summary { border-top:0; padding-top:8px; padding-bottom:16px; }
+.profile-section-nav a { display:inline-flex; align-items:center; gap:9px; min-height:48px; padding:10px 16px; border:1px solid var(--border); border-radius:6px; color:var(--text); text-decoration:none; font-weight:700; }
+.profile-section-nav a span { font-size:13px; color:var(--brand-accent); }
+.profile-editor-layout { display:grid; grid-template-columns:minmax(250px,.7fr) minmax(0,2fr); gap:36px; align-items:start; }
+.profile-editor-layout > div { min-width:0; }
+.profile-editor-layout > div:first-child { position:sticky; top:calc(var(--header-height,72px) + 20px); }
+.profile-editor-layout section { scroll-margin-top:calc(var(--header-height,72px) + 20px); }
+.profile-editor-layout .yanwu-profile-section { padding:0 0 24px; }
+.profile-section-heading { display:flex; align-items:flex-start; gap:12px; margin-bottom:20px; }
+.profile-step-number { display:grid; place-items:center; flex-shrink:0; width:36px; height:36px; border:1px solid var(--border); color:var(--brand-accent); font-family:var(--font-display); font-size:18px; }
+.profile-section-heading h2 { margin:0 0 6px; font-size:24px; font-weight:600; }
+.profile-section-heading p { margin:0; font-size:14px; line-height:1.7; color:var(--text-muted); }
+.profile-editor-layout form[aria-label="游戏资料"] > .grid { grid-template-columns:minmax(0,1fr); }
+.profile-editor-layout form[aria-label="游戏资料"] > div:last-child { flex-direction:column; align-items:stretch; }
+.profile-save-note { font-size:13px; color:var(--text-muted); line-height:1.6; }
+.profile-lane-workspace { display:grid; grid-template-columns:minmax(240px,1fr) minmax(0,1fr); gap:22px; }
+.profile-lane-workspace > div { min-width:0; }
+.profile-help { margin:-4px 0 14px; font-size:13px; color:var(--text-muted); line-height:1.8; }
+.profile-lane-priority .yanwu-lane-select { padding:10px; gap:6px; }
+.profile-lane-priority .role-order-actions { flex-direction:column; gap:4px; }
+.profile-lane-priority .yanwu-role-move { min-height:44px; min-width:44px; }
+.profile-preferences .profile-add-grid { display:grid; grid-template-columns:minmax(0,1fr) 90px; gap:8px; }
+.profile-preferences .profile-add-grid > div:first-child { grid-column:1 / -1; }
+.profile-preferences .profile-add-grid > input { min-width:0; }
+.profile-preferences .profile-add-grid > button { grid-column:auto; }
+.profile-preferences .profile-footer { margin-bottom:22px; }
+.profile-save-bar { position:sticky; z-index:12; bottom:16px; display:flex; justify-content:space-between; align-items:center; gap:16px; padding:16px 18px; border:1px solid var(--border); border-radius:8px; background:var(--bg-card); box-shadow:0 4px 22px rgba(37,43,40,.07); }
+.profile-save-bar > p { margin:0; display:grid; gap:4px; min-width:0; }
+.profile-save-bar strong { font-size:14px; }
+.profile-save-bar p span { font-size:12px; color:var(--text-muted); }
+.profile-save-bar button { min-height:48px; padding:12px 20px; }
+
+.combat-publisher { scroll-margin-top:calc(var(--header-height,72px) + 16px); }
+.combat-publisher[hidden] { display:none; }
+.combat-publisher form { grid-template-columns:minmax(0,1.3fr) minmax(0,1fr); gap:24px; align-items:start; }
+.combat-publisher form > div { min-width:0; }
+.combat-publish-copy, .combat-publish-media { display:grid; gap:16px; }
+.combat-publisher h3 { display:flex; align-items:center; gap:8px; margin:0; font-size:17px; font-weight:700; }
+.combat-publisher h3 > span { font-size:13px; color:var(--brand-accent); }
+.combat-publisher label { font-size:14px; gap:8px; }
+.combat-publisher .combat-content-field, .combat-publisher .combat-video-field { grid-column:auto; }
+.combat-publisher textarea { font-size:16px; line-height:1.8; min-height:148px; }
+.combat-publisher input { min-height:48px; font-size:16px; }
+.combat-publish-media { padding:22px; border:1px dashed var(--border); border-radius:8px; background:var(--bg-input); }
+.combat-publisher input[type="file"] { width:100%; padding:8px 0; overflow:hidden; font-size:14px; }
+.combat-publisher input[type="file"]::file-selector-button { min-height:44px; margin-right:10px; padding:8px 12px; border:1px solid var(--border); border-radius:4px; background:var(--bg-card); color:var(--text); cursor:pointer; }
+.combat-selected-video { margin:0; display:grid; gap:6px; color:var(--text-muted); font-size:14px; line-height:1.7; overflow-wrap:anywhere; }
+.combat-selected-video strong { color:var(--text); }
+.combat-selected-video span { font-size:13px; }
+.combat-associations { grid-column:1/-1; border-top:1px solid var(--border); border-bottom:1px solid var(--border); }
+.combat-associations summary { min-height:48px; padding:14px 0; font-size:14px; cursor:pointer; color:var(--text-secondary); }
+.combat-associations summary span { margin-left:8px; font-size:13px; color:var(--text-muted); }
+.combat-associations > div { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; padding:4px 0 20px; }
+.combat-publish-actions { grid-column:1/-1; display:flex; justify-content:space-between; gap:16px; align-items:center; }
+.combat-publish-actions p { margin:0; font-size:14px; color:var(--text-muted); }
+.combat-publish-actions .btn-primary { min-height:48px; min-width:148px; }
+.combat-publisher .combat-upload-progress { grid-column:1/-1; }
+.combat-review-layout { display:grid; grid-template-columns:minmax(0,1.55fr) minmax(300px,1fr); gap:36px; align-items:start; }
+.combat-review-layout > * { min-width:0; scroll-margin-top:calc(var(--header-height,72px) + 20px); }
+.combat-review-layout .combat-discussion { margin-top:0; padding-top:0; }
+.combat-review-layout .comment-form { grid-template-columns:minmax(0,1fr); }
+.combat-review-layout .comment-form textarea { font-size:16px; line-height:1.8; }
+.combat-review-layout .comment-list { margin-top:24px; }
+.combat-review-layout .combat-article { padding-top:20px; }
+.combat-review-layout .combat-article > p { font-size:16px; line-height:1.9; overflow-wrap:anywhere; }
+.combat-comment-empty { font-size:14px; color:var(--text-muted); line-height:1.8; }
+
+@media (min-width:901px) {
+  .catalog-filter-disclosure > summary { display:none; }
+}
+@media (max-width:1200px) and (min-width:901px) {
+  .profile-editor-layout { grid-template-columns:minmax(230px,.7fr) minmax(0,2fr); gap:28px; }
+  .profile-lane-workspace { grid-template-columns:minmax(0,1fr); }
+  .profile-lane-priority .role-order-actions { flex-direction:row; }
+  .profile-lane-priority .yanwu-role-move { min-height:44px; }
+  .hero-reference-body { grid-template-columns:minmax(0,1.2fr) minmax(260px,1fr); gap:28px; }
+}
+@media (max-width:900px) {
+  .catalog-kind-nav { margin-bottom:20px; }
+  .catalog-kind-nav a { flex:1; padding:10px 14px 12px; min-height:64px; }
+  .catalog-workbench { grid-template-columns:minmax(0,1fr); gap:22px; }
+  .catalog-control-panel { position:static; padding:16px; }
+  .catalog-search { gap:8px; }
+  .catalog-filter-disclosure { margin-top:10px; }
+  .catalog-filter-disclosure summary { padding:12px 0; }
+  .catalog-filter-fields { padding-top:10px; gap:20px; }
+  .catalog-filter-options { display:flex; flex-wrap:wrap; gap:8px; }
+  .catalog-filter-options button { flex:0 1 auto; min-width:56px; padding:10px 13px; }
+  .catalog-reset { margin-top:10px; }
+  .catalog-results-toolbar { align-items:start; margin-bottom:16px; }
+  .catalog-results-toolbar > span { font-size:12px; }
+  .catalog-results .hero-catalog-grid { grid-template-columns:repeat(auto-fill,minmax(min(150px,100%),1fr)); }
+  .hero-reference-body { grid-template-columns:minmax(0,1fr); gap:32px; }
+  .hero-reference-skills, .hero-reference-stats { grid-column:1; grid-row:auto; }
+  .hero-reference-skills { grid-row:1; }
+  .hero-reference-stats { padding-left:0; border:0; }
+  .hero-reference-body .hero-stat-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .hero-reference-page .hero-header { grid-template-columns:160px minmax(0,1fr); gap:24px; }
+  .hero-reference-page .hero-portrait-frame { width:160px; height:224px; }
+  .hero-skin-options { max-width:160px; }
+  .profile-editor-layout { grid-template-columns:minmax(0,1fr); gap:28px; }
+  .profile-editor-layout > div:first-child { position:static; }
+  .profile-editor-layout .yanwu-profile-section { padding-bottom:28px; }
+  .profile-editor-layout form[aria-label="游戏资料"] > .grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .profile-editor-layout form[aria-label="游戏资料"] > div:last-child { flex-direction:row; align-items:center; }
+  .profile-lane-workspace { grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:24px; }
+  .profile-save-bar { bottom:var(--actionbar-bottom,calc(90px + env(safe-area-inset-bottom,0px))); }
+  .combat-review-layout { grid-template-columns:minmax(0,1fr); gap:28px; }
+  .combat-publisher form { grid-template-columns:minmax(0,1fr); }
+  .combat-open-publisher { position:fixed; right:20px; bottom:var(--actionbar-bottom,calc(90px + env(safe-area-inset-bottom,0px))); z-index:15; min-height:48px; padding:12px 20px; box-shadow:0 4px 20px rgba(37,43,40,.18); }
+  .combat-wall { padding-bottom:72px; }
+  .combat-publish-actions { position:sticky; bottom:var(--actionbar-bottom,calc(90px + env(safe-area-inset-bottom,0px))); z-index:12; padding:14px; background:var(--bg-card); border:1px solid var(--border); border-radius:8px; box-shadow:0 4px 20px rgba(37,43,40,.08); }
+}
+@media (max-width:600px) {
+  .catalog-kind-nav a { font-size:16px; }
+  .catalog-kind-nav a span { font-size:12px; }
+  .catalog-results .hero-catalog-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+  .catalog-results .hero-card-name { font-size:20px; }
+  .catalog-results .hero-card-copy { padding:12px 10px; }
+  .catalog-results .yanwu-equipment-row { padding:20px 0; gap:12px; }
+  .catalog-results .yanwu-equipment-image { flex-shrink:0; width:52px; height:52px; }
+  .reference-section-nav { margin-bottom:22px; gap:4px; }
+  .reference-section-nav a { flex:1; justify-content:center; padding:10px 8px; font-size:14px; }
+  .hero-reference-page .hero-header { grid-template-columns:112px minmax(0,1fr); gap:18px; }
+  .hero-reference-page .hero-portrait-frame { width:112px; height:156px; }
+  .hero-skin-options { max-width:112px; gap:6px; }
+  .hero-reference-body .hero-stat-grid { grid-template-columns:minmax(0,1fr); }
+  .hero-reference-body .hero-skill > p { line-height:1.8 !important; }
+  .hero-reference-page .hero-header button { overflow-wrap:anywhere; }
+  .hero-form-tabs { flex-direction:column; gap:6px !important; }
+  .hero-form-tabs button { border:1px solid var(--border) !important; border-radius:4px !important; padding:10px !important; text-align:left; }
+  .hero-form-tabs button[aria-pressed="true"] { border-color:var(--brand-accent) !important; }
+  .profile-workspace { gap:20px; }
+  .profile-workspace .arena-profile-summary p { margin:4px 0 0; }
+  .profile-section-nav { gap:8px; padding-bottom:14px; }
+  .profile-section-nav a { flex:1; justify-content:center; padding:10px 8px; font-size:14px; }
+  .profile-section-heading { gap:10px; margin-bottom:18px; }
+  .profile-section-heading h2 { font-size:22px; }
+  .profile-section-heading p { font-size:13px; }
+  .profile-editor-layout form[aria-label="游戏资料"] > .grid { grid-template-columns:minmax(0,1fr); }
+  .profile-editor-layout form[aria-label="游戏资料"] > div:last-child { flex-direction:column; align-items:stretch; }
+  .profile-lane-workspace { grid-template-columns:minmax(0,1fr); gap:18px; }
+  .profile-lane-priority .role-order-actions { flex-direction:row; }
+  .profile-lane-priority .yanwu-role-move { min-height:44px; min-width:44px; }
+  .profile-lane-priority .yanwu-lane-select { padding:10px 8px; }
+  .profile-save-bar { gap:8px; padding:12px; }
+  .profile-save-bar strong { font-size:13px; }
+  .profile-save-bar p span { font-size:12px; }
+  .profile-save-bar button { min-width:104px; padding:10px 12px; font-size:14px; }
+  .combat-publish-media { padding:16px; }
+  .combat-publish-actions p { font-size:12px; line-height:1.6; }
+  .combat-publish-actions .btn-primary { min-width:116px; }
+  .combat-associations > div { grid-template-columns:minmax(0,1fr); }
+}
+@media (max-width:360px) {
+  .profile-lane-priority .role-order-actions { flex-direction:column; gap:3px; }
+  .profile-lane-priority .yanwu-lane-select { gap:5px; }
+  .profile-save-bar p span { display:none; }
+}

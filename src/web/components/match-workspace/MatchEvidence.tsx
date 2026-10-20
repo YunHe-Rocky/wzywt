@@ -21,7 +21,7 @@ interface MatchEvidenceProps {
 export function MatchEvidence({ detail, tournamentId, matchId, canEdit, busy, recognitionActive, uploadErrors, upload, recognize, cancelRecognitionJob }: MatchEvidenceProps) {
   const screenshotByType = useMemo(() => new Map(detail.match.screenshots.map((item) => [item.type, item])), [detail]);
   return (
-    <details className="match-evidence-disclosure" open={canEdit && detail.match.screenshots.length < 6}>
+    <details id="match-evidence" className="match-evidence-disclosure" open={canEdit && detail.match.screenshots.length < 6}>
       <summary>
         <span>
           <strong>数据依据</strong>
@@ -32,7 +32,7 @@ export function MatchEvidence({ detail, tournamentId, matchId, canEdit, busy, re
       <div className="match-evidence-content">
         <div className="match-section-heading">
           <div className="match-section-copy">
-            <span className="match-section-index">02</span>
+            <span className="match-section-index">01</span>
             <div>
               <span className="match-section-label">原始凭据</span>
               <h2>截图与识别</h2>

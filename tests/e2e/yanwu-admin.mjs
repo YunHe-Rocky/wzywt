@@ -29,7 +29,7 @@ const host = await startYanwuHost({
     if (m === 'GET' && p === '/api/admin/announcements') return { status: fail ? 503 : 200, body: { announcements: empty ? [] : fixture.announcements, ...(fail ? { error: '测试：公告读取失败' } : {}) } };
     if (m === 'GET' && p === '/api/heroes') return { status: fail ? 503 : 200, body: empty ? [] : fixture.heroes };
     if (m === 'GET' && p === '/api/admin/settings') return { status: fail ? 503 : 200, body: fail ? { error: '测试：配置读取失败' } : { settings: fixture.settings } };
-    if (m === 'GET' && p === '/api/admin/sync-status') return { body: { progress: { phase: scenario === 'sync-error' ? 'error' : 'done', current: 124, total: 124, message: scenario === 'sync-error' ? '测试：同步失败' : '测试：同步完成' } } };
+    if (m === 'GET' && p === '/api/admin/sync-status') return { body: { progress: fixture.syncProgress || { phase: scenario === 'sync-error' ? 'error' : 'done', current: 124, total: 124, message: scenario === 'sync-error' ? '测试：同步失败' : '测试：同步完成' } } };
     if (m === 'GET' && p === '/api/admin/resources') return { status: fail ? 503 : 200, body: fail ? { error: '测试：资源读取失败' } : { resources: empty ? [] : fixture.monitor.resources } };
     if (m === 'GET' && p === '/api/heroes/watch') return scenario === 'connection-error' ? { status: 204, body: '' } : { contentType: 'text/event-stream', keepOpen: true, body: fixture.monitor.events.map(event => `data: ${JSON.stringify(event)}\n\n`).join('') };
     const known = m === 'POST' && ['/api/auth/logout', '/api/admin/announcements', '/api/heroes', '/api/heroes/watch'].includes(p)
@@ -43,6 +43,10 @@ const host = await startYanwuHost({
     if (scenario === 'save-error' || scenario === 'logout-error') return { status: 503, body: { error: '测试：操作失败' } };
     if (scenario === 'saving') await new Promise(resolve => setTimeout(resolve, 650));
     if (p === '/api/auth/logout') fixture.user = null;
+    if (p === '/api/admin/settings') { fixture.settings = body; return { body: { ok: true, settings: fixture.settings } }; }
+    if (p === '/api/heroes' && m === 'POST') { fixture.syncProgress = { jobId: 'fixture-sync-job', phase: 'done', current: 124, total: 124, message: '测试：同步完成' }; return { status: 202, body: { ok: true, jobId: 'fixture-sync-job' } }; }
+    if (p === '/api/admin/users/7') fixture.users = m === 'DELETE' ? fixture.users.filter(user => user.id !== 7) : fixture.users.map(user => user.id === 7 ? { ...user, ...body } : user);
+    if (p.startsWith('/api/tournaments/') && m === 'DELETE') fixture.rooms = fixture.rooms.filter(room => room.id !== Number(p.split('/').at(-1)));
     if (p === '/api/combat-posts/1') fixture.posts = body.action === 'DELETE' ? [] : fixture.posts.map(post => ({ ...post, status: body.action === 'HIDE' ? 'hidden' : 'published' }));
     if (p.startsWith('/api/announcements/')) fixture.announcements = m === 'DELETE' ? fixture.announcements.filter(a => a.id !== Number(p.split('/').at(-1))) : fixture.announcements.map(a => a.id === Number(p.split('/').at(-1)) ? { ...a, ...body } : a);
     return { body: { ok: true } };
@@ -123,6 +127,12 @@ try {
   assert.equal(await trigger.getAttribute('aria-expanded'),'false','browser Back closes menu');
   await bounds(page,'long admin name at 320');
   await trigger.click(); await capture(page,'18','/m/admin','AdminShell','mobile','menu-open');
+  await page.keyboard.press('Escape');
+  await page.getByRole('button',{name:'全部管理',exact:true}).click();
+  assert.equal(await trigger.getAttribute('aria-expanded'),'true','bottom shortcut opens the complete administration menu');
+  assert.ok(await page.evaluate(()=>Boolean(document.activeElement?.closest('#admin-navigation'))),'bottom menu shortcut moves focus to visible navigation');
+  await page.keyboard.press('Escape');
+  assert.ok(await page.getByRole('button',{name:'全部管理',exact:true}).evaluate(element=>element===document.activeElement),'Escape returns to the bottom trigger');
   await context.close();
   for (const [family,route,component] of pairs.filter(row=>!process.env.YANWU_FAMILY||row[0]===process.env.YANWU_FAMILY)) {
     for (const [profile,width,height] of [['desktop',1440,900],['mobile',390,844]]) {
@@ -131,7 +141,8 @@ try {
       await page.locator('#admin-content h1').waitFor();
       assert.equal(await page.locator('.header-primary-nav,.dock').count(),0,'admin has no public navigation');
       if(family==='25') await page.getByText('实时连接正常',{exact:true}).waitFor();
-      if(family==='26') await page.getByRole('button',{name:'保存配置'}).waitFor();
+      if(family==='26') await page.getByRole('button',{name:'同步英雄资料',exact:true}).waitFor();
+      if(profile==='mobile' && ['19','20','22','24'].includes(family)) assert.equal(await page.locator('.admin-card-table tbody tr').first().evaluate(element=>getComputedStyle(element).display),'grid','mobile data rows become labelled cards');
       await capture(page,family,logical,component,profile);
       if(profile==='desktop') contrast.push(await inspectContrast(page,'.admin-nav-group a span,.admin-topbar small'));
       await context.close();
@@ -161,23 +172,30 @@ try {
   scenario='default'; await page.getByRole('button',{name:'退出登录',exact:true}).click();
   await page.waitForURL('**/login'); await context.close();
   ({page,context}=await open('/m/admin/settings',320,812,'saving'));
-  await page.getByLabel('英雄列表页 (HTML)',{exact:true}).fill('https://example.org/changed');
+  await page.locator('.settings-advanced summary').click();
+  await page.getByLabel('备用英雄名单',{exact:true}).fill('https://pvp.qq.com/changed/herolist.shtml');
   await page.getByRole('button',{name:'保存配置'}).click();
-  assert.ok(await page.getByRole('button',{name:'保存中...'}).isDisabled());
-  await page.getByText('配置已保存',{exact:true}).waitFor();
-  assert.equal(mutations.findLast(x=>x.p==='/api/admin/settings').body.hero_list_page,'https://example.org/changed');
-  await page.getByRole('button',{name:'恢复默认'}).click();
-  await page.getByText('已恢复默认值，请点击保存',{exact:true}).waitFor();
-  await page.getByRole('button',{name:'立即同步英雄'}).click();
+  assert.ok(await page.getByRole('button',{name:'正在保存…'}).isDisabled());
+  await page.getByText('配置已保存。下次同步会使用这些地址，现有英雄资料不会立即改变。',{exact:true}).waitFor();
+  assert.equal(mutations.findLast(x=>x.p==='/api/admin/settings').body.hero_list_page,'https://pvp.qq.com/changed/herolist.shtml');
+  await page.locator('.settings-source-field').filter({has:page.getByLabel('备用英雄名单',{exact:true})}).getByRole('button',{name:'使用此项默认值'}).click();
+  await page.getByRole('button',{name:'保存并同步英雄',exact:true}).click();
   await page.getByText('测试：同步完成',{exact:true}).last().waitFor();
   await capture(page,'26','/m/admin/settings','AdminSettingsPage','mobile','sync-done'); await context.close();
   ({page,context}=await open('/m/admin/users',320,812));
   assert.ok(await page.getByRole('button',{name:'上一页'}).isDisabled());
   await page.getByRole('button',{name:'下一页'}).click();
   assert.ok(await page.getByRole('button',{name:'下一页'}).isDisabled());
-  await page.getByRole('button',{name:'封禁',exact:true}).click(); await page.getByRole('button',{name:'解封'}).waitFor();
+  await page.getByRole('button',{name:'封禁',exact:true}).click();
+  assert.equal(mutations.filter(x=>x.p==='/api/admin/users/7').length,0,'opening confirmation must not change the member');
+  await page.getByRole('alertdialog').getByRole('button',{name:'确认封禁',exact:true}).click(); await page.getByRole('button',{name:'解封'}).waitFor();
   assert.deepEqual(mutations.findLast(x=>x.p==='/api/admin/users/7').body,{banned:true});
-  await page.getByRole('button',{name:'删除',exact:true}).click(); await page.getByText('听雨客',{exact:true}).waitFor({state:'hidden'}); await context.close();
+  await page.getByRole('button',{name:'删除',exact:true}).click(); await page.getByRole('alertdialog').getByRole('button',{name:'确认删除',exact:true}).click(); await page.getByText('听雨客',{exact:true}).waitFor({state:'hidden'}); await context.close();
+  ({page,context}=await open('/m/admin/tournaments',320,812));
+  await page.getByRole('button',{name:'删除',exact:true}).first().click(); await page.getByRole('alertdialog').waitFor();
+  await page.keyboard.press('Escape'); assert.equal(mutations.filter(x=>x.p==='/api/tournaments/101').length,0,'cancelled room deletion must not mutate');
+  await page.getByRole('button',{name:'删除',exact:true}).first().click(); await page.getByRole('alertdialog').getByRole('button',{name:'确认删除房间',exact:true}).click();
+  await page.getByRole('link',{name:'周末松风演武',exact:true}).waitFor({state:'hidden'}); await context.close();
   ({page,context}=await open('/m/admin/heroes',320,812,'saving'));
   await page.getByLabel('廉颇主分路',{exact:true}).selectOption('jungle');
   assert.ok(await page.getByLabel('廉颇主分路',{exact:true}).isDisabled());
@@ -185,6 +203,10 @@ try {
   assert.equal(mutations.findLast(x=>x.p==='/api/heroes/105').body.roleType,'jungle'); await context.close();
   ({page,context}=await open('/m/admin/announcements',320,812,'saving'));
   await page.getByRole('button',{name:'编辑',exact:true}).first().click();
+  await page.getByRole('button',{name:'阅读预览',exact:true}).click();
+  assert.ok(await page.getByRole('article',{name:'公告 Markdown 预览'}).isVisible());
+  assert.equal(await page.getByRole('textbox',{name:'Markdown 正文'}).isVisible(),false,'mobile preview focuses the reading task');
+  await page.getByRole('button',{name:'编写正文',exact:true}).click();
   await page.getByRole('textbox',{name:/公告主题名称/}).fill('秋日整理');
   await page.getByRole('button',{name:'保存修改'}).click();
   assert.ok(await page.getByRole('button',{name:'保存中...'}).isDisabled());

@@ -45,7 +45,7 @@ async function expandStyleImports(file, ancestors = []) {
   return styles + source.slice(cursor);
 }
 
-async function compileStyles(layoutPath, componentStyles = "") {
+export async function compileStyles(layoutPath, componentStyles = "") {
   const layoutSource = await readFile(layoutPath, "utf8");
   const styleImports = [...layoutSource.matchAll(/\bimport\s+["']([^"']+\.css)["'];?/g)];
   if (!styleImports.length) throw new Error(`Yanwu host found no root styles in ${path.relative(repoRoot, layoutPath)}`);

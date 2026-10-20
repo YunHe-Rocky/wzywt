@@ -38,6 +38,7 @@ export function HomePage() {
   const [newsLoaded, setNewsLoaded] = useState(false);
   const [newsAttempt, setNewsAttempt] = useState(0);
   const [activeSlug, setActiveSlug] = useState<string | null>(null);
+  const [onlyOpenRooms, setOnlyOpenRooms] = useState(false);
   const { success, error: toastError } = useToast();
 
   useEffect(() => {
@@ -57,26 +58,36 @@ export function HomePage() {
     catch { toastError(`复制失败，请手动复制房间号：${code}`); }
   }
 
-  return <div className="page-shell page-shell--wide arena-home">
+  const openRooms = rooms.filter(room => room._count.players < 10 && new Date(room.deadline).getTime() > Date.now());
+  const visibleRooms = onlyOpenRooms ? openRooms : rooms;
+
+  return <div className="page-shell page-shell--wide arena-home arena-home--tasks">
     <section className="arena-hero" aria-labelledby="arena-title">
       <img className="arena-hero-art" src="/art/yanwu-ink.webp" alt="" width="1440" height="960" fetchPriority="high" />
       <div className="arena-hero-content">
         <div className="arena-eyebrow"><span />王者荣耀 · 好友内战</div>
-        <h1 id="arena-title">以武会友，<span>于此相逢。</span></h1>
-        <p>把熟悉的朋友，分成势均力敌的对手。<br />约一场好局，留下下一次相聚的约定。</p>
+        <h1 id="arena-title">朋友到齐，<span>开一场好局。</span></h1>
+        <p>加入房间、配置分路、按实力分队。<br />从约战到赛后复盘，都在演武堂。</p>
         <div className="arena-hero-actions">
           <Link href={href("/tournaments")} className="btn-primary arena-main-cta"><ArenaIcon name="swords" />进入赛事大厅<ArenaIcon name="arrow" /></Link>
           <Link href={href("/tournaments#join-room")} className="arena-secondary-cta">房间号加入<ArenaIcon name="chevron" width="15" height="15" /></Link>
         </div>
         <div className="arena-hero-promises"><span><ArenaIcon name="shield" />按实力分队</span><span><ArenaIcon name="users" />照顾分路偏好</span></div>
       </div>
+      <nav className="home-task-panel" aria-label="常用任务">
+        <div className="home-task-panel-heading"><span className="arena-eyebrow">准备开战</span><p>选一步，马上开始</p></div>
+        <Link href={href("/tournaments#create-room")}><span className="home-task-icon"><ArenaIcon name="plus" /></span><span><strong>创建房间</strong><small>约朋友，组一场 5V5</small></span><ArenaIcon name="arrow" /></Link>
+        <Link href={href("/me")} prefetch={false}><span className="home-task-icon"><ArenaIcon name="user" /></span><span><strong>配置我的分路</strong><small>分路与战力，帮助公平分队</small></span><ArenaIcon name="arrow" /></Link>
+        <Link href={href("/combat")} prefetch={false}><span className="home-task-icon"><ArenaIcon name="news" /></span><span><strong>精彩与复盘</strong><small>看击杀剪辑，回顾上一局</small></span><ArenaIcon name="arrow" /></Link>
+      </nav>
     </section>
 
     <HistoryThemeSessionHome />
 
     <section className="arena-section" aria-labelledby="rooms-title">
-      <div className="arena-section-heading"><div><p className="arena-eyebrow">01 / 好友相聚</p><h2 id="rooms-title">三五好友，正好一局。</h2><p className="yanwu-section-note">公开房间 · 寻一席好对手</p></div><Link href={href("/tournaments")} className="arena-text-link">全部赛事<ArenaIcon name="arrow" /></Link></div>
-      {error ? <LoadFailure message={error} onRetry={retry} /> : loading ? <LoadingCards /> : rooms.length === 0 ? <div className="arena-empty-room"><div className="arena-empty-emblem"><ArenaIcon name="swords" /></div><div><h3>第一局，你来组</h3><p>暂时没有公开房间。开一间，把房间号发给朋友。</p></div><Link href={href("/tournaments#create-room")} className="btn-ghost"><ArenaIcon name="plus" />创建房间</Link></div> : <div className="arena-room-grid yanwu-open-rooms">{rooms.slice(0, 6).map(room => {
+      <div className="arena-section-heading"><div><p className="arena-eyebrow">好友相聚</p><h2 id="rooms-title">公开房间</h2><p className="yanwu-section-note">看看谁还缺一位队友</p></div><Link href={href("/tournaments")} className="arena-text-link">全部赛事<ArenaIcon name="arrow" /></Link></div>
+      {!error && !loading && rooms.length > 0 && <div className="home-room-filters" role="group" aria-label="公开房间筛选"><button type="button" aria-pressed={!onlyOpenRooms} onClick={() => setOnlyOpenRooms(false)}>全部房间 <span>{rooms.length}</span></button><button type="button" aria-pressed={onlyOpenRooms} onClick={() => setOnlyOpenRooms(true)}>仍可报名 <span>{openRooms.length}</span></button></div>}
+      {error ? <LoadFailure message={error} onRetry={retry} /> : loading ? <LoadingCards /> : visibleRooms.length === 0 ? <div className="arena-empty-room"><div className="arena-empty-emblem"><ArenaIcon name="swords" /></div><div><h3>{onlyOpenRooms ? "暂时没有可报名的房间" : "第一局，你来组"}</h3><p>{onlyOpenRooms ? "可以查看全部房间，或自己组一局。" : "暂时没有公开房间。开一间，把房间号发给朋友。"}</p></div><Link href={href("/tournaments#create-room")} className="btn-ghost"><ArenaIcon name="plus" />创建房间</Link></div> : <div className="arena-room-grid yanwu-open-rooms" aria-live="polite">{visibleRooms.slice(0, 6).map(room => {
         const full = room._count.players >= 10;
         const closed = new Date(room.deadline).getTime() <= Date.now();
         return <article className="arena-room" key={room.id}>

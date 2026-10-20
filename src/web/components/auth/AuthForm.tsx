@@ -3,7 +3,7 @@
 import { ArenaIcon } from "@/web/components/arena/ArenaIcon";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useToast } from "@/web/components/ui/Toast";
 import { FeaturePortal } from "@/web/components/ui/FeaturePortal";
@@ -43,6 +43,7 @@ const btnGold = "btn-primary auth-submit";
 
 export function AuthForm({ mode }: { mode: "login" | "register" }) {
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const { success } = useToast();
   const requestedRedirect = searchParams.get("redirect");
@@ -228,7 +229,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
 
   return (
     <div className="auth-scene">
-      <Link href="/" className="auth-brand-link"><span className="arena-brand-mark"><ArenaIcon name="seal" /></span>王者演武堂</Link>
+      <Link href={/^\/m(?:\/|$)/.test(pathname) ? "/m" : "/"} className="auth-brand-link" aria-label="返回演武首页"><span className="arena-brand-mark"><ArenaIcon name="seal" /></span>王者演武堂</Link>
       <div className="auth-intro"><div className="arena-eyebrow"><span />王者荣耀 · 好友内战</div><h2>老朋友，<br /><span>新对手。</span></h2><p>昨天还是双排搭子，今天试试对线。<br />登录后，把朋友都喊来。</p><small>YANWU ARENA / HONOR OF KINGS</small></div>
       {checking ? (
         <div className="skeleton rounded-lg w-full max-w-[420px] h-[400px]" />
@@ -236,11 +237,12 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
         <div className={`auth-card${shatterRedirect ? " is-leaving" : ""}`}>
           <h1>{title}</h1>
           <p className="text-[13px] text-center text-text-muted mb-7">{subtitle}</p>
+          {requestedRedirect && <p className="auth-return-note"><ArenaIcon name="arrow" width="16" height="16" />登录后继续刚才的操作</p>}
 
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             <div>
               <label htmlFor="username" className={labelClass}>召唤师名称</label>
-              <input type="text" id="username" name="username" autoComplete="username" placeholder="请输入召唤师名称" value={username}
+              <input type="text" id="username" name="username" autoComplete="username" autoCapitalize="none" spellCheck={false} placeholder="请输入召唤师名称" value={username}
                 onChange={e => setUsername(e.target.value)} required minLength={2} className={inputClass} />
             </div>
 
@@ -303,7 +305,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
             )}
 
             {error && (
-              <div className="px-3.5 py-3 rounded-md bg-red/5 border border-red/15 animate-slide-up">
+              <div role="alert" className="px-3.5 py-3 rounded-md bg-red/5 border border-red/15 animate-slide-up">
                 <p className="m-0 text-[13px] font-medium text-red text-center">{error}</p>
               </div>
             )}

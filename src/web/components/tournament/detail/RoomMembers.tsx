@@ -65,23 +65,14 @@ export function RoomMembers({ tournament, splitResult, currentUserId, permission
             return (
               <div
                 key={p.userId}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  flexWrap: "wrap",
-                  rowGap: 4,
-                  padding: "10px 0",
-                  borderBottom: "1px solid var(--border-light)",
-                  background: isMe ? "var(--gold-alpha-04)" : teamBg,
-                  borderLeft: teamColor ? `3px solid ${teamColor === "red" ? "var(--red)" : "var(--blue)"}` : "3px solid transparent",
-                  paddingLeft: teamColor ? 14 : 17,
-                  gap: 8,
-                }}
+                className="room-member-row"
+                data-side={teamColor || undefined}
+                data-self={isMe}
+                style={{ background: isMe ? "var(--gold-alpha-04)" : teamBg }}
               >
                 {/* Left: info */}
                 <UserAvatar avatar={p.isTemporary ? null : p.user.avatar} name={p.isTemporary ? p.tempName || "临时选手" : p.user.username} />
-                <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0, flex: 1, flexWrap: "wrap", rowGap: 3 }}>
+                <div className="room-member-identity">
                   {/* Team indicator */}
                   {teamColor && (
                     <span style={{
@@ -103,7 +94,7 @@ export function RoomMembers({ tournament, splitResult, currentUserId, permission
                       {ROLE_LABELS[splitRole]}
                     </span>
                   )}
-                  <span style={{ fontSize: 14, fontWeight: 600, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "100%" }}>
+                  <span className="room-member-name">
                     {p.isTemporary
                       ? (p.tempName || "临时选手")
                       : (p.user.gameNickname || p.user.username)}
@@ -123,7 +114,7 @@ export function RoomMembers({ tournament, splitResult, currentUserId, permission
                 </div>
 
                 {/* Right: action buttons */}
-                <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                <div className="room-member-actions">
                   {canPromote && (
                     <button
                       onClick={() => actions.promotePlayer(p)}
@@ -162,6 +153,7 @@ export function RoomMembers({ tournament, splitResult, currentUserId, permission
         {/* Summary bar */}
         <div style={{
           display: "flex",
+          flexWrap: "wrap",
           alignItems: "center",
           gap: 16,
           padding: "12px 20px",

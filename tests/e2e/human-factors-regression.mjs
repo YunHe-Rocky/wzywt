@@ -5,7 +5,7 @@ import { chromium } from "playwright";
 
 const baseUrl = process.env.E2E_BASE_URL || "http://localhost:8001";
 const browserPath = process.env.E2E_BROWSER_PATH || "C:/Program Files/Google/Chrome/Application/chrome.exe";
-const artifactDir = path.resolve(".cache/test-artifacts/human-factors-regression");
+const artifactDir = path.resolve(process.env.E2E_ARTIFACT_DIR || ".cache/test-artifacts/human-factors-regression");
 await mkdir(artifactDir, { recursive: true });
 const confirmationPayloads = [];
 
@@ -254,8 +254,8 @@ const browser = await chromium.launch({ headless: true, executablePath: browserP
 const consoleErrors = [];
 const reports = [];
 try {
-  const context = await browser.newContext({ viewport: { width: 375, height: 812 }, locale: "zh-CN", reducedMotion: "reduce" });
-  const page = await context.newPage();
+  let context = await browser.newContext({ viewport: { width: 375, height: 812 }, locale: "zh-CN", reducedMotion: "reduce", userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148 Safari/604.1" });
+  let page = await context.newPage();
   page.on("console", (message) => { if (message.type() === "error" && !message.text().startsWith("Failed to load resource:")) consoleErrors.push(`${page.url()}: ${message.text()}`); });
   page.on("pageerror", (error) => consoleErrors.push(`${page.url()}: ${error.message}`));
   await installFixtures(page);
@@ -270,6 +270,7 @@ try {
   for (const [label, pathname] of pages) {
     await page.goto(`${baseUrl}${pathname}`, { waitUntil: "domcontentloaded", timeout: 60_000 });
     await waitReady(page);
+    assert.equal(new URL(page.url()).pathname, pathname, `${label}: keep the intended device route`);
     reports.push(await inspectPage(page, label));
     await page.screenshot({ path: path.join(artifactDir, `${label}.png`), fullPage: true });
   }
@@ -344,10 +345,19 @@ try {
     });
   }
 
-  await page.setViewportSize({ width: 1440, height: 900 });
+  // A fresh desktop context changes both the HTTP and navigator identity. Keep
+  // account-scoped local drafts, but never test desktop URLs with a phone UA.
+  const savedBrowserState = await context.storageState();
+  await context.close();
+  context = await browser.newContext({ viewport: { width: 1440, height: 900 }, locale: "zh-CN", reducedMotion: "reduce", storageState: savedBrowserState });
+  page = await context.newPage();
+  page.on("console", (message) => { if (message.type() === "error" && !message.text().startsWith("Failed to load resource:")) consoleErrors.push(`${page.url()}: ${message.text()}`); });
+  page.on("pageerror", (error) => consoleErrors.push(`${page.url()}: ${error.message}`));
+  await installFixtures(page);
   for (const [label, pathname] of [["desktop-match", "/tournaments/1/matches/1"], ["desktop-tactic", "/tournaments/1/matches/1/tactics/red"], ["desktop-monitor", "/monitor"]]) {
     await page.goto(`${baseUrl}${pathname}`, { waitUntil: "domcontentloaded", timeout: 60_000 });
     await waitReady(page);
+    assert.equal(new URL(page.url()).pathname, pathname, `${label}: keep the intended device route`);
     reports.push(await inspectPage(page, label));
     await page.screenshot({ path: path.join(artifactDir, `${label}.png`), fullPage: true });
   }

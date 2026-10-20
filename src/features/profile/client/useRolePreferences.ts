@@ -29,6 +29,11 @@ export function useRolePreferences() {
   const [selPower, setSelPower] = useState("");
   const [saving, setSaving] = useState(false);
   const [animatingIdx, setAnimatingIdx] = useState<number | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [hasSavedPreferences, setHasSavedPreferences] = useState(false);
+  const [loadRevision, setLoadRevision] = useState(0);
+  const retry = useCallback(() => setLoadRevision(value => value + 1), []);
 
   const setActiveTab = useCallback((role: string) => {
     setActiveTabState(role);
@@ -37,27 +42,27 @@ export function useRolePreferences() {
 
   useEffect(() => {
     const controller = new AbortController();
-    void getRolePreferences<{ preferences?: Pref[] }>(controller.signal).then(({ data }) => {
+    setLoading(true);
+    setLoadError("");
+    void Promise.all([
+      getRolePreferences<{ preferences?: Pref[]; error?: string }>(controller.signal),
+      getHeroPowers<{ heroPowers?: Record<string, HeroEntry[]>; error?: string }>(controller.signal),
+    ]).then(([rolesResult, heroesResult]) => {
       if (controller.signal.aborted) return;
-      if (data.preferences?.length) {
-        const s = normalizeRolePreferenceSettings(data.preferences)
-          .sort((a, b) => a.preferenceRank - b.preferenceRank);
-        setPrefs(s); setSharedRank(s[0]?.roleRank || 0);
-      } else {
-        setPrefs(ROLES.map((r, i) => ({ roleType: r, preferenceRank: i + 1, roleRank: 0, peakScore: 0, peakRank: 0 })));
-      }
-    }).catch(() => {
-      if (!controller.signal.aborted) setPrefs(ROLES.map((r, i) => ({ roleType: r, preferenceRank: i + 1, roleRank: 0, peakScore: 0, peakRank: 0 })));
-    });
-    void getHeroPowers<{ heroPowers?: Record<string, HeroEntry[]> }>(controller.signal).then(({ data }) => {
-      if (!controller.signal.aborted && data.heroPowers) {
-        const grouped: Record<string, HeroEntry[]> = {};
-        ROLES.forEach((role) => { grouped[role] = data.heroPowers?.[role] || []; });
-        setHeroesByRole(grouped);
-      }
-    }).catch(() => undefined);
+      if (!rolesResult.ok || rolesResult.data.error) throw new Error(rolesResult.data.error || "分路配置读取失败，请重试");
+      if (!heroesResult.ok || heroesResult.data.error) throw new Error(heroesResult.data.error || "英雄战力读取失败，请重试");
+      const settings = rolesResult.data.preferences?.length
+        ? normalizeRolePreferenceSettings(rolesResult.data.preferences).sort((a, b) => a.preferenceRank - b.preferenceRank)
+        : ROLES.map((roleType, i) => ({ roleType, preferenceRank: i + 1, roleRank: 0, peakScore: 0, peakRank: 0 }));
+      setPrefs(settings);
+      setHasSavedPreferences(Boolean(rolesResult.data.preferences?.length));
+      setSharedRank(settings[0]?.roleRank || 0);
+      setHeroesByRole(Object.fromEntries(ROLES.map(role => [role, heroesResult.data.heroPowers?.[role] || []])));
+    }).catch(cause => {
+      if (!controller.signal.aborted) setLoadError(cause instanceof Error ? cause.message : "分队配置读取失败，请检查网络后重试");
+    }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
-  }, []);
+  }, [loadRevision]);
 
   const moveUp = useCallback((i: number) => {
     if (i === 0) return; setAnimatingIdx(i);
@@ -88,6 +93,7 @@ export function useRolePreferences() {
   }, []);
 
   const savePrefs = useCallback(async (onSuccess: () => void, onError: (msg: string) => void) => {
+    if (loading || loadError || prefs.length !== ROLES.length) { onError(loadError || "请等待分队配置完整读取后再保存"); return; }
     setSaving(true);
     try {
       const res = await updateRolePreferences(normalizeRolePreferenceSettings(prefs).map(p => ({
@@ -97,13 +103,13 @@ export function useRolePreferences() {
           peak_score: p.peakScore,
           peak_rank: p.peakRank,
         })));
-      res.ok ? onSuccess() : onError("保存失败");
+      if (res.ok) { setHasSavedPreferences(true); onSuccess(); } else onError("保存失败");
     } catch (error) {
       onError(error instanceof Error ? error.message : "保存失败");
     } finally {
       setSaving(false);
     }
-  }, [prefs]);
+  }, [prefs, loading, loadError]);
 
   const addHero = useCallback(async (role: string, onSuccess: () => void, onError: (msg: string) => void) => {
     if (!selHero || !selHeroName || !selPower) return;
@@ -144,7 +150,7 @@ export function useRolePreferences() {
   }, []);
 
   return {
-    prefs, heroesByRole, sharedRank, activeTab, selHero, selHeroName, selPower, saving,
+    prefs, heroesByRole, sharedRank, activeTab, selHero, selHeroName, selPower, saving, loading, loadError, retry, hasSavedPreferences,
     setActiveTab, setSelHero, setSelHeroName, setSelPower,
     moveUp, moveDown, animatingIdx, setSharedRankAndSync, setPeakScore, setPeakRank, savePrefs, addHero, removeHero,
   };

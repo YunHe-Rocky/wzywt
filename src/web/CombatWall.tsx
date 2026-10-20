@@ -1,6 +1,7 @@
 "use client";
 
 import "@/web/styles/yanwu-workspaces.css";
+import "@/web/styles/public-workflows.css";
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -33,8 +34,22 @@ export function CombatWall() {
   const [publishing, setPublishing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [composerOpen, setComposerOpen] = useState(false);
+  const [selectedVideo, setSelectedVideo] = useState<{ name: string; bytes: number } | null>(null);
+  const publisherRef = useRef<HTMLElement | null>(null);
+  const publishButtonRef = useRef<HTMLButtonElement | null>(null);
+  const restorePublishFocus = useRef(false);
   const uploadRef = useRef<AbortController | null>(null);
   const { success, error } = useToast();
+  useEffect(() => {
+    if (!composerOpen) return;
+    publisherRef.current?.scrollIntoView({ block: "start", behavior: "instant" });
+    publisherRef.current?.querySelector<HTMLInputElement>('input[name="title"]')?.focus({ preventScroll: true });
+  }, [composerOpen]);
+  useEffect(() => {
+    if (composerOpen || publishing || !restorePublishFocus.current) return;
+    restorePublishFocus.current = false;
+    publishButtonRef.current?.focus();
+  }, [composerOpen, publishing]);
   useEffect(() => () => uploadRef.current?.abort(), []);
   useEffect(() => {
     if (!loaded || !user) return;
@@ -80,27 +95,37 @@ export function CombatWall() {
         matchId: String(form.get("matchId") || "") || undefined, tournamentId: String(form.get("tournamentId") || "") || undefined,
       }, { signal: controller.signal, timeoutMs: policy.uploadTimeoutMs, onProgress: setProgress });
       if (!result.ok) return error(result.data.error || "发布失败，请检查内容后重试");
-      formElement.reset(); success("演武动态已发布"); setPage(1); setRevision(v => v + 1); setComposerOpen(false);
+      restorePublishFocus.current = true;
+      formElement.reset(); setSelectedVideo(null); success("演武动态已发布"); setPage(1); setRevision(v => v + 1); setComposerOpen(false);
     } catch (cause) { if (!controller.signal.aborted) error(cause instanceof Error ? cause.message : "发布失败，请稍后重试"); }
     finally { uploadRef.current = null; setPublishing(false); }
   }
 
   return <div className="page-shell page-shell--wide combat-wall">
-    <header className="yanwu-workspace-hero combat-hub-hero"><div><p className="feature-kicker">COMBAT FEED</p><h1>演武动态</h1><p>分享高光时刻，复盘每一次团战。</p></div>{user && <button className="btn-primary" aria-expanded={composerOpen} aria-controls="combat-publisher" onClick={() => setComposerOpen(v => !v)} disabled={publishing}><ArenaIcon name="plus" width="16" height="16" />{composerOpen ? "收起发布" : "发布动态"}</button>}</header>
+    <header className="yanwu-workspace-hero combat-hub-hero"><div><p className="feature-kicker">队友的高光与复盘</p><h1>演武动态</h1><p>分享高光时刻，复盘每一次团战。</p></div>{user && <button ref={publishButtonRef} className={`btn-primary ${composerOpen ? "" : "combat-open-publisher"}`} aria-expanded={composerOpen} aria-controls="combat-publisher" onClick={() => setComposerOpen(v => !v)} disabled={publishing}><ArenaIcon name="plus" width="16" height="16" />{composerOpen ? "收起发布" : "发布动态"}</button>}</header>
     {!loaded ? <div className="feature-empty" role="status">正在确认登录状态…</div> : !user ? <section className="feature-empty"><h2>和队友一起交流复盘</h2><p>登录后可以浏览视频、发布动态和参与评论。</p><Link className="btn-primary" prefetch={false} href={protectedPageLoginRedirect(pathname)}>登录查看动态</Link></section> : <>
-    {composerOpen && <section id="combat-publisher" className="yanwu-workspace-section combat-publisher" aria-labelledby="publish-title">
-      <div><p className="feature-kicker">SHARE YOUR PLAY</p><h2 id="publish-title">发布复盘</h2><p className="combat-upload-hint">{policy ? `支持 MP4 / MOV / WebM，最长 ${policy.maxDurationSeconds / 60} 分钟，最大 ${policy.maxBytes / 1024 ** 2} MiB；发布前会生成兼容播放版本。` : "正在读取上传限制…"}</p>{policyError && <p role="alert">{policyError} <button className="text-action" onClick={() => setRevision(v => v + 1)}>重试</button></p>}</div>
+    <section ref={publisherRef} id="combat-publisher" hidden={!composerOpen} className="yanwu-workspace-section combat-publisher" aria-labelledby="publish-title">
+      <div><p className="feature-kicker">记录关键一刻</p><h2 id="publish-title">发布复盘</h2><p className="combat-upload-hint">{policy ? `支持 MP4 / MOV / WebM，最长 ${policy.maxDurationSeconds / 60} 分钟，最大 ${policy.maxBytes / 1024 ** 2} MiB；发布前会生成兼容播放版本。` : "正在读取上传限制…"}</p>{policyError && <p role="alert">{policyError} <button className="text-action" onClick={() => setRevision(v => v + 1)}>重试</button></p>}</div>
       <form onSubmit={publish} aria-busy={publishing}>
+        <div className="combat-publish-copy"><h3><span>01</span> 写下这场的关键</h3>
         <label>标题<input name="title" minLength={2} maxLength={128} required placeholder="这场团战为什么能赢" disabled={publishing} /></label>
         <label className="combat-content-field">正文<textarea name="content" minLength={2} maxLength={10000} rows={4} required placeholder="记录关键节点、决策依据和可复用经验" disabled={publishing} /></label>
+        </div>
+        <div className="combat-publish-media"><h3><span>02</span> 选择高光视频</h3>
+        <label className="combat-video-field">复盘视频<input name="video" type="file" accept="video/mp4,video/quicktime,video/webm,.mp4,.mov,.m4v,.webm" required disabled={publishing} onChange={event => { const file = event.target.files?.[0]; setSelectedVideo(file ? { name: file.name, bytes: file.size } : null); }} /></label>
+        <p className="combat-selected-video" role="status">{selectedVideo ? <><strong>{selectedVideo.name}</strong><span>{(selectedVideo.bytes / 1024 ** 2).toFixed(1)} MiB · 可以重新选择文件</span></> : "选取手机相册或电脑中的视频"}</p>
+        </div>
+        <details className="combat-associations"><summary>关联赛事或比赛 <span>可选</span></summary><div>
         <label>关联赛事 ID（可选）<input name="tournamentId" type="number" min="1" inputMode="numeric" disabled={publishing} /></label>
         <label>关联比赛 ID（可选）<input name="matchId" type="number" min="1" inputMode="numeric" disabled={publishing} /></label>
-        <label className="combat-video-field">复盘视频<input name="video" type="file" accept="video/mp4,video/quicktime,video/webm,.mp4,.mov,.m4v,.webm" required disabled={publishing} /></label>
+        </div></details>
+        <div className="combat-publish-actions"><p>{publishing ? "上传中请保持页面打开" : "确认文字和视频后发布给队友"}</p>
         <button className="btn-primary" disabled={publishing || !policy}>{publishing ? progress === 100 ? "正在完成发布…" : `上传中 ${progress}%` : "发布动态"}</button>
+        </div>
         {publishing && <div className="combat-upload-progress"><progress max={100} value={progress} aria-label="视频上传进度" /><span role="status">{progress === 100 ? "视频已上传，正在处理兼容播放版本，请稍候" : `已上传 ${progress}%`}</span><button type="button" className="btn-subtle" onClick={() => uploadRef.current?.abort()}>取消上传</button></div>}
       </form>
-    </section>}
-    <section aria-labelledby="feed-title"><div className="feature-heading"><div><p className="feature-kicker">LATEST</p><h2 id="feed-title">最新动态 <small>{total} 条</small></h2></div><button className="btn-subtle" disabled={loading} onClick={() => setRevision(v => v + 1)}>刷新</button></div>
+    </section>
+    <section aria-labelledby="feed-title"><div className="feature-heading"><div><p className="feature-kicker">与队友交流</p><h2 id="feed-title">最新动态 <small>{total} 条</small></h2></div><button className="btn-subtle" disabled={loading} onClick={() => setRevision(v => v + 1)}>刷新</button></div>
       {loading ? <div className="feature-empty" role="status">正在读取动态…</div> : loadError ? <div className="feature-empty" role="alert">{loadError}<button className="btn-subtle" onClick={() => setRevision(v => v + 1)}>重新加载</button></div> : posts.length === 0 ? <div className="feature-empty">还没有复盘，发布第一条动态吧。</div> : <div className="combat-grid">{posts.map(post => <article className="combat-card" key={post.id}>
         <Link className="combat-card-cover" href={`${prefix}/combat/${post.id}`} aria-label={`播放：${post.title}`}><span aria-hidden="true">▶</span><small>观看复盘</small></Link>
         <div className="combat-card-body"><div className="feature-meta-row"><strong>{post.author.username}</strong><span>{new Date(post.createdAt).toLocaleDateString("zh-CN")}</span>{post.status === "hidden" && <span className="feature-status">已隐藏</span>}</div><h3><Link href={`${prefix}/combat/${post.id}`}>{post.title}</Link></h3><p>{post.content}</p><footer><span>赞 {post._count.likes} · 评论 {post._count.comments}</span><Link className="btn-subtle" href={`${prefix}/combat/${post.id}`}>查看复盘</Link></footer></div>

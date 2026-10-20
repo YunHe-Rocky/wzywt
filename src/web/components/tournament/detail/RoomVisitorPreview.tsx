@@ -4,9 +4,10 @@ interface RoomVisitorPreviewProps {
   tournament: Pick<Tournament, "deadline" | "announcement">;
   playerCount: number;
   onJoin: () => void;
+  joining?: boolean;
 }
 
-export function RoomVisitorPreview({ tournament, playerCount, onJoin }: RoomVisitorPreviewProps) {
+export function RoomVisitorPreview({ tournament, playerCount, onJoin, joining = false }: RoomVisitorPreviewProps) {
 
   return (
         <div className="yanwu-room-block" style={{
@@ -46,8 +47,8 @@ export function RoomVisitorPreview({ tournament, playerCount, onJoin }: RoomVisi
             </div>
           </div>
           <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 18 }}>
-            <button onClick={onJoin} className="btn-primary" style={{ minHeight: 44, fontSize: 14, padding: "10px 24px", fontWeight: 600 }}>
-              确认加入
+            <button disabled={joining} onClick={onJoin} className="btn-primary" style={{ minHeight: 44, fontSize: 14, padding: "10px 24px", fontWeight: 600 }}>
+              {joining ? "加入中…" : "确认加入"}
             </button>
           </div>
         </div>

@@ -3,9 +3,8 @@ import { createServer } from "node:http";
 import { readFile, mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { build } from "esbuild";
-import postcss from "postcss";
-import tailwindcss from "tailwindcss";
 import { chromium, webkit } from "playwright";
+import { compileStyles } from "./yanwu/host.mjs";
 
 // Real UI/CSS in a database-free component host. Only Next routing and the
 // session provider are substituted; this does not test server authorization.
@@ -57,11 +56,7 @@ const bundled = await build({
     }));
   } }],
 });
-let styles = await readFile("src/web/styles/yanwu-tokens.css", "utf8");
-styles += (await readFile("src/app/globals.css", "utf8")).replace(/^@import[^\n]*\n/gm, "");
-for (const file of ["admin.css", "history-theme.css", "arena.css", "arena-motion.css", "arena-glass.css", "yanwu-public.css", "yanwu-workspaces.css", "history-theme-session.css"]) styles += await readFile(`src/web/styles/${file}`, "utf8");
-styles += bundled.outputFiles.filter(file => file.path.endsWith(".css")).map(file => file.text).join("\n");
-const css = (await postcss([tailwindcss]).process(styles, { from: path.resolve("src/app/globals.css") })).css;
+const css = await compileStyles(path.resolve("src/app/layout.tsx"), bundled.outputFiles.filter(file => file.path.endsWith(".css")).map(file => file.text).join("\n"));
 const apiRequests = [];
 let sessionUser = { userId: 1, username: "界面验收管理员", role: "admin" };
 const html = '<!doctype html><html lang="zh-CN" data-theme="yanwu"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/style.css"><div id="root"></div><script src="/bundle.js"></script></html>';
@@ -333,6 +328,12 @@ try {
       await page.locator(`html[data-history-preview-style="${style}"]`).waitFor();
       await page.getByRole("region", { name: "当前主题预览" }).waitFor();
       assert.equal(new URL(page.url()).pathname, prefix || "/");
+      // Compare the resting palette at every viewport. The previous admin
+      // click can leave the pointer over the newly positioned primary action.
+      await page.mouse.move(0, 0);
+      await page.locator(".arena-main-cta").evaluate(async button => {
+        await Promise.all(button.getAnimations().map(animation => animation.finished.catch(() => undefined)));
+      });
       const colors = await page.evaluate(() => ({ background: getComputedStyle(document.body).backgroundColor, button: getComputedStyle(document.querySelector(".arena-main-cta")).backgroundColor, header: getComputedStyle(document.querySelector(".header-bar")).backgroundColor }));
       surfaces.add(JSON.stringify(colors));
       assert.ok(await page.getByRole("link", { name: "进入赛事大厅" }).isVisible(), "core actions remain available during preview");

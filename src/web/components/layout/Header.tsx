@@ -79,6 +79,12 @@ export function Header() {
   const pathIsM = /^\/m(?:\/|$)/.test(pathname);
   const basePath = pathname.replace(/^\/m(?=\/|$)/, "") || "/";
   const route = (path: string) => pathIsM ? `/m${path}` : path;
+  const currentSection = basePath.startsWith("/tournaments") ? "赛事 · 房间与对局"
+    : basePath.startsWith("/heroes") ? "图鉴 · 英雄"
+    : basePath.startsWith("/equipment") ? "图鉴 · 装备"
+    : basePath.startsWith("/combat") ? "动态 · 精彩与复盘"
+    : basePath.startsWith("/me") ? "我的 · 分路与配置"
+    : basePath.startsWith("/changelog") ? "演武堂 · 更新记录" : "好友内战 · 5V5";
 
   return (
     <>
@@ -87,7 +93,7 @@ export function Header() {
         {/* Brand */}
         <Link href={pathIsM ? "/m" : "/"} className="header-brand-link flex items-center gap-2 shrink-0 no-underline">
           <span className="arena-brand-mark"><ArenaIcon name="seal" /></span>
-          <span className="arena-brand-type"><strong>王者演武堂</strong><small>YANWU ARENA</small></span>
+          <span className="arena-brand-type"><strong>王者演武堂</strong><small>{currentSection}</small></span>
         </Link>
 
         <nav className="header-primary-nav" aria-label="主导航">
@@ -134,6 +140,7 @@ export function Header() {
                     <span className={`rounded-full flex items-center justify-center font-bold transition-shadow w-6 h-6 text-xs arena-avatar border ${user.avatar ? "hidden" : ""}`}>
                 {user.username[0]}
               </span>
+              <span className="header-user-name">{user.username}</span>
               <svg className={`w-3 h-3 transition-transform text-[#aaa] ${menuOpen ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeWidth={2} d="M6 9l6 6 6-6" />
               </svg>

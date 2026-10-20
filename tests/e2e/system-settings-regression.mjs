@@ -1,20 +1,17 @@
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
-import { readFile, mkdir, writeFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { build } from "esbuild";
-import postcss from "postcss";
-import tailwindcss from "tailwindcss";
 import { chromium } from "playwright";
+import { compileStyles } from "./yanwu/host.mjs";
 
 const output=path.resolve(".cache/test-artifacts/system-settings");await mkdir(output,{recursive:true});
 const bundle=await build({stdin:{contents:`import React from 'react';import {createRoot} from 'react-dom/client';import {SystemSettings} from '@/web/components/admin/SystemSettings';import {AdminShell} from '@/web/components/admin/AdminShell';createRoot(document.getElementById('root')).render(<React.StrictMode><AdminShell userId={1} username="测试管理员"><SystemSettings/></AdminShell></React.StrictMode>);`,loader:"tsx",resolveDir:process.cwd()},bundle:true,write:false,outdir:output,jsx:"automatic",format:"iife",define:{"process.env.NODE_ENV":'"development"'},plugins:[{name:"fixture-navigation",setup(builder){
   builder.onResolve({filter:/^(next\/link|next\/navigation|@\/features\/auth\/client)$/},args=>({path:args.path,namespace:"fixture"}));
   builder.onLoad({filter:/.*/,namespace:"fixture"},args=>({loader:"jsx",resolveDir:process.cwd(),contents:args.path==="next/link"?`import React from 'react';export default function Link({prefetch,children,...props}){return <a {...props}>{children}</a>;}`:args.path==="next/navigation"?`export const usePathname=()=>location.pathname;`:`export function useAuth(){return {logout:async()=>{}};}`}));
 }}]});
-let styles=(await readFile("src/app/globals.css","utf8")).replace(/^@import[^\n]*\n/gm,"");
-for(const file of ["yanwu-tokens.css","arena.css","admin.css"])styles+=await readFile(`src/web/styles/${file}`,"utf8");
-const css=(await postcss([tailwindcss]).process(styles,{from:path.resolve("src/app/globals.css")})).css;
+const css=await compileStyles(path.resolve("src/app/layout.tsx"),bundle.outputFiles.filter(file=>file.path.endsWith(".css")).map(file=>file.text).join("\n"));
 const defaults={hero_list_page:"https://pvp.qq.com/web201605/herolist.shtml",hero_list_json:"https://pvp.qq.com/web201605/js/herolist.json",hero_detail_base:"https://pvp.qq.com/web201605/herodetail",hero_img_base:"https://game.gtimg.cn/images/yxzj/img201606/heroimg/{id}/{id}.jpg",skin_img_base:"https://game.gtimg.cn/images/yxzj/img201606/skin/hero-info/{id}/{id}-bigskin-{idx}.jpg"};
 let saved,progress,loadFailure,saveFailure,syncFailure,jobNumber=0;const calls=[],syncConfigs=[],results=[];
 const server=createServer(async(req,res)=>{

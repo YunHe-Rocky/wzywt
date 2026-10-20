@@ -59,7 +59,28 @@ export function MatchWorkspace() {
         screenshotCount={detail.match.screenshots.length}
         recognitionStatus={detail.match.recognition?.status}
       />}
+      <nav className="match-task-nav" aria-label="比赛档案任务导航">
+        {detail.access.canManage && <a href="#match-evidence" onClick={() => {
+          const evidence = document.getElementById("match-evidence");
+          if (evidence instanceof HTMLDetailsElement) evidence.open = true;
+        }}>截图与识别 <span>{detail.match.screenshots.length}/6</span></a>}
+        <a href="#match-review">{detail.access.canManage ? "数据复核" : "本队数据"}</a>
+        {detail.access.canManage && <a href="#match-finalization">赛果提交</a>}
+        <a href="#match-team-tools">异议与复盘</a>
+      </nav>
       {draftStatus && <p className="feature-note match-draft-note" role="status" aria-live="polite">{draftStatus}</p>}
+      {detail.access.canManage && <MatchEvidence
+        detail={detail}
+        tournamentId={tournamentId}
+        matchId={matchId}
+        canEdit={canEdit}
+        busy={busy}
+        recognitionActive={recognitionActive}
+        uploadErrors={uploadErrors}
+        upload={upload}
+        recognize={recognize}
+        cancelRecognitionJob={cancelRecognitionJob}
+      />}
       <MatchStatsSheet
         detail={detail}
         players={players}
@@ -74,18 +95,6 @@ export function MatchWorkspace() {
         activeType={activeType}
         setActiveType={setActiveType}
       />
-      {detail.access.canManage && <MatchEvidence
-        detail={detail}
-        tournamentId={tournamentId}
-        matchId={matchId}
-        canEdit={canEdit}
-        busy={busy}
-        recognitionActive={recognitionActive}
-        uploadErrors={uploadErrors}
-        upload={upload}
-        recognize={recognize}
-        cancelRecognitionJob={cancelRecognitionJob}
-      />}
       {detail.access.canManage && <MatchFinalize
         status={detail.match.status}
         canEdit={canEdit}
@@ -96,7 +105,7 @@ export function MatchWorkspace() {
         updateWinnerSide={updateWinnerSide}
         requestSubmit={() => setSubmitConfirmationOpen(true)}
       />}
-      <div className="feature-two-columns match-secondary-grid">
+      <div id="match-team-tools" tabIndex={-1} className="feature-two-columns match-secondary-grid">
         <MatchDisputeForm
           players={players}
           disputes={detail.match.disputes}

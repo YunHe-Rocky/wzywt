@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import type { JoinRoomPreview } from "@/features/tournaments/client/api";
 import { FeaturePortal } from "@/web/components/ui/FeaturePortal";
 
@@ -17,22 +17,48 @@ export function JoinRoomPreviewModal({
   onClose,
   onConfirm,
 }: JoinRoomPreviewModalProps) {
-  const dialogRef = useRef<HTMLDivElement>(null);
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+  const joiningRef = useRef(joining);
+  const onCloseRef = useRef(onClose);
+  const mountDialog = useCallback((node: HTMLDivElement | null) => {
+    dialogRef.current = node;
+    // The portal mounts after the parent effect. Enter the dialog when its
+    // actual DOM node appears, including when opened from the keyboard.
+    node?.focus();
+  }, []);
   const { room } = preview;
+  useEffect(() => { joiningRef.current = joining; onCloseRef.current = onClose; }, [joining, onClose]);
 
   useEffect(() => {
-    dialogRef.current?.focus();
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !joining) onClose();
+      if (event.key === "Escape" && !joiningRef.current) { event.preventDefault(); onCloseRef.current(); }
+      if (event.key === "Tab") {
+        const controls = dialogRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled), a[href], input:not(:disabled), [tabindex="0"]');
+        if (!controls?.length) { event.preventDefault(); return; }
+        const first = controls[0];
+        const last = controls[controls.length - 1];
+        if (!dialogRef.current?.contains(document.activeElement)) {
+          event.preventDefault(); first.focus(); return;
+        }
+        if (event.shiftKey && (document.activeElement === first || document.activeElement === dialogRef.current)) {
+          event.preventDefault();
+          last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first.focus();
+        }
+      }
     };
     document.addEventListener("keydown", handleKeyDown);
     return () => {
       document.body.style.overflow = previousOverflow;
       document.removeEventListener("keydown", handleKeyDown);
+      if (previousFocus?.isConnected) previousFocus.focus({ preventScroll: true });
     };
-  }, [joining, onClose]);
+  }, []);
 
   return (
     <FeaturePortal>
@@ -54,7 +80,7 @@ export function JoinRoomPreviewModal({
         }}
       >
         <div
-          ref={dialogRef}
+          ref={mountDialog}
           className="layer-modal"
           role="dialog"
           aria-modal="true"
@@ -74,7 +100,7 @@ export function JoinRoomPreviewModal({
         >
           <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16 }}>
             <div>
-              <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1.5, color: "var(--text-muted)", marginBottom: 5 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: 1.5, color: "var(--text-muted)", marginBottom: 5 }}>
                 房间信息
               </div>
               <h2 id="join-room-preview-title" style={{ margin: 0, fontSize: 22, color: "var(--text)" }}>

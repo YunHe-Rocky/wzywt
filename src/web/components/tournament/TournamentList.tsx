@@ -69,13 +69,26 @@ function AuthenticatedTournamentList() {
     const [showMore, setShowMore] = useState(false);
     const [joinPreview, setJoinPreview] = useState<JoinRoomPreview | null>(null);
     const [joining, setJoining] = useState(false);
+    const [creating, setCreating] = useState(false);
+    const [lookingUpRoom, setLookingUpRoom] = useState(false);
+    const [createOpen, setCreateOpen] = useState(false);
     const [nextCursors, setNextCursors] = useState<{
         tournaments: number | null;
         publicTournaments: number | null;
     }>({ tournaments: null, publicTournaments: null });
     const [loadingMore, setLoadingMore] = useState<"tournaments" | "publicTournaments" | null>(null);
     const router = useRouter();
-    const { immediate, loading, error: resourceError, loadResource } = usePageResources("tournaments");
+    const pathname = usePathname();
+    const prefix = /^\/m(?:\/|$)/.test(pathname) ? "/m" : "";
+    const { immediate, loading, error: resourceError } = usePageResources("tournaments");
+    useEffect(() => {
+        const showLinkedTask = () => {
+            if (window.location.hash === "#create-room") setCreateOpen(true);
+        };
+        showLinkedTask();
+        window.addEventListener("hashchange", showLinkedTask);
+        return () => window.removeEventListener("hashchange", showLinkedTask);
+    }, []);
     useEffect(() => {
         const data = immediate["tournaments.lobby"]?.data as {
             tournaments?: Tournament[];
@@ -92,22 +105,6 @@ function AuthenticatedTournamentList() {
         if (data?.nextCursors)
             setNextCursors(data.nextCursors);
     }, [immediate]);
-    async function refresh() {
-        const data = await loadResource<{
-            tournaments?: Tournament[];
-            publicTournaments?: Tournament[];
-            nextCursors?: {
-                tournaments: number | null;
-                publicTournaments: number | null;
-            };
-        }>("tournaments.lobby", true);
-        if (data.tournaments)
-            setTournaments(data.tournaments);
-        if (data.publicTournaments)
-            setPublicTournaments(data.publicTournaments);
-        if (data.nextCursors)
-            setNextCursors(data.nextCursors);
-    }
     async function loadMore(kind: "tournaments" | "publicTournaments") {
         const cursor = nextCursors[kind];
         if (!cursor || loadingMore)
@@ -135,61 +132,82 @@ function AuthenticatedTournamentList() {
         }
     }
     async function create() {
+        if (creating) return;
         setError("");
         if (!name || !deadline) {
             setError("请填写完整");
             return;
         }
-        const { ok, data } = await createTournament({
-            name,
-            deadline: new Date(deadline).toISOString(),
-            isPublic,
-            announcement: announcement || undefined,
-        });
-        if (!ok) {
-            setError(data.error || "创建失败");
-            return;
+        setCreating(true);
+        try {
+            const { ok, data } = await createTournament({
+                name,
+                deadline: new Date(deadline).toISOString(),
+                isPublic,
+                announcement: announcement || undefined,
+            });
+            if (!ok) {
+                setError(data.error || "创建失败");
+                return;
+            }
+            setName("");
+            setDeadline("");
+            setAnnouncement("");
+            setShowMore(false);
+            router.push(`${prefix}/tournaments/${data.tournament.id}`);
+        } catch {
+            setError("创建房间失败，请检查连接后重试，已填写的内容会保留。");
+        } finally {
+            setCreating(false);
         }
-        setName("");
-        setDeadline("");
-        setAnnouncement("");
-        setShowMore(false);
-        refresh();
-        router.push(`/tournaments/${data.tournament.id}`);
     }
     async function joinByCode() {
+        if (lookingUpRoom) return;
         setError("");
         if (!joinCode.trim()) {
             setError("请输入赛事号");
             return;
         }
-        const { ok, data } = await joinTournamentByCode(joinCode.trim());
-        if (!ok) {
-            setError(data.error || "加入失败");
-            return;
+        setLookingUpRoom(true);
+        try {
+            const { ok, data } = await joinTournamentByCode(joinCode.trim());
+            if (!ok) {
+                setError(data.error || "加入失败");
+                return;
+            }
+            setJoinPreview(data);
+        } catch {
+            setError("暂时查不到房间，请检查连接后重试。");
+        } finally {
+            setLookingUpRoom(false);
         }
-        setJoinPreview(data);
     }
     async function confirmJoin() {
-        if (!joinPreview)
+        if (!joinPreview || joining)
             return;
         if (joinPreview.existing) {
-            router.push(`/tournaments/${joinPreview.room.id}`);
+            router.push(`${prefix}/tournaments/${joinPreview.room.id}`);
             return;
         }
         setJoining(true);
-        const { ok, data } = await joinTournament(joinPreview.room.id);
-        setJoining(false);
-        if (!ok) {
-            setError(data.error || "加入失败");
+        try {
+            const { ok, data } = await joinTournament(joinPreview.room.id);
+            if (!ok) {
+                setError(data.error || "加入失败");
+                setJoinPreview(null);
+                return;
+            }
+            router.push(`${prefix}/tournaments/${joinPreview.room.id}`);
+        } catch {
+            setError("加入失败，请检查连接后重试。");
             setJoinPreview(null);
-            return;
+        } finally {
+            setJoining(false);
         }
-        router.push(`/tournaments/${joinPreview.room.id}`);
     }
     function renderRooms(items: Tournament[], title: string, kind: "tournaments" | "publicTournaments") {
         return (
-            <section className="yanwu-room-section" aria-label={title}>
+            <section id={kind === "tournaments" ? "my-rooms" : "open-rooms"} className="yanwu-room-section" aria-label={title}>
                 <div className="yanwu-workspace-heading">
                     <div>
                         <span className="feature-kicker">{kind === "tournaments" ? "MY ROOMS" : "OPEN ROOMS"}</span>
@@ -221,7 +239,7 @@ function AuthenticatedTournamentList() {
                                 <RoomCapacity count={room._count.players} />
                                 <button
                                     className={room.status === "recruiting" ? "btn-primary" : "btn-subtle"}
-                                    onClick={() => router.push(`/tournaments/${room.id}`)}
+                                    onClick={() => router.push(`${prefix}/tournaments/${room.id}`)}
                                     aria-label={`查看房间：${room.name}`}
                                 >
                                     查看房间<ArenaIcon name="arrow" />
@@ -241,8 +259,19 @@ function AuthenticatedTournamentList() {
     return (
         <div className="tournament-list page-shell page-shell--wide">
             <div className="yanwu-lobby-opening">
-                <PageHeading eyebrow="赛事大厅 · ROOM HALL" title="好队友，下一局见。" description="找到合适的房间，叫上常一起并肩的人。" />
+                <div className="yanwu-lobby-intro">
+                    <PageHeading eyebrow="赛事大厅 · ROOM HALL" title="找到队友，准备开局。" description="有房间号直接加入；已经参加的房间，随时回来继续。" />
+                    <nav className="yanwu-lobby-shortcuts" aria-label="赛事大厅快捷操作">
+                        {tournaments.length > 0 && <a href="#my-rooms">我的赛事 <strong>{tournaments.length}</strong></a>}
+                        {publicTournaments.length > 0 && <a href="#open-rooms">公开赛事 <strong>{publicTournaments.length}</strong></a>}
+                        <button type="button" aria-expanded={createOpen} aria-controls="create-room-fields" onClick={() => {
+                            setCreateOpen(true);
+                            window.requestAnimationFrame(() => document.getElementById("room-name")?.focus());
+                        }}>创建新房间<ArenaIcon name="arrow" /></button>
+                    </nav>
+                </div>
                 <section id="join-room" className="yanwu-room-join" aria-labelledby="join-room-title">
+                    <span className="feature-kicker">朋友发来了房间号？</span>
                     <h2 id="join-room-title">用房间号加入</h2>
                     <div className="yanwu-room-join-fields">
                         <input
@@ -255,22 +284,24 @@ function AuthenticatedTournamentList() {
                                 if (e.key === "Enter") void joinByCode();
                             }}
                             maxLength={6}
+                            autoComplete="off"
+                            autoCapitalize="characters"
+                            spellCheck={false}
                         />
-                        <button onClick={joinByCode} className="btn-primary">查找房间</button>
+                        <button disabled={lookingUpRoom} onClick={joinByCode} className="btn-primary">{lookingUpRoom ? "查找中…" : "查找房间"}</button>
                     </div>
                     <p>先查看房间信息，再确认加入。</p>
                 </section>
             </div>
-            <section id="create-room" className="yanwu-room-create" aria-labelledby="create-room-title">
-                <div>
-                    <span className="feature-kicker">GATHER YOUR TEAM</span>
-                    <h2 id="create-room-title">开一间房，等好友来。</h2>
-                    <p>设置名称与报名截止时间，人齐后即可分队。</p>
-                </div>
-                <div className="yanwu-room-create-fields">
+            <details id="create-room" className="yanwu-room-create" open={createOpen} onToggle={event => setCreateOpen(event.currentTarget.open)}>
+                <summary>
+                    <span><strong id="create-room-title">开一间房，等好友来。</strong><small>填写名称与截止时间，满 10 人后即可分队。</small></span>
+                    <span className="yanwu-create-toggle">{createOpen ? "收起表单" : "创建房间"}<ArenaIcon name="arrow" /></span>
+                </summary>
+                <div id="create-room-fields" className="yanwu-room-create-fields">
                     <label>
                         赛事名称
-                        <input type="text" placeholder="给这一局起个名字" value={name} onChange={e => setName(e.target.value)} />
+                        <input id="room-name" type="text" placeholder="给这一局起个名字" value={name} onChange={e => setName(e.target.value)} />
                     </label>
                     <label>
                         报名截止
@@ -284,7 +315,7 @@ function AuthenticatedTournamentList() {
                         <button className="btn-subtle" aria-expanded={showMore} aria-controls="room-options" onClick={() => setShowMore(!showMore)}>
                             {showMore ? "收起选项" : "更多选项"}
                         </button>
-                        <button onClick={create} className="btn-primary">创建房间</button>
+                        <button disabled={creating} onClick={create} className="btn-primary">{creating ? "创建中…" : "创建房间"}</button>
                     </div>
                     {showMore && (
                         <div id="room-options" className="yanwu-room-options">
@@ -298,7 +329,7 @@ function AuthenticatedTournamentList() {
                         </div>
                     )}
                 </div>
-            </section>
+            </details>
             <CalendarModal open={showCalendar} onClose={() => setShowCalendar(false)} onSelect={setDeadline} title="设置报名截止时间" confirmLabel="使用此时间" />
             {joinPreview && <JoinRoomPreviewModal preview={joinPreview} joining={joining} onClose={() => setJoinPreview(null)} onConfirm={confirmJoin} />}
             {(error || resourceError) && <p className="feature-error" role="alert">{error || resourceError}</p>}

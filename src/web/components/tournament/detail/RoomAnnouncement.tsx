@@ -20,6 +20,7 @@ export function RoomAnnouncement({ announcement, canView, isAdmin, editingAnnoun
             编辑公告
           </span>
           <textarea
+            aria-label="房间公告"
             value={announcementText}
             onChange={(e) => onTextChange(e.target.value)}
             style={{
@@ -29,7 +30,7 @@ export function RoomAnnouncement({ announcement, canView, isAdmin, editingAnnoun
               border: "1px solid var(--border)",
               borderRadius: "var(--radius-sm)",
               color: "var(--text)",
-              fontSize: 13,
+              fontSize: 16,
               padding: "10px 14px",
               resize: "vertical" as const,
               outline: "none",
@@ -54,7 +55,7 @@ export function RoomAnnouncement({ announcement, canView, isAdmin, editingAnnoun
             </button>
           </div>
         </div>
-      ) : announcement && canView ? (
+      ) : canView && (announcement || isAdmin) ? (
         <div className="yanwu-room-block" style={{ marginBottom: 20, padding: "20px 24px" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
             <span style={{ fontSize: 15, fontWeight: 700, color: "var(--text)" }}>
@@ -66,11 +67,11 @@ export function RoomAnnouncement({ announcement, canView, isAdmin, editingAnnoun
                 className="btn-subtle"
                 style={{ fontSize: 12, padding: "4px 12px" }}
               >
-                编辑
+                {announcement ? "编辑" : "添加公告"}
               </button>
             )}
           </div>
-          {announcement.split("\n").map((line, i) => (
+          {(announcement || "把集合时间、开黑规则写在这里，方便队友查看。").split("\n").map((line, i) => (
             <p key={i} style={{ fontSize: 13, color: "var(--text-secondary)", margin: "0 0 4px", lineHeight: 1.6 }}>
               {line}
             </p>
