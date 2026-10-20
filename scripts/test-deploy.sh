@@ -236,6 +236,21 @@ set -Eeuo pipefail
 if [[ "${1:-}" == "--version" ]]; then printf '10.9.0\n'; exit 0; fi
 printf 'npm %s\n' "$*" >>"$TEST_COMMAND_LOG"
 if [[ "${1:-}" == "prefix" ]]; then printf '%s\n' "$TEST_FAKE_BIN"; fi
+if [[ "$*" == "run build" && -n "${TEST_PM2_AFTER_BUILD:-}" ]]; then
+  "$TEST_REAL_NODE" --input-type=module - "$TEST_PM2_STATE" "$TEST_PM2_AFTER_BUILD" <<'NODE'
+import { readFileSync, writeFileSync } from "node:fs";
+const statePath = process.argv[2];
+const rows = JSON.parse(readFileSync(statePath, "utf8"));
+if (process.argv[3] === "empty") {
+  writeFileSync(statePath, "[]");
+} else if (process.argv[3] === "foreign") {
+  rows[0].pm2_env.pm_cwd = `${rows[0].pm2_env.pm_cwd}-foreign`;
+  writeFileSync(statePath, JSON.stringify(rows));
+} else {
+  throw new Error(`unknown fixture build mutation: ${process.argv[3]}`);
+}
+NODE
+fi
 SH
 
 cat >"$FAKE_BIN/npx" <<'SH'
@@ -272,14 +287,54 @@ case "$command_name" in
       "$DEPLOY_PM2_CRON_NAME" "$TEST_RUNTIME_PID" "$resolved_cwd" "$TEST_CRON_PID_JSON" "$APP_RELEASE_ID" >"$TEST_PM2_STATE"
     ;;
   stop)
-    web_name="${1:-}"
-    cron_name="${2:-}"
-    resolved_cwd="$(readlink -f -- "$TEST_BASE_DIR/current")"
-    if command -v cygpath >/dev/null 2>&1; then resolved_cwd="$(cygpath -m "$resolved_cwd")"; fi
-    printf '[{"name":"%s","pid":0,"pm2_env":{"pm_cwd":"%s","status":"stopped","APP_RELEASE_ID":"old-release"}},{"name":"%s","pid":0,"pm2_env":{"pm_cwd":"%s","status":"stopped","APP_RELEASE_ID":"old-release"}}]\n' \
-      "$web_name" "$resolved_cwd" "$cron_name" "$resolved_cwd" >"$TEST_PM2_STATE"
-    printf 'pm2 stop %s %s\n' "$web_name" "$cron_name" >>"$TEST_COMMAND_LOG"
-    ;;  save)
+    printf 'pm2 stop %s\n' "$*" >>"$TEST_COMMAND_LOG"
+    "$TEST_REAL_NODE" --input-type=module - "$TEST_PM2_STATE" "$@" <<'NODE'
+import { readFileSync, writeFileSync } from "node:fs";
+const statePath = process.argv[2];
+const rows = JSON.parse(readFileSync(statePath, "utf8"));
+// Real PM2 rejects absent names and can stop an earlier name before a later
+// name fails. Do not invent stopped processes: that hid recovery failures.
+for (const name of process.argv.slice(3)) {
+  const matches = rows.filter((row) => row.name === name);
+  if (!matches.length) {
+    console.error(`[PM2][ERROR] Process or Namespace ${name} not found`);
+    process.exit(1);
+  }
+  if (process.env.TEST_FAIL_PM2_STOP_NAME === name) {
+    console.error(`[PM2][ERROR] fixture failed to stop ${name}`);
+    process.exit(42);
+  }
+  if (process.env.TEST_PM2_STOP_LEAVES_RUNNING !== "1") {
+    for (const row of matches) {
+      row.pid = 0;
+      row.pm2_env.status = "stopped";
+    }
+    writeFileSync(statePath, JSON.stringify(rows));
+  }
+}
+NODE
+    ;;
+  restart)
+    printf 'pm2 restart %s\n' "$*" >>"$TEST_COMMAND_LOG"
+    "$TEST_REAL_NODE" --input-type=module - "$TEST_PM2_STATE" "$@" <<'NODE'
+import { readFileSync, writeFileSync } from "node:fs";
+const statePath = process.argv[2];
+const rows = JSON.parse(readFileSync(statePath, "utf8"));
+for (const name of process.argv.slice(3)) {
+  const matches = rows.filter((row) => row.name === name);
+  if (!matches.length) {
+    console.error(`[PM2][ERROR] Process or Namespace ${name} not found`);
+    process.exit(1);
+  }
+  for (const row of matches) {
+    row.pid = Number(process.env.TEST_RUNTIME_PID);
+    row.pm2_env.status = "online";
+  }
+  writeFileSync(statePath, JSON.stringify(rows));
+}
+NODE
+    ;;
+  save)
     printf 'pm2 save\n' >>"$TEST_COMMAND_LOG"
     ;;
   delete)
@@ -529,7 +584,7 @@ ENV
 
 run_deploy() {
   local case_dir="$1" fail_pm2=0 fail_health=0 fail_public=0 pm2_version=6.0.0 argument
-  local fail_redis=0
+  local fail_redis=0 fail_pm2_stop_name="" pm2_stop_leaves_running=0 pm2_after_build=""
   local git_status="" git_diff_summary=""
   local web_pid_json="$case_dir/web.pid" cron_pid_json="$case_dir/cron.pid"
   local -a deploy_args=()
@@ -540,6 +595,9 @@ run_deploy() {
       TEST_FAIL_HEALTH_NEW=1) fail_health=1 ;;
       TEST_FAIL_PUBLIC_SMOKE=1) fail_public=1 ;;
       TEST_REDIS_AUTH_FAILURE=1) fail_redis=1 ;;
+      TEST_FAIL_PM2_STOP_NAME=*) fail_pm2_stop_name="${argument#*=}" ;;
+      TEST_PM2_STOP_LEAVES_RUNNING=1) pm2_stop_leaves_running=1 ;;
+      TEST_PM2_AFTER_BUILD=*) pm2_after_build="${argument#*=}" ;;
       TEST_PM2_VERSION=*) pm2_version="${argument#*=}" ;;
       TEST_GIT_STATUS=*) git_status="${argument#*=}" ;;
       TEST_GIT_DIFF_SUMMARY=*) git_diff_summary="${argument#*=}" ;;
@@ -559,6 +617,9 @@ run_deploy() {
       TEST_FAIL_HEALTH_NEW="$fail_health" \
       TEST_FAIL_PUBLIC_SMOKE="$fail_public" \
       TEST_REDIS_AUTH_FAILURE="$fail_redis" \
+      TEST_FAIL_PM2_STOP_NAME="$fail_pm2_stop_name" \
+      TEST_PM2_STOP_LEAVES_RUNNING="$pm2_stop_leaves_running" \
+      TEST_PM2_AFTER_BUILD="$pm2_after_build" \
       TEST_PM2_VERSION="$pm2_version" \
       TEST_GIT_STATUS="$git_status" \
       TEST_GIT_DIFF_SUMMARY="$git_diff_summary" \
@@ -915,6 +976,95 @@ if run_deploy "$collision_case" --check >"$collision_case/check.log" 2>&1; then
 fi
 assert_contains "$collision_case/check.log" "belongs to a different cwd"
 
+# A retained current symlink is not proof that either app is still registered
+# in this PM2 daemon (for example after reboot, deletion, or partial recovery).
+empty_pm2_case="$(prepare_case existing-release-empty-pm2)"
+printf '[]\n' >"$empty_pm2_case/pm2-state.json"
+if ! run_deploy "$empty_pm2_case" >"$empty_pm2_case/deploy.log" 2>&1; then
+  cat -- "$empty_pm2_case/deploy.log" >&2
+  fail "existing release with an empty PM2 daemon did not recover"
+fi
+[[ -f "$empty_pm2_case/backup.marker" ]] || fail "empty PM2 recovery skipped backup"
+assert_contains "$empty_pm2_case/commands.log" "prisma migrate deploy"
+assert_contains "$empty_pm2_case/deploy.log" "is active and healthy"
+assert_not_contains "$empty_pm2_case/commands.log" "pm2 stop"
+assert_not_contains "$empty_pm2_case/deploy.log" "Process or Namespace"
+
+for remaining_app in web cron; do
+  partial_name="existing-release-only-$remaining_app"
+  partial_pm2_case="$(prepare_case "$partial_name")"
+  node --input-type=module - "$partial_pm2_case/pm2-state.json" "$partial_name-$remaining_app" <<'NODE'
+import { readFileSync, writeFileSync } from "node:fs";
+const statePath = process.argv[2];
+const rows = JSON.parse(readFileSync(statePath, "utf8"));
+writeFileSync(statePath, JSON.stringify(rows.filter((row) => row.name === process.argv[3])));
+NODE
+  if ! run_deploy "$partial_pm2_case" >"$partial_pm2_case/deploy.log" 2>&1; then
+    cat -- "$partial_pm2_case/deploy.log" >&2
+    fail "existing release with only $remaining_app registered did not recover"
+  fi
+  [[ -f "$partial_pm2_case/backup.marker" ]] || fail "partial PM2 recovery skipped backup"
+  assert_contains "$partial_pm2_case/commands.log" "pm2 stop $partial_name-$remaining_app"
+  assert_contains "$partial_pm2_case/deploy.log" "is active and healthy"
+  assert_not_contains "$partial_pm2_case/deploy.log" "Process or Namespace"
+done
+
+stop_failure_case="$(prepare_case writer-stop-failure)"
+if run_deploy "$stop_failure_case" TEST_FAIL_PM2_STOP_NAME=writer-stop-failure-cron >"$stop_failure_case/deploy.log" 2>&1; then
+  fail "a real writer stop failure unexpectedly deployed"
+fi
+assert_current_is_old "$stop_failure_case"
+[[ ! -e "$stop_failure_case/backup.marker" ]] || fail "writer stop failure reached backup"
+assert_not_contains "$stop_failure_case/commands.log" "prisma migrate deploy"
+assert_not_contains "$stop_failure_case/commands.log" "pm2 startOrReload"
+assert_contains "$stop_failure_case/deploy.log" "fixture failed to stop writer-stop-failure-cron"
+node --input-type=module - "$stop_failure_case/pm2-state.json" <<'NODE'
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+const rows = JSON.parse(readFileSync(process.argv[2], "utf8"));
+assert.equal(rows.length, 2);
+assert.ok(rows.every((row) => row.pid > 0 && row.pm2_env.status === "online"),
+  "a partially completed stop must restore the previously running writers before migration");
+NODE
+
+stop_ineffective_case="$(prepare_case writer-stop-ineffective)"
+if run_deploy "$stop_ineffective_case" TEST_PM2_STOP_LEAVES_RUNNING=1 >"$stop_ineffective_case/deploy.log" 2>&1; then
+  fail "deployment accepted PM2 stop success while writers remained online"
+fi
+assert_current_is_old "$stop_ineffective_case"
+[[ ! -e "$stop_ineffective_case/backup.marker" ]] || fail "running writers reached consistent backup"
+assert_not_contains "$stop_ineffective_case/commands.log" "prisma migrate deploy"
+assert_not_contains "$stop_ineffective_case/commands.log" "pm2 startOrReload"
+
+disappeared_pm2_case="$(prepare_case disappeared-during-build)"
+if ! run_deploy "$disappeared_pm2_case" TEST_PM2_AFTER_BUILD=empty >"$disappeared_pm2_case/deploy.log" 2>&1; then
+  cat -- "$disappeared_pm2_case/deploy.log" >&2
+  fail "deployment used a stale PM2 list after apps disappeared during build"
+fi
+assert_contains "$disappeared_pm2_case/deploy.log" "is active and healthy"
+assert_not_contains "$disappeared_pm2_case/commands.log" "pm2 stop"
+[[ -f "$disappeared_pm2_case/backup.marker" ]] || fail "post-build PM2 refresh skipped backup"
+
+replaced_pm2_case="$(prepare_case replaced-during-build)"
+if run_deploy "$replaced_pm2_case" TEST_PM2_AFTER_BUILD=foreign >"$replaced_pm2_case/deploy.log" 2>&1; then
+  fail "deployment accepted changed PM2 ownership after build"
+fi
+assert_current_is_old "$replaced_pm2_case"
+assert_contains "$replaced_pm2_case/commands.log" "npm run build"
+assert_not_contains "$replaced_pm2_case/commands.log" "pm2 stop"
+assert_not_contains "$replaced_pm2_case/commands.log" "prisma migrate deploy"
+[[ ! -e "$replaced_pm2_case/backup.marker" ]] || fail "foreign post-build PM2 owner reached backup"
+
+occupied_port_case="$(prepare_case occupied-web-port)"
+sed -i "s/^DEPLOY_WEB_PORT=18081/DEPLOY_WEB_PORT=$SERVICE_PORT/" "$occupied_port_case/project.env"
+if run_deploy "$occupied_port_case" >"$occupied_port_case/deploy.log" 2>&1; then
+  fail "deployment accepted a listener still occupying the web port"
+fi
+assert_current_is_old "$occupied_port_case"
+assert_contains "$occupied_port_case/commands.log" "npm run build"
+assert_not_contains "$occupied_port_case/commands.log" "prisma migrate deploy"
+[[ ! -e "$occupied_port_case/backup.marker" ]] || fail "occupied web port reached backup"
+
 first_success_case="$(prepare_case first-success)"
 rm -- "$first_success_case/app/current"
 printf '[]\n' >"$first_success_case/pm2-state.json"
@@ -924,6 +1074,7 @@ if ! run_deploy "$first_success_case" >"$first_success_case/deploy.log" 2>&1; th
 fi
 [[ -L "$first_success_case/app/current" ]] || fail "first deployment did not create current symlink"
 assert_contains "$first_success_case/deploy.log" "is active and healthy"
+assert_not_contains "$first_success_case/commands.log" "pm2 stop"
 
 first_failure_case="$(prepare_case first-failure)"
 rm -- "$first_failure_case/app/current"
@@ -992,4 +1143,41 @@ assert_current_is_old "$stop_case"
 assert_contains "$stop_case/commands.log" "pm2 stop stop-safe-web stop-safe-cron"
 assert_contains "$stop_case/stop.log" "no unrelated process or port was touched"
 assert_not_contains "$stop_case/commands.log" "fuser"
-printf '[test-deploy] PASS: ordinary .env auto-discovery, pwd/source identity, renamed projects, command versions, runtime/systemd evidence, activation, rollback, and PM2 ownership\n'
+
+empty_stop_case="$(prepare_case stop-empty)"
+printf '[]\n' >"$empty_stop_case/pm2-state.json"
+if ! run_stop "$empty_stop_case" >"$empty_stop_case/stop.log" 2>&1; then
+  cat -- "$empty_stop_case/stop.log" >&2
+  fail "safe stop failed when project apps were already absent"
+fi
+assert_current_is_old "$empty_stop_case"
+assert_not_contains "$empty_stop_case/commands.log" "pm2 stop"
+[[ "$(tr -d '[:space:]' <"$empty_stop_case/pm2-state.json")" == "[]" ]] \
+  || fail "safe stop invented missing PM2 apps"
+
+for remaining_app in web cron; do
+  partial_name="stop-only-$remaining_app"
+  partial_stop_case="$(prepare_case "$partial_name")"
+  node --input-type=module - "$partial_stop_case/pm2-state.json" "$partial_name-$remaining_app" <<'NODE'
+import { readFileSync, writeFileSync } from "node:fs";
+const statePath = process.argv[2];
+const rows = JSON.parse(readFileSync(statePath, "utf8"));
+writeFileSync(statePath, JSON.stringify(rows.filter((row) => row.name === process.argv[3])));
+NODE
+  if ! run_stop "$partial_stop_case" >"$partial_stop_case/stop.log" 2>&1; then
+    cat -- "$partial_stop_case/stop.log" >&2
+    fail "safe stop failed when only $remaining_app was registered"
+  fi
+  assert_current_is_old "$partial_stop_case"
+  assert_contains "$partial_stop_case/commands.log" "pm2 stop $partial_name-$remaining_app"
+  node --input-type=module - "$partial_stop_case/pm2-state.json" "$partial_name-$remaining_app" <<'NODE'
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+const rows = JSON.parse(readFileSync(process.argv[2], "utf8"));
+assert.equal(rows.length, 1);
+assert.equal(rows[0].name, process.argv[3]);
+assert.equal(rows[0].pm2_env.status, "stopped");
+assert.equal(rows[0].pid, 0);
+NODE
+done
+printf '[test-deploy] PASS: ordinary .env auto-discovery, pwd/source identity, renamed projects, command versions, runtime/systemd evidence, activation, rollback, PM2 ownership, missing-app recovery, and writer quiescence\n'

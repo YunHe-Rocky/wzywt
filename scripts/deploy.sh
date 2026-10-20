@@ -95,9 +95,13 @@ path_within() {
 
 cleanup_on_exit() {
   local exit_code=$?
-  local file current_target=""
+  local file app_name current_target=""
   if [[ "$DEPLOY_SUCCEEDED" != "1" && "$WRITERS_STOPPED" == "1" && "$MIGRATION_STARTED" == "0" && "${#PREVIOUS_RUNNING_NAMES[@]}" -gt 0 ]]; then
-    "$PM2_BIN" restart "${PREVIOUS_RUNNING_NAMES[@]}" >/dev/null 2>&1 || true
+    for app_name in "${PREVIOUS_RUNNING_NAMES[@]}"; do
+      if ! "$PM2_BIN" restart "$app_name" >/dev/null 2>&1; then
+        printf '[deploy] ERROR: could not restore previously running app %s; inspect PM2_HOME=%s\n' "$app_name" "$PM2_HOME" >&2
+      fi
+    done
   fi
   for file in "${TEMP_FILES[@]:-}"; do
     [[ -n "$file" ]] && rm -f -- "$file" 2>/dev/null || true
@@ -684,13 +688,36 @@ log "build before touching the running service"
 
 # A native release now uses an explicit stop-write window. PM2 stop honors the
 # configured graceful timeout; watchdogs preserve intentionally stopped apps.
-mapfile -t PREVIOUS_RUNNING_NAMES < <("$NODE_BIN" -e '
-const fs=require("node:fs");const rows=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));
-for(const row of rows){const e=row.pm2_env||row;const name=row.name||e.name;if([process.argv[2],process.argv[3]].includes(name)&&["online","launching"].includes(e.status))console.log(name);}
-' "$PM2_STATE_FILE" "$PM2_WEB_NAME" "$PM2_CRON_NAME")
-if [[ "$CURRENT_TARGET" != "-" ]]; then
-  "$PM2_BIN" stop "$PM2_WEB_NAME" "$PM2_CRON_NAME"
+# Installation/build can take minutes; never stop from the pre-build snapshot.
+log "refresh PM2 ownership before stopping project writers (home=$PM2_HOME)"
+check_pm2_ownership
+STOP_PLAN="$("$NODE_BIN" "$SCRIPT_DIR/verify-deploy-state.mjs" pm2-stop-plan \
+  "$BASE_DIR" "$CURRENT_TARGET" "$PM2_WEB_NAME" "$PM2_CRON_NAME" <"$PM2_STATE_FILE")" \
+  || fail "could not prepare the PM2 stop plan"
+PRESENT_PM2_NAMES=()
+PREVIOUS_RUNNING_NAMES=()
+while read -r action app_name; do
+  case "$action" in
+    stop) PRESENT_PM2_NAMES+=("$app_name") ;;
+    resume) PREVIOUS_RUNNING_NAMES+=("$app_name") ;;
+  esac
+done <<<"$STOP_PLAN"
+if (("${#PRESENT_PM2_NAMES[@]}" > 0)); then
+  log "stop existing project apps: ${PRESENT_PM2_NAMES[*]}"
+  # Arm recovery before PM2 can partially stop a multi-app request.
   WRITERS_STOPPED=1
+  "$PM2_BIN" stop "${PRESENT_PM2_NAMES[@]}" \
+    || fail "could not stop project writers; backup and migration were not started (PM2_HOME=$PM2_HOME)"
+else
+  log "project apps are absent in PM2_HOME=$PM2_HOME; verify the web address is free before recovery"
+fi
+"$PM2_BIN" jlist >"$PM2_STATE_FILE" || fail "could not verify PM2 after stopping writers"
+"$NODE_BIN" "$SCRIPT_DIR/verify-deploy-state.mjs" pm2-quiescent \
+  "$BASE_DIR" "$CURRENT_TARGET" "$PM2_WEB_NAME" "$PM2_CRON_NAME" <"$PM2_STATE_FILE" \
+  || fail "project writers are not stopped; backup and migration were not started"
+"$NODE_BIN" "$SCRIPT_DIR/verify-deploy-state.mjs" port-free "$WEB_HOST" "$WEB_PORT" \
+  || fail "web listener is still occupied or unavailable; backup and migration were not started"
+if [[ "$CURRENT_TARGET" != "-" ]]; then
   if diff -qr "$CURRENT_TARGET/prisma/migrations" "$RELEASE_DIR/prisma/migrations" >/dev/null 2>&1; then AUTO_ROLLBACK_SAFE=1; fi
 fi
 log "create a consistent SQL/media/avatar/hero backup set while writers are stopped"

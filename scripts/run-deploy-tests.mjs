@@ -43,6 +43,12 @@ function resolveBash() {
 }
 
 try {
+  const deployStateTests = spawnSync(process.execPath, ["--test", "scripts/test-deploy-state.mjs"], {
+    cwd: repoRoot, env: process.env, stdio: "inherit", shell: false, windowsHide: true,
+  });
+  if (deployStateTests.error) throw deployStateTests.error;
+  if (deployStateTests.status !== 0) process.exit(deployStateTests.status ?? 1);
+
   const cronTests = spawnSync(process.execPath, ["--test", "scripts/test-cron-runtime.mjs"], {
     cwd: repoRoot, env: process.env, stdio: "inherit", shell: false, windowsHide: true,
   });

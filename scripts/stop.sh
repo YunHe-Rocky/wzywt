@@ -36,7 +36,8 @@ bash "$SCRIPT_DIR/deploy.sh" --check --env-file "$ENV_FILE"
 
 CONFIG_FILE="$(mktemp)"
 STATE_FILE="$(mktemp)"
-trap 'rm -f -- "$CONFIG_FILE" "$STATE_FILE"' EXIT
+STOP_PLAN_FILE="$(mktemp)"
+trap 'rm -f -- "$CONFIG_FILE" "$STATE_FILE" "$STOP_PLAN_FILE"' EXIT
 "$NODE_BIN" "$SCRIPT_DIR/deploy-env.mjs" "$ENV_FILE" >"$CONFIG_FILE"
 while IFS= read -r -d '' key; do
   IFS= read -r -d '' value || { printf '[stop] ERROR: incomplete env record\n' >&2; exit 1; }
@@ -91,13 +92,21 @@ fi
 export PM2_HOME
 
 "$PM2_BIN" jlist >"$STATE_FILE"
-"$NODE_BIN" "$SCRIPT_DIR/verify-deploy-state.mjs" pm2-before \
-  "$BASE_DIR" "$CURRENT_TARGET" "$WEB_NAME" "$CRON_NAME" <"$STATE_FILE"
+"$NODE_BIN" "$SCRIPT_DIR/verify-deploy-state.mjs" pm2-stop-plan \
+  "$BASE_DIR" "$CURRENT_TARGET" "$WEB_NAME" "$CRON_NAME" <"$STATE_FILE" >"$STOP_PLAN_FILE"
+STOP_NAMES=()
+while IFS=' ' read -r action app_name; do
+  if [[ "$action" == "stop" ]]; then STOP_NAMES+=("$app_name"); fi
+done <"$STOP_PLAN_FILE"
 
-printf '[stop] stopping exact project apps %s and %s\n' "$WEB_NAME" "$CRON_NAME"
-"$PM2_BIN" stop "$WEB_NAME" "$CRON_NAME"
+if ((${#STOP_NAMES[@]})); then
+  printf '[stop] stopping existing project apps: %s\n' "${STOP_NAMES[*]}"
+  "$PM2_BIN" stop "${STOP_NAMES[@]}"
+else
+  printf '[stop] no project apps are registered in PM2 home %s\n' "$PM2_HOME"
+fi
 "$PM2_BIN" jlist >"$STATE_FILE"
-"$NODE_BIN" "$SCRIPT_DIR/verify-deploy-state.mjs" pm2-stopped \
-  "$CURRENT_TARGET" "$WEB_NAME" "$CRON_NAME" <"$STATE_FILE"
+"$NODE_BIN" "$SCRIPT_DIR/verify-deploy-state.mjs" pm2-quiescent \
+  "$BASE_DIR" "$CURRENT_TARGET" "$WEB_NAME" "$CRON_NAME" <"$STATE_FILE"
 "$PM2_BIN" save
-printf '[stop] project apps are stopped; no unrelated process or port was touched\n'
+printf '[stop] project apps are stopped or absent; no unrelated process or port was touched\n'

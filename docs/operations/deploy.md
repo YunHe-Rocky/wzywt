@@ -189,6 +189,39 @@ node scripts/public-entry-smoke.mjs https://你的域名 预期的完整releaseI
 
 高级覆盖不是第二张必填表。只有自动发现错了一个事实，才覆盖那一个事实。
 
+### 构建后提示 PM2 Process or Namespace not found
+
+Next.js 的 `Static` / `Dynamic` 列表是构建结果。紧接着出现 PM2 进程不存在，表示发布在进程管理阶段中断，不能视为新版本已上线。
+
+已有 `current` 链接不代表当前 PM2 实例仍登记着 Web 和 Cron。部署脚本在构建后重新读取 PM2 状态、核验进程归属，只停止实际存在的本项目进程；缺少的进程由后续 `startOrReload` 创建。停止后必须确认进程已停止或不存在，并确认 Web 地址可绑定，才允许备份和迁移。真正的停止失败会中断发布；迁移尚未开始时，脚本尝试恢复停止前正在运行或等待重启的进程。
+
+先在部署用户下核对实际实例和监听者，不要因为发现另一个 PM2 目录就直接切换：
+
+```bash
+id -un
+printf 'Shell PM2_HOME=%s\n' "${PM2_HOME:-未设置}"
+ps -eo user,pid,args | grep '[P]M2'
+ss -lntp 'sport = :8001'
+bash scripts/deploy.sh --env-file "$PWD/.env" --check
+```
+
+以预检输出的 `home=` 为候选，通过以下命令显示完整进程名、PID、状态和 cwd，不输出 PM2 中保存的环境变量：
+
+```bash
+PM2_HOME=/已确认的/pm2目录 pm2 jlist | node -e '
+let input = "";
+process.stdin.on("data", chunk => input += chunk);
+process.stdin.on("end", () => {
+  for (const p of JSON.parse(input)) {
+    const e = p.pm2_env || {};
+    console.log(JSON.stringify({ name: p.name, pid: p.pid, status: e.status, cwd: e.pm_cwd }));
+  }
+});
+'
+```
+
+将 Web PID 与监听端口对应，并确认 cwd 属于本项目的 `current`。确有必要时只配置这一项 `DEPLOY_PM2_HOME`，随后重新预检和发布。预检中的 `PM2 ownership is safe` 允许目标进程不存在，不代表该实例已接管正在监听的旧站。不要用 `pm2 stop all`、删除 `current` 或忽略停止错误来绕过问题。停止后端口仍占用时，应查清其他实例或进程；脚本不会按端口杀进程。
+
 ### Redis 命令行 PONG，但应用 WRONGPASS
 
 这说明手输凭据可用，而应用使用的用户名/密码被拒绝。可用项目工具隐藏输入原始密码，自动 URL 编码并验证，只有收到 `PONG` 才原子更新 `.env` 中的 `REDIS_URL`（保留其他配置与 `.env` 符号链接）。默认账户使用 `--username default`，ACL 账户替换为实际用户名。工具不会修改 Redis 服务端密码，也不会降低 `REDIS_REQUIRED`。

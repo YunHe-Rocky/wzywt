@@ -1,5 +1,6 @@
 import { existsSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { resolve, sep } from "node:path";
+import { createServer } from "node:net";
 
 function fail(message) {
   throw new Error(message);
@@ -72,8 +73,8 @@ function expectedProcesses(processes, names) {
   });
 }
 
-function verifyBefore(baseDir, currentTarget, names) {
-  const processes = readStdinJson();
+function verifyBefore(baseDir, currentTarget, names, processes = readStdinJson(), quiet = false) {
+  if (!Array.isArray(processes)) fail("PM2 process list is not an array");
   const expectedNames = new Set(names);
   const projectProcesses = processes.filter((entry) => {
     try {
@@ -86,14 +87,57 @@ function verifyBefore(baseDir, currentTarget, names) {
   if (unexpected.length) fail(`unexpected PM2 apps own the project path: ${unexpected.map((entry) => entry.name).join(", ")}`);
 
   for (const { name, process: processDescription } of expectedProcesses(processes, names)) {
-    if (!processDescription) continue;
+    if (!processDescription) {
+      if (!quiet) console.log(`[deploy-verify] PM2 app ${name} is absent in the selected PM2 instance`);
+      continue;
+    }
     if (currentTarget === "-") fail(`PM2 app ${name} exists but the current release link is missing`);
     if (realpath(processCwd(processDescription)) !== realpath(currentTarget)) {
       fail(`PM2 app ${name} belongs to a different cwd: ${processCwd(processDescription)}`);
     }
     verifyIfOnline(processDescription, name);
+    if (!quiet) console.log(`[deploy-verify] PM2 app ${name} status=${processDescription.pm2_env?.status ?? "<missing>"} pid=${processDescription.pid ?? "<missing>"}`);
   }
-  console.log(`[deploy-verify] PM2 ownership is safe for ${names.join(", ")}`);
+  if (!quiet) console.log(`[deploy-verify] PM2 ownership is safe for ${names.join(", ")}`);
+}
+
+function stopPlan(baseDir, currentTarget, names) {
+  const processes = readStdinJson();
+  verifyBefore(baseDir, currentTarget, names, processes, true);
+  for (const { name, process: entry } of expectedProcesses(processes, names)) {
+    if (!entry) continue;
+    console.log(`stop ${name}`);
+    // Restart/backoff states can resume writing without another operator action.
+    if (!["stopped", "errored"].includes(entry.pm2_env?.status)) console.log(`resume ${name}`);
+  }
+}
+
+function verifyQuiescent(baseDir, currentTarget, names) {
+  const processes = readStdinJson();
+  verifyBefore(baseDir, currentTarget, names, processes, true);
+  for (const { name, process: entry } of expectedProcesses(processes, names)) {
+    if (!entry) continue;
+    if (entry.pm2_env?.status !== "stopped" || entry.pid !== 0) {
+      fail(`PM2 app ${name} is not quiescent: status=${entry.pm2_env?.status ?? "<missing>"} pid=${entry.pid ?? "<missing>"}`);
+    }
+  }
+  console.log(`[deploy-verify] project writers are absent or stopped: ${names.join(", ")}`);
+}
+
+async function verifyPortFree(host, portText) {
+  const port = Number(portText);
+  if (!host || !Number.isInteger(port) || port < 1 || port > 65535) fail("invalid web host or port");
+  const server = createServer();
+  await new Promise((resolveProbe, reject) => {
+    server.once("error", reject);
+    server.listen({ host, port, exclusive: true }, () => server.close((error) => {
+      if (error) reject(error);
+      else resolveProbe();
+    }));
+  }).catch((error) => {
+    fail(`web address ${host}:${port} is not available (${error.code ?? "probe failed"}); check the listener, deployment user and PM2_HOME before backup or migration`);
+  });
+  console.log(`[deploy-verify] web address ${host}:${port} is available`);
 }
 
 function verifyAfter(expectedTarget, expectedReleaseId, names) {
@@ -155,6 +199,9 @@ function verifyHealth(expectedReleaseId) {
 function usage() {
   console.error("Usage:");
   console.error("  node scripts/verify-deploy-state.mjs pm2-before <base-dir> <current-target|-> <web-name> <cron-name>");
+  console.error("  node scripts/verify-deploy-state.mjs pm2-stop-plan <base-dir> <current-target|-> <web-name> <cron-name>");
+  console.error("  node scripts/verify-deploy-state.mjs pm2-quiescent <base-dir> <current-target|-> <web-name> <cron-name>");
+  console.error("  node scripts/verify-deploy-state.mjs port-free <host> <port>");
   console.error("  node scripts/verify-deploy-state.mjs pm2-after <release-dir> <release-id> <web-name> <cron-name>");
   console.error("  node scripts/verify-deploy-state.mjs pm2-stopped <release-dir> <web-name> <cron-name>");
   console.error("  node scripts/verify-deploy-state.mjs health <release-id>");
@@ -165,6 +212,9 @@ function usage() {
 try {
   const [mode, ...args] = process.argv.slice(2);
   if (mode === "pm2-before" && args.length === 4) verifyBefore(args[0], args[1], args.slice(2));
+  else if (mode === "pm2-stop-plan" && args.length === 4) stopPlan(args[0], args[1], args.slice(2));
+  else if (mode === "pm2-quiescent" && args.length === 4) verifyQuiescent(args[0], args[1], args.slice(2));
+  else if (mode === "port-free" && args.length === 2) await verifyPortFree(args[0], args[1]);
   else if (mode === "pm2-after" && args.length === 4) verifyAfter(args[0], args[1], args.slice(2));
   else if (mode === "pm2-stopped" && args.length === 3) verifyStopped(args[0], args.slice(1));
   else if (mode === "health" && args.length === 1) verifyHealth(args[0]);
