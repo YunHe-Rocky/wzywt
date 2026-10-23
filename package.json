@@ -69,7 +69,7 @@
     "docker:down": "node scripts/compose.mjs down",
     "docker:backup": "node scripts/compose.mjs backup",
     "docker:sync-heroes": "node scripts/compose.mjs sync-heroes",
-    "test:compose": "node --test scripts/test-compose.mjs scripts/test-compose-storage.mjs scripts/test-compose-runtime.mjs docker/runtime-env.test.mjs",
+    "test:compose": "node --test scripts/test-compose.mjs scripts/test-compose-storage.mjs scripts/test-compose-runtime.mjs docker/runtime-env.test.mjs scripts/test-compose-native-import.mjs scripts/test-native-migration-export.mjs scripts/test-native-migration-bundle.mjs docker/native-migration.test.mjs",
     "test:compose:model": "node scripts/test-compose-model.mjs",
     "test:hero-assets": "node --test scripts/test-hero-assets.mjs",
     "test:docs": "node --test scripts/test-deployment-docs.mjs",

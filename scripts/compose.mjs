@@ -3,7 +3,7 @@ import { sourceIdentity } from "./source-identity.mjs";
 import { fileSha256 } from "./backup-integrity.mjs";
 import { parseSelectedEnv } from "./deploy-env.mjs";
 import { spawnSync } from "node:child_process";
-import { randomBytes, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import {
   closeSync, existsSync, mkdirSync, openSync, readFileSync, renameSync,
   statSync, writeFileSync,
@@ -18,14 +18,21 @@ import { databaseUrl } from "../docker/runtime-env.mjs";
 import { readResourceSettings } from "../src/core/resource-settings.ts";
 import { capacityPlan, assertLiveLimits } from "./compose-capacity.mjs";
 import { composeRuntime, serializeRuntime, parseComposeModel } from "./compose-runtime.mjs";
+import { composeEnvironment, initializeComposeEnv, readSharedComposeEnv } from "./compose-env.mjs";
+import { exportNative } from "./native-migration-export.mjs";
+import { verifyNativeBackup } from "./native-migration-bundle.mjs";
+import { importNativeBackup } from "./compose-native-import.mjs";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const actions = new Set(["init", "check", "up", "update", "status", "logs", "down", "backup", "sync-heroes"]);
+const actions = new Set(["init", "check", "build", "export-native", "import-native", "up", "update", "status", "logs", "down", "backup", "sync-heroes"]);
 const services = new Set(["mysql", "mysql-client", "redis", "web", "cron", "ocr", "migrate", "storage-init"]);
 const help = `Usage: node scripts/compose.mjs <command> [options]
 
-  init          Generate .env.docker with random credentials; never overwrite it.
+  init          Generate .env.docker; reuse shared .env secrets or generate missing ones.
   check         Validate Docker, Compose, credentials and service configuration.
+  build         Validate and build images without starting or stopping services.
+  export-native Export a stopped native installation to a verified migration backup.
+  import-native Import that backup into empty Docker storage; keep Web/Cron stopped.
   up / update   Build, pause writers, back up SQL/media/crawler files, migrate and start.
   status        Show service status.
   logs [name]   Follow the last 100 log lines (Ctrl+C to exit).
@@ -34,7 +41,13 @@ const help = `Usage: node scripts/compose.mjs <command> [options]
   sync-heroes   Run the independent hero synchronization job.
 
 Options: --env-file PATH, --backup-dir PATH, --ocr
+export-native: --source-root PATH, --source-env PATH, --source-media PATH,
+               --source-avatars PATH, --backup-dir PATH, --writers-stopped
+import-native: --from-backup PATH (verified export-native backup only)
 Defaults: .env.docker; COMPOSE_BACKUP_DIR or the storage-mode backup directory;
+Shared application settings inherit the optional project-root .env (not .env.local).
+Priority: process environment > selected Docker env file > shared .env > defaults.
+An explicit empty Docker value clears inheritance. Native DB/Redis connections and host paths are not inherited.
 MYSQL_MODE=container|external, OCR_MODE=off|container|external select services.
 STORAGE_MODE=rclone selects compose.oss.yaml automatically. Legacy --ocr works.
 Node >=24, Docker Engine and Compose >=2.20 are required. Host npm dependencies,
@@ -49,13 +62,30 @@ export function parseArguments(args) {
   if (!actions.has(options.action)) throw new Error(`Unknown command: ${options.action}`);
   for (let index = 1; index < args.length; index += 1) {
     const arg = args[index];
-    if (arg === "--ocr") options.ocr = true;
+    if (options.action === "export-native" && ["--env-file", "--ocr"].includes(arg)) {
+      throw new Error("export-native reads the native --source-env, not Docker --env-file or --ocr settings");
+    }
+    if (arg === "--writers-stopped" && options.action === "export-native") options.writersStopped = true;
+    else if (["--source-root", "--source-env", "--source-media", "--source-avatars"].includes(arg) && options.action === "export-native") {
+      const value = args[++index];
+      if (!value || value.startsWith("--")) throw new Error(`${arg} requires a path`);
+      const key = { "--source-root": "sourceRoot", "--source-env": "sourceEnv", "--source-media": "sourceMedia", "--source-avatars": "sourceAvatars" }[arg];
+      options[key] = value;
+    } else if (arg === "--from-backup" && options.action === "import-native") {
+      const value = args[++index];
+      if (!value || value.startsWith("--")) throw new Error(`${arg} requires a path`);
+      options.fromBackup = value;
+    } else if (arg === "--ocr") options.ocr = true;
     else if (arg === "--env-file" || arg === "--backup-dir") {
       const value = args[++index];
       if (!value || value.startsWith("--")) throw new Error(`${arg} requires a path`);
       options[arg === "--env-file" ? "envFile" : "backupDir"] = value;
     } else if (options.action === "logs" && services.has(arg) && !options.service) options.service = arg;
     else throw new Error(`Unknown argument: ${arg}`);
+  }
+  if (options.action === "import-native" && !options.fromBackup) throw new Error("import-native requires --from-backup PATH");
+  if (options.action === "export-native" && (!options.backupDir || !options.writersStopped)) {
+    throw new Error("export-native requires --backup-dir PATH and --writers-stopped after stopping the native Web/Cron writers");
   }
   return options;
 }
@@ -146,34 +176,40 @@ function parseContainerStates(output) {
 }
 
 export function createManager({ root = repoRoot, run = runDocker, log = console.log, verifyEntry = verifyPublicEntry,
-  environment = process.env, checkMount = assertRcloneMount, prepare = prepareStorage } = {}) {
+  environment: processEnvironment = process.env, checkMount = assertRcloneMount, prepare = prepareStorage } = {}) {
   const docker = (args, options = {}) => run(args, { cwd: root, ...options });
   return async function manage(options) {
     if (options.action === "help") { log(help); return; }
+    if (options.action === "export-native") {
+      await exportNative({ root, ...options }, { log });
+      return;
+    }
+    const nativeDirectory = options.action === "import-native" ? resolve(root, options.fromBackup) : undefined;
+    const nativeBundle = nativeDirectory ? await verifyNativeBackup(nativeDirectory) : undefined;
     const envFile = resolve(root, options.envFile);
     if (options.action === "init") {
+      if (existsSync(envFile)) throw new Error(`${envFile} already exists; credentials were preserved.`);
       const template = readFileSync(resolve(root, ".env.docker.example"), "utf8");
-      let content = template.replace(/__GENERATE_[A-Z_]+__/g, () => randomBytes(32).toString("hex"));
-      if (options.ocr) content = content.replace(/^OCR_MODE=$/m, "OCR_MODE=container")
-        .replace(/^MATCH_OCR_ENDPOINT=$/m, "MATCH_OCR_ENDPOINT=http://ocr:8010/recognize");
+      const content = initializeComposeEnv(template, readSharedComposeEnv(root), { ocr: options.ocr });
       try { writeFileSync(envFile, content, { flag: "wx", mode: 0o600 }); }
       catch (error) {
         if (error.code === "EEXIST") throw new Error(`${envFile} already exists; credentials were preserved.`);
         throw error;
       }
-      log(`[compose] Created ${envFile}. Set PUBLIC_ORIGIN to the PC's LAN address for phone access.`);
+      log(`[compose] Created ${envFile}. Shared settings inherit ${resolve(root, ".env")} when present. Set PUBLIC_ORIGIN to the PC's LAN address for phone access.`);
       return;
     }
     if (!existsSync(envFile)) throw new Error(`${envFile} is missing; run: node scripts/compose.mjs init`);
     const content = readFileSync(envFile, "utf8");
-    const storage = resolveStorage(content, root, { environment, backupDir: options.backupDir });
     const maintenance = ["down", "status", "logs"].includes(options.action);
+    const environment = maintenance ? processEnvironment : composeEnvironment(root, content, processEnvironment);
+    const storage = resolveStorage(content, root, { environment, backupDir: options.backupDir });
     // Inspect/stop the existing project even while connection settings are being
     // corrected; these commands never start services or use their endpoints.
     const selected = maintenance ? resolveServices("", { environment: {} })
       : resolveServices(content, { environment, ocr: options.ocr });
     const withOcr = selected.ocr === "container";
-    const deployingAction = ["up", "update"].includes(options.action);
+    const deployingAction = ["up", "update", "build", "import-native"].includes(options.action);
     const identity = deployingAction ? sourceIdentity(root) : undefined;
     const releaseEnvironment = identity ? { ...environment, APP_RELEASE_ID: `${Date.now()}-${identity.sourceSha256.slice(0, 12)}-${randomUUID().slice(0, 8)}` } : environment;
     const runtimeInput = maintenance ? undefined : serializeRuntime(composeRuntime(content, { environment: releaseEnvironment, selected, storage }));
@@ -221,16 +257,39 @@ export function createManager({ root = repoRoot, run = runDocker, log = console.
       const model = parseComposeModel(compose(["--profile", "tools", "config", "--format", "json"], { capture: true }));
       validateModel(model, withOcr, selected.mysql);
       validateStorageModel(model, storage);
-      if (["check", "up", "update", "sync-heroes"].includes(options.action)) {
+      const verifyDataServices = (containers = parseContainerStates(compose(["ps", "--all", "--format", "json"], { capture: true }))) => {
+        for (const name of ["redis", ...(selected.mysql === "container" ? ["mysql"] : [])]) {
+          const container = containers.find(row => row.Service === name && row.State === "running");
+          if (!container?.ID) throw new Error(`Cannot verify the running ${name} container limits; no application data was written.`);
+          const actual = JSON.parse(docker(["inspect", container.ID, "--format", "{{json .HostConfig}}"], { capture: true }));
+          assertLiveLimits(name, model.services[name], actual);
+        }
+      };
+      if (["check", "build", "import-native", "up", "update", "sync-heroes"].includes(options.action)) {
         const daemonBytes = Number(docker(["info", "--format", "{{.MemTotal}}"], { capture: true }).trim());
         const plan = capacityPlan(model, selected, daemonBytes, { action: options.action, content, environment });
         log(`[compose] Memory budget: ${Math.ceil(plan.plannedBytes / 1_048_576)} MiB / ${Math.floor(plan.daemonBytes / 1_048_576)} MiB (including reserve and one-shot work).`);
       }
       log(`[compose] Services: MySQL=${selected.mysql}, OCR=${selected.ocr}.`);
       if (options.action === "check") { log("[compose] Docker, Compose and configuration checks passed."); return; }
+      if (options.action === "build") {
+        compose(["build", "web", "cron", "migrate", "storage-init", ...(withOcr ? ["ocr"] : [])]);
+        log("[compose] Images built; no services were started or stopped.");
+        return;
+      }
+      if (options.action === "import-native") {
+        const host = docker(["context", "inspect", "--format", "{{.Endpoints.docker.Host}}"], { capture: true }).trim();
+        if (!/^(unix:\/\/|npipe:\/\/)/.test(environment.DOCKER_HOST || host)) {
+          throw new Error("import-native requires the local Docker Engine where the backup directory is accessible.");
+        }
+        importNativeBackup({ root, directory: nativeDirectory, bundle: nativeBundle, model, selected, storage,
+          compose, checkMount, prepare, verifyDataServices, log });
+        return;
+      }
       if (options.action === "sync-heroes") {
         prepare(storage);
         compose(["run", "--rm", "--no-deps", "storage-init"]);
+        compose(["run", "--rm", "--no-deps", "-T", "--entrypoint", "node", "cron", "docker/native-migration.mjs", "guard"]);
         compose(["run", "--rm", "--no-deps", "cron", "sync-heroes"]);
         return;
       }
@@ -244,14 +303,10 @@ export function createManager({ root = repoRoot, run = runDocker, log = console.
         // Datastore upgrades are a separate maintenance operation after backup.
         compose(["up", "-d", "--no-recreate", "--wait", "--wait-timeout", "180", ...(selected.mysql === "container" ? ["mysql"] : []), "redis"]);
         compose(["run", "--rm", "--no-deps", "storage-init"]);
+        compose(["run", "--rm", "--no-deps", "-T", "--entrypoint", "node", "cron", "docker/native-migration.mjs", "guard"]);
       }
       const containers = parseContainerStates(compose(["ps", "--all", "--format", "json"], { capture: true }));
-      if (deploying) for (const name of ["redis", ...(selected.mysql === "container" ? ["mysql"] : [])]) {
-        const container = containers.find(row => row.Service === name && row.State === "running");
-        if (!container?.ID) throw new Error(`Cannot verify the running ${name} container limits; writers were not stopped.`);
-        const actual = JSON.parse(docker(["inspect", container.ID, "--format", "{{json .HostConfig}}"], { capture: true }));
-        assertLiveLimits(name, model.services[name], actual);
-      }
+      if (deploying) verifyDataServices(containers);
       if (selected.mysql === "container" && !containers.some(({ Service, State }) => Service === "mysql" && State === "running")) {
         throw new Error("MySQL is not running; start the stack before requesting a backup.");
       }
@@ -307,13 +362,15 @@ export function createManager({ root = repoRoot, run = runDocker, log = console.
           storageMode: storage.mode,
           mysqlMode: selected.mysql,
           remoteUploadVerified: false,
-          note: "SQL, uploads/avatars and crawler hero/skin files. Complete means written to the filesystem; rclone remote upload is not verified. Keep the matching .env.docker separately.",
+          note: "SQL, uploads/avatars and crawler hero/skin files. Complete means written to the filesystem; rclone remote upload is not verified. Keep the matching Docker env file and project-root .env (if used) separately.",
         }, null, 2), { flag: "wx", mode: 0o600 });
         log(`[compose] Backup completed: ${backupDir}`);
         if (storage.mode === "rclone") log("[compose] Backup is written to the mounted filesystem; verify rclone upload completion separately.");
         if (deploying) {
           migrationStarted = true;
           compose(["run", "--rm", "--no-deps", "migrate"]);
+          compose(["run", "--rm", "--no-deps", "-T", "--entrypoint", "node", "cron", "docker/native-migration.mjs", "audit", "-"],
+            { outputFile: resolve(backupDir, "media-verification.json") });
           compose(["up", "-d", "--no-deps", "--wait", "--wait-timeout", withOcr ? "600" : "180", "web", "cron", ...(withOcr ? ["ocr"] : [])]);
           const webEnvironment = model.services.web.environment;
           await verifyEntry(webEnvironment.PUBLIC_ORIGIN, webEnvironment.APP_RELEASE_ID || "local");

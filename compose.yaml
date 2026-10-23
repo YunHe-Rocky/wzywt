@@ -76,7 +76,9 @@ services:
       retries: 12
     logging: *logging
 
-  # Only this short-lived job runs as root. No recursive ownership changes are
+  # This short-lived initializer runs as root. Native import also uses a scoped
+  # root helper to read private backups, then extracts/verifies as uid 1000.
+  # No recursive ownership changes are
   # needed: application processes create all files as uid/gid 1000 themselves.
   storage-init:
     <<: *app

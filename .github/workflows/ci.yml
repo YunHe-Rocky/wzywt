@@ -107,9 +107,7 @@ jobs:
         with:
           node-version: 24
       - name: Generate isolated container configuration
-        run: |
-          node scripts/compose.mjs init
-          node -e "const fs=require('node:fs');const p='.env.docker';fs.writeFileSync(p,fs.readFileSync(p,'utf8').replace(/^APP_RELEASE_ID=.*$/m,'APP_RELEASE_ID=ci-'+process.env.GITHUB_SHA))"
+        run: node scripts/compose.mjs init
       - name: Validate Compose including optional OCR and OSS storage
         run: node scripts/test-compose-model.mjs
       - name: Build, back up, migrate and verify desktop/mobile entry
@@ -120,6 +118,17 @@ jobs:
           test -n "$cron_id"
           docker exec "$cron_id" node -e "require('node:fs').writeFileSync('/app/public/heroes/images/2147483646.jpg',Buffer.from([255,216,255,217]))"
           node --input-type=module -e "import assert from 'node:assert/strict';for(const ua of ['Mozilla/5.0 Windows','Mozilla/5.0 iPhone Mobile']){const r=await fetch('http://localhost:8001/heroes/images/2147483646.jpg',{redirect:'manual',headers:{'User-Agent':ua}});assert.equal(r.status,200);assert.equal((await r.arrayBuffer()).byteLength,4)}"
+      - name: Native to Docker migration with real MySQL, private media and recovery fence
+        env:
+          ALLOW_NATIVE_MIGRATION_INTEGRATION: "1"
+        run: |
+          web_id=$(docker ps --filter label=com.docker.compose.project=wzywt --filter label=com.docker.compose.service=web --format '{{.ID}}')
+          test -n "$web_id"
+          runtime_image=$(docker inspect --format '{{.Image}}' "$web_id")
+          node scripts/compose.mjs down
+          npm ci
+          npx prisma generate
+          node scripts/test-native-migration-docker.mjs --image "$runtime_image"
       - name: Container diagnostics
         if: failure()
         run: |

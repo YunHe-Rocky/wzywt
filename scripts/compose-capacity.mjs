@@ -53,7 +53,7 @@ export function capacityPlan(model, selected, daemonBytes, { action = "check", c
   }
   const residentBytes = resident.reduce((sum, name) => sum + limits[name], 0);
   const oneShotBytes = action === "sync-heroes" ? Math.max(limits.cron, limits["storage-init"])
-    : Math.max(limits.migrate, limits["storage-init"], limits["mysql-client"], selected.ocr === "external" ? limits.web : 0);
+    : Math.max(limits.cron, limits.migrate, limits["storage-init"], limits["mysql-client"], selected.ocr === "external" ? limits.web : 0);
   const plannedBytes = residentBytes + oneShotBytes + reserveBytes + externalBytes;
   if (plannedBytes > daemonBytes) throw new Error(`Memory budget exceeds Docker capacity: planned ${Math.ceil(plannedBytes / MiB)} MiB > ${Math.floor(daemonBytes / MiB)} MiB. Adjust service limits/reserves or increase Docker/host memory.`);
   return { daemonBytes, residentBytes, oneShotBytes, reserveBytes, externalBytes, plannedBytes, limits };

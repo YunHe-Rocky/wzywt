@@ -6,12 +6,15 @@
 
 - 当前以本地、局域网和 Docker Compose 容器化部署为主，同时支持电脑和手机页面。
 - 容器入口为 `node scripts/compose.mjs`，配置为 `compose.yaml` / `.env.docker`，操作说明见 `docs/operations/docker.md`。
+- 通用应用配置按白名单继承根目录 `.env`，`.env.docker` 只维护容器专用配置和差异；优先级为进程环境 > Docker 配置 > `.env` > 默认值。显式空值清空继承；不要把原生数据库/Redis 地址或宿主文件路径带入容器。
 - Compose 只维护拓扑；运行参数由 `scripts/compose-runtime.mjs` 调用共享环境和资源模块生成，通过标准输入合入。不要在 YAML 重新抄写应用环境、资源默认值或宿主发布逻辑。Docker/PM2 启动命令共用 `scripts/runtime-command.mjs`。
 - 容器运行职责、数据归属和 OSS 边界见 `docs/architecture/runtime-architecture.md`；实施人员只从 `docs/operations/docker.md` 开始，不拼接历史部署文档。
 - Web、Cron、MySQL、Redis、可选 OCR 按独立运行职责拆容器；电脑和手机共享同一 Web 服务、数据库和登录规则。
 - Compose 支持 `MYSQL_MODE=container|external`、`OCR_MODE=off|container|external`；复用已有服务时不管理外部进程。Nginx 沿用宿主配置，连接信息复用现有 env，不增加重复变量。
 - 新增配置或发布流程必须验证本地 HTTP、局域网 PUBLIC_ORIGIN、电脑/手机跳转与 Cookie；不能默认要求公网域名或 HTTPS。
 - 更新必须先构建、再停止写入并备份数据库/媒体/爬虫文件、再迁移和启动；日常停止不得删除持久卷。
+- 原生/PM2 转容器统一使用 `compose.mjs export-native/import-native`；源 Web/Cron 停写后导出 SQL、媒体、头像与校验清单，目标空存储导入并核验，不能把 `.env` 继承当作数据迁移。外部 MySQL 只复用与导出身份一致的源库，不自动导入覆盖。
+- 原生迁入和普通容器发布均须在启动前核对媒体引用与实际文件；迁入失败保留未完成标记和报告，不删卷、不自动导回旧 SQL、不清除缺失引用，也不自动转换旧视频。
 - rclone/OSS 只承载业务文件、爬虫文件和导出备份；容器 MySQL/Redis 活动数据使用本地 Docker 卷，外部 MySQL 保持已有存储。挂载未就绪时必须阻止应用写入本地同名目录。
 - 保留现有原生开发与 PM2 发布方式；生产数据库仍只能使用 `prisma migrate deploy`。
 

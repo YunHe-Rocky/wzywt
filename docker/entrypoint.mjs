@@ -7,6 +7,7 @@ import { assertContainerStorage } from "../scripts/compose-storage.mjs";
 import { runtimeLog, installRuntimeConsole } from "../src/lib/runtime-logging.mjs";
 import { watchChild } from "../scripts/runtime-liveness.mjs";
 import { runtimeCommand } from "../scripts/runtime-command.mjs";
+import { guardNativeImport } from "./native-migration.mjs";
 
 const mode = process.argv[2] || "web";
 process.env.APP_ROLE = "supervisor";
@@ -20,6 +21,7 @@ try {
   if (mode === "cron") environment.APP_HEARTBEAT_FILE = "/tmp/wzywt-cron-heartbeat";
   if (mode !== "migrate") {
     assertContainerStorage(environment.STORAGE_MODE);
+    guardNativeImport();
     if ((environment.SESSION_SECRET || "").length < 32) throw new Error("SESSION_SECRET must contain at least 32 characters");
     resolveDeploymentEntry(environment.PUBLIC_ORIGIN || "", environment.DEPLOY_ENVIRONMENT, environment.SESSION_COOKIE_SECURE);
     if (environment.MATCH_OCR_ENDPOINT) {

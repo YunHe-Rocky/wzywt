@@ -15,7 +15,7 @@ afterEach(() => {
   for (const root of fixtures.splice(0)) rmSync(root, { recursive: true, force: true });
 });
 
-function fixture({ failure, emptyDump = false, version = "2.30.0", running = "mysql\nredis\nweb\ncron\n", containerStates, psFormat = "array", invalidSecret = false, entryFailure = false, storageMode, daemonMiB = 8192, oldLimits = false } = {}) {
+function fixture({ failure, emptyDump = false, version = "2.30.0", running = "mysql\nredis\nweb\ncron\n", containerStates, psFormat = "array", invalidSecret = false, entryFailure = false, storageMode, daemonMiB = 8192, oldLimits = false, environment = {} } = {}) {
   const root = mkdtempSync(join(tmpdir(), "wzywt compose test "));
   fixtures.push(root);
   copyFileSync(resolve(dirname(fileURLToPath(import.meta.url)), "../.env.docker.example"), join(root, ".env.docker.example"));
@@ -75,7 +75,7 @@ function fixture({ failure, emptyDump = false, version = "2.30.0", running = "my
     if (options.outputFile) writeFileSync(options.outputFile, command.some(value => value.includes("mysqldump")) && emptyDump ? "" : "successful backup payload\n");
     return "";
   };
-  const manage = createManager({ root, run, environment: {}, ...(storageMode ? {
+  const manage = createManager({ root, run, environment, ...(storageMode ? {
     checkMount: () => calls.push({ command: ["check-mount"], args: [], options: {} }),
     prepare: () => calls.push({ command: ["prepare-storage"], args: [], options: {} }),
   } : {}), log: (message) => logs.push(message), verifyEntry: async (origin, release) => {
@@ -86,6 +86,11 @@ function fixture({ failure, emptyDump = false, version = "2.30.0", running = "my
 }
 
 const commands = (calls) => calls.map(({ command }) => command.join(" "));
+function submittedRuntime(calls) {
+  const call = calls.find(({ options }) => options.input !== undefined);
+  assert.ok(call, "expected the manager to submit the runtime override through stdin");
+  return parseComposeModel(call.options.input);
+}
 const resumeCommand = "up -d --no-deps --no-recreate --no-build --pull never --wait --wait-timeout 180";
 function manifest(root) {
   const backups = join(root, "data/docker-backups");
@@ -107,16 +112,211 @@ test("init creates independent random secrets and refuses to overwrite existing 
   assert.equal(f.calls.length, 0);
 });
 
+test("init reuses persisted shared secrets without copying or changing them", async () => {
+  const f = fixture();
+  const shared = "SESSION_SECRET=persisted-session-secret-more-than-32-characters\nMATCH_OCR_TOKEN=persisted-ocr-token-more-than-32-characters\n";
+  writeFileSync(join(f.root, ".env"), shared);
+  rmSync(join(f.root, ".env.docker"));
+  await f.manage("init");
+  const contents = readFileSync(join(f.root, ".env.docker"), "utf8");
+  assert.doesNotMatch(contents, /^(?:SESSION_SECRET|MATCH_OCR_TOKEN)=/m);
+  assert.doesNotMatch(contents, /persisted-session-secret|persisted-ocr-token/);
+  assert.match(contents, /^MYSQL_PASSWORD=[a-f0-9]{64}$/m);
+  assert.match(contents, /^MYSQL_ROOT_PASSWORD=[a-f0-9]{64}$/m);
+  assert.equal(readFileSync(join(f.root, ".env"), "utf8"), shared);
+  await f.manage("check");
+  const app = submittedRuntime(f.calls).services.web.environment;
+  assert.equal(app.SESSION_SECRET, "persisted-session-secret-more-than-32-characters");
+  assert.equal(app.MATCH_OCR_TOKEN, "persisted-ocr-token-more-than-32-characters");
+  assert.ok(f.logs.every(message => !message.includes("persisted-")));
+});
+
+test("init persists missing or empty shared secrets even when the process temporarily supplies them", async () => {
+  for (const shared of [undefined, "SESSION_SECRET=\nMATCH_OCR_TOKEN=\n", "SESSION_SECRET=persisted-session-secret-more-than-32-characters\n"]) {
+    const environment = { SESSION_SECRET: "temporary-session-secret-more-than-32-characters", MATCH_OCR_TOKEN: "temporary-ocr-token-more-than-32-characters" };
+    const f = fixture({ environment });
+    if (shared !== undefined) writeFileSync(join(f.root, ".env"), shared);
+    rmSync(join(f.root, ".env.docker"));
+    await f.manage("init");
+    const contents = readFileSync(join(f.root, ".env.docker"), "utf8");
+    const session = contents.match(/^SESSION_SECRET=([a-f0-9]{64})$/m)?.[1];
+    const token = contents.match(/^MATCH_OCR_TOKEN=([a-f0-9]{64})$/m)?.[1];
+    if (shared?.includes("persisted-session")) assert.equal(session, undefined);
+    else assert.equal(session?.length, 64);
+    assert.equal(token?.length, 64);
+    assert.doesNotMatch(contents, /temporary-session-secret|temporary-ocr-token/);
+    delete environment.SESSION_SECRET;
+    delete environment.MATCH_OCR_TOKEN;
+    await f.manage("check");
+    const app = submittedRuntime(f.calls).services.web.environment;
+    assert.equal(app.SESSION_SECRET, session || "persisted-session-secret-more-than-32-characters");
+    assert.equal(app.MATCH_OCR_TOKEN, token);
+  }
+});
+
+test("init with OCR replaces a persisted native endpoint with the internal container endpoint", async () => {
+  const f = fixture();
+  const shared = "SESSION_SECRET=persisted-session-secret-more-than-32-characters\nMATCH_OCR_TOKEN=persisted-ocr-token-more-than-32-characters\nMATCH_OCR_ENDPOINT=http://127.0.0.1:8010/recognize\nMATCH_OCR_INTERNAL_HOST=native-ocr\n";
+  writeFileSync(join(f.root, ".env"), shared);
+  rmSync(join(f.root, ".env.docker"));
+  await f.manage("init", "--ocr");
+  const contents = readFileSync(join(f.root, ".env.docker"), "utf8");
+  assert.match(contents, /^OCR_MODE=container$/m);
+  assert.match(contents, /^MATCH_OCR_ENDPOINT=http:\/\/ocr:8010\/recognize$/m);
+  assert.doesNotMatch(contents, /^(?:SESSION_SECRET|MATCH_OCR_TOKEN)=/m);
+  f.model.services.web.environment.MATCH_OCR_ENDPOINT = "http://ocr:8010/recognize";
+  await f.manage("check");
+  const runtime = submittedRuntime(f.calls);
+  assert.equal(runtime.services.web.environment.MATCH_OCR_ENDPOINT, "http://ocr:8010/recognize");
+  assert.equal(runtime.services.web.environment.MATCH_OCR_INTERNAL_HOST, "ocr");
+  assert.equal(runtime.services.ocr.environment.OCR_TOKEN, "persisted-ocr-token-more-than-32-characters");
+  assert.equal(readFileSync(join(f.root, ".env"), "utf8"), shared);
+});
+
 test("argument parser rejects accidental destructive flags and malformed options", () => {
   assert.throws(() => parseArguments(["down", "--volumes"]), /Unknown argument/);
   assert.throws(() => parseArguments(["up", "--env-file"]), /requires a path/);
   assert.throws(() => parseArguments(["logs", "unknown-service"]), /Unknown argument/);
 });
 
+test("native migration arguments separate source configuration and require explicit stopped writers", () => {
+  for (const args of [["export-native"], ["export-native", "--backup-dir", "snapshots"],
+    ["export-native", "--writers-stopped"], ["import-native"], ["up", "--from-backup", "snapshot"],
+    ["export-native", "--env-file", "wrong.env"], ["export-native", "--ocr"]]) assert.throws(() => parseArguments(args));
+  const source = parseArguments(["export-native", "--source-root", "old site", "--source-env", "native.env", "--source-media", "uploads",
+    "--source-avatars", "avatars", "--backup-dir", "snapshots", "--writers-stopped"]);
+  assert.equal(source.sourceRoot, "old site"); assert.equal(source.sourceEnv, "native.env"); assert.equal(source.writersStopped, true);
+  assert.equal(parseArguments(["import-native", "--from-backup", "snapshot", "--env-file", "target.env"]).envFile, "target.env");
+});
+
+test("build prepares images before native downtime without starting or stopping anything", async () => {
+  const f = fixture(); await f.manage("build");
+  assert.ok(commands(f.calls).includes("build web cron migrate storage-init"));
+  assert.ok(!commands(f.calls).some(command => /^(run|up|stop|down|exec) /.test(command)));
+});
+
+test("incomplete native import blocks normal deployment before schema migration or activation", async () => {
+  const f = fixture({ failure: command => command.includes("docker/native-migration.mjs") && command.at(-1) === "guard" });
+  await assert.rejects(f.manage("up"), /simulated/);
+  assert.ok(!commands(f.calls).includes("run --rm --no-deps migrate"));
+  assert.ok(!commands(f.calls).some(command => command.startsWith("up -d --no-deps")));
+});
+
+test("missing media after migration blocks activation and leaves a verification report with writers stopped", async () => {
+  const f = fixture({ failure: command => command.includes("docker/native-migration.mjs") && command.includes("audit") });
+  await assert.rejects(f.manage("update"), /Deployment stopped after migration began/);
+  assert.ok(commands(f.calls).includes("run --rm --no-deps migrate"));
+  assert.ok(!commands(f.calls).some(command => command.startsWith("up -d --no-deps")));
+  assert.equal(commands(f.calls).at(-1), "stop web cron");
+  assert.ok(f.calls.some(({ command, options }) => command.includes("audit") && options.outputFile.endsWith("media-verification.json")));
+});
+
+test("the manager inherits shared application settings from the root env through stdin", async () => {
+  const f = fixture();
+  const secret = 'fixture$session:${HOME} # "quoted"-more-than-32-characters';
+  const shared = `SESSION_SECRET='${secret}'\nPUBLIC_ORIGIN=http://192.168.1.20:8001\nDEPLOY_ENVIRONMENT=local\nSESSION_COOKIE_SECURE=0\nHEALTH_DETAILS_TOKEN=fixture-health-token\nMATCH_OCR_ENDPOINT=http://host-machine:8011/recognize\nMATCH_OCR_TOKEN=fixture-ocr-token\nRESOURCE_EXTERNAL_RPS=9\nSPLIT_WORKER_HEAP_MB=96\nMEDIA_USER_STORED_QUOTA_BYTES=0\nCOMBAT_VIDEO_MAX_SIZE_MB=123\nTRUST_PROXY=0\nTZ=UTC\n`;
+  writeFileSync(join(f.root, ".env"), shared);
+  await f.manage("check");
+  const runtime = submittedRuntime(f.calls);
+  for (const role of ["web", "cron"]) {
+    const app = runtime.services[role].environment;
+    assert.equal(app.SESSION_SECRET, secret);
+    assert.equal(app.PUBLIC_ORIGIN, "http://192.168.1.20:8001");
+    assert.equal(app.DEPLOY_ENVIRONMENT, "local");
+    assert.equal(app.SESSION_COOKIE_SECURE, "0");
+    assert.equal(app.HEALTH_DETAILS_TOKEN, "fixture-health-token");
+    assert.equal(app.MATCH_OCR_ENDPOINT, "http://host-machine:8011/recognize");
+    assert.equal(app.MATCH_OCR_TOKEN, "fixture-ocr-token");
+    assert.equal(app.RESOURCE_EXTERNAL_RPS, "9");
+    assert.equal(app.SPLIT_WORKER_HEAP_MB, "96");
+    assert.equal(app.MEDIA_USER_STORED_QUOTA_BYTES, "0");
+    assert.equal(app.COMBAT_VIDEO_MAX_SIZE_MB, "123");
+    assert.equal(app.TRUST_PROXY, "0");
+    assert.equal(app.TZ, "UTC");
+  }
+  assert.equal(runtime.services.migrate.environment.TZ, "UTC");
+  assert.equal(runtime.services.migrate.environment.SESSION_SECRET, undefined);
+  assert.equal(runtime.services.migrate.environment.HEALTH_DETAILS_TOKEN, undefined);
+  assert.equal(runtime.services.ocr.environment.OCR_TOKEN, "fixture-ocr-token");
+  assert.equal(readFileSync(join(f.root, ".env"), "utf8"), shared);
+  assert.ok(f.calls.every(call => call.args.every(arg => !arg.includes(secret))));
+  assert.ok(f.logs.every(message => !message.includes(secret)));
+});
+
+test("existing Docker settings and explicit empty assignments override shared values", async () => {
+  const f = fixture();
+  writeFileSync(join(f.root, ".env"), "SESSION_SECRET=shared-session-secret-more-than-32-characters\nPUBLIC_ORIGIN=http://192.168.1.20:8001\nRESOURCE_EXTERNAL_RPS=9\nSESSION_COOKIE_SECURE=1\nMATCH_OCR_ENDPOINT=http://host-machine:8011/recognize\nMATCH_OCR_TOKEN=shared-ocr-token\nMEDIA_USER_STORED_QUOTA_BYTES=0\n");
+  writeFileSync(join(f.root, ".env.docker"), "SESSION_SECRET=existing-docker-secret-more-than-32-characters\nPUBLIC_ORIGIN=http://192.168.1.30:8001\nRESOURCE_EXTERNAL_RPS=12\nSESSION_COOKIE_SECURE=\nMATCH_OCR_ENDPOINT=\nMATCH_OCR_TOKEN=\nMEDIA_USER_STORED_QUOTA_BYTES=\n");
+  await f.manage("check");
+  const app = submittedRuntime(f.calls).services.web.environment;
+  assert.equal(app.SESSION_SECRET, "existing-docker-secret-more-than-32-characters");
+  assert.equal(app.PUBLIC_ORIGIN, "http://192.168.1.30:8001");
+  assert.equal(app.RESOURCE_EXTERNAL_RPS, "12");
+  assert.equal(app.SESSION_COOKIE_SECURE, "");
+  assert.equal(app.MATCH_OCR_ENDPOINT, "");
+  assert.equal(app.MATCH_OCR_TOKEN, "");
+  assert.equal(app.MEDIA_USER_STORED_QUOTA_BYTES, "");
+  assert.ok(f.logs.some(message => message.includes("OCR=off")));
+});
+
+test("explicit process values override both env files including an empty OCR endpoint", async () => {
+  const f = fixture({ environment: { SESSION_SECRET: "process-session-secret-more-than-32-characters", PUBLIC_ORIGIN: "http://192.168.1.40:8001", RESOURCE_EXTERNAL_RPS: "7", MATCH_OCR_ENDPOINT: "" } });
+  writeFileSync(join(f.root, ".env"), "SESSION_SECRET=shared-session-secret-more-than-32-characters\nPUBLIC_ORIGIN=http://192.168.1.20:8001\nRESOURCE_EXTERNAL_RPS=9\nMATCH_OCR_ENDPOINT=http://host-machine:8011/recognize\n");
+  writeFileSync(join(f.root, ".env.docker"), "SESSION_SECRET=docker-session-secret-more-than-32-characters\nPUBLIC_ORIGIN=http://192.168.1.30:8001\nRESOURCE_EXTERNAL_RPS=12\nMATCH_OCR_ENDPOINT=http://host-machine:8012/recognize\n");
+  await f.manage("check");
+  const app = submittedRuntime(f.calls).services.web.environment;
+  assert.equal(app.SESSION_SECRET, "process-session-secret-more-than-32-characters");
+  assert.equal(app.PUBLIC_ORIGIN, "http://192.168.1.40:8001");
+  assert.equal(app.RESOURCE_EXTERNAL_RPS, "7");
+  assert.equal(app.MATCH_OCR_ENDPOINT, "");
+  assert.ok(f.logs.some(message => message.includes("OCR=off")));
+});
+
+test("shared native infrastructure and host paths cannot change container bindings or Compose interpolation", async () => {
+  const f = fixture();
+  const native = {
+    DATABASE_URL: "mysql://native:host-password@127.0.0.1/native_db", MYSQL_MODE: "external", MYSQL_HOST: "127.0.0.1", MYSQL_PORT: "3307",
+    MYSQL_USER: "native_user", MYSQL_PASSWORD: "native-password", MYSQL_ROOT_PASSWORD: "native-root-password", MYSQL_DATABASE: "native_db",
+    REDIS_URL: "redis://127.0.0.1:6380", REDIS_REQUIRED: "0", HOST: "127.0.0.1", PORT: "9001", BIND_ADDRESS: "127.0.0.1",
+    MEDIA_STORAGE_DIR: "/host/media", AVATAR_DIR: "/host/avatars", FFMPEG_BIN: "/host/bin/ffmpeg", COMPOSE_PROJECT_NAME: "native-project",
+    APP_RELEASE_ID: "native-release", WEB_MEMORY_LIMIT: "128m", NODE_IMAGE: "native-node:latest", STORAGE_MODE: "rclone", OSS_MOUNT_PATH: "/host/oss",
+  };
+  writeFileSync(join(f.root, ".env"), Object.entries(native).map(([key, value]) => `${key}=${value}`).join("\n") + "\n");
+  await f.manage("check");
+  const runtime = submittedRuntime(f.calls);
+  const app = runtime.services.web.environment;
+  assert.equal(app.DATABASE_URL, undefined);
+  assert.equal(app.MYSQL_HOST, "mysql");
+  assert.equal(app.MYSQL_PORT, "3306");
+  assert.equal(app.MYSQL_USER, "wzywt");
+  assert.equal(app.MYSQL_DATABASE, "wzywt");
+  assert.equal(app.MYSQL_PASSWORD, undefined);
+  assert.equal(runtime.services.mysql.environment.MYSQL_ROOT_PASSWORD, "");
+  assert.equal(app.REDIS_URL, "redis://redis:6379/0");
+  assert.equal(app.REDIS_REQUIRED, "1");
+  assert.equal(app.HOST, "0.0.0.0");
+  assert.equal(app.PORT, "8001");
+  assert.equal(app.MEDIA_STORAGE_DIR, "/app/data/media");
+  assert.equal(app.AVATAR_DIR, "/app/data/media/avatars");
+  assert.equal(app.FFMPEG_BIN, undefined);
+  assert.equal(app.APP_RELEASE_ID, "local");
+  assert.equal(app.STORAGE_MODE, "volume");
+  assert.equal(runtime.services.web.mem_limit, "1g");
+  for (const call of f.calls.filter(({ options }) => options.input !== undefined)) {
+    for (const [key, value] of Object.entries(native)) {
+      assert.notEqual(call.options.environment[key], value, `${key} must not be inherited into the Docker process`);
+    }
+  }
+});
+
 test("custom env file feeds one stdin override through validation, deployment and backup streams", async () => {
   const f = fixture();
   const secret = 'fixture$secret:${HOME} # "quoted"';
-  const file = join(f.root, "deployment settings.env");
+  const directory = join(f.root, "deployment settings");
+  mkdirSync(directory);
+  const file = join(directory, "selected.env");
+  writeFileSync(join(f.root, ".env"), "PUBLIC_ORIGIN=http://192.168.1.20:8001\nRESOURCE_EXTERNAL_RPS=9\nSESSION_SECRET=shared-session-secret-more-than-32-characters\n");
+  writeFileSync(join(directory, ".env"), "PUBLIC_ORIGIN=http://192.168.1.99:8001\nSESSION_SECRET=wrong-directory-session-secret-more-than-32-characters\n");
   writeFileSync(file, `MYSQL_PASSWORD='${secret}'\nWEB_MEMORY_LIMIT=768m\nRESOURCE_EXTERNAL_RPS=12\n`);
   await f.manage("update", "--env-file", file);
   const calls = f.calls.filter(({ args }) => args[0] === "compose" && args[1] !== "version");
@@ -124,6 +324,8 @@ test("custom env file feeds one stdin override through validation, deployment an
   const model = parseComposeModel(input);
   assert.equal(model.services.web.environment.MYSQL_PASSWORD, secret);
   assert.equal(model.services.web.environment.RESOURCE_EXTERNAL_RPS, "12");
+  assert.equal(model.services.web.environment.PUBLIC_ORIGIN, "http://192.168.1.20:8001");
+  assert.equal(model.services.web.environment.SESSION_SECRET, "shared-session-secret-more-than-32-characters");
   assert.equal(model.services.web.mem_limit, "768m");
   for (const call of calls) {
     assert.ok(call.args.includes(file));
@@ -132,7 +334,8 @@ test("custom env file feeds one stdin override through validation, deployment an
     assert.equal(call.options.environment.WZYWT_COMPOSE_MANAGED, "1");
     assert.ok(!call.args.some(value => value.includes(secret)));
   }
-  assert.equal(calls.filter(call => call.options.outputFile).length, 3);
+  assert.equal(calls.filter(call => call.options.outputFile?.endsWith(".partial")).length, 3);
+  assert.equal(calls.filter(call => call.options.outputFile?.endsWith("media-verification.json")).length, 1);
   assert.ok(!f.logs.some(message => message.includes(secret)));
 });
 
@@ -250,7 +453,7 @@ test("SQL backup failure blocks migration and resumes only previously running wr
 });
 
 test("empty backup and media backup failure each block migration", async () => {
-  for (const options of [{ emptyDump: true }, { failure: (command) => command.includes("--entrypoint") }]) {
+  for (const options of [{ emptyDump: true }, { failure: (command) => command.includes("--entrypoint") && command.includes("tar") }]) {
     const f = fixture(options);
     await assert.rejects(f.manage("update"));
     assert.ok(!commands(f.calls).includes("run --rm --no-deps migrate"));
@@ -506,6 +709,22 @@ test("maintenance commands remain available with an invalid external endpoint or
       assert.ok(!call.args.includes("-"));
       assert.equal(call.options.environment.WZYWT_COMPOSE_MANAGED, "1");
     }
+  }
+});
+
+test("malformed shared env blocks startup but does not block inspecting or stopping existing containers", async () => {
+  for (const action of ["check", "status", "logs", "down"]) {
+    const f = fixture();
+    writeFileSync(join(f.root, ".env"), "SESSION_SECRET='unterminated-private-value\nRESOURCE_EXTERNAL_RPS=invalid\n");
+    if (action === "check") {
+      await assert.rejects(f.manage(action), /Unterminated|SESSION_SECRET/);
+      assert.equal(f.calls.length, 0);
+      continue;
+    }
+    await f.manage(action);
+    assert.ok(!commands(f.calls).some(command => /^(build|up|stop|run) /.test(command)));
+    assert.ok(f.calls.every(({ options }) => options.input === undefined));
+    assert.ok(f.logs.every(message => !message.includes("unterminated-private-value")));
   }
 });
 

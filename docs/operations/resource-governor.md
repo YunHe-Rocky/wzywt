@@ -67,11 +67,15 @@ Web/Cron 在已有 MySQL `kvCache` 交换带 release 和时效的摘要，不新
 
 ## Docker
 
-从 [Docker 部署入口](docker.md) 执行 `init/check/up/update`。容器限额及 MySQL/Redis 启动参数统一由 `scripts/compose-runtime.mjs` 生成，应用配置复用 `docker/runtime-env.mjs`，调度默认值仍由 `src/core/resource-settings.ts` 读取；`compose.yaml` 不重复维护这些参数。现场只修改 `.env.docker` 或 `--env-file` 指定的文件。
+从 [Docker 部署入口](docker.md) 执行 `init/check/build/up/update`；已有原生数据通过同一入口的 `export-native/import-native` 迁入，操作顺序见部署手册。容器限额及 MySQL/Redis 启动参数统一由 `scripts/compose-runtime.mjs` 生成，应用配置复用 `docker/runtime-env.mjs`，调度默认值仍由 `src/core/resource-settings.ts` 读取；`compose.yaml` 不重复维护这些参数。
 
-Web 默认 1 GiB、Cron 768 MiB、MySQL 1 GiB、Redis 768 MiB、可选 OCR 2 GiB；一次性 migration、storage-init、MySQL 客户端也有内存/CPU/PID 限额。Redis 保留 256 MiB 数据上限并预留 AOF/fork 与进程开销，MySQL 默认 buffer pool 256 MiB、最多 50 个连接。全部是可调默认值，不是硬件规格或实测峰值。
+`RESOURCE_*` 与 `SPLIT_WORKER_*` 从项目根目录 `.env` 继承，容器需要不同值时才在 `.env.docker` 或 `--env-file` 指定的覆盖文件设置；各服务硬限额和宿主预留仍在 Docker 覆盖文件维护。优先级为显式进程环境 > Docker 覆盖 > 根目录 `.env` > 程序默认，省略为继承，显式空值清除继承后使用该调度项的默认值。没有 `.env` 时直接使用程序默认，`--env-file` 不改变基底位置。旧覆盖文件中已有的调度值继续优先，不会被自动清除。
 
-`check/up/update/sync-heroes` 会读取 Docker daemon 的 MemTotal，计算所选常驻服务、最大一次性任务、`COMPOSE_MEMORY_RESERVE_MB`（默认 1024）和 `COMPOSE_EXTERNAL_MEMORY_MB`（默认 0）的总预算；超配或限额缺失时在构建和停写前失败。未选择的外部 MySQL/OCR 不启动、不管理；若与 Docker 在同一宿主，须把其占用填写在外部预留中。预留是容量核对，不是内核预占；其他项目容器和构建峰值仍须纳入现场容量评估。默认无 OCR 的 check 预算为 5120 MiB，含 OCR 为 7168 MiB，手工同步另外计入一个 Cron 容器。
+Web 默认 1 GiB、Cron 768 MiB、MySQL 1 GiB、Redis 768 MiB、可选 OCR 2 GiB；一次性 migration、storage-init、MySQL 客户端也有内存/CPU/PID 限额，媒体核验和原生导入工具复用 Cron 容器的限额。Redis 保留 256 MiB 数据上限并预留 AOF/fork 与进程开销，MySQL 默认 buffer pool 256 MiB、最多 50 个连接。全部是可调默认值，不是硬件规格或实测峰值。
+
+`check/build/up/update/import-native/sync-heroes` 会读取 Docker daemon 的 MemTotal，计算所选常驻服务、最大一次性任务、`COMPOSE_MEMORY_RESERVE_MB`（默认 1024）和 `COMPOSE_EXTERNAL_MEMORY_MB`（默认 0）的总预算；超配或限额缺失时在构建和停写前失败。一次性任务预留包含使用 Cron 限额的媒体核验/导入工具，按先后执行任务中的最大值计算。未选择的外部 MySQL/OCR 不启动、不管理；若与 Docker 在同一宿主，须把其占用填写在外部预留中。预留是容量核对，不是内核预占；其他项目容器和构建峰值仍须纳入现场容量评估。默认无 OCR 的 check 预算为 **5376 MiB**，含容器 OCR 为 **7424 MiB**；默认手工同步的额外 Cron 容器已被同一预算覆盖，不再另加差额。
+
+`import-native` 与 `up/update` 共用 MySQL/Redis 实际内存、CPU/PID 限额检查。导入仍保留数据容器的 `--no-recreate`；旧容器限额缺失或超过配置时，在导入标记和首次数据库写入前阻止继续，按部署手册完成资源维护后再执行。
 
 更新继续保留数据服务的 `--no-recreate`。启动 Web/Cron 前会核对现有 MySQL/Redis 的真实限额，旧无限额容器会阻止部署进入停写阶段；按 [Docker 资源维护步骤](docker.md#已有容器的资源限额维护) 更新其实际限额后再发布。只编辑环境文件不代表已有容器已经采用新限制。
 

@@ -25,8 +25,9 @@
 - 自适应资源调度根据内存、CPU 和请求压力收缩内部任务，普通 API 与实时订阅分别限额，并回收空闲缓存和 Worker。
 - 结构化日志包含请求、任务、进程和发布标识；健康检查区分存活与就绪，配合进程监督和有期限的优雅退出。
 - 更新按构建、停写、备份、迁移、启动及电脑/手机入口检查执行；支持本地卷和经检查的 rclone/OSS 业务文件存储。
+- 本地或 PM2 数据可通过统一入口导出、迁入空容器存储并核对媒体 SHA-256，保留历史视频记录和文件路径；失败保持停写并保留报告。
 
-运行参数只维护在选定环境文件中，Compose 调用共享脚本生成配置。具体预算、恢复条件和验收边界见 [资源调度与自动恢复](docs/operations/resource-governor.md) 与 [部署手册](docs/operations/docker.md)。
+共享应用参数沿用根目录 `.env`，容器配置和差异写入 `.env.docker`，Compose 调用共享脚本生成配置。具体预算、恢复条件和验收边界见 [资源调度与自动恢复](docs/operations/resource-governor.md) 与 [部署手册](docs/operations/docker.md)。
 
 当前内部版本：[v1.1.0 / WZYWT-REL-0005](docs/releases/v1.1.0.md)（小更新，实现源码已提交；代码版本不代表生产已部署）。版本号按「大更新.小更新.子更新」排列，下一子更新为 `v1.1.1`；上一已登记代码版本为 [v1.0.3](docs/releases/v1.0.3.md)。
 
@@ -38,18 +39,21 @@ Next.js 15、TypeScript、Tailwind CSS、Prisma/MySQL、Redis、iron-session、P
 
 当前部署面向本地、局域网和云服务器容器，电脑和手机使用同一个站点。实施人员从 [Docker Compose 部署与运维手册](docs/operations/docker.md) 开始；容器职责和数据归属见 [Docker Compose 运行架构](docs/architecture/runtime-architecture.md)。
 
-已安装 Node.js 24+ 和 Docker Desktop（Linux 容器）或 Docker Engine + Compose 2.20+ 时，可在项目根目录直接执行，无需宿主机先安装 npm 依赖、MySQL、Redis 或 Git：
+**已有本地或 PM2 站点时，先按[原生数据迁入](docs/operations/docker.md#52-已有本地或-pm2-数据迁入)执行 `export-native`、`import-native`，再启动容器。** 配置继承不会复制旧数据库和视频；迁移需停止源 Web/Cron、导出完整备份、核对空目标及媒体完整性。旧视频保留原记录 ID 和相对路径，无需因换部署方式重新上传，仍须在真实电脑和手机验收播放、拖动。
+
+以下命令适用于**全新安装**。已安装 Node.js 24+ 和 Docker Desktop（Linux 容器）或 Docker Engine + Compose 2.20+ 时，可在项目根目录直接执行，无需宿主机先安装 npm 依赖、MySQL、Redis 或 Git：
 
 ```bash
 node scripts/compose.mjs init
-# 手机访问前，将 .env.docker 中 PUBLIC_ORIGIN 改为 http://本机局域网IP:8001
+# 局域网 HTTP：在 .env.docker 按需覆盖 DEPLOY_ENVIRONMENT=local
+# 并设置 PUBLIC_ORIGIN=http://本机局域网IP:8001，Cookie 按部署手册检查
 node scripts/compose.mjs check
 node scripts/compose.mjs up
 ```
 
-部署配置只维护 `.env.docker`（或 `--env-file` 指定的文件）。`compose.yaml` 保留服务、网络、挂载和健康检查，管理脚本直接调用共享配置生成环境变量及资源限额；无需再把应用参数复制到 YAML。日常操作统一使用 `node scripts/compose.mjs`。
+`.env.docker`（或 `--env-file` 指定的文件）只维护容器配置和需要覆盖的共享值，Session、访问入口、OCR、视频限额与资源调度等从可选的根目录 `.env` 继承。优先级为显式进程环境 > Docker 覆盖文件 > 根目录 `.env` 共享白名单 > 程序默认；缺项继承，`KEY=` 清除继承。原生数据库/Redis 地址、监听和宿主路径不继承。具体范围与旧配置去重见 [配置说明](docs/operations/docker.md#41-首次生成)。`compose.yaml` 保留拓扑，日常操作统一使用 `node scripts/compose.mjs`。
 
-`init` 生成随机凭据，已有配置不会覆盖。云服务器已经通过 rclone 挂载 OSS 时，在 `.env.docker` 设置以下变量；路径、权限、迁移和验收要求见[部署手册的 rclone/OSS 章节](docs/operations/docker.md#3-rclone--oss-前置检查)：
+`init` 不修改 `.env`、不覆盖已有 Docker 配置；生成独立 MySQL 密码，根目录 `.env` 缺少非空 Session/OCR 密钥时补充随机值，临时进程密钥不作为持久来源。没有 `.env` 也可独立部署。云服务器已经通过 rclone 挂载 OSS 时，在 `.env.docker` 设置以下变量；路径、权限、迁移和验收要求见[部署手册的 rclone/OSS 章节](docs/operations/docker.md#3-rclone--oss-前置检查)：
 
 ```dotenv
 STORAGE_MODE=rclone
@@ -81,7 +85,7 @@ npm run dev
 
 ## 源码与 PM2 环境变量
 
-以下项目适用于直接运行源码和 PM2 部署。Compose 使用 `.env.docker`，以 [Compose 手册](docs/operations/docker.md#4-生成并填写部署配置)为准。
+以下项目适用于直接运行源码和 PM2 部署。Compose 继承其中的共享应用白名单，并使用 `.env.docker` 设置容器配置和覆盖项，以 [Compose 手册](docs/operations/docker.md#4-生成并填写部署配置)为准。
 
 源码/PM2 生产必填项只有：
 

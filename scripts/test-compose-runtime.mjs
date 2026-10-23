@@ -37,7 +37,8 @@ test("custom configuration and explicit overrides follow one path into runtime a
     assert.equal(model.services[role].environment.SPLIT_WORKER_HEAP_MB, "96");
   }
   const planned = capacityPlan(model, { mysql: "container", ocr: "off" }, 8 * 1024 ** 3);
-  assert.equal(planned.plannedBytes / 1024 ** 2, 4864);
+  assert.equal(planned.plannedBytes / 1024 ** 2, 5120);
+  assert.equal(planned.oneShotBytes / 1024 ** 2, 768, "include the Cron-image media verification helper");
   assert.throws(() => build("RESOURCE_SUBSCRIPTION_CONCURRENCY=0\n"), /RESOURCE_SUBSCRIPTION_CONCURRENCY/);
 });
 

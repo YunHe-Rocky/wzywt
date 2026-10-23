@@ -4,11 +4,13 @@
 
 本文是本地、局域网和云服务器容器部署的唯一实施入口。实施人员从项目根目录执行本文命令。系统结构和数据归属见 [Docker Compose 运行架构](../architecture/runtime-architecture.md)。未采用容器、明确使用 PM2 时才阅读 [原生 PM2 部署](deploy.md)。
 
-配置只填写 `.env.docker`，自定义位置通过 `--env-file` 指定。`compose.yaml` 负责服务拓扑、网络、挂载、依赖和健康检查；管理脚本调用共享配置，生成环境变量、启动参数和资源限额。后续调整应用参数时直接修改环境文件，无需在 YAML 中再维护一份。
+共享应用参数沿用项目根目录的 `.env`；`.env.docker` 只维护容器配置和需要覆盖的共享值，自定义覆盖文件通过 `--env-file` 指定。没有 `.env` 也可独立部署。配置优先级与继承范围见 [4.1 节](#41-首次生成)。`compose.yaml` 负责服务拓扑、网络、挂载、依赖和健康检查；管理脚本调用共享配置，生成环境变量、启动参数和资源限额，无需在 YAML 中再维护一份。
 
 每次操作自动合并所选存储配置与内存中的运行配置，不生成第二份凭据文件。部署入口统一使用 `node scripts/compose.mjs`；单独执行 `docker compose up` 会提示使用管理脚本，以免遗漏资源限额和部署门禁。查看状态、日志和停止同样使用本文命令。
 
-自适应资源供给、订阅独立限额、缓存/Worker 回收、高压排空及日志验收见 [资源调度与自动恢复](resource-governor.md)。首次部署同时核对 `.env.docker` 的各服务限额、`RESOURCE_*`、`SPLIT_WORKER_*` 与宿主预留。
+**已有本地或 PM2 数据时，先完成 [5.2 节原生迁入](#52-已有本地或-pm2-数据迁入)，再启动容器。** `.env` 的配置继承不会复制数据库或视频；直接对一个新卷执行 `up` 也不会自动找到旧媒体目录。全新安装使用 5.1 节，已有容器更新使用第 8 节。
+
+自适应资源供给、订阅独立限额、缓存/Worker 回收、高压排空及日志验收见 [资源调度与自动恢复](resource-governor.md)。首次部署核对 `.env.docker` 的各服务限额与宿主预留，以及合并后生效的 `RESOURCE_*`、`SPLIT_WORKER_*`。
 
 ### 服务容量与预检
 
@@ -17,7 +19,7 @@
 | 服务 | 内存上限配置 / 默认 | CPU 默认 | PID 上限 |
 |---|---|---|---|
 | web | `WEB_MEMORY_LIMIT=1g` | `WEB_CPU_LIMIT=2.0` | 256 |
-| cron / 手工同步容器 | `CRON_MEMORY_LIMIT=768m` | `CRON_CPU_LIMIT=1.0` | 128 |
+| cron / 手工同步与媒体核验容器 | `CRON_MEMORY_LIMIT=768m` | `CRON_CPU_LIMIT=1.0` | 128 |
 | mysql | `MYSQL_MEMORY_LIMIT=1g` | `MYSQL_CPU_LIMIT=1.0` | 256 |
 | redis | `REDIS_MEMORY_LIMIT=768m` | `REDIS_CPU_LIMIT=0.5` | 128 |
 | 可选 ocr | `OCR_MEMORY_LIMIT=2g` | `OCR_CPU_LIMIT=2.0` | 128 |
@@ -25,7 +27,7 @@
 | storage-init | `STORAGE_INIT_MEMORY_LIMIT=128m` | 0.5 | 64 |
 | mysql-client | `MYSQL_CLIENT_MEMORY_LIMIT=256m` | 1.0 | 64 |
 
-`check/up/update/sync-heroes` 从当前 Docker daemon 读取 MemTotal，在构建/停写前核对：所选常驻服务限额之和 + 最大一次性任务 + `COMPOSE_MEMORY_RESERVE_MB`（默认 1024）+ `COMPOSE_EXTERNAL_MEMORY_MB`（默认 0）。默认无 OCR 的 check 预算为 5120 MiB，含 OCR 为 7168 MiB；手工同步增加一个 Cron 容器的预算。Docker Desktop 按其虚拟机容量核对。预留不是内核预占，构建峰值、其他项目容器及同机外部 MySQL/OCR 也要计入；外部服务的同机占用填写在 `COMPOSE_EXTERNAL_MEMORY_MB`，远程服务无需计入本机。
+`check/build/up/update/import-native/sync-heroes` 从当前 Docker daemon 读取 MemTotal，在构建/停写前核对：所选常驻服务限额之和 + 最大一次性任务 + `COMPOSE_MEMORY_RESERVE_MB`（默认 1024）+ `COMPOSE_EXTERNAL_MEMORY_MB`（默认 0）。一次性任务包含使用 Cron 限额的媒体核验/导入工具，以及 migration、storage-init、MySQL 客户端和所选外部 OCR 探测；按其中最大值预留，不把先后执行的任务累加。默认无 OCR 的 check 预算为 **5376 MiB**，含容器 OCR 为 **7424 MiB**；默认手工同步采用相同预算，已计入额外 Cron 容器，不再另外加一份。Docker Desktop 按其虚拟机容量核对。预留不是内核预占，构建峰值、其他项目容器及同机外部 MySQL/OCR 也要计入；外部服务的同机占用填写在 `COMPOSE_EXTERNAL_MEMORY_MB`，远程服务无需计入本机。
 
 Redis 的 `REDIS_MAXMEMORY=256mb` 是数据上限；容器上限至少为数据上限两倍加 64 MiB，以留 AOF/fork 和进程空间。MySQL 新容器默认 `MYSQL_BUFFER_POOL_SIZE=256M`、`MYSQL_MAX_CONNECTIONS=50`，预检按池大小与连接数检查最低余量。这些估算不能替代实际查询/识别负载测试。不要通过把预留改为 0 来掩盖超配；先按实测调整服务限额或增加 Docker/宿主容量。`status/logs/down` 和备份仍可用于故障维护。
 
@@ -45,6 +47,8 @@ COMPOSE_MEMORY_RESERVE_MB=1024
 ### 已有容器的资源限额维护
 
 日常 `up/update` 保留数据服务的 `--no-recreate`，不会为应用更新重建或升级数据库。若已运行的 MySQL/Redis 没有限额，或实际限额超过当前配置，部署会在停止 Web/Cron 前拒绝继续。仅修改环境文件不会改变旧容器的内核限额。
+
+`import-native` 同样检查启动后 MySQL/Redis 容器的实际内存、CPU/PID 限额；不符时在创建导入标记和首次数据库写入前停止。即使目标业务库为空，也不能靠导入跳过旧数据容器的资源维护。
 
 先执行备份，保存成功的备份目录、镜像 ID 和容器 ID；使用实际环境文件路径，OSS 模式继续由管理脚本检查挂载：
 
@@ -89,6 +93,7 @@ docker update --memory 768m --memory-swap 1536m --cpus 0.5 --pids-limit 128 <red
 | Docker Compose | 2.20 或以上，使用 `docker compose` 子命令 |
 | 网络 | 首次构建可访问镜像源与 npm；OCR 首次构建需要下载模型 |
 | 源码 | 完整项目目录；压缩包或 Git checkout 均可 |
+| 原生数据迁入 | 导入主机还需可用的 `tar` 做归档预检；导出主机另需源码 npm 依赖、Prisma Client 与兼容的 `mysqldump` |
 | OSS 模式 | rclone 已在同一台 Linux 主机挂载，Docker 使用本机 `unix://` Engine |
 
 在项目根目录执行只读检查：
@@ -136,14 +141,14 @@ Node 主版本应不小于 24，Compose 应不小于 2.20，最后一条必须�
 
 - 使用容器 MySQL 时，不用填写 `MYSQL_HOST`，自动连接 `mysql:3306`。
 - 选择外部 MySQL 时，复用 `MYSQL_DATABASE`、`MYSQL_USER`、`MYSQL_PASSWORD`；`MYSQL_HOST` 留空默认是 `host-machine`，`MYSQL_PORT` 默认 3306。远程数据库填写实际可达地址。`MYSQL_ROOT_PASSWORD` 不需要，管理脚本不启动、停止或升级外部数据库。
-- OCR 选择 `container` 时，自动配置内部地址；选择 `external` 时，只需填写已有的 `MATCH_OCR_ENDPOINT` 和 `MATCH_OCR_TOKEN`。选 `off` 时清空 endpoint。
+- OCR 选择 `container` 时，自动配置内部地址；若 `.env` 已有其他 endpoint，在 `.env.docker` 写 `MATCH_OCR_ENDPOINT=` 清除继承值。选择 `external` 时复用已有令牌，endpoint 必须从容器可达。选 `off` 时同样在覆盖文件清空 endpoint。
 - `OCR_MODE` 留空兼容旧配置：`--ocr` 或内部 `http://ocr:8010/recognize` 选择容器服务，其他已填 endpoint 选择外部服务，未填则关闭。新部署建议明确填写模式；`init --ocr` 会写入 `OCR_MODE=container`，以后不必重复传参数。模式与 `--ocr` 冲突会报错。
 
 `host-machine` 是容器访问 Docker 宿主机的固定别名，由 Compose 的 `host-gateway` 映射。容器里的 `localhost` / `127.0.0.1` 指容器自身，不能用来填写外部数据库或 OCR 地址。宿主机服务必须监听容器可达的接口，并允许实际 Docker 网段访问。
 
 ### 2.5 复用同机 MySQL、Nginx、OCR 的最小配置
 
-先按 4.1 节生成配置，再替换下列项目；数据库和 OCR 的密码使用现有值，Session Secret 保留生成值：
+先按 4.1 节生成配置，再替换下列项目；数据库使用现有凭据，Session Secret 沿用 `.env` 或 `init` 生成值。`.env` 已有正确 OCR 令牌时，不必再填写下面的 `MATCH_OCR_TOKEN`：
 
 ```dotenv
 MYSQL_MODE=external
@@ -225,36 +230,53 @@ node scripts/compose.mjs init
 node scripts/compose.mjs init --ocr
 ```
 
-命令生成 `.env.docker`，为 MySQL、Session 和 OCR 生成互不相同的随机凭据，并拒绝覆盖已有文件。设置文件权限：
+命令生成 `.env.docker` 并拒绝覆盖已有文件，不修改 `.env`。MySQL 密码独立随机生成；`SESSION_SECRET` 和 `MATCH_OCR_TOKEN` 仅在根目录 `.env` 已有非空值时省略生成，运行时直接继承，不复制到新文件；否则在 `.env.docker` 追加随机值。初始化不把当前进程中的临时密钥写入文件，也不因临时密钥存在而省略生成。没有 `.env` 时仍可用程序默认值和生成的凭据部署。`init --ocr` 另外写入 `OCR_MODE=container` 和 `MATCH_OCR_ENDPOINT=http://ocr:8010/recognize`，覆盖可能继承的宿主 OCR 地址。
+
+日常配置按以下顺序合并：**显式进程环境 > `.env.docker`（或 `--env-file` 指定的覆盖文件）> 项目根目录 `.env` 的共享白名单 > 程序默认值**。`--env-file` 只替换覆盖文件，基底始终是项目根目录 `.env`，不读取 `.env.local`、`.env.production` 等文件。
+
+| 配置范围 | 维护位置与规则 |
+| --- | --- |
+| `SESSION_SECRET`、`PUBLIC_ORIGIN` / `DEPLOY_ENVIRONMENT` / `SESSION_COOKIE_SECURE`、`HEALTH_DETAILS_TOKEN`、`TZ`、`MATCH_OCR_*`、`TRUST_PROXY`、媒体四项配额、视频三项限额、`RESOURCE_*` / `SPLIT_WORKER_*` | 从 `.env` 继承支持的应用变量，容器需要不同值时才写入 `.env.docker` |
+| 项目名、`MYSQL_MODE` / `MYSQL_*`、`OCR_MODE`、容器资源限额、端口绑定、存储及备份路径 | 在 `.env.docker` 维护，不从 `.env` 继承 |
+| `.env` 的 `DATABASE_URL`、`REDIS_URL` / `REDIS_REQUIRED`、`HOST` / `PORT`、宿主媒体目录、`FFMPEG_BIN` | 不继承；数据库按 Docker 配置生成连接，Redis、应用监听和媒体路径使用容器约定，FFmpeg 使用镜像内程序 |
+
+省略某项表示继承；写 `KEY=` 则清除继承值，再按该项默认值或必填校验处理。例如 `PUBLIC_ORIGIN=` 使用容器默认 `http://localhost:8001`，`SESSION_SECRET=` 会因缺失 Secret 被拒绝，不能用 `KEY=` 占位来表达继承。
+
+旧 `.env.docker` 的同名值仍优先，不会被自动改写。要减少重复，先确认 `.env` 中的共享值就是本次部署需要的值，再删除覆盖文件中对应赋值；仅保留容器需要的差异。删除 Secret 覆盖前尤其要确认继承值一致，避免改变现有登录会话的密钥。
+
+设置文件权限：
 
 ```bash
 chmod 600 .env.docker
 ```
 
-不要把 `.env.docker` 提交到 Git、聊天或工单。把它另存到受控的私密凭据保管位置；自动备份不包含该文件。
+不要把 `.env` 或 `.env.docker` 提交到 Git、聊天或工单。实际使用的环境文件均应限制读取权限，并另存到受控的私密凭据保管位置；自动备份不包含这些文件。
 
 ### 4.2 必须确认的配置
 
-打开 `.env.docker`，确认以下项目。默认容器模式的密码与 Secret 保留 `init` 生成值；复用已有服务时按 2.4–2.5 节填写现有凭据：
+打开 `.env.docker`，确认以下容器配置。默认容器模式的密码保留 `init` 生成值；复用已有服务时按 2.4–2.5 节填写现有凭据：
 
 ```dotenv
 COMPOSE_PROJECT_NAME=wzywt
-APP_RELEASE_ID=release-YYYYMMDD-NN
 
 MYSQL_DATABASE=wzywt
 MYSQL_USER=wzywt
 MYSQL_PASSWORD=<保留自动生成值>
 MYSQL_ROOT_PASSWORD=<保留自动生成值>
-SESSION_SECRET=<保留自动生成值>
 
-DEPLOY_ENVIRONMENT=local
-PUBLIC_ORIGIN=http://实际访问地址:8001
-SESSION_COOKIE_SECURE=
 BIND_ADDRESS=0.0.0.0
 PORT=8001
 ```
 
-`APP_RELEASE_ID` 每次发布使用可追踪的新值，例如日期加构建号或短提交号。公网域名场景按 2.2 节改为 `production`、HTTPS 地址和 `BIND_ADDRESS=127.0.0.1`。
+共享的 `SESSION_SECRET` 必须是至少 32 字符的私密值；`.env` 已有正确值时不要重复填写。按 2.2 节确认最终 `PUBLIC_ORIGIN`、`DEPLOY_ENVIRONMENT` 和 `SESSION_COOKIE_SECURE`；既有 `.env` 的公网入口不会自动变成局域网入口。容器与原生访问地址不同，例如使用局域网 HTTP 时，在 `.env.docker` 增加：
+
+```dotenv
+DEPLOY_ENVIRONMENT=local
+PUBLIC_ORIGIN=http://实际服务器局域网IP:8001
+SESSION_COOKIE_SECURE=
+```
+
+这里空的 Cookie 配置用于清除继承的强制值，再按地址协议自动选择。公网域名场景使用 `production`、HTTPS 地址和 `BIND_ADDRESS=127.0.0.1`。`up/update` 自动生成包含源码摘要的唯一 `APP_RELEASE_ID`，用于镜像身份和健康验收，无需在环境文件填写。
 
 已有 MySQL 卷初始化后，不要只修改 `MYSQL_DATABASE`、`MYSQL_USER` 或密码。MySQL 镜像初始化变量不会修改现有数据库账户；凭据轮换需要先在数据库内完成，再同步 env。
 
@@ -298,9 +320,11 @@ OSS_DATA_PATH=
 COMPOSE_BACKUP_DIR=
 ```
 
-## 5. 首次部署
+## 5. 首次部署与原生数据迁入
 
-在项目根目录依次执行：
+### 5.1 全新安装
+
+仅在没有旧业务数据需要保留时，在项目根目录依次执行；已有本地或 PM2 实例先按 5.2 节迁入：
 
 ```bash
 node scripts/compose.mjs check
@@ -318,26 +342,116 @@ OSS 模式必须在挂载 OSS 的同一台 Linux 主机执行。管理脚本会�
 4. 检查选用的外部 MySQL/OCR，再停止现有 Web/Cron 写入；
 5. 生成 SQL、媒体和英雄/皮肤文件备份；
 6. 执行 `prisma migrate deploy`；
-7. 启动 Web、Cron 和可选 OCR，等待健康检查；
-8. 验证 `PUBLIC_ORIGIN` 的 releaseId、桌面/手机跳转与登录入口。
+7. 按数据库引用核对全部有效视频、截图和头像的文件及 SHA-256；缺失或不一致时保持 Web/Cron 停止；
+8. 启动 Web、Cron 和可选 OCR，等待健康检查；
+9. 验证 `PUBLIC_ORIGIN` 的 releaseId、桌面/手机跳转与登录入口。
 
-使用 `OCR_MODE=container` 后，普通 `check/up/update` 自动带上 OCR；旧的显式参数方式仍可使用：
+使用 `OCR_MODE=container` 后，`check/build/up/update/import-native` 自动选择 OCR 配置和相应镜像；其中只有 `up/update` 启动常驻 OCR。旧的显式参数方式仍可使用：
 
 ```bash
 node scripts/compose.mjs check --ocr
 node scripts/compose.mjs up --ocr
 ```
 
-已有 `.env.docker` 后再启用 OCR，需要保留原 Secret，并配置：
+已有 `.env.docker` 后再启用容器 OCR，保留原 Secret，在覆盖文件配置：
 
 ```dotenv
-MATCH_OCR_ENDPOINT=http://ocr:8010/recognize
 OCR_MODE=container
-MATCH_OCR_INTERNAL_HOST=ocr
-MATCH_OCR_TOKEN=<至少32字符且无空白的私密值>
+MATCH_OCR_ENDPOINT=
 ```
 
-OCR 是辅助识别，结果仍需人工核对。能力范围见 [OCR 说明](ocr.md)。
+管理脚本自动派生内部地址和主机名。确保继承或已生成的 `MATCH_OCR_TOKEN` 至少 32 字符且无空白；缺失时才在 `.env.docker` 补充私密值。若复用原生 OCR，`.env` 中的 `127.0.0.1` 地址必须按 2.5 节覆盖为容器可达的 `host-machine` 入口。OCR 是辅助识别，结果仍需人工核对。能力范围见 [OCR 说明](ocr.md)。
+
+### 5.2 已有本地或 PM2 数据迁入
+
+迁移同时保留数据库记录和媒体文件，不修改帖子 ID、视频相对存储路径或原视频编码。历史视频继续通过 `/api/combat-posts/帖子ID/video` 访问，无需为了更换部署方式重新上传。能否在特定手机播放仍取决于原视频兼容性，迁移不自动转码。
+
+迁移有两个独立步骤：`export-native` 从已停写的原生实例生成迁移备份，`import-native` 把该备份导入空的容器存储并核验。两者均从包含本次迁移工具的项目根目录执行。旧项目或 PM2 release 可通过 `--source-root` 指定，原生配置通过 `--source-env` 指定；这两个参数与目标 Docker 的 `--env-file` 含义不同。
+
+**先准备目标，再停止源实例。** 按第 2～4 节完成目标配置和存储检查，构建好目标镜像后再安排停写窗口。导出主机还需当前源码的 npm 依赖、Prisma Client、与源 MySQL 兼容的 `mysqldump` 及 `tar`；源数据库账户应具备完整导出和读取服务器身份的权限。目标导入主机需要 Node、Docker、Compose 和 `tar`，其中宿主 `tar` 用于写入前的归档预检；不要求宿主机安装 npm 依赖、Prisma Client 或 MySQL 客户端。
+
+在目标项目根目录执行：
+
+```bash
+node scripts/compose.mjs check
+node scripts/compose.mjs build
+```
+
+`build` 核对配置和容量并构建镜像，不启动或停止服务。镜像准备成功后再停止源写入；跨主机迁移时同样先在目标主机完成本步。后续 `import-native` 仍执行构建并复用缓存，确保真正导入的主机和当前源码具有匹配的镜像。
+
+两台主机都应确认 `tar --version` 可执行；仅安装 Docker 不能替代宿主归档预检工具。
+
+选择数据库方式：
+
+| 目标配置 | 导入行为 | 前提 |
+| --- | --- | --- |
+| `MYSQL_MODE=container` | 将源 SQL 导入容器业务库，再执行 schema migration | 目标业务库没有任何表；不覆盖已有库 |
+| `MYSQL_MODE=external` | 继续使用源业务库，不导入 SQL，再执行 schema migration | 容器访问到的 `@@server_uuid` 与数据库名必须匹配导出清单 |
+
+外部模式只支持继续使用同一个源库；另建的外部空库或复制库不能冒充原库通过身份校验。两种模式都要求目标媒体、头像和英雄/皮肤持久目录没有业务文件。已经试运行过 Docker 并写入数据时，不删除旧卷腾位置；先保留其备份，再配置独立的 Compose 项目和空目标存储。rclone 模式须按第 3 节检查真实挂载、权限和空间，同样拒绝覆盖已有业务文件。
+
+**停止源 Web、Cron 及该库的其他写入者，并保持停写直到切换验收完成。** 使用 PM2 时，先核对实际服务器用户、`PM2_HOME`、Web/Cron 完整名称和运行目录，再从原生部署源码目录使用既有入口：
+
+```bash
+bash scripts/stop.sh --env-file /实际/原生配置.env
+```
+
+该入口按项目检查进程身份并停止对应应用。不要使用 `pm2 stop all`。本地 `npm run dev`、`npm run cron` 或手动启动的进程由其原终端正常结束；仅确认 8001 无监听不能证明 Cron 已停写。导出工具不自动杀进程，`--writers-stopped` 是实施人员对全部源写入者已停止的明确确认。
+
+从本次工具所在项目根目录导出，路径替换为刚核对的真实位置：
+
+```bash
+node scripts/compose.mjs export-native --source-root /实际/旧项目或release --source-env /实际/原生配置.env --backup-dir /独立/迁移备份 --writers-stopped
+```
+
+`--source-root` 默认当前项目根目录，`--source-env` 默认源项目的 `.env`。工具读取明确选定的源配置，不把其中的连接密码写入日志，也不把宿主路径当作 Docker 运行配置。媒体路径优先使用源配置，缺省时检查本地 `.cache` 与原生 `shared` 候选；候选不唯一或不存在时拒绝猜测，按实际运行目录明确指定：
+
+```bash
+node scripts/compose.mjs export-native --source-root /实际/旧项目或release --source-env /实际/原生配置.env --source-media /实际/旧媒体目录 --source-avatars /实际/旧头像目录 --backup-dir /独立/迁移备份 --writers-stopped
+```
+
+备份不得放在源媒体、头像或英雄目录中。工具在导出前后核对数据库引用对应的文件，拒绝缺失、大小或 SHA-256 不一致以及导出期间发生变化的媒体，并保留失败证据。成功时打印本次**精确备份目录**，其中应包含：
+
+```text
+database.sql
+media.tar.gz
+avatars.tar.gz
+hero-assets.tar.gz
+media-manifest.json
+source-media-before.json
+source-media-after.json
+source-database-identity.json
+manifest.json
+```
+
+`source-database-identity.json` 记录源 MySQL 服务器 UUID 和数据库名；`manifest.json` 包含整个备份集的 SHA-256 和迁移来源。原数据库和文件保留原位。凭据文件不在备份集内，另行存入私密凭据保管位置。
+
+自动导入限定为本项目单库、普通业务表的 `mysqldump`：支持常规表结构、数据、表锁和 Session 设置，不接受 `--databases` 生成的建库/切库指令、跨库对象、视图、触发器、事件、存储过程/函数、动态 SQL 或 mysql 客户端命令。`export-native` 在完成前运行与导入相同的 SQL、归档和双清单校验；若源库有不支持的定制对象，会保留完整 SQL 等排查材料、将清单置为 `complete: false` 并拒绝作为迁移集交付，导入和外部库复用也会再次检查。不要删改 SQL 或重写清单来绕过，先保留备份并安排这些对象的独立迁移评审。
+
+跨主机时复制整个成功备份目录到目标主机，保留文件名和内容；不要只复制视频归档。目标导入会重新核对完整性，不接受手工修改清单来跳过失败，也不把普通历史备份当作本次停写导出的迁移集。源环境与目标根目录 `.env` 不同时，应另行确认目标的共享应用配置和 Session 密钥；继承 Session 密钥不等于迁移了数据库或媒体。
+
+在目标项目根目录执行：
+
+```bash
+node scripts/compose.mjs import-native --from-backup /本次/精确备份目录
+```
+
+使用自定义 Docker 覆盖文件时附加同一个 `--env-file /实际/Docker配置.env`。先在宿主机验证备份格式、校验和和配置，再构建镜像并验证空目标，按所选数据库方式导入或复用 SQL 数据，恢复媒体、头像和英雄/皮肤文件，执行 `prisma migrate deploy`，再对目标数据库中的媒体记录和实际文件逐项核对，并与源清单比较。头像统一落到容器的 `/app/data/media/avatars`，原有相对路径与记录 ID 保留。
+
+宿主迁移备份保持私密权限；短时导入容器以 root 读取只读挂载的备份，解包和媒体核验子进程以应用 uid/gid `1000:1000` 执行，文件不保留源机器的属主。导入标记设置为应用用户所有、权限 `0600`。这不改变 Web/Cron 的常驻非 root 运行方式，也无需把备份目录改成所有用户可读。
+
+**导入成功仍不启动 Web/Cron。** 报告位于目标项目 `.cache/native-migrations/<本次唯一ID>/report.json`，命令会打印精确路径。`status=complete` 表示导入及文件核验完成；`runtimeVerified: false`、`playbackVerified: false` 表示尚未完成运行和浏览器播放验收。保存报告后执行：
+
+```bash
+node scripts/compose.mjs up
+node scripts/compose.mjs status
+```
+
+随后完成第 6 节验收，额外检查旧用户、历史帖子、截图、头像，以及电脑和真实手机上的历史视频播放和拖动，再测试新视频上传。原生进程继续保持停止，避免两个实例同时写同一业务库。确认容器验收通过前保留旧目录和完整备份；不要删除原文件或退回旧 schema。
+
+**导入失败时保留当前状态。** 备份格式、配置或 Docker 连接的早期预检失败时尚未创建导入报告或标记，先保存终端错误并修复预检项；进入导入流程后会保留报告，在首次写入数据库之前创建媒体持久目录的 `.native-import.json`。标记仍为未完成状态时，`up/update` 和再次导入会阻止绕过。根据输出报告核对失败阶段、SQL/schema 状态和文件结果；不要删除标记强行启动，不要重新覆盖非空目标，不要自动导回旧 SQL、删卷或清除缺失媒体引用。需要重新演练时使用独立项目、空数据库和空媒体存储，原失败现场保留供排查。外部模式已经迁移 schema 后，也不能未经兼容性核对就重启旧原生程序。
+
+Web、Cron 和手工同步的容器入口也检查未完成标记。容器重启或直接 `docker start` 不会跳过该检查；migration 一次性任务不受此标记阻断，以便导入流程完成 schema 迁移。标记只能在完整媒体复核成功后转为完成状态。
 
 ## 6. 上线验收清单
 
@@ -370,12 +484,13 @@ node scripts/compose.mjs logs ocr
 
 ### 6.2 浏览器验收
 
-电脑和手机都打开 `.env.docker` 中完全相同的 `PUBLIC_ORIGIN`：
+电脑和手机都打开合并配置后生效的同一个 `PUBLIC_ORIGIN`：
 
 - 电脑进入桌面页面，手机进入 `/m` 页面；
 - 登录、刷新、退出正常，登录后 Cookie 可以保持；
 - 创建或查看一项实际业务数据；
 - 上传一份小型测试媒体并确认能再次打开；
+- 从原生迁入时，核对旧账号、历史记录、截图和头像，并在电脑与真实手机检查旧视频播放、拖动及新视频上传；
 - 运行一次英雄同步并确认 Web 无需重启即可读取新文件：
 
 ```bash
@@ -397,7 +512,7 @@ hero-assets.tar.gz
 manifest.json
 ```
 
-检查清单但不要输出 `.env.docker`：
+检查清单但不要输出 `.env` 或 `.env.docker`：
 
 ```bash
 ls -lh /命令输出的精确备份目录
@@ -414,7 +529,7 @@ OSS 同时存业务主文件和备份时，应在 OSS 控制台启用合适的�
 
 - 部署时间、实施人、主机名和源码版本/提交号；
 - Node、Docker、Compose 和 rclone 版本；
-- `APP_RELEASE_ID`、`PUBLIC_ORIGIN`、存储模式及路径；
+- 本次发布自动生成的 `APP_RELEASE_ID` 与源码身份（备份清单中的 `candidateReleaseId` / `candidateSource`）、`PUBLIC_ORIGIN`、存储模式及路径；
 - `status` 结果和电脑/手机验收结果；
 - 最近备份目录、`manifest.json` 和 OSS 远端核验结果；
 - 防火墙、反向代理、TLS 和 OCR 是否启用；
@@ -425,28 +540,31 @@ OSS 同时存业务主文件和备份时，应在 OSS 控制台启用合适的�
 | 操作 | 命令 |
 | --- | --- |
 | 配置预检 | `node scripts/compose.mjs check` |
+| 仅构建镜像，不启停服务 | `node scripts/compose.mjs build` |
 | 首次启动 | `node scripts/compose.mjs up` |
 | 应用更新 | `node scripts/compose.mjs update` |
 | 查看全部状态 | `node scripts/compose.mjs status` |
 | 跟踪 Web 日志 | `node scripts/compose.mjs logs web` |
 | 跟踪 Cron 日志 | `node scripts/compose.mjs logs cron` |
 | 一致性备份 | `node scripts/compose.mjs backup` |
+| 导出已停写的原生实例 | `node scripts/compose.mjs export-native --source-root PATH --source-env PATH --backup-dir PATH --writers-stopped` |
+| 导入原生迁移备份并核验 | `node scripts/compose.mjs import-native --from-backup PATH` |
 | 手动同步英雄 | `node scripts/compose.mjs sync-heroes` |
 | 停止并移除容器、保留数据 | `node scripts/compose.mjs down` |
 
-可用 `--env-file PATH` 选择配置，`--backup-dir PATH` 临时覆盖备份目录，`--ocr` 启用 OCR profile。例如：
+可用 `--env-file PATH` 选择 Docker 覆盖文件，根目录 `.env` 的位置不变；`--backup-dir PATH` 临时覆盖备份目录，`--ocr` 启用 OCR profile。例如：
 
 ```bash
 node scripts/compose.mjs status --env-file /etc/wzywt/production.env
 node scripts/compose.mjs backup --env-file /etc/wzywt/production.env --backup-dir /独立备份路径
 ```
 
-不要给 `down` 增加 `--volumes`。管理脚本会拒绝未知参数，普通停止不会删除卷或备份。
+`status/logs/down` 不读取共享 `.env`，也不生成应用运行参数；共享配置填写错误时仍可维护已有容器。不要给 `down` 增加 `--volumes`。管理脚本会拒绝未知参数，普通停止不会删除卷或备份。
 
 ## 8. 发布更新
 
-1. 把完整新源码放到项目目录，确认 `.env.docker` 未被覆盖。
-2. 将 `APP_RELEASE_ID` 更新为新的可追踪值。
+1. 把完整新源码放到项目目录，确认 `.env` 和 Docker 覆盖文件未被覆盖。
+2. 准备交付记录；更新完成后从本次备份清单记录自动生成的 `candidateReleaseId` 和 `candidateSource`，无需手填 `APP_RELEASE_ID`。
 3. 检查 rclone、磁盘空间和维护窗口。
 4. 执行预检和更新：
 
@@ -459,6 +577,8 @@ node scripts/compose.mjs status
 已填写 `OCR_MODE` 时不必添加参数；旧配置也可在 `check/update` 加 `--ocr` 选择容器 OCR。外部 OCR 不加该参数。更新期间 Web/Cron 会暂停写入，当前方案不承诺零停机。
 
 更新脚本先完成构建，再停止 writer。构建失败不会影响现有容器；备份失败会阻止 migration，并恢复更新前正在运行的 Web/Cron。migration 或激活开始后失败时，Web/Cron 保持停止并打印备份目录，实施人员应按第 11 节处理。
+
+schema migration 成功后仍会核对所有有效视频、截图及头像的数据库引用和实际文件。媒体缺失或校验不一致时不启动 Web/Cron，防止数据库沿用旧记录而媒体目录为空的实例上线。此检查不自动补文件、清记录或转换旧视频。
 
 普通更新不会替换 MySQL/Redis 容器。调整 `MYSQL_IMAGE`、`REDIS_IMAGE`、数据库版本或数据服务配置属于独立维护操作，必须先完成并验证备份，再按目标版本升级手册执行。
 
@@ -544,6 +664,12 @@ migration 不会开始，脚本恢复更新前正在运行的 Web/Cron。检查�
 
 脚本会保持 Web/Cron 停止并打印备份目录。不要直接导入旧 SQL，也不要把旧镜像当成 schema 回滚。先保留终端错误，检查 Prisma `_prisma_migrations`、源码 migration 和新旧 release 的 schema 兼容性，再参考 [发布与恢复边界](recovery-and-release.md) 决定向前修复、兼容回切或人工恢复。
 
+### 原生导入或媒体完整性检查失败
+
+先保存终端错误、命令输出的报告和精确备份路径。进入导出阶段后的失败保留 `complete: false` 的证据，不可修改为成功；源路径等前置检查失败时尚未创建备份。进入导入流程后，报告保存在 `.cache/native-migrations/<本次唯一ID>/report.json`；首次数据库写入前创建的媒体目录 `.native-import.json` 若未完成，会阻止 `up/update` 和再次导入。更早的备份、配置或 Docker 预检失败以终端错误为准。源目录候选不唯一时，通过实际运行配置确认后传 `--source-media` / `--source-avatars`；源文件缺失时从可信备份找回对应文件，再重新导出，不能为通过检查清除数据库引用。
+
+目标非空、数据库身份不符、文件哈希不符或 migration 中途失败时，按 5.2 节保留停写和现场，先核对报告中的阶段。不要删除卷或标记重试，不要把 `down` 当作数据回滚。全量媒体核验成功证明记录对应文件完整，仍需完成浏览器播放、拖动和登录验收。
+
 ### 部署锁存在
 
 错误提示 `.cache/compose-deploy.lock` 时，先确认没有另一个 `compose.mjs` 更新或备份进程。只有确认原进程已经退出后，才在当前项目根目录执行：
@@ -569,6 +695,7 @@ rmdir .cache/compose-deploy.lock
 - MySQL migration 在目标数据量下完成；
 - 域名、TLS、防火墙、电脑和手机网络路径正常；
 - 上传媒体、Cron 同步、备份和远端对象核验通过；
+- 原生迁入时，完整导出、空目标导入或同源外部库复用、旧记录与媒体哈希核验，以及电脑/真实手机的历史视频播放和拖动通过；
 - 至少完成一次隔离恢复演练并记录 RPO/RTO。
 
 
