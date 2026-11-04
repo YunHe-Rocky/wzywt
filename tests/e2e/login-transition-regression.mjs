@@ -56,6 +56,28 @@ async function verifyTransition(browser, reducedMotion) {
   await page.locator("#username").fill("tester");
   await page.locator('input[name="password"]').fill("12345678901");
 
+  await page.evaluate(() => {
+    window.loginExitTransition = null;
+    window.loginNavigationAt = null;
+    for (const method of ["pushState", "replaceState"]) {
+      const original = history[method];
+      history[method] = function(...args) {
+        if (args[2] && new URL(args[2], location.href).searchParams.get("_from") === "login") window.loginNavigationAt = performance.now();
+        return original.apply(this, args);
+      };
+    }
+    const observer = new MutationObserver(() => {
+      const card = document.querySelector(".auth-card.is-leaving");
+      if (!card || window.loginExitTransition) return;
+      window.loginExitTransition = {
+        started: performance.now(),
+        duration: Math.max(...getComputedStyle(card).transitionDuration.split(",").map(value => Number.parseFloat(value) * (value.trim().endsWith("ms") ? 1 : 1000))),
+      };
+      observer.disconnect();
+    });
+    observer.observe(document.body, { attributes: true, subtree: true, attributeFilter: ["class"] });
+  });
+
   const startedAt = Date.now();
   await page.getByRole("button", { name: "登录", exact: true }).click();
   await page.waitForURL(/\/\?_from=login$/, { timeout: 3_000 });
@@ -64,11 +86,22 @@ async function verifyTransition(browser, reducedMotion) {
   if (reducedMotion === "reduce") {
     assert.ok(elapsed < 700, `reduced-motion navigation took ${elapsed}ms`);
   } else {
-    assert.ok(elapsed >= 900 && elapsed < 2_000, `animation navigation took ${elapsed}ms`);
+    const transition = await page.evaluate(() => ({ ...window.loginExitTransition, navigatedAt: window.loginNavigationAt }));
+    assert.equal(transition.duration, 180, "normal login must use the current 180ms card exit transition");
+    // The class observer runs after the commit that starts the exit. Allow one
+    // rendering frame for that observation, while checking the actual exit
+    // rather than the retired 900ms pre-navigation animation.
+    assert.ok(transition.navigatedAt !== null, "login must perform its expected history navigation");
+    assert.ok(transition.navigatedAt - transition.started >= transition.duration - 1000 / 60, "navigation must retain the card exit transition");
+    assert.ok(elapsed < 2_000, `animation navigation took ${elapsed}ms`);
   }
   await page.waitForTimeout(500);
   assert.equal(profileRequests, 0, "the protected profile route must not be prefetched after login");
-  await page.getByRole("navigation", { name: "主导航" }).getByRole("link", { name: "我的", exact: true }).click();
+  await page.getByRole("button", { name: "打开用户菜单", exact: true }).click();
+  await page.getByRole("link", { name: "个人空间", exact: true }).waitFor();
+  await page.waitForTimeout(100);
+  assert.equal(profileRequests, 0, "opening the user menu must not prefetch the protected profile route");
+  await page.getByRole("link", { name: "个人空间", exact: true }).click();
   await page.waitForURL(/\/me$/, { timeout: 5_000 });
   await page.getByRole("heading", { name: "个人空间", exact: true }).waitFor();
   assert.equal(new URL(page.url()).pathname, "/me");

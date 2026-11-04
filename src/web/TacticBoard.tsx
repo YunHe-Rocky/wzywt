@@ -4,7 +4,7 @@ import "@/web/styles/yanwu-workspaces.css";
 
 import Link from "next/link";
 import { useParams, usePathname } from "next/navigation";
-import { PointerEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { PointerEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createLayer, createMarker, deleteLayer, deleteMarker, deleteRoute, getTactics, initializeLayer, saveRoute, updateLayer } from "@/features/tactics/client/api";
 import { type TacticColorKey, type TacticPoint } from "@/features/tactics/model";
 import {
@@ -120,9 +120,11 @@ export function TacticBoard() {
     setActiveLayerId(matching[0].layer.id);
   }, [clockSeconds, followClock, layers]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     // A refresh creates new route objects even when the saved route is unchanged.
     // Reset on a layer/revision change, including switches between two empty layers.
+    // Flush before paint: the new layer must never expose the old draft or an
+    // enabled Save/Undo control while a passive effect is still pending.
     const source = `${tournamentId}:${matchId}:${side}:${activeLayer?.id ?? "none"}:${ownRoute?.id ?? "none"}:${ownRoute?.revision ?? 0}`;
     if (draftSourceRef.current === source) return;
     draftSourceRef.current = source;

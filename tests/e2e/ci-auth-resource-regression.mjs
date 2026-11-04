@@ -102,11 +102,11 @@ try {
   await login(page, profile.prefix);
   await page.goto(`${baseUrl}${profile.prefix}/tournaments`, { waitUntil: "networkidle" });
   await page.waitForURL((url) => url.pathname === `${profile.prefix}/tournaments`);
-  await page.getByRole("heading", { name: "赛事大厅" }).waitFor();
+  await page.getByRole("heading", { name: "找到队友，准备开局。", exact: true }).waitFor();
 
   const privateLeaseResponse = page.waitForResponse((response) => response.request().method() === "POST" && new URL(response.url()).pathname === "/api/resources/leases");
   await page.reload({ waitUntil: "networkidle" });
-  await page.getByRole("heading", { name: "赛事大厅" }).waitFor();
+  await page.getByRole("heading", { name: "找到队友，准备开局。", exact: true }).waitFor();
   await page.waitForFunction(() => !document.body.textContent?.includes("页面资源加载失败"));
   const expiredLease = (await (await privateLeaseResponse).json()).lease?.id;
   assert.ok(expiredLease, "authenticated tournament page must receive a private lease");
@@ -142,7 +142,12 @@ try {
   await assertPrivateDenied(context.request, logoutLease);
   const protectedPage = await context.request.get(`${baseUrl}${profile.prefix}/me?tab=history`, { maxRedirects: 0 });
   assert.equal(protectedPage.status(), 307);
-  assert.equal(new URL(protectedPage.headers().location).origin, baseUrl);
+  const protectedLocation = protectedPage.headers().location;
+  assert.ok(protectedLocation, "protected page must provide a login redirect");
+  const protectedTarget = new URL(protectedLocation, baseUrl);
+  assert.equal(protectedTarget.origin, baseUrl);
+  assert.equal(protectedTarget.pathname, `${profile.prefix}/login`);
+  assert.equal(protectedTarget.searchParams.get("redirect"), `${profile.prefix}/me?tab=history`);
 
   await login(page, profile.prefix);
   const afterRelogin = await context.request.get(`${baseUrl}/api/auth/me`);

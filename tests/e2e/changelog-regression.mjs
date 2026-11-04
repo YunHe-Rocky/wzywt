@@ -10,6 +10,9 @@ try {
     const mobile = width < 600;
     const prefix = mobile ? '/m' : '';
     const context = await browser.newContext({ viewport: { width, height: 900 }, reducedMotion: 'reduce',
+      // The isolated proxy generates its own loopback certificate. Keep this
+      // exception scoped to that fixture; normal remote TLS still validates.
+      ignoreHTTPSErrors: new URL(base).protocol === 'https:' && ['localhost', '127.0.0.1', '[::1]'].includes(new URL(base).hostname),
       ...(mobile ? { isMobile: true, hasTouch: true, userAgent: 'Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36' } : {}) });
     const page = await context.newPage();
     page.setDefaultTimeout(7000);
