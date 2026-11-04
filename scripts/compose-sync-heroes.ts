@@ -1,7 +1,7 @@
 import "@/features/cron/load-env";
 import { runExclusiveTask } from "@/features/cron/task-lock";
 import { downloadAllImages } from "@/features/heroes/server/download-images";
-import { syncHeroes } from "@/features/heroes/server/sync";
+import { assertHeroSyncComplete, syncHeroes } from "@/features/heroes/server/sync";
 import { prisma } from "@/lib/db";
 import { redis } from "@/lib/redis";
 import { resourceGovernor } from "@/lib/resource-governor";
@@ -30,6 +30,7 @@ async function main(): Promise<void> {
       await lease.assertOwnership();
       const images = await downloadAllImages();
       console.log(`[sync-heroes] ${images.heroes} hero + ${images.skins} skin images refreshed`);
+      assertHeroSyncComplete(result);
       assertRunning();
       await lease.assertOwnership();
       await prisma.kvCache.upsert({

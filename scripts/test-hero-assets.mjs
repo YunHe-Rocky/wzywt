@@ -101,3 +101,73 @@ test("image sync uses configured sources, preserves remote URLs on failure and t
   assert.ok(requests.some(value => value.includes("/configured-skin/3/1.jpg")), "skin download must use saved configuration");
   assert.ok(requests.every(value => !value.includes("escape")), "invalid skin indices must not reach paths/requests");
 });
+
+function imageRefreshFixture() {
+  const files = new Map();
+  const requests = [];
+  let now = Date.now();
+  let skinAvailable = true;
+  let imageByte = 1;
+  const heroUrl = "https://game.gtimg.cn/hero/167/167.jpg";
+  const root = join(process.cwd(), "public/heroes");
+  const heroPath = join(root, "images/167.jpg");
+  const skinPath = join(root, "skins/167/2.jpg");
+  const fs = {
+    async access(path) { if (!files.has(path)) throw new Error("missing"); },
+    async readFile(path) { if (!files.has(path)) throw new Error("missing"); return files.get(path); },
+    async mkdir() {},
+    async writeFile(path, bytes) { files.set(path, bytes); },
+    async rename(from, to) { files.set(to, files.get(from)); files.delete(from); },
+    async unlink(path) { files.delete(path); },
+  };
+  const { downloadAllImages } = load("src/features/heroes/server/download-images.ts", {
+    "@/features/heroes/server/crawl-config": { getCrawlConfig: async () => ({ hero_img_base: "https://game.gtimg.cn/hero/{id}/{id}.jpg", skin_img_base: "https://game.gtimg.cn/skin/{id}/{id}-bigskin-{idx}.jpg" }) },
+    "@/lib/db": { prisma: { hero: {
+      findMany: async () => [{ heroId: 167, imageUrl: heroUrl, skinsJson: JSON.stringify([{ index: 2, imageUrls: [heroUrl] }]) }],
+      async update() {},
+    } } },
+    "fs/promises": fs,
+    "@/lib/anti-bot": { validateCrawlUrl: value => value },
+    "@/lib/stream-download": { streamResponseToFile: async (response, path) => fs.writeFile(path, new Uint8Array(await response.arrayBuffer())) },
+    "@/lib/task-write-fence": { assertTaskWriteAllowed() {} },
+  }, {
+    Date: class extends Date { static now() { return now; } },
+    fetch: async url => {
+      requests.push(url);
+      return !skinAvailable && url.includes("/skin/") ? new Response(null, { status: 404 })
+        : new Response(Buffer.alloc(1024, imageByte), { headers: { "Content-Type": "image/jpeg" } });
+    },
+  });
+  return {
+    files, requests, heroUrl, heroPath, skinPath, downloadAllImages,
+    age(ms) { now += ms; },
+    set skinAvailable(value) { skinAvailable = value; },
+    set imageByte(value) { imageByte = value; },
+  };
+}
+
+test("image URLs are revalidated after a day and legacy permanent caches refresh once", async () => {
+  const fixture = imageRefreshFixture();
+  await fixture.downloadAllImages();
+  fixture.requests.length = 0;
+  assert.deepEqual(await fixture.downloadAllImages(), { heroes: 0, skins: 0 });
+  assert.equal(fixture.requests.length, 0, "fresh cache avoids repeat downloads");
+  fixture.age(24 * 60 * 60 * 1000);
+  fixture.imageByte = 2;
+  assert.deepEqual(await fixture.downloadAllImages(), { heroes: 1, skins: 1 });
+  assert.equal(fixture.files.get(fixture.skinPath)[0], 2, "same URL can deliver a corrected skin image");
+  fixture.files.set(`${fixture.heroPath}.source`, fixture.heroUrl);
+  assert.deepEqual(await fixture.downloadAllImages(), { heroes: 1, skins: 0 });
+});
+
+test("missing skin images cannot save an avatar as a skin and known old avatar caches are removed", async () => {
+  const fixture = imageRefreshFixture();
+  fixture.skinAvailable = false;
+  fixture.files.set(fixture.skinPath, Buffer.alloc(1024));
+  fixture.files.set(`${fixture.skinPath}.source`, fixture.heroUrl);
+  assert.deepEqual(await fixture.downloadAllImages(), { heroes: 1, skins: 0 });
+  assert.equal(fixture.files.has(fixture.skinPath), false);
+  assert.equal(fixture.requests.filter(url => url === fixture.heroUrl).length, 1,
+    "only the avatar itself requests the avatar URL");
+  assert.equal(fixture.requests.filter(url => url.includes("/skin/")).length, 2);
+});

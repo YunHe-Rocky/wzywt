@@ -14,7 +14,7 @@ import { redactRuntimeText, runtimeLog } from "../src/lib/runtime-log.ts";
 import { streamResponseToFile } from "../src/lib/stream-download.ts";
 import { validLocalHeartbeat, watchChild } from "./runtime-liveness.mjs";
 import { recoveryDecision, rotateLog } from "./runtime-watchdog.mjs";
-import { serviceFiles, resolveService } from "./runtime-service.mjs";
+import { serviceFiles, resolveService, activateService } from "./runtime-service.mjs";
 import { ResourceScheduler } from "../src/features/resource-scheduler/server/scheduler.ts";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -28,6 +28,8 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 const healthyCapacity = () => ({ total: 4 * 1024 ** 3, available: 3 * 1024 ** 3, used: 1024 ** 3,
   source: "host", hostTotal: 4 * 1024 ** 3, hostAvailable: 3 * 1024 ** 3 });
 resourceGovernor.runtime.capacity = healthyCapacity;
+const healthyMemory = () => ({ rss: 32 * 1024 ** 2, heapTotal: 16 * 1024 ** 2, heapUsed: 8 * 1024 ** 2, external: 0, arrayBuffers: 0 });
+resourceGovernor.runtime.memory = healthyMemory;
 
 test("pressure cuts supply immediately and restores it gradually without oscillation", () => {
   const policy = new AdaptiveResourcePolicy(30_000, 4);
@@ -80,7 +82,7 @@ test("nested cgroup limits and reclaimable cache are reflected in available capa
 });
 
 test("internal jobs coalesce, queue in order and release their references after success/failure", async () => {
-  const governor = new ResourceGovernor({ capacity: healthyCapacity });
+  const governor = new ResourceGovernor({ capacity: healthyCapacity, memory: healthyMemory });
   let releaseFirst;
   const events = [];
   const first = governor.run("sync:daily", async () => { events.push(1); await new Promise(resolve => { releaseFirst = resolve; }); return 7; });
@@ -96,7 +98,7 @@ test("internal jobs coalesce, queue in order and release their references after 
 });
 
 test("shutdown cancels pending jobs without pretending an active job has finished", async () => {
-  const governor = new ResourceGovernor({ capacity: healthyCapacity });
+  const governor = new ResourceGovernor({ capacity: healthyCapacity, memory: healthyMemory });
   let release;
   const first = governor.run("active", async () => { await new Promise(resolve => { release = resolve; }); });
   const second = governor.run("pending", async () => assert.fail("queued work started during shutdown"));
@@ -276,6 +278,10 @@ test("systemd plan pins the dedicated PM2 home, toolchain, watchdog and selected
   const unit = files["wzywt-test.service"];
   assert.ok(unit.includes("PM2_HOME=/srv/site/pm2")); assert.ok(unit.includes("resurrect"));
   assert.ok(unit.includes('reload "site-web" "site-cron"')); assert.ok(unit.includes("Restart="));
+  assert.match(unit, /MemoryAccounting=yes\nMemoryHigh=20%\nMemoryMax=25%\nMemorySwapMax=0/);
+  const limited = serviceFiles({ name: "wzywt-test", user: "deploy", current: "/srv/site/current", pm2Home: "/srv/site/pm2",
+    pm2: "/opt/node/bin/pm2", node: "/opt/node/bin/node", configuration: "/srv/site/shared/service.json", webName: "site-web", cronName: "site-cron", memoryPercent: 30 });
+  assert.match(limited["wzywt-test.service"], /MemoryHigh=24%\nMemoryMax=30%/);
   assert.ok(files["wzywt-test-watchdog.timer"].includes("OnUnitActiveSec=30"));
   assert.throws(() => serviceFiles({ name: "bad\nunit", user: "deploy" }), /Invalid service/);
 });
@@ -292,11 +298,29 @@ test("service planning honors a custom env file and refuses another project's sa
     const saved = ["site-web", "site-cron"].map(name => ({ name, pm_cwd: current }));
     await writeFile(join(home, "dump.pm2"), JSON.stringify(saved));
     const envFile = join(directory, "custom.env");
-    await writeFile(envFile, `DEPLOY_BASE_DIR=${base}\nDEPLOY_PM2_HOME=${home}\nDEPLOY_RUN_USER=deploy\n`);
+    await writeFile(envFile, `DEPLOY_BASE_DIR=${base}\nDEPLOY_PM2_HOME=${home}\nDEPLOY_RUN_USER=deploy\nRESOURCE_PROJECT_MEMORY_PERCENT=30\n`);
     const environment = { DEPLOY_PM2_BIN: process.execPath, DEPLOY_NODE_BIN: process.execPath };
     const config = resolveService(source, environment, envFile);
     assert.equal(config.pm2Home, home); assert.equal(config.current, current); assert.equal(config.user, "deploy");
+    assert.equal(config.memoryPercent, 30);
     await writeFile(join(home, "dump.pm2"), JSON.stringify([...saved, { name: "other-project", pm_cwd: target }]));
     assert.throws(() => resolveService(source, environment, envFile), /dedicated PM2 home/);
   } finally { await rm(directory, { recursive: true, force: true }); }
+});
+
+test("aggregate memory installation starts the dedicated PM2 daemon inside systemd on first install and upgrade", () => {
+  for (const installed of [false, true]) {
+    const calls = [];
+    const config = { name: "wzywt-test", pm2: "/opt/node/bin/pm2" };
+    activateService(config, { PM2_HOME: "/srv/site/pm2" }, (binary, args) => {
+      calls.push([binary, ...args].join(" "));
+      if (args[0] === "is-active" && !installed) throw Object.assign(Error("inactive or not installed"), { status: 4 });
+    });
+    assert.equal(calls[0], "/opt/node/bin/pm2 save");
+    assert.equal(calls.some(value => value.startsWith("systemctl stop")), installed);
+    assert.ok(calls.indexOf("/opt/node/bin/pm2 kill") < calls.indexOf("systemctl enable --now wzywt-test.service wzywt-test-watchdog.timer"));
+  }
+  assert.throws(() => activateService({ name: "test", pm2: "pm2" }, {}, (_binary, args) => {
+    if (args[0] === "is-active") throw Object.assign(Error("system bus unavailable"), { status: 5 });
+  }), /system bus unavailable/);
 });

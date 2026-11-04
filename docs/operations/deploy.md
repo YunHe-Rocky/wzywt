@@ -6,7 +6,7 @@
 
 正常部署只维护一份很小的 `.env`，然后运行一次预检和一次发布。项目路径、运行目录、当前用户、Git 分支、PM2 名称、Node 工具链、媒体目录、备份目录和健康检查参数都由脚本发现或使用项目默认值，不要重复写进 `.env`。
 
-资源预算、订阅限额、缓存/Worker 回收、高压排空及开机恢复见 [资源调度与自动恢复](resource-governor.md)。PM2 与调度器共用原生内存预算，在受限 cgroup 中仍按 Web 35% / Cron 20% 计算软预算；兜底重启阈值为软预算的 120%。原生 PM2 阈值不等同内核硬限额。发布前确认已有 Web/Cron 工作集能容纳于配置，按该手册安装固定 PM2_HOME 的 systemd 恢复服务。
+资源预算、订阅限额、缓存/Worker 回收、高压排空及开机恢复见 [资源调度与自动恢复](resource-governor.md)。`RESOURCE_PROJECT_MEMORY_PERCENT` 默认 25，只允许 20–30；8 GiB 原生主机的项目预算为 2048 MiB，Web/Cron 重启阈值分别使用预算的 60%/25%，其余留给 PM2 和进程开销。PM2 重启阈值属于软保护；按该手册安装固定 PM2_HOME 的 systemd 主服务后，才在宿主 20% 处施加压力、25% 处实施内核硬限额。独立 MySQL/Redis/OCR、构建和命令行任务不在该 PM2 cgroup 中，需分别验收。
 
 发布目录由 `git archive` 构建，遵循仓库 `.gitattributes` 的 `export-ignore`：宣传素材、制作工具与过程笔记不进入 release。运行源码、公开资源、数据库迁移和部署脚本保留。删除当前树中的生成媒体不会清除旧 Git 历史；已有克隆不会因此自动缩小。
 
@@ -113,6 +113,36 @@ DEPLOY_ENVIRONMENT=local node scripts/public-entry-smoke.mjs http://192.168.1.73
 删除这些行不会修改已经安装的 Nginx、证书、MySQL、Redis 或 PM2。它只是不再让一份应用 `.env` 假装控制实际上不会读取它的宿主设施。
 
 ## 3. 脚本会自动处理什么
+
+正式发布先在项目部署锁内清理可确认的旧产物，再检查剩余磁盘空间、安装依赖和构建。磁盘已紧张时不会因为旧的空间门禁先失败而失去清理机会。清理发生在停止 Web/Cron 之前，数据库备份与迁移顺序仍为：构建成功 → 停止写入 → SQL/媒体/头像/英雄资源一致性备份 → migration → 激活与健康验收。
+
+### 部署前清理与独立整理
+
+以下命令沿用同一份 `.env`、运行目录、PM2 home 和进程名发现规则；默认只预览，输出每个路径的大小、`KEEP/REMOVE/TRIM` 和保留原因。`--check` 也会预览，且不创建清理报告、不删文件：
+
+```bash
+bash scripts/deploy.sh --cleanup --env-file "$PWD/.env"
+bash scripts/deploy.sh --check --env-file "$PWD/.env"
+```
+
+仅整理旧产物、暂不部署时执行：
+
+```bash
+bash scripts/deploy.sh --cleanup --apply --env-file "$PWD/.env"
+```
+
+执行使用与正式发布相同的项目锁；正式发布会自动执行，无需再手动先跑一遍。报告保存在 `<runtime>/shared/cleanup-reports/cleanup-*.json`，保留最近 20 份。首次接入建议先看预览，了解磁盘主要由哪些目录占用。
+
+| 对象 | 默认清理和保护规则 |
+|---|---|
+| `releases/<时间>-<commit>-<pid>` | 默认保留 5 版，构建前为新版本预留一格；当前版本、成功标记记录的真实上一版始终保护。首次接入没有标记时保守保护当前之前最近一版。可用 `DEPLOY_RELEASE_RETENTION=2..50` 调整。 |
+| 旧失败/结果不明的 release | 超过保留范围时，只回收 `node_modules`、`.next`、`.runtime-workers` 生成物，保留原目录、migration/schema、日志和失败标记。重试该旧版本需要重新构建；不能把失去生成物的失败 release 当成可直接回切的版本。 |
+| 完整成功备份 | `CLEANUP_BACKUP_RETENTION=7` 且 `CLEANUP_BACKUP_MIN_AGE_DAYS=7`；只有同时超出最近 7 组并早于 7 天、清单和 SHA-256 核验通过，才整组删除 SQL/媒体/头像/英雄资源备份。最少允许保留 2 组。 |
+| 原生迁移导出、失败/未完成备份、旧版无法证明发布结果的备份 | 始终保留并报告原因；不会根据 `complete: true` 猜测 migration/激活成功，不删 `.native-import.json` 或导入报告。旧版备份首次接入需要按报告人工核对归档，不能靠删除状态文件绕过。 |
+| 本项目 PM2 的 `*-out.log` / `*-error.log` | 只处理已确认的 Web/Cron 精确进程名，超过 `CLEANUP_LOG_MAX_MB=16` 时保留末尾完整行，在原 inode 上回收旧内容，避免 PM2 继续写已删除文件。不处理其他项目日志。应用持续写日志时清理瞬间可能丢失少量新日志；完整故障记录应另行导出。 |
+| 业务主数据 | MySQL/Redis 活动数据、媒体、头像、英雄/皮肤文件、`.env` 和未知目录不进入删除计划；符号链接不跟随。 |
+
+这些规则回收部署产物和滚动日志，不保证整块磁盘大小固定。媒体业务增长、保留的失败证据、Git 历史和其他服务文件仍需按各自归属管理；预览会给出保留备份和 release 的具体路径及大小。
 
 | 项目 | 默认行为 |
 |---|---|

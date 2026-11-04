@@ -28,6 +28,8 @@ Node.js 24 是开发默认版本；部署仅要求 Node >=24，不因更高大�
 - PM2 发布：`docs/operations/deploy.md`；共同的 schema 恢复边界：`docs/operations/recovery-and-release.md`。
 - 媒体备份：`docs/operations/media-operations.md`；探针与告警：`docs/operations/observability.md`。
 - 资源预算、普通访问/实时订阅供给、缓存/Worker 回收、高压排空与恢复：[资源调度运行手册](resource-governor.md)。Docker 容量预检及旧容器限额维护以 [容器部署入口](docker.md) 为准。
+- 部署前文件清理：原生 PM2 使用 `bash scripts/deploy.sh --cleanup` 预览、追加 `--apply` 执行；Compose 使用 `node scripts/compose.mjs cleanup` 预览、追加 `--apply` 执行。正式部署会先按保留策略自动清理，路径、保护规则和报告分别见上述两份部署手册。
+- 英雄、皮肤和技能的官方来源、同步命令及失败保护：[英雄同步说明](hero-sync.md)。
 - override 原因和升级方式：`docs/operations/dependencies.md`。
 
 任务评审稿、临时计划、回归截图和本地输出不是长期权威文档，不应链接为生产操作依据。

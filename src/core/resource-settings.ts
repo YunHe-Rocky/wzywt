@@ -1,5 +1,6 @@
 const rules: Record<string, readonly [number, number, number]> = {
   RESOURCE_GOVERNOR_ENABLED: [1, 0, 1],
+  RESOURCE_PROJECT_MEMORY_PERCENT: [25, 20, 30],
   RESOURCE_WEB_MEMORY_MB: [0, 0, 1_048_576], RESOURCE_CRON_MEMORY_MB: [0, 0, 1_048_576],
   RESOURCE_EXTERNAL_RPS: [30, 1, 10_000], RESOURCE_EXTERNAL_BURST: [30, 1, 10_000],
   RESOURCE_EXTERNAL_CONCURRENCY: [32, 1, 2_048], RESOURCE_INTERNAL_CONCURRENCY: [4, 1, 16],
@@ -14,12 +15,21 @@ const rules: Record<string, readonly [number, number, number]> = {
 
 export const resourceSettingKeys = Object.keys(rules);
 
-/** Same soft envelope in PM2 and the governor, including native cgroup limits. */
-export function resourceMemoryBudget(capacityBytes: number, role: "web" | "cron", configuredMiB = 0, runtime = "native") {
+/** Total project ceiling; also used by Compose capacity checks and systemd. */
+export function projectMemoryBudget(capacityBytes: number, percent = 25) {
   if (!Number.isFinite(capacityBytes) || capacityBytes <= 0) throw new Error("Invalid memory capacity");
-  const fraction = runtime === "docker" ? 0.85 : role === "web" ? 0.35 : 0.20;
-  const softBytes = Math.max(1, Math.floor(Math.min(capacityBytes * 0.85,
-    configuredMiB > 0 ? configuredMiB * 1_048_576 : capacityBytes * fraction)));
+  if (!Number.isSafeInteger(percent) || percent < 20 || percent > 30) throw new Error("Invalid RESOURCE_PROJECT_MEMORY_PERCENT; use 20 to 30");
+  return Math.floor(capacityBytes * percent / 100);
+}
+
+/** Same soft envelope in PM2 and the governor, including native cgroup limits. */
+export function resourceMemoryBudget(capacityBytes: number, role: "web" | "cron", configuredMiB = 0, runtime = "native", projectPercent = 25, hostCapacityBytes = capacityBytes) {
+  if (!Number.isFinite(capacityBytes) || capacityBytes <= 0) throw new Error("Invalid memory capacity");
+  // Native roles share one project envelope. Leave 15% for PM2/process overhead;
+  // Docker roles already have separate cgroup limits from the Compose plan.
+  const maximum = runtime === "docker" ? Math.floor(capacityBytes * 0.85)
+    : Math.floor(Math.min(capacityBytes, projectMemoryBudget(hostCapacityBytes, projectPercent)) * (role === "web" ? 0.60 : 0.25) / 1.20);
+  const softBytes = Math.max(1, Math.floor(Math.min(maximum, configuredMiB > 0 ? configuredMiB * 1_048_576 : maximum)));
   return { softBytes, restartBytes: Math.min(Math.floor(capacityBytes), Math.ceil(softBytes * 1.20)) };
 }
 

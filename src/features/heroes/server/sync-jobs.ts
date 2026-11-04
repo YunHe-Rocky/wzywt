@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { runExclusiveTask } from "@/features/cron/task-lock";
 import { downloadAllImages } from "@/features/heroes/server/download-images";
-import { syncHeroes, type SyncProgress } from "@/features/heroes/server/sync";
+import { assertHeroSyncComplete, syncHeroes, type SyncProgress } from "@/features/heroes/server/sync";
 import { prisma } from "@/lib/db";
 import { ServiceError } from "@/lib/service-error";
 
@@ -123,6 +123,7 @@ export async function runQueuedHeroSync(): Promise<boolean> {
       const result = await syncHeroes(onProgress);
       await progressWrites;
       const images = await downloadAllImages();
+      assertHeroSyncComplete(result);
       await prisma.kvCache.upsert({
         where: { key: HERO_SYNC_STAMP_KEY },
         create: { key: HERO_SYNC_STAMP_KEY, value: String(Date.now()) },

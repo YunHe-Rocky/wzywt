@@ -15,7 +15,7 @@ afterEach(() => {
   for (const root of fixtures.splice(0)) rmSync(root, { recursive: true, force: true });
 });
 
-function fixture({ failure, emptyDump = false, version = "2.30.0", running = "mysql\nredis\nweb\ncron\n", containerStates, psFormat = "array", invalidSecret = false, entryFailure = false, storageMode, daemonMiB = 8192, oldLimits = false, environment = {} } = {}) {
+function fixture({ failure, emptyDump = false, version = "2.30.0", running = "mysql\nredis\nweb\ncron\n", containerStates, psFormat = "array", invalidSecret = false, entryFailure = false, storageMode, daemonMiB = 16384, oldLimits = false, environment = {} } = {}) {
   const root = mkdtempSync(join(tmpdir(), "wzywt compose test "));
   fixtures.push(root);
   copyFileSync(resolve(dirname(fileURLToPath(import.meta.url)), "../.env.docker.example"), join(root, ".env.docker.example"));
@@ -29,14 +29,14 @@ function fixture({ failure, emptyDump = false, version = "2.30.0", running = "my
       ocr: { environment: { OCR_TOKEN: "d".repeat(64) } },
     },
   };
-  const limits = { mysql: [1024, 1, 256], redis: [768, 0.5, 128], web: [1024, 2, 256], cron: [768, 1, 128],
-    ocr: [2048, 2, 128], migrate: [512, 1, 128], "storage-init": [128, 0.5, 64], "mysql-client": [256, 1, 64] };
+  const limits = { mysql: [512, 1, 256], redis: [192, 0.5, 128], web: [512, 2, 256], cron: [256, 1, 128],
+    ocr: [2048, 2, 128], migrate: [256, 1, 128], "storage-init": [128, 0.5, 64], "mysql-client": [128, 1, 64] };
   for (const [name, [memory, cpus, pids_limit]] of Object.entries(limits)) {
     model.services[name] ||= { environment: {} };
-    Object.assign(model.services[name], { mem_limit: memory * 1_048_576, cpus, pids_limit });
+    Object.assign(model.services[name], { mem_limit: memory * 1_048_576, memswap_limit: memory * 1_048_576, cpus, pids_limit });
   }
-  model.services.mysql.command = ["mysqld", "--innodb-buffer-pool-size=256M", "--max-connections=50"];
-  model.services.redis.command = ["redis-server", "--maxmemory", "256mb"];
+  model.services.mysql.command = ["mysqld", "--innodb-buffer-pool-size=128M", "--max-connections=30"];
+  model.services.redis.command = ["redis-server", "--maxmemory", "64mb"];
   const startedDatastores = new Set();
   if (storageMode === "rclone") {
     writeFileSync(join(root, ".env.docker"), "STORAGE_MODE=rclone\nOSS_MOUNT_PATH=/mnt/oss\n");
@@ -61,7 +61,8 @@ function fixture({ failure, emptyDump = false, version = "2.30.0", running = "my
     if (args[0] === "inspect" && args.includes("{{.Image}}")) return "sha256:fixture-image";
     if (args[0] === "inspect") {
       const service = model.services[args[1]];
-      return JSON.stringify({ Memory: oldLimits ? 0 : service.mem_limit, NanoCpus: oldLimits ? 0 : service.cpus * 1e9, PidsLimit: oldLimits ? 0 : service.pids_limit });
+      return JSON.stringify({ Memory: oldLimits ? 0 : service.mem_limit, MemorySwap: oldLimits ? 0 : service.memswap_limit,
+        NanoCpus: oldLimits ? 0 : service.cpus * 1e9, PidsLimit: oldLimits ? 0 : service.pids_limit });
     }
     if (args[0] === "context") return "unix:///var/run/docker.sock";
     if (command.join(" ") === "config --format json") return JSON.stringify(model);
@@ -177,6 +178,24 @@ test("argument parser rejects accidental destructive flags and malformed options
   assert.throws(() => parseArguments(["down", "--volumes"]), /Unknown argument/);
   assert.throws(() => parseArguments(["up", "--env-file"]), /requires a path/);
   assert.throws(() => parseArguments(["logs", "unknown-service"]), /Unknown argument/);
+  assert.throws(() => parseArguments(["update", "--apply"]), /Unknown argument/);
+  assert.equal(parseArguments(["cleanup", "--apply"]).apply, true);
+});
+
+test("cleanup previews are read only and update applies cleanup before image construction", async () => {
+  const preview = fixture();
+  await preview.manage("cleanup");
+  assert.ok(preview.logs.some(line => line.includes("[cleanup] Preview")));
+  assert.ok(!existsSync(join(preview.root, ".cache")));
+  assert.ok(!commands(preview.calls).some(command => /^(build|up|stop|run|image rm) /.test(command)));
+  const applied = fixture();
+  await applied.manage("cleanup", "--apply");
+  assert.equal(readdirSync(join(applied.root, ".cache/cleanup-reports")).length, 1);
+  const building = fixture({ failure: command => command[0] === "build" });
+  await assert.rejects(building.manage("update"), /simulated/);
+  assert.equal(readdirSync(join(building.root, ".cache/cleanup-reports")).length, 1);
+  assert.equal(readdirSync(join(building.root, ".cache/deployment-images")).length, 1);
+  assert.ok(!commands(building.calls).some(command => /^(up|stop|run) /.test(command)));
 });
 
 test("native migration arguments separate source configuration and require explicit stopped writers", () => {
@@ -301,7 +320,7 @@ test("shared native infrastructure and host paths cannot change container bindin
   assert.equal(app.FFMPEG_BIN, undefined);
   assert.equal(app.APP_RELEASE_ID, "local");
   assert.equal(app.STORAGE_MODE, "volume");
-  assert.equal(runtime.services.web.mem_limit, "1g");
+  assert.equal(runtime.services.web.mem_limit, "512m");
   for (const call of f.calls.filter(({ options }) => options.input !== undefined)) {
     for (const [key, value] of Object.entries(native)) {
       assert.notEqual(call.options.environment[key], value, `${key} must not be inherited into the Docker process`);
@@ -351,20 +370,20 @@ test("preflight rejects outdated Compose and invalid secrets before mutation", a
 
 test("capacity preflight rejects oversubscription before build/stop and includes optional OCR and one-shot jobs", async () => {
   const small = fixture({ daemonMiB: 4_096 });
-  await assert.rejects(small.manage("update"), /Memory budget exceeds/);
+  await assert.rejects(small.manage("update"), /Project memory budget exceeds/);
   assert.ok(!commands(small.calls).some(command => /^(build|up|stop|run) /.test(command)));
   const optional = fixture({ daemonMiB: 6_144 });
   writeFileSync(join(optional.root, ".env.docker"), "OCR_MODE=container\n");
   optional.model.services.web.environment.MATCH_OCR_ENDPOINT = "http://ocr:8010/recognize";
-  await assert.rejects(optional.manage("check"), /Memory budget exceeds/);
+  await assert.rejects(optional.manage("check"), /Project memory budget exceeds/);
   const job = fixture({ daemonMiB: 5_120 });
-  await assert.rejects(job.manage("sync-heroes"), /Memory budget exceeds/);
+  await assert.rejects(job.manage("sync-heroes"), /Project memory budget exceeds/);
   assert.ok(!commands(job.calls).some(command => command.startsWith("run ")));
 });
 
 test("data service overhead and existing live limits are checked without recreating datastores", async () => {
   const insufficient = fixture();
-  insufficient.model.services.redis.mem_limit = 256 * 1_048_576;
+  insufficient.model.services.redis.mem_limit = 128 * 1_048_576;
   await assert.rejects(insufficient.manage("update"), /AOF\/process overhead/);
   assert.ok(!commands(insufficient.calls).some(command => command.startsWith("build ")));
   const existing = fixture({ oldLimits: true });
@@ -376,19 +395,18 @@ test("data service overhead and existing live limits are checked without recreat
 test("capacity headroom includes same-host external services and rejects missing/invalid limits", async () => {
   const external = fixture();
   writeFileSync(join(external.root, ".env.docker"), "COMPOSE_EXTERNAL_MEMORY_MB=4096\n");
-  await assert.rejects(external.manage("check"), /Memory budget exceeds/);
+  await assert.rejects(external.manage("check"), /Project memory budget exceeds/);
   const missing = fixture(); delete missing.model.services.cron.mem_limit;
   await assert.rejects(missing.manage("check"), /cron.mem_limit/);
   const mysql = fixture(); mysql.model.services.mysql.command = ["mysqld", "--innodb-buffer-pool-size=1g", "--max-connections=1000"];
   await assert.rejects(mysql.manage("check"), /MYSQL_MEMORY_LIMIT/);
 });
 
-test("the documented smaller fresh-deployment profile fits 4 GiB without removing the reserve", async () => {
+test("a legacy smaller profile still cannot bypass the new project percentage ceiling", async () => {
   const f = fixture({ daemonMiB: 4096 });
   for (const [name, memory] of Object.entries({ web: 768, cron: 512, mysql: 768, redis: 512 })) f.model.services[name].mem_limit = memory * 1_048_576;
   f.model.services.redis.command = ["redis-server", "--maxmemory", "128mb"];
-  await f.manage("check");
-  assert.ok(f.logs.some(line => line.includes("4096 MiB / 4096 MiB")));
+  await assert.rejects(f.manage("check"), /Project memory budget exceeds 25%/);
   assert.ok(!commands(f.calls).some(command => /^(build|up|stop|run) /.test(command)));
 });
 

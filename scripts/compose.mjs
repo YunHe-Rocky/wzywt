@@ -22,9 +22,11 @@ import { composeEnvironment, initializeComposeEnv, readSharedComposeEnv } from "
 import { exportNative } from "./native-migration-export.mjs";
 import { verifyNativeBackup } from "./native-migration-bundle.mjs";
 import { importNativeBackup } from "./compose-native-import.mjs";
+import { applyDockerCleanup, applyFileCleanup, cleanupSettings, markBackupState, markDeploymentImages, planDockerCleanup,
+  planFileCleanup, recordDeploymentImages, reportCleanup, writeCleanupReport } from "./deployment-cleanup.mjs";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const actions = new Set(["init", "check", "build", "export-native", "import-native", "up", "update", "status", "logs", "down", "backup", "sync-heroes"]);
+const actions = new Set(["init", "check", "build", "export-native", "import-native", "up", "update", "status", "logs", "down", "backup", "sync-heroes", "cleanup"]);
 const services = new Set(["mysql", "mysql-client", "redis", "web", "cron", "ocr", "migrate", "storage-init"]);
 const help = `Usage: node scripts/compose.mjs <command> [options]
 
@@ -39,8 +41,9 @@ const help = `Usage: node scripts/compose.mjs <command> [options]
   down          Stop the stack; preserve all volumes and backups.
   backup        Pause writers, back up SQL/media/crawler files, then resume containers.
   sync-heroes   Run the independent hero synchronization job.
+  cleanup       Preview old project backups/images; add --apply to reclaim them.
 
-Options: --env-file PATH, --backup-dir PATH, --ocr
+Options: --env-file PATH, --backup-dir PATH, --ocr; cleanup: --apply
 export-native: --source-root PATH, --source-env PATH, --source-media PATH,
                --source-avatars PATH, --backup-dir PATH, --writers-stopped
 import-native: --from-backup PATH (verified export-native backup only)
@@ -75,7 +78,8 @@ export function parseArguments(args) {
       const value = args[++index];
       if (!value || value.startsWith("--")) throw new Error(`${arg} requires a path`);
       options.fromBackup = value;
-    } else if (arg === "--ocr") options.ocr = true;
+    } else if (arg === "--apply" && options.action === "cleanup") options.apply = true;
+    else if (arg === "--ocr") options.ocr = true;
     else if (arg === "--env-file" || arg === "--backup-dir") {
       const value = args[++index];
       if (!value || value.startsWith("--")) throw new Error(`${arg} requires a path`);
@@ -201,7 +205,7 @@ export function createManager({ root = repoRoot, run = runDocker, log = console.
     }
     if (!existsSync(envFile)) throw new Error(`${envFile} is missing; run: node scripts/compose.mjs init`);
     const content = readFileSync(envFile, "utf8");
-    const maintenance = ["down", "status", "logs"].includes(options.action);
+    const maintenance = ["down", "status", "logs", "cleanup"].includes(options.action);
     const environment = maintenance ? processEnvironment : composeEnvironment(root, content, processEnvironment);
     const storage = resolveStorage(content, root, { environment, backupDir: options.backupDir });
     // Inspect/stop the existing project even while connection settings are being
@@ -253,6 +257,27 @@ export function createManager({ root = repoRoot, run = runDocker, log = console.
         releaseLock = acquireComposeLock(daemon, project, options.action);
       }
       if (options.action === "down") { compose(["down"]); return; }
+      const cleanup = (project, apply) => {
+        checkMount(storage);
+        const settings = cleanupSettings(content, environment);
+        const files = planFileCleanup({ backupRoot: storage.backupPath, settings });
+        const images = planDockerCleanup({ root, project, docker, settings });
+        const plan = { generatedAt: files.generatedAt, entries: [...files.entries, ...images.entries], reclaimableBytes: files.reclaimableBytes + images.reclaimableBytes };
+        reportCleanup(plan, { apply, log });
+        log("[cleanup] Persistent volumes, business media, native migration evidence and shared BuildKit cache are protected. Image sizes include shared layers; actual reclaimed disk space may be smaller.");
+        if (apply) {
+          const report = writeCleanupReport(resolve(root, ".cache/cleanup-reports"), plan, false);
+          log(`[cleanup] Report: ${report}`);
+          applyFileCleanup(files, { beforeMutation: () => checkMount(storage) });
+          applyDockerCleanup(images, docker);
+          writeFileSync(report, JSON.stringify({ ...plan, applied: true }, null, 2) + "\n", { mode: 0o600 });
+        }
+      };
+      if (options.action === "cleanup") {
+        const values = parseSelectedEnv(content, ["COMPOSE_PROJECT_NAME"]);
+        cleanup(environment.COMPOSE_PROJECT_NAME || values.get("COMPOSE_PROJECT_NAME") || "wzywt", Boolean(options.apply));
+        return;
+      }
       // Include one-shot tools in the model without enabling them for startup.
       const model = parseComposeModel(compose(["--profile", "tools", "config", "--format", "json"], { capture: true }));
       validateModel(model, withOcr, selected.mysql);
@@ -268,12 +293,15 @@ export function createManager({ root = repoRoot, run = runDocker, log = console.
       if (["check", "build", "import-native", "up", "update", "sync-heroes"].includes(options.action)) {
         const daemonBytes = Number(docker(["info", "--format", "{{.MemTotal}}"], { capture: true }).trim());
         const plan = capacityPlan(model, selected, daemonBytes, { action: options.action, content, environment });
-        log(`[compose] Memory budget: ${Math.ceil(plan.plannedBytes / 1_048_576)} MiB / ${Math.floor(plan.daemonBytes / 1_048_576)} MiB (including reserve and one-shot work).`);
+        log(`[compose] Project memory: ${Math.ceil(plan.projectBytes / 1_048_576)} MiB / ${Math.floor(plan.projectBudgetBytes / 1_048_576)} MiB (${plan.projectPercent}% of daemon). Total capacity plan including reserve: ${Math.ceil(plan.plannedBytes / 1_048_576)} MiB / ${Math.floor(plan.daemonBytes / 1_048_576)} MiB.`);
       }
       log(`[compose] Services: MySQL=${selected.mysql}, OCR=${selected.ocr}.`);
       if (options.action === "check") { log("[compose] Docker, Compose and configuration checks passed."); return; }
       if (options.action === "build") {
+        cleanup(model.name, true);
+        recordDeploymentImages(root, model.name, releaseEnvironment.APP_RELEASE_ID, [...new Set(["web", "cron", "migrate", ...(withOcr ? ["ocr"] : [])].map(name => model.services[name]?.image).filter(Boolean))]);
         compose(["build", "web", "cron", "migrate", "storage-init", ...(withOcr ? ["ocr"] : [])]);
+        markDeploymentImages(root, releaseEnvironment.APP_RELEASE_ID, "built");
         log("[compose] Images built; no services were started or stopped.");
         return;
       }
@@ -296,6 +324,8 @@ export function createManager({ root = repoRoot, run = runDocker, log = console.
       const deploying = options.action === "up" || options.action === "update";
       let candidateImages = [];
       if (deploying) {
+        cleanup(model.name, true);
+        recordDeploymentImages(root, model.name, releaseEnvironment.APP_RELEASE_ID, [...new Set(["web", "cron", "migrate", ...(withOcr ? ["ocr"] : [])].map(name => model.services[name]?.image).filter(Boolean))]);
         compose(["build", "web", "cron", "migrate", "storage-init", ...(withOcr ? ["ocr"] : [])]);
         candidateImages = [...new Set(["web", "cron", "migrate"].map(name => model.services[name]?.image).filter(Boolean))]
           .map(image => ({ reference: image, id: docker(["image", "inspect", image, "--format", "{{.Id}}"], { capture: true }).trim() }));
@@ -365,6 +395,7 @@ export function createManager({ root = repoRoot, run = runDocker, log = console.
           note: "SQL, uploads/avatars and crawler hero/skin files. Complete means written to the filesystem; rclone remote upload is not verified. Keep the matching Docker env file and project-root .env (if used) separately.",
         }, null, 2), { flag: "wx", mode: 0o600 });
         log(`[compose] Backup completed: ${backupDir}`);
+        markBackupState(backupDir, deploying ? "pending" : "backup", model.services.web.environment.APP_RELEASE_ID);
         if (storage.mode === "rclone") log("[compose] Backup is written to the mounted filesystem; verify rclone upload completion separately.");
         if (deploying) {
           migrationStarted = true;
@@ -374,10 +405,13 @@ export function createManager({ root = repoRoot, run = runDocker, log = console.
           compose(["up", "-d", "--no-deps", "--wait", "--wait-timeout", withOcr ? "600" : "180", "web", "cron", ...(withOcr ? ["ocr"] : [])]);
           const webEnvironment = model.services.web.environment;
           await verifyEntry(webEnvironment.PUBLIC_ORIGIN, webEnvironment.APP_RELEASE_ID || "local");
+          markBackupState(backupDir, "success", webEnvironment.APP_RELEASE_ID);
+          markDeploymentImages(root, releaseEnvironment.APP_RELEASE_ID, "success");
           stopped = false;
           log("[compose] Deployment completed; health and desktop/mobile entry checks passed.");
         }
       } catch (error) {
+        if (backupDir && existsSync(resolve(backupDir, "manifest.json"))) markBackupState(backupDir, "failed", model.services.web.environment.APP_RELEASE_ID);
         if (migrationStarted) {
           // Capture bounded health/state before stopping the failed application.
           const diagnostic = resolve(backupDir || storage.backupPath, "readiness-diagnostics.json");

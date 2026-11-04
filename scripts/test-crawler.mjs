@@ -8,14 +8,15 @@ import iconv from "iconv-lite";
 
 const nativeRequire = createRequire(import.meta.url);
 const repo = resolve(import.meta.dirname, "..");
+const officialVersions = JSON.parse(readFileSync(resolve(repo, "scripts/fixtures/hero-detail-versions.json"), "utf8"));
 
-function detailHtml(layout, description) {
+function detailHtml(layout, description, heroId) {
   const skills = layout === "preview"
     ? `<div class="detail-js"><b>A</b>${description}<br><b>B</b>Second description</div>`
     : layout === "redesigned"
       ? `<b class="skill-name"><b>A</b></b><p class="skill-desc">${description}</p><b class="skill-name"><b>B</b></b><p class="skill-desc">Second description</p>`
       : `<div class="skill-show">${["A", "B", "C"].map(name => `<div class="show-list"><p class="skill-name"><b>${name}</b><span>1</span><span>2</span></p><p class="skill-desc">${description}</p></div>`).join("")}</div>`;
-  return `<h1>英雄技能</h1>${skills}<div data-imgname="Base|Variant"></div>`;
+  return `<meta charset="gbk"><script>var ename = '${heroId}';</script><h1>英雄技能</h1>${skills}<div data-imgname="Base|Variant"></div>`;
 }
 
 // Run the real sync, monitor, parsers and bounded HTTP reader. Only replace
@@ -23,6 +24,7 @@ function detailHtml(layout, description) {
 function crawlerFixture({ layout = "standard", namedFallback = false, configuredCatalog = false } = {}) {
   const modules = new Map();
   const rows = new Map();
+  const skillRows = new Map();
   const cache = new Map();
   const requests = [];
   const catalogRequests = [];
@@ -33,6 +35,12 @@ function crawlerFixture({ layout = "standard", namedFallback = false, configured
     unparseable: false,
     catalogUnavailable: false,
     unavailableCatalogPart: null,
+    namedUnavailable: false,
+    wrongHero: false,
+    numericDescription: null,
+    failSkillWrite: false,
+    imageRuns: 0,
+    detailOverrides: {},
     htmlOnly: [],
     heroes: Array.from({ length: 50 }, (_, index) => ({
       ename: index + 1, cname: `Hero${index + 1}`, title: "Title", hero_type: 1,
@@ -58,13 +66,30 @@ function crawlerFixture({ layout = "standard", namedFallback = false, configured
       async create({ data }) { writes.push(data.heroId); rows.set(data.heroId, structuredClone(data)); },
       async update({ where, data }) { writes.push(where.heroId); Object.assign(rows.get(where.heroId), structuredClone(data)); },
     },
-    heroSkill: { async deleteMany() {}, async createMany() {} },
+    heroSkill: {
+      async deleteMany({ where }) { skillRows.delete(where.heroId); },
+      async createMany({ data }) {
+        if (upstream.failSkillWrite) throw new Error("Simulated skill insert failure");
+        if (data.length) skillRows.set(data[0].heroId, structuredClone(data));
+      },
+    },
     kvCache: {
       async findUnique({ where }) { return cache.has(where.key) ? { value: cache.get(where.key) } : null; },
       async upsert({ where, create, update }) { cache.set(where.key, cache.has(where.key) ? update.value : create.value); },
       async deleteMany({ where }) { cache.delete(where.key); },
     },
-    async $transaction(operations) { return Promise.all(operations); },
+    async $transaction(operations) {
+      if (typeof operations !== "function") return Promise.all(operations);
+      const beforeHeroes = structuredClone(rows);
+      const beforeSkills = structuredClone(skillRows);
+      try { return await operations(prisma); }
+      catch (error) {
+        rows.clear(); skillRows.clear();
+        for (const [id, row] of beforeHeroes) rows.set(id, row);
+        for (const [id, row] of beforeSkills) skillRows.set(id, row);
+        throw error;
+      }
+    },
   };
   async function fixtureFetch(value, options) {
     const url = new URL(value);
@@ -75,14 +100,21 @@ function crawlerFixture({ layout = "standard", namedFallback = false, configured
       if ((upstream.unavailableCatalogPart === "json" && String(url) === jsonUrl)
         || (upstream.unavailableCatalogPart === "html" && String(url) === htmlUrl)) return new Response(null, { status: 404 });
       if (String(url) === jsonUrl) return Response.json(upstream.heroes);
-      return new Response([...upstream.heroes, ...upstream.htmlOnly].map(hero => `<a href="herodetail/${hero.ename}.shtml">${hero.cname}</a>`).join(""));
+      return new Response(iconv.encode('<meta charset="gbk">' + [...upstream.heroes, ...upstream.htmlOnly]
+        .map(hero => `<a href="herodetail/${hero.ename}.shtml">${hero.cname}</a>`).join(""), "gbk"));
     }
     if (url.pathname.endsWith("/item.json")) return Response.json([]);
     if (url.pathname.includes("/herodetail/")) {
       requests.push(String(url));
       if (upstream.unavailable || !String(url).startsWith(`${detailBase}/`)
         || (namedFallback && /\/\d+\.shtml$/.test(url.pathname))) return new Response(null, { status: 404 });
-      return new Response(iconv.encode(upstream.unparseable ? "<h1>英雄页面暂不可用</h1>" : detailHtml(layout, upstream.description), "gbk"));
+      const numeric = /\/\d+\.shtml$/.test(url.pathname);
+      if (upstream.namedUnavailable && !numeric) return new Response(null, { status: 404 });
+      const page = url.pathname.match(/\/([^/]+)\.shtml$/)[1];
+      if (upstream.detailOverrides[page]) return new Response(iconv.encode(upstream.detailOverrides[page], "gbk"));
+      const heroId = Number(page.replace("hero", ""));
+      return new Response(iconv.encode(upstream.unparseable ? "<h1>英雄页面暂不可用</h1>"
+        : detailHtml(layout, numeric && upstream.numericDescription || upstream.description, upstream.wrongHero ? 999 : heroId), "gbk"));
     }
     throw new Error(`Unexpected fixture request: ${url}`);
   }
@@ -92,7 +124,7 @@ function crawlerFixture({ layout = "standard", namedFallback = false, configured
     "@/lib/redis": { cacheDel: async () => {}, cacheDelPattern: async () => {} },
     "@/lib/gicp": { GICP_CHANNELS: { announcement: "fixture" }, fetchGicpNews: async () => [{ title: "Unchanged" }] },
     "@/core/game": { processSkill: () => ({ extraJson: null }) },
-    "@/features/heroes/server/download-images": { downloadAllImages: async () => ({ heroes: 0, skins: 0 }) },
+    "@/features/heroes/server/download-images": { downloadAllImages: async () => { upstream.imageRuns++; return { heroes: 0, skins: 0 }; } },
   };
   function load(relative) {
     if (modules.has(relative)) return modules.get(relative).exports;
@@ -104,7 +136,7 @@ function crawlerFixture({ layout = "standard", namedFallback = false, configured
     function localRequire(specifier) {
       if (Object.hasOwn(stubs, specifier)) return stubs[specifier];
       if (["crypto", "cheerio", "iconv-lite"].includes(specifier)) return nativeRequire(specifier);
-      if (["@/core/crawl-url", "@/features/heroes/crawl-config", "@/features/heroes/server/crawl-config", "@/features/heroes/model", "@/features/heroes/server/sync", "@/lib/anti-bot", "@/lib/http-response"].includes(specifier)) {
+      if (["@/core/crawl-url", "@/features/heroes/crawl-config", "@/features/heroes/server/crawl-config", "@/features/heroes/model", "@/features/heroes/server/sync", "@/lib/anti-bot", "@/lib/http-response", "@/lib/html-encoding"].includes(specifier)) {
         return load(`src/${specifier.slice(2)}.ts`);
       }
       throw new Error(`Unmocked import refused: ${specifier}`);
@@ -118,7 +150,9 @@ function crawlerFixture({ layout = "standard", namedFallback = false, configured
   const sync = load("src/features/heroes/server/sync.ts");
   const monitor = load("src/features/monitor/index.ts");
   return {
-    upstream, rows, requests, catalogRequests, writes,
+    upstream, rows, skillRows, requests, catalogRequests, writes,
+    parseSkills: sync.parseSkills,
+    decodeHeroDetail: sync.decodeHeroDetail,
     sync: () => sync.syncHeroes(),
     async cycle() {
       requests.length = 0;
@@ -150,6 +184,97 @@ for (const layout of ["standard", "preview", "redesigned"]) {
     }
   });
 }
+
+test("current official named pages win over successful but archived numeric pages", async () => {
+  const fixture = crawlerFixture();
+  fixture.upstream.description = "Current official skills";
+  fixture.upstream.numericDescription = "Archived skills";
+  await fixture.sync();
+  assert.equal(JSON.parse(fixture.rows.get(1).skillsJson)[0].desc, "Current official skills");
+  assert.equal(fixture.requests.some(url => /\/\d+\.shtml$/.test(url)), false);
+  fixture.requests.length = 0;
+  fixture.upstream.namedUnavailable = true;
+  assert.equal((await fixture.sync()).preservedSkills, 50);
+  assert.equal(fixture.requests.some(url => /\/\d+\.shtml$/.test(url)), false,
+    "an unavailable current page cannot roll saved skills back to an HTTP 200 archive");
+  assert.equal(JSON.parse(fixture.rows.get(1).skillsJson)[0].desc, "Current official skills");
+  assert.equal(fixture.skillRows.get(1)[0].desc, "Current official skills");
+});
+
+for (const hero of officialVersions.heroes) {
+  test(`observed official ${hero.name} current cooldowns replace the numeric archive`, async () => {
+    const fixture = crawlerFixture();
+    fixture.upstream.heroes[0] = {
+      ename: hero.heroId, cname: hero.name, id_name: hero.idName,
+      title: "Title", hero_type: 2, skin_name: "Base|Variant",
+    };
+    for (const [page, version] of [[String(hero.heroId), hero.numeric], [hero.idName, hero.current]]) {
+      fixture.upstream.detailOverrides[page] = `<meta charset="gbk"><script>var ename='${hero.heroId}';</script>`
+        + `<h2 class="cover-name">${hero.name}</h2><div class="skill-show">`
+        + hero.skillNames.map((name, index) => `<div class="show-list"><p class="skill-name"><b>${name}</b><span>冷却值：${version.cd[index]}</span><span>消耗：${version.cost[index]}</span></p><p class="skill-desc">Fixture description</p></div>`).join("")
+        + "</div>";
+    }
+    await fixture.sync();
+    const skills = JSON.parse(fixture.rows.get(hero.heroId).skillsJson);
+    assert.equal(skills[2].cd, hero.current.cd[2]);
+    assert.equal(skills[2].cost, hero.current.cost[2]);
+    assert.equal(fixture.requests.includes(hero.numeric.source), false);
+    assert.equal(fixture.requests.includes(hero.current.source), true);
+  });
+}
+
+for (const failure of ["unparseable", "wrongHero", "unavailable"]) {
+  test(`manual sync preserves JSON and normalized skills on ${failure} details`, async () => {
+    const fixture = crawlerFixture();
+    await fixture.sync();
+    const previous = structuredClone(fixture.skillRows.get(1));
+    fixture.upstream[failure] = true;
+    assert.equal((await fixture.sync()).preservedSkills, 50);
+    assert.equal(JSON.parse(fixture.rows.get(1).skillsJson)[0].desc, "Original description");
+    assert.deepEqual(fixture.skillRows.get(1), previous);
+  });
+}
+
+test("a failed normalized skill insert rolls back the hero JSON and deleted rows together", async () => {
+  const fixture = crawlerFixture();
+  await fixture.sync();
+  const previousHero = structuredClone(fixture.rows.get(1));
+  const previousSkills = structuredClone(fixture.skillRows.get(1));
+  fixture.upstream.description = "New official content";
+  fixture.upstream.failSkillWrite = true;
+  await assert.rejects(fixture.sync(), /Simulated skill insert failure/);
+  assert.deepEqual(fixture.rows.get(1), previousHero);
+  assert.deepEqual(fixture.skillRows.get(1), previousSkills);
+});
+
+test("UTF-8 and GBK skill pages decode without changing Chinese names or descriptions", () => {
+  const fixture = crawlerFixture();
+  const html = '<div class="skill-show">' + ["恶德医疗", "致命灵药", "善恶诊断", "生命主宰"]
+    .map(name => `<div class="show-list"><p class="skill-name"><b>${name}</b><span>冷却值：10/8</span><span>消耗：30</span></p><p class="skill-desc">扁鹊释放毒球。</p></div>`).join("") + '</div>';
+  for (const encoding of ["utf-8", "gbk"]) {
+    const decoded = fixture.decodeHeroDetail(iconv.encode(`<meta charset="${encoding}">${html}`, encoding));
+    const skills = fixture.parseSkills(decoded);
+    assert.equal(skills[2].name, "善恶诊断");
+    assert.equal(skills[2].desc, "扁鹊释放毒球。");
+    assert.equal(skills[2].cost, "30");
+  }
+  assert.deepEqual(fixture.parseSkills('<div class="detail-js">英雄介绍。很多文字但没有技能结构。请等待。</div>'), []);
+  assert.deepEqual(fixture.parseSkills('<b class="skill-name"><b>A</b></b><b class="skill-name"><b>B</b></b><p class="skill-desc">B effect</p><b class="skill-name"><b>C</b></b><p class="skill-desc">C effect</p>'), [],
+    "missing descriptions cannot shift B's effect onto A");
+});
+
+test("partial skills do not prevent the skin image phase or claim a successful full sync", async () => {
+  const fixture = crawlerFixture();
+  await fixture.sync();
+  fixture.upstream.namedUnavailable = true;
+  fixture.upstream.heroes[0].skin_name += "|New skin";
+  const { events } = await fixture.cycle();
+  assert.equal(fixture.upstream.imageRuns, 1, "skin images must still refresh when one skill source is unavailable");
+  assert.equal(events.some(event => event.action === "scrape-fail" && event.detail.includes("已保留原技能")), true);
+  assert.equal(events.some(event => event.module === "skins" && event.action === "scrape-done"), false);
+  assert.deepEqual(JSON.parse(fixture.rows.get(1).skinsJson).map(skin => skin.name), ["Base", "Variant", "New skin"]);
+  assert.equal(JSON.parse(fixture.rows.get(1).skillsJson)[0].desc, "Original description");
+});
 
 test("a real skill change triggers sync once and then settles", async () => {
   const fixture = crawlerFixture();
@@ -272,6 +397,15 @@ test("HTML-only heroes still participate in skill monitoring without metadata fa
   assert.equal(JSON.parse(fixture.rows.get(1).skillsJson)[0].name, "A");
   await fixture.cycle();
   assert.equal(fixture.writes.length, 0);
+});
+
+test("GBK catalog fallback preserves Chinese names for HTML-only heroes", async () => {
+  const fixture = crawlerFixture();
+  const hero = fixture.upstream.heroes.shift();
+  fixture.upstream.htmlOnly.push({ ...hero, cname: "新英雄" });
+  await fixture.sync();
+  assert.equal(fixture.rows.get(1).name, "新英雄");
+  assert.equal(JSON.parse(fixture.rows.get(1).skillsJson)[0].name, "A");
 });
 
 test("blank official skin names use the same detail fallback as sync", async () => {

@@ -6,10 +6,11 @@ async function main(): Promise<void> {
   process.env.APP_ROLE = "job";
   const { resourceGovernor } = await import("@/lib/resource-governor");
   const { runExclusiveTask } = await import("@/features/cron/task-lock");
-  const [{ syncHeroes }, { prisma }, { redis }] = await Promise.all([
+  const [{ assertHeroSyncComplete, syncHeroes }, { prisma }, { redis }, { downloadAllImages }] = await Promise.all([
     import("@/features/heroes/server/sync"),
     import("@/lib/db"),
     import("@/lib/redis"),
+    import("@/features/heroes/server/download-images"),
   ]);
   const stop = () => resourceGovernor.stop();
   process.once("SIGINT", stop);
@@ -18,6 +19,9 @@ async function main(): Promise<void> {
     const completed = await resourceGovernor.run("hero-sync:manual", () => runExclusiveTask("hero-pipeline", 2 * 60 * 60 * 1000, async () => {
       const result = await syncHeroes();
       console.log(`[sync-heroes] ${result.inserted} inserted, ${result.updated} updated`);
+      const images = await downloadAllImages();
+      console.log(`[sync-heroes] ${images.heroes} hero + ${images.skins} skin images refreshed`);
+      assertHeroSyncComplete(result);
     }));
     if (!completed) throw new Error("Another hero sync owns the task lease; retry after it finishes");
   } finally {

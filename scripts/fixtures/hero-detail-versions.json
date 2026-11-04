@@ -1,0 +1,37 @@
+{
+  "observedAt": "2026-11-04",
+  "heroes": [
+    {
+      "heroId": 119,
+      "name": "扁鹊",
+      "idName": "bianque",
+      "skillNames": ["恶德医疗", "致命灵药", "善恶诊断", "生命主宰"],
+      "numeric": {
+        "source": "https://pvp.qq.com/web201605/herodetail/119.shtml",
+        "cd": ["0", "2", "5", "15/13.5/12"],
+        "cost": ["0", "40", "60", "130"]
+      },
+      "current": {
+        "source": "https://pvp.qq.com/web201605/herodetail/bianque.shtml",
+        "cd": ["0", "2/1.8/1.6/1.4/1.2/1", "10/9.6/9.2/8.8/8.4/8", "20/18/16"],
+        "cost": ["0", "30", "30", "90"]
+      }
+    },
+    {
+      "heroId": 167,
+      "name": "孙悟空",
+      "idName": "sunwukong",
+      "skillNames": ["大圣神威", "护身咒法", "斗战冲锋", "如意金箍"],
+      "numeric": {
+        "source": "https://pvp.qq.com/web201605/herodetail/167.shtml",
+        "cd": ["0", "12/11.6/11.2/10.8/10.4/10", "8/7.4/6.8/6.2/5.6/5", "40/35/30"],
+        "cost": ["0", "70", "50", "100"]
+      },
+      "current": {
+        "source": "https://pvp.qq.com/web201605/herodetail/sunwukong.shtml",
+        "cd": ["0", "12/11.6/11.2/10.8/10.4/10", "6/5.8/5.6/5.4/5.2/5", "40/35/30"],
+        "cost": ["0", "65", "45", "100"]
+      }
+    }
+  ]
+}

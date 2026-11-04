@@ -46,7 +46,8 @@ const capacity = Math.min(os.totalmem(), process.constrainedMemory?.() || os.tot
 function memoryRestart(key, role) {
   const configured = Number(governorEnv[key]);
   if (!Number.isFinite(configured) || configured < 0) throw new Error(`Invalid ${key}`);
-  return `${Math.max(1, Math.ceil(resourceMemoryBudget(capacity, role, configured).restartBytes / 1024 / 1024))}M`;
+  return `${Math.max(1, Math.ceil(resourceMemoryBudget(capacity, role, configured, "native",
+    Number(governorEnv.RESOURCE_PROJECT_MEMORY_PERCENT) || 25, os.totalmem()).restartBytes / 1024 / 1024))}M`;
 }
 
 if (!isAbsolute(appDir)) {

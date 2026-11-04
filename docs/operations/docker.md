@@ -18,29 +18,20 @@
 
 | 服务 | 内存上限配置 / 默认 | CPU 默认 | PID 上限 |
 |---|---|---|---|
-| web | `WEB_MEMORY_LIMIT=1g` | `WEB_CPU_LIMIT=2.0` | 256 |
-| cron / 手工同步与媒体核验容器 | `CRON_MEMORY_LIMIT=768m` | `CRON_CPU_LIMIT=1.0` | 128 |
-| mysql | `MYSQL_MEMORY_LIMIT=1g` | `MYSQL_CPU_LIMIT=1.0` | 256 |
-| redis | `REDIS_MEMORY_LIMIT=768m` | `REDIS_CPU_LIMIT=0.5` | 128 |
+| web | `WEB_MEMORY_LIMIT=512m` | `WEB_CPU_LIMIT=2.0` | 256 |
+| cron / 手工同步与媒体核验容器 | `CRON_MEMORY_LIMIT=256m` | `CRON_CPU_LIMIT=1.0` | 128 |
+| mysql | `MYSQL_MEMORY_LIMIT=512m` | `MYSQL_CPU_LIMIT=1.0` | 256 |
+| redis | `REDIS_MEMORY_LIMIT=192m` | `REDIS_CPU_LIMIT=0.5` | 128 |
 | 可选 ocr | `OCR_MEMORY_LIMIT=2g` | `OCR_CPU_LIMIT=2.0` | 128 |
-| migrate | `MIGRATE_MEMORY_LIMIT=512m` | 1.0 | 128 |
+| migrate | `MIGRATE_MEMORY_LIMIT=256m` | 1.0 | 128 |
 | storage-init | `STORAGE_INIT_MEMORY_LIMIT=128m` | 0.5 | 64 |
-| mysql-client | `MYSQL_CLIENT_MEMORY_LIMIT=256m` | 1.0 | 64 |
+| mysql-client | `MYSQL_CLIENT_MEMORY_LIMIT=128m` | 1.0 | 64 |
 
-`check/build/up/update/import-native/sync-heroes` 从当前 Docker daemon 读取 MemTotal，在构建/停写前核对：所选常驻服务限额之和 + 最大一次性任务 + `COMPOSE_MEMORY_RESERVE_MB`（默认 1024）+ `COMPOSE_EXTERNAL_MEMORY_MB`（默认 0）。一次性任务包含使用 Cron 限额的媒体核验/导入工具，以及 migration、storage-init、MySQL 客户端和所选外部 OCR 探测；按其中最大值预留，不把先后执行的任务累加。默认无 OCR 的 check 预算为 **5376 MiB**，含容器 OCR 为 **7424 MiB**；默认手工同步采用相同预算，已计入额外 Cron 容器，不再另外加一份。Docker Desktop 按其虚拟机容量核对。预留不是内核预占，构建峰值、其他项目容器及同机外部 MySQL/OCR 也要计入；外部服务的同机占用填写在 `COMPOSE_EXTERNAL_MEMORY_MB`，远程服务无需计入本机。
+`check/build/up/update/import-native/sync-heroes` 从当前 Docker daemon 读取 MemTotal，在构建/停写前核对：所选常驻服务限额之和 + 最大一次性任务 + `COMPOSE_EXTERNAL_MEMORY_MB`（默认 0），必须不超过 `RESOURCE_PROJECT_MEMORY_PERCENT`（默认 25，只允许 20–30）的项目预算。再加 `COMPOSE_MEMORY_RESERVE_MB`（默认 1024）的操作系统/构建容量余量，核对 daemon 总容量。一次性任务包含 Web 备份、Cron 媒体核验/导入/同步，以及 migration、storage-init、MySQL 客户端；按最大值 512 MiB 预留，不把依次执行的任务累加。默认无 OCR 的项目预算为 **1984 MiB**，加系统余量后总规划为 **3008 MiB**；含容器 OCR 的项目预算为 **4032 MiB**、总规划为 **5056 MiB**。Docker Desktop 按其虚拟机容量核对。预留不是内核预占，构建峰值、其他项目容器及同机外部 MySQL/OCR 也要计入；外部服务的同机占用填写在 `COMPOSE_EXTERNAL_MEMORY_MB`，远程服务无需计入本机。
 
-Redis 的 `REDIS_MAXMEMORY=256mb` 是数据上限；容器上限至少为数据上限两倍加 64 MiB，以留 AOF/fork 和进程空间。MySQL 新容器默认 `MYSQL_BUFFER_POOL_SIZE=256M`、`MYSQL_MAX_CONNECTIONS=50`，预检按池大小与连接数检查最低余量。这些估算不能替代实际查询/识别负载测试。不要通过把预留改为 0 来掩盖超配；先按实测调整服务限额或增加 Docker/宿主容量。`status/logs/down` 和备份仍可用于故障维护。
+Redis 的 `REDIS_MAXMEMORY=64mb` 是数据上限；容器上限至少为数据上限两倍加 64 MiB，以留 AOF/fork 和进程空间。MySQL 新容器默认 `MYSQL_BUFFER_POOL_SIZE=128M`、`MYSQL_MAX_CONNECTIONS=30`，预检按池大小与连接数检查最低余量。这些估算不能替代实际查询/识别负载测试。不要通过把预留改为 0 或超过 30% 来掩盖超配；先按实测调整服务限额或增加 Docker/宿主容量。`status/logs/down/cleanup` 和备份仍可用于故障维护。
 
-全新部署、无 OCR、无同机其他服务的 4 GiB Docker 环境，可以从以下规划配置开始验收；其预算正好为 4096 MiB，仍须通过实际峰值测试：
-
-```dotenv
-WEB_MEMORY_LIMIT=768m
-CRON_MEMORY_LIMIT=512m
-MYSQL_MEMORY_LIMIT=768m
-REDIS_MEMORY_LIMIT=512m
-REDIS_MAXMEMORY=128mb
-COMPOSE_MEMORY_RESERVE_MB=1024
-```
+全新部署、无 OCR、无同机其他服务的 8 GiB Docker 环境可从模板默认值开始验收，项目上限 2048 MiB 可容纳 1984 MiB 的规划。4 GiB 主机无法在默认 25% 预算内运行这组配置，预检会拒绝，不能把旧版占满 4 GiB 的示例继续当成满足百分比上限。包含 2 GiB 容器 OCR 时，8 GiB/25% 不足，16 GiB/25% 可以通过容量检查；仍须做实际峰值测试。
 
 已有实例调整 Redis 数据上限前，先核对当前数据量、AOF/重写开销和业务峰值；过小的 `noeviction` 上限会拒绝新写入。不得为套用示例清空已有 Redis 数据。开启 OCR 或同机有其他服务时重新计算容量。
 
@@ -61,11 +52,11 @@ node scripts/compose.mjs status
 
 ```bash
 docker stop --time 310 <原来运行的web容器ID> <原来运行的cron容器ID>
-docker update --memory 1g --memory-swap 2g --cpus 1 --pids-limit 256 <mysql容器ID>
-docker update --memory 768m --memory-swap 1536m --cpus 0.5 --pids-limit 128 <redis容器ID>
+docker update --memory 512m --memory-swap 512m --cpus 1 --pids-limit 256 <mysql容器ID>
+docker update --memory 192m --memory-swap 192m --cpus 0.5 --pids-limit 128 <redis容器ID>
 ```
 
-`--memory-swap` 是内存加 swap 的总额；示例保持新建容器默认的两倍内存总额，有不同 swap 策略时按现场策略设置。外部 MySQL 不执行上述命令；已运行的 OCR 可同样按配置维护。`docker update` 不应用 MySQL 启动参数变更，buffer pool/连接数的运行值须另行核对，涉及重建时应固定同一镜像版本并按数据库维护流程操作。命令语义见 [Docker update](https://docs.docker.com/reference/cli/docker/container/update/)；Redis 数据上限以外的内存见 [Redis 官方说明](https://redis.io/docs/latest/develop/reference/eviction/)。
+`--memory-swap` 是内存加 swap 的总额；本项目与 `--memory` 设为相同值，避免通过额外 swap 扩大边界。预检也会核对已有容器实际的 memory+swap 上限。外部 MySQL 不执行上述命令；已运行的 OCR 可同样按配置维护。`docker update` 不应用 MySQL 启动参数变更，buffer pool/连接数的运行值须另行核对，涉及重建时应固定同一镜像版本并按数据库维护流程操作。命令语义见 [Docker update](https://docs.docker.com/reference/cli/docker/container/update/)；Redis 数据上限以外的内存见 [Redis 官方说明](https://redis.io/docs/latest/develop/reference/eviction/)。
 
 确认数据服务 healthy 后重新执行 `node scripts/compose.mjs check` 和 `update`，管理脚本会读取实际内存、CPU/PID 限额再次核对。失败时先保留日志和备份，确认数据服务健康后用 `docker start <原来运行的web容器ID> <原来运行的cron容器ID>` 恢复旧进程；有意停止的服务继续保持停止。操作期间不得执行 `down --volumes`，不得更换数据库镜像版本或删除 MySQL/Redis 活动数据。整个过程属于有计划维护，不由普通发布隐式执行。
 
@@ -547,6 +538,8 @@ OSS 同时存业务主文件和备份时，应在 OSS 控制台启用合适的�
 | 跟踪 Web 日志 | `node scripts/compose.mjs logs web` |
 | 跟踪 Cron 日志 | `node scripts/compose.mjs logs cron` |
 | 一致性备份 | `node scripts/compose.mjs backup` |
+| 预览旧备份与项目镜像 | `node scripts/compose.mjs cleanup` |
+| 执行同一清理计划 | `node scripts/compose.mjs cleanup --apply` |
 | 导出已停写的原生实例 | `node scripts/compose.mjs export-native --source-root PATH --source-env PATH --backup-dir PATH --writers-stopped` |
 | 导入原生迁移备份并核验 | `node scripts/compose.mjs import-native --from-backup PATH` |
 | 手动同步英雄 | `node scripts/compose.mjs sync-heroes` |
@@ -563,6 +556,19 @@ node scripts/compose.mjs backup --env-file /etc/wzywt/production.env --backup-di
 
 ## 8. 发布更新
 
+`build/up/update` 在构建前、持有同一 Compose 项目锁时，自动清理已确认的旧备份与登记过的项目镜像。可先预览，或独立整理而不部署：
+
+```bash
+node scripts/compose.mjs cleanup
+node scripts/compose.mjs cleanup --apply
+```
+
+预览逐项输出路径/镜像引用、大小、可回收量与保留原因，不创建报告、不删文件。执行报告保存在 `.cache/cleanup-reports/`，保留最近 20 份；失败时 `applied: false` 的报告保留本次计划，不能把它当成已经全部执行。
+
+备份默认同时保留最近 7 组且至少保留 7 天，通过 `CLEANUP_BACKUP_RETENTION`（最少 2）与 `CLEANUP_BACKUP_MIN_AGE_DAYS`（最少 1）调整；只有完整清单、全部文件 SHA-256 核验通过并有成功部署或独立备份结果的集合才参与保留计数和回收。损坏的新备份不会挤掉旧的有效备份。原生迁移导出、失败/未完成部署备份、旧版无法证明发布结果的备份，以及未知目录和符号链接始终保留并说明原因。
+
+项目镜像以 `.cache/deployment-images/` 中登记的精确引用证明归属，默认分别保留最近 2 个成功部署与 2 次构建尝试（`CLEANUP_IMAGE_RETENTION`，最少 2）；任何现有容器引用的镜像，包括其他项目或已停止容器，均受保护。连续失败构建不会挤掉上一版成功镜像。不会删除 MySQL/Redis/OCR 官方基础镜像、持久卷或业务媒体，不运行全机 `prune`；首次接入前未登记的历史镜像与共享 BuildKit 缓存无法证明项目归属，也不会自动删除。镜像显示大小包含共享层，实际释放量可能较小。业务文件、保留故障证据、其他项目和共享构建缓存仍可能增长，这套规则不保证整块磁盘大小固定。
+
 1. 把完整新源码放到项目目录，确认 `.env` 和 Docker 覆盖文件未被覆盖。
 2. 准备交付记录；更新完成后从本次备份清单记录自动生成的 `candidateReleaseId` 和 `candidateSource`，无需手填 `APP_RELEASE_ID`。
 3. 检查 rclone、磁盘空间和维护窗口。
@@ -576,7 +582,7 @@ node scripts/compose.mjs status
 
 已填写 `OCR_MODE` 时不必添加参数；旧配置也可在 `check/update` 加 `--ocr` 选择容器 OCR。外部 OCR 不加该参数。更新期间 Web/Cron 会暂停写入，当前方案不承诺零停机。
 
-更新脚本先完成构建，再停止 writer。构建失败不会影响现有容器；备份失败会阻止 migration，并恢复更新前正在运行的 Web/Cron。migration 或激活开始后失败时，Web/Cron 保持停止并打印备份目录，实施人员应按第 11 节处理。
+更新脚本先清理可回收旧产物并完成构建，再停止 writer。构建失败不会影响现有容器；备份失败会阻止 migration，并恢复更新前正在运行的 Web/Cron。migration 或激活开始后失败时，Web/Cron 保持停止并打印备份目录，实施人员应按第 11 节处理。新备份会写入 `deployment-state.json` 区分成功、独立备份、失败和未完成，`manifest.json` 的 `complete` 仍只表示备份文件已写完。
 
 schema migration 成功后仍会核对所有有效视频、截图及头像的数据库引用和实际文件。媒体缺失或校验不一致时不启动 Web/Cron，防止数据库沿用旧记录而媒体目录为空的实例上线。此检查不自动补文件、清记录或转换旧视频。
 

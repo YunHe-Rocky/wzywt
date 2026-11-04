@@ -187,10 +187,12 @@ async function checkSkills(response: Promise<HeroListResponse>): Promise<Monitor
       const batch = samples.slice(b, b + batchSize);
       const results = await Promise.all(
         batch.map(async (h) => {
-          const html = await fetchDetail(cfg, h.heroId, detailNames.get(h.heroId));
+          const html = await fetchDetail(cfg, h.heroId, detailNames.get(h.heroId), {
+            expectedName: official.find(hero => hero.ename === h.heroId)?.cname,
+          });
           if (!html) return { heroId: h.heroId, checked: false, changed: false };
           const skills = parseSkills(html);
-          if (skills.length === 1 && skills[0].name === "数据暂缺") {
+          if (skills.length === 0) {
             return { heroId: h.heroId, checked: false, changed: false };
           }
           // dataHash also includes skin image URLs; it is not a skill fingerprint.
@@ -311,12 +313,13 @@ export async function runMonitorAndScrape(
   if (heroModules.length > 0) {
     heroModules.forEach((module) => addEvent({ module, action: "scrape-start", detail: "detected change", timestamp: Date.now() }));
     try {
-      const [{ syncHeroes }, { downloadAllImages }] = await Promise.all([
+      const [{ assertHeroSyncComplete, syncHeroes }, { downloadAllImages }] = await Promise.all([
         import("@/features/heroes/server/sync"),
         import("@/features/heroes/server/download-images"),
       ]);
       const result = await syncHeroes();
       const images = await downloadAllImages();
+      assertHeroSyncComplete(result);
       const detail = `inserted=${result.inserted} updated=${result.updated}; images=${images.heroes}+${images.skins}`;
       heroModules.forEach((module) => addEvent({ module, action: "scrape-done", detail, timestamp: Date.now() }));
     } catch (error) {

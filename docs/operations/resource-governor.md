@@ -42,6 +42,7 @@ Web/Cron 在已有 MySQL `kvCache` 交换带 release 和时效的摘要，不新
 | `RESOURCE_GOVERNOR_ENABLED` | `1` | `0` 关闭调度，生产保留开启 |
 | `RESOURCE_WEB_MEMORY_MB` | `0` | Web 软预算，MiB；0 自动 |
 | `RESOURCE_CRON_MEMORY_MB` | `0` | Cron/job 软预算，MiB；0 自动 |
+| `RESOURCE_PROJECT_MEMORY_PERCENT` | `25` | 项目总内存预算，整型 20–30；超范围拒绝启动 |
 | `RESOURCE_EXTERNAL_RPS` | `30` | 单 Web 基础令牌速率 |
 | `RESOURCE_EXTERNAL_BURST` | `30` | 突发令牌数；上传/识别/分队路径加权 |
 | `RESOURCE_EXTERNAL_CONCURRENCY` | `32` | 普通 API 在途加权名额，含视频流，不含实时订阅 |
@@ -61,7 +62,11 @@ Web/Cron 在已有 MySQL `kvCache` 交换带 release 和时效的摘要，不新
 | `SPLIT_WORKER_IDLE_SECONDS` | `60` | 闲置线程寿命，1–3600 秒 |
 | `SPLIT_WORKER_HEAP_MB` | `64` | 单线程 old-generation 上限，16–1024 MiB |
 
-预算算法统一在 `src/core/resource-settings.ts`。原生自动软预算为有效容量的 Web 35%、Cron 20%，受 systemd/cgroup 限制时仍使用相同比例；PM2 的重启阈值为软预算的 120%，至多有效容量，取整到 MiB。Docker 入口固定 `APP_RUNTIME=docker`，默认软预算为所在 cgroup 有效限额的 85%。显式 MiB 软预算也最多为有效容量的 85%。应用无需手工配置 `APP_RUNTIME`。
+预算算法统一在 `src/core/resource-settings.ts`。`RESOURCE_PROJECT_MEMORY_PERCENT` 默认 25，只接受整型 20–30。原生项目预算取宿主总内存乘该百分比与有效 cgroup 限额中的较小值，避免套用项目 cgroup 后再次乘百分比。项目预算的 60%/25% 分别作为 Web/Cron 重启阈值，软预算为对应阈值的 1/1.20；剩余 15% 留给 PM2 和进程开销。显式 MiB 只能进一步降低软预算，不能突破份额。PM2 阈值取整到 MiB，是定期检查后的重启机制；硬上限由下文 systemd cgroup 实施。
+
+在 8 GiB 原生主机上，默认项目预算为 2048 MiB；Web 软预算 1024 MiB、PM2 重启约 1229 MiB，Cron 软预算约 427 MiB、重启 512 MiB。已安装的 systemd 主服务开始在 20% 宿主内存处施加压力，在 25%（2048 MiB）处触发硬限额；父级 cgroup 更紧时以更紧限额为准。原生独立运行的 MySQL/Redis/OCR、构建、命令行同步均不在 PM2 主服务 cgroup 内，不得把此结果解释成全栈已硬封顶。
+
+Docker 入口固定 `APP_RUNTIME=docker`，默认软预算为所在独立容器 cgroup 有效限额的 85%，显式 MiB 同样只能降低此值。各容器硬限额总和及工具峰值还必须通过项目百分比预算检查。应用无需手工配置 `APP_RUNTIME`。
 
 采样支持 cgroup v1/v2 及父级限制，已确认可回收的 inactive file cache 不计为不可释放工作集；宿主 MemAvailable 同时参与压力判断。必须为 MySQL/Redis/OCR、操作系统、构建与备份留空间。清除引用、等待任务结束和线程退出会使对象可回收，但不能保证 RSS 立即下降；日志中的内存差值是观测值，不能直接当作本轮释放的物理字节数。
 
@@ -71,11 +76,13 @@ Web/Cron 在已有 MySQL `kvCache` 交换带 release 和时效的摘要，不新
 
 `RESOURCE_*` 与 `SPLIT_WORKER_*` 从项目根目录 `.env` 继承，容器需要不同值时才在 `.env.docker` 或 `--env-file` 指定的覆盖文件设置；各服务硬限额和宿主预留仍在 Docker 覆盖文件维护。优先级为显式进程环境 > Docker 覆盖 > 根目录 `.env` > 程序默认，省略为继承，显式空值清除继承后使用该调度项的默认值。没有 `.env` 时直接使用程序默认，`--env-file` 不改变基底位置。旧覆盖文件中已有的调度值继续优先，不会被自动清除。
 
-Web 默认 1 GiB、Cron 768 MiB、MySQL 1 GiB、Redis 768 MiB、可选 OCR 2 GiB；一次性 migration、storage-init、MySQL 客户端也有内存/CPU/PID 限额，媒体核验和原生导入工具复用 Cron 容器的限额。Redis 保留 256 MiB 数据上限并预留 AOF/fork 与进程开销，MySQL 默认 buffer pool 256 MiB、最多 50 个连接。全部是可调默认值，不是硬件规格或实测峰值。
+Web 默认 512 MiB、Cron 256 MiB、MySQL 512 MiB、Redis 192 MiB、可选 OCR 2 GiB；一次性 migration 256 MiB、storage-init 128 MiB、MySQL 客户端 128 MiB，也有 CPU/PID 限额。媒体核验和原生导入工具复用 Cron 容器的限额，媒体/英雄备份工具复用 Web 限额。各容器 `memswap_limit` 等于 `mem_limit`，避免额外交换空间扩大内存边界。Redis 数据上限 64 MiB，并预留 AOF/fork 与进程开销；MySQL 默认 buffer pool 128 MiB、最多 30 个连接。全部是可调默认值，不是实测峰值；低于实际运行需求可能触发受限服务 OOM，不能为强行启动把总预算调到 30% 以上。
 
-`check/build/up/update/import-native/sync-heroes` 会读取 Docker daemon 的 MemTotal，计算所选常驻服务、最大一次性任务、`COMPOSE_MEMORY_RESERVE_MB`（默认 1024）和 `COMPOSE_EXTERNAL_MEMORY_MB`（默认 0）的总预算；超配或限额缺失时在构建和停写前失败。一次性任务预留包含使用 Cron 限额的媒体核验/导入工具，按先后执行任务中的最大值计算。未选择的外部 MySQL/OCR 不启动、不管理；若与 Docker 在同一宿主，须把其占用填写在外部预留中。预留是容量核对，不是内核预占；其他项目容器和构建峰值仍须纳入现场容量评估。默认无 OCR 的 check 预算为 **5376 MiB**，含容器 OCR 为 **7424 MiB**；默认手工同步的额外 Cron 容器已被同一预算覆盖，不再另加差额。
+`check/build/up/update/import-native/sync-heroes` 会读取 Docker daemon 的 MemTotal，先计算所选常驻服务、最大一次性任务和 `COMPOSE_EXTERNAL_MEMORY_MB`（默认 0）的项目总额，必须不超过 `RESOURCE_PROJECT_MEMORY_PERCENT`（默认 25%）。一次性任务包含 Web 备份、Cron 媒体核验/导入/同步、migration、MySQL 客户端和 storage-init，按依次执行工具的最大值预留。再加 `COMPOSE_MEMORY_RESERVE_MB`（默认 1024）的操作系统/构建容量余量核对 daemon 总容量。超配或限额缺失时在构建和停写前失败，不把显式旧配置当成突破百分比的例外。
 
-`import-native` 与 `up/update` 共用 MySQL/Redis 实际内存、CPU/PID 限额检查。导入仍保留数据容器的 `--no-recreate`；旧容器限额缺失或超过配置时，在导入标记和首次数据库写入前阻止继续，按部署手册完成资源维护后再执行。
+未选择的外部 MySQL/OCR 不启动、不管理；若与 Docker 在同一宿主，须把其占用填写在外部预留中。预留是容量核对，不是内核预占；其他项目容器和构建峰值仍须纳入现场容量评估。默认无 OCR 的项目预算为 **1984 MiB**（含 Web 工具 512 MiB），加系统余量后的总规划为 **3008 MiB**，可通过 8 GiB/25% 检查。含容器 OCR 的项目预算为 **4032 MiB**、总规划 **5056 MiB**，8 GiB 主机无法满足 25% 项目上限，16 GiB 可通过。Docker Desktop 以 daemon/VM 容量为检查基准，不能冒充物理宿主测量。
+
+`import-native` 与 `up/update` 共用 MySQL/Redis 实际内存、内存加交换空间、CPU/PID 限额检查。导入仍保留数据容器的 `--no-recreate`；旧容器限额缺失或超过配置时，在导入标记和首次数据库写入前阻止继续，按部署手册完成资源维护后再执行。
 
 更新继续保留数据服务的 `--no-recreate`。启动 Web/Cron 前会核对现有 MySQL/Redis 的真实限额，旧无限额容器会阻止部署进入停写阶段；按 [Docker 资源维护步骤](docker.md#已有容器的资源限额维护) 更新其实际限额后再发布。只编辑环境文件不代表已有容器已经采用新限制。
 
@@ -108,7 +115,11 @@ node scripts/runtime-service.mjs --plan
 node scripts/runtime-service.mjs --install
 ```
 
-安装再次检查在线进程所有权，写入带管理标记的 systemd 主服务、watchdog service/timer；拒绝覆盖无管理标记的同名服务。配置在 runtime 的 `shared/runtime-service.json`，只包含路径、名称和恢复设置。主服务固定 PM2_HOME、Node PATH、PIDFile 和用户，通过 `pm2 resurrect` 恢复；watchdog 每 30 秒检查存活。Node/PM2 路径变化后重新生成计划并安装。
+安装再次检查在线进程所有权，要求已保存和在线的 PM2 列表都只有本项目 Web/Cron；拒绝接管包含其他进程的 PM2 home。它写入带管理标记的 systemd 主服务、watchdog service/timer，拒绝覆盖无管理标记的同名服务。配置在 runtime 的 `shared/runtime-service.json`，只包含路径、名称和恢复设置。主服务固定 PM2_HOME、Node PATH、PIDFile 和用户，并设置 `MemoryHigh=<项目百分比的80%>`、`MemoryMax=<项目百分比>%`、`MemorySwapMax=0`。
+
+`--install` 会保存状态、停止旧的受管服务及本项目专用 PM2 daemon，再通过 systemd 的 `pm2 resurrect` 恢复，存在短暂停写/重启窗口。该步骤确保此前从终端启动的 daemon 也真正进入受限 cgroup；仅写入 unit 后联系旧 daemon 无法实施硬上限。先完成正常发布、数据库/媒体备份及健康验证，在维护窗口安装；失败时保留配置和日志，核对 systemctl 状态再恢复。watchdog 每 30 秒检查存活。Node/PM2 路径或项目百分比变化后重新生成计划并安装。
+
+安装后执行 `systemctl show <服务名>.service -p MemoryCurrent -p MemoryHigh -p MemoryMax -p EffectiveMemoryMax -p MemorySwapMax -p ControlGroup`，确认 8 GiB 主机默认 `MemoryMax=2147483648`，并检查 Web/Cron 的 `/proc/<pid>/cgroup` 都属于该服务。原有 PM2 单独重载只更新软预算/重启阈值；未安装此 unit 时不保证硬封顶。MemoryHigh 是压力节流机制，MemoryMax 才是最后的内核限制，触及上限可能触发组内 OOM；健康/恢复机制仍须验收。
 
 watchdog 连续三次失败后尝试恢复，间隔至少 120 秒，每 10 分钟最多三次尝试，先保存重试预算再调用 PM2；只操作 cwd 匹配的指定进程。`stopped` 是有意维护状态，不自动拉起。原生专用 home 内日志按 10 MiB、3 份历史保留，copytruncate 存在很小的并发日志窗口；服务自身日志按 journald 策略保留。
 

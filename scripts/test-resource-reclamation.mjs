@@ -136,12 +136,20 @@ test("native cgroup PM2 restart boundary stays above the shared governor soft bu
       if (name === "node:fs") return { existsSync: () => false }; return nativeRequire(name); },
   });
   for (const [index, role] of ["web", "cron"].entries()) {
-    const budget = resourceMemoryBudget(1_024 * MiB, role);
+    const budget = resourceMemoryBudget(1_024 * MiB, role, 0, "native", 25, 4_096 * MiB);
     const pm2Limit = Number.parseInt(result.exports.apps[index].max_memory_restart) * MiB;
     assert.ok(pm2Limit >= budget.restartBytes && pm2Limit > budget.softBytes);
   }
   assert.equal(resourceMemoryBudget(1_024 * MiB, "web", 0, "docker").softBytes, Math.floor(1_024 * MiB * 0.85));
-  assert.equal(resourceMemoryBudget(1_024 * MiB, "web", 2_048).softBytes, Math.floor(1_024 * MiB * 0.85));
+  assert.equal(resourceMemoryBudget(1_024 * MiB, "web", 2_048).softBytes, 128 * MiB);
+  assert.equal(resourceMemoryBudget(2_048 * MiB, "web", 0, "native", 25, 8_192 * MiB).softBytes, 1_024 * MiB,
+    "project cgroup must not be reduced by the project percentage a second time");
+  assert.equal(resourceMemoryBudget(1_024 * MiB, "web", 0, "native", 25, 8_192 * MiB).softBytes, 512 * MiB,
+    "a tighter ancestor still caps the shared project envelope");
+  for (const percent of [20, 25, 30]) {
+    const budgets = ["web", "cron"].map(role => resourceMemoryBudget(8_192 * MiB, role, 1_048_576, "native", percent));
+    assert.ok(budgets.reduce((sum, budget) => sum + budget.restartBytes, 0) <= 8_192 * MiB * percent / 100 * 0.85 + 2);
+  }
   assert.throws(() => readResourceSettings({ SPLIT_WORKER_HEAP_MB: "2" }), /SPLIT_WORKER_HEAP_MB/);
 });
 

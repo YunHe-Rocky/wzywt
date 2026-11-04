@@ -11,6 +11,8 @@ if [[ "${1:-}" == "--ocr" ]]; then
   exec bash "$SCRIPT_DIR/deploy-ocr.sh" "$@"
 fi
 CHECK_ONLY=0
+CLEANUP_ONLY=0
+CLEANUP_APPLY=0
 CLI_ENV_FILE=""
 
 TEMP_FILES=()
@@ -79,11 +81,14 @@ check_source_clean() {
 usage() {
   cat <<'USAGE'
 Usage: bash scripts/deploy.sh [--check] [--env-file PATH]
+       bash scripts/deploy.sh --cleanup [--apply] [--env-file PATH]
        bash scripts/deploy.sh --ocr [--start|--check|--serve|--status|--logs]
 
   --check          Resolve and validate project paths, commands, PM2 ownership,
                    and configured system services without deploying a release.
   --env-file PATH  Use this project environment file instead of auto-discovery.
+  --cleanup        Preview project release/backup/log cleanup without deploying.
+  --apply          Apply --cleanup under the same deployment lock; never deletes business files.
   --ocr           Run the independent OCR test service launcher (see docs/operations/ocr.md).
 USAGE
 }
@@ -96,6 +101,9 @@ path_within() {
 cleanup_on_exit() {
   local exit_code=$?
   local file app_name current_target=""
+  if [[ "$DEPLOY_SUCCEEDED" != "1" && "$PRESERVE_FAILED_RELEASE" == "1" && -n "$RELEASE_DIR" && -d "$RELEASE_DIR" ]]; then
+    printf '{"status":"failed","migrationStarted":%s}\n' "$MIGRATION_STARTED" >"$RELEASE_DIR/.deploy-failed.json" || true
+  fi
   if [[ "$DEPLOY_SUCCEEDED" != "1" && "$WRITERS_STOPPED" == "1" && "$MIGRATION_STARTED" == "0" && "${#PREVIOUS_RUNNING_NAMES[@]}" -gt 0 ]]; then
     for app_name in "${PREVIOUS_RUNNING_NAMES[@]}"; do
       if ! "$PM2_BIN" restart "$app_name" >/dev/null 2>&1; then
@@ -130,6 +138,14 @@ while (($#)); do
       CHECK_ONLY=1
       shift
       ;;
+    --cleanup)
+      CLEANUP_ONLY=1
+      shift
+      ;;
+    --apply)
+      CLEANUP_APPLY=1
+      shift
+      ;;
     --env-file)
       (($# >= 2)) || fail "--env-file requires a path"
       CLI_ENV_FILE="$2"
@@ -144,6 +160,8 @@ while (($#)); do
       ;;
   esac
 done
+[[ "$CLEANUP_APPLY" == "0" || ( "$CLEANUP_ONLY" == "1" && "$CHECK_ONLY" == "0" ) ]] \
+  || fail "--apply requires --cleanup and cannot be combined with --check"
 
 resolve_command() {
   local label="$1" explicit="$2"
@@ -472,6 +490,13 @@ RELEASE_RETENTION="${DEPLOY_RELEASE_RETENTION:-5}"
   && ((RELEASE_RETENTION >= 2 && RELEASE_RETENTION <= 50)) \
   || fail "DEPLOY_RELEASE_RETENTION must be an integer between 2 and 50"
 
+cleanup_project_artifacts() {
+  local apply="$1" retention="$2"
+  local -a cleanup_arguments=(native "$RELEASES_DIR" "$CURRENT_TARGET" "$BACKUP_DIR" "$PM2_HOME" "$PM2_WEB_NAME" "$PM2_CRON_NAME" "$retention" "$ENV_FILE" "$SHARED_DIR/cleanup-reports")
+  [[ "$apply" == "1" ]] && cleanup_arguments+=(--apply)
+  "$NODE_BIN" "$SCRIPT_DIR/deployment-cleanup.mjs" "${cleanup_arguments[@]}"
+}
+
 check_deploy_disk_space() {
   local parent available
   parent="$(nearest_existing_parent "$BASE_DIR")"
@@ -629,7 +654,6 @@ PUBLIC_ORIGIN="$("$NODE_BIN" "$SCRIPT_DIR/public-entry-smoke.mjs" "$PUBLIC_ORIGI
 export PUBLIC_ORIGIN
 log "environment=$DEPLOY_ENVIRONMENT origin=$PUBLIC_ORIGIN"
 check_pm2_ownership
-check_deploy_disk_space
 
 log "project=$PROJECT_NAME package=$PACKAGE_NAME source=$SOURCE_DIR base=$BASE_DIR"
 log "run-user=$ACTUAL_RUN_USER group=$ACTUAL_RUN_GROUP env=$ENV_FILE ref=$TARGET_REF"
@@ -638,7 +662,15 @@ log "health=$HEALTH_URL host-manifest=$HOST_MANIFEST"
 log "mysqldump=$MYSQLDUMP_BIN database-backups=$BACKUP_DIR media=$MEDIA_STORAGE_DIR"
 
 if [[ "$CHECK_ONLY" == "1" ]]; then
+  cleanup_project_artifacts 0 "$RELEASE_RETENTION" || fail "project cleanup preview failed"
+  check_deploy_disk_space
   log "preflight check passed; no release was created or activated"
+  exit 0
+fi
+
+if [[ "$CLEANUP_ONLY" == "1" && "$CLEANUP_APPLY" == "0" ]]; then
+  cleanup_project_artifacts 0 "$RELEASE_RETENTION" || fail "project cleanup preview failed"
+  log "cleanup preview complete; use --cleanup --apply to reclaim the listed artifacts"
   exit 0
 fi
 
@@ -653,6 +685,14 @@ check_source_clean "deployment-lock recheck"
 resolve_current_target
 inspect_host
 check_pm2_ownership
+if [[ "$CLEANUP_ONLY" == "1" ]]; then
+  cleanup_project_artifacts 1 "$RELEASE_RETENTION" || fail "project cleanup failed; no release was built or activated"
+  log "project cleanup complete; no release was created or activated"
+  exit 0
+fi
+# Reclaim before the free-space gate and dependency/build work. Reserve one
+# retention slot for the new release while protecting current and rollback.
+cleanup_project_artifacts 1 "$((RELEASE_RETENTION - 1))" || fail "project cleanup failed; no new release was built or activated"
 check_deploy_disk_space
 
 log "fetch $REMOTE/$BRANCH"
@@ -723,6 +763,7 @@ fi
 log "create a consistent SQL/media/avatar/hero backup set while writers are stopped"
 export MEDIA_STORAGE_DIR AVATAR_DIR
 APP_RELEASE_ID="$RELEASE_ID" DEPLOY_TAR_BIN="$TAR_BIN" "$NODE_BIN" scripts/native-release-backup.mjs "$BACKUP_DIR/$RELEASE_ID" "$CURRENT_TARGET"
+"$NODE_BIN" "$SCRIPT_DIR/deployment-cleanup.mjs" mark-backup "$BACKUP_DIR/$RELEASE_ID" pending "$RELEASE_ID"
 MIGRATION_STARTED=1
 PRESERVE_FAILED_RELEASE=1
 
@@ -891,47 +932,8 @@ rollback_release() {
 }
 
 prune_old_releases() {
-  local releases_root current_target directory candidate_target name total excess removed=0 remaining
-  local -a release_directories=()
-
-  releases_root="$(readlink -f -- "$RELEASES_DIR" 2>/dev/null || true)"
-  [[ -n "$releases_root" && -d "$releases_root" ]] || return 1
-  current_target="$(readlink -f -- "$CURRENT_LINK" 2>/dev/null || true)"
-  [[ -n "$current_target" && -d "$current_target" ]] || return 1
-  [[ "${current_target%/*}" == "$releases_root" ]] || return 1
-
-  for directory in "$RELEASES_DIR"/*; do
-    [[ -d "$directory" && ! -L "$directory" ]] || continue
-    name="${directory##*/}"
-    [[ "$name" =~ ^[0-9]{14}-[0-9a-f]{7,40}-[0-9]+$ ]] || continue
-    candidate_target="$(readlink -f -- "$directory" 2>/dev/null || true)"
-    [[ -n "$candidate_target" && -d "$candidate_target" ]] || continue
-    [[ "${candidate_target%/*}" == "$releases_root" ]] || continue
-    release_directories+=("$candidate_target")
-  done
-  total="${#release_directories[@]}"
-  excess=$((total - RELEASE_RETENTION))
-  if ((excess <= 0)); then
-    log "release retention complete: kept=$total removed=0 limit=$RELEASE_RETENTION"
-    return 0
-  fi
-
-  for directory in "${release_directories[@]}"; do
-    ((excess > 0)) || break
-    [[ "$directory" != "$current_target" && "$directory" != "$PREVIOUS_TARGET" ]] || continue
-    [[ -d "$directory" && ! -L "$directory" ]] || return 1
-    candidate_target="$(readlink -f -- "$directory" 2>/dev/null || true)"
-    [[ "$candidate_target" == "$directory" && "${candidate_target%/*}" == "$releases_root" ]] || return 1
-    name="${directory##*/}"
-    [[ "$name" =~ ^[0-9]{14}-[0-9a-f]{7,40}-[0-9]+$ ]] || continue
-    rm -rf -- "$directory" || return 1
-    ((removed += 1))
-    ((excess -= 1))
-  done
-
-  ((excess == 0)) || return 1
-  remaining=$((total - removed))
-  log "release retention complete: kept=$remaining removed=$removed limit=$RELEASE_RETENTION"
+  CURRENT_TARGET="$(readlink -f -- "$CURRENT_LINK" 2>/dev/null || true)"
+  cleanup_project_artifacts 1 "$RELEASE_RETENTION"
 }
 
 PRESERVE_FAILED_RELEASE=1
@@ -944,6 +946,8 @@ wait_for_health "$RELEASE_ID" || rollback_release "release-aware health check di
   || rollback_release "public release and redirect smoke did not pass"
 "$PM2_BIN" save || rollback_release "PM2 state could not be saved for reboot recovery"
 
+"$NODE_BIN" "$SCRIPT_DIR/deployment-cleanup.mjs" mark-release "$RELEASE_DIR" "$PREVIOUS_TARGET"
+"$NODE_BIN" "$SCRIPT_DIR/deployment-cleanup.mjs" mark-backup "$BACKUP_DIR/$RELEASE_ID" success "$RELEASE_ID"
 DEPLOY_SUCCEEDED=1
 if ! prune_old_releases; then
   log "WARNING: release retention could not reach limit=$RELEASE_RETENTION; protected or unrecognized directories were left untouched"

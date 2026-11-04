@@ -1,6 +1,7 @@
 // HTTP retry strategy with rotating browser headers; no browser fallback.
 
-import { readResponseJson, readResponseText } from "@/lib/http-response";
+import { readResponseBytes, readResponseJson, readResponseText } from "@/lib/http-response";
+import { decodeHtmlBytes } from "@/lib/html-encoding";
 
 import { validateCrawlUrl } from "@/core/crawl-url";
 export { validateCrawlUrl } from "@/core/crawl-url";
@@ -33,9 +34,9 @@ export function getRandomUA(): string {
 
 export async function fetchWithRetry(
   url: string,
-  options: { timeout?: number; referer?: string; isJson?: boolean } = {}
+  options: { timeout?: number; referer?: string; isJson?: boolean; isHtml?: boolean } = {}
 ): Promise<{ ok: boolean; status: number; text?: string; json?: unknown }> {
-  const { timeout = 10000, referer, isJson } = options;
+  const { timeout = 10000, referer, isJson, isHtml } = options;
   const safeUrl = validateCrawlUrl(url);
 
   // Tier 1: Regular fetch with rotating browser headers (5 retries)
@@ -57,7 +58,9 @@ export async function fetchWithRetry(
         return {
           ok: true,
           status: res.status,
-          text: isJson ? undefined : await readResponseText(res, 5 * 1024 * 1024),
+          text: isJson ? undefined : isHtml
+            ? decodeHtmlBytes(await readResponseBytes(res, 5 * 1024 * 1024), res.headers.get("content-type") || "")
+            : await readResponseText(res, 5 * 1024 * 1024),
           json: isJson ? await readResponseJson(res, 5 * 1024 * 1024) : undefined,
         };
       }

@@ -8,6 +8,7 @@ import { resourceCheckpoint } from "@/lib/resource-governor";
 
 const HERO_IMG_DIR = path.join(process.cwd(), "public", "heroes", "images");
 const SKIN_IMG_DIR = path.join(process.cwd(), "public", "heroes", "skins");
+const IMAGE_REVALIDATE_MS = 24 * 60 * 60 * 1000;
 
 import { getCrawlConfig } from "@/features/heroes/server/crawl-config";
 
@@ -39,13 +40,33 @@ async function fetchImage(url: string, temporaryPath: string): Promise<boolean> 
 async function downloadBestImage(
   candidates: readonly string[],
   localPath: string,
+  invalidFallbackUrl?: string,
 ): Promise<boolean> {
   const sourcePath = `${localPath}.source`;
-  const previousSource = await fs.readFile(sourcePath, "utf8").catch(() => "");
-  const hasLocal = await pathExists(localPath);
+  const sourceText = await fs.readFile(sourcePath, "utf8").catch(() => "");
+  let previousUrl = sourceText;
+  let previousSource: { url: string; checkedAt: number } | undefined;
+  try {
+    const parsed: unknown = JSON.parse(sourceText);
+    if (parsed && typeof parsed === "object" && "url" in parsed && "checkedAt" in parsed
+      && typeof parsed.url === "string" && typeof parsed.checkedAt === "number") {
+      previousSource = { url: parsed.url, checkedAt: parsed.checkedAt };
+      previousUrl = parsed.url;
+    }
+  } catch { /* Old URL-only sidecars require one refresh to repair stale images. */ }
+  let hasLocal = await pathExists(localPath);
+  if (hasLocal && invalidFallbackUrl && previousUrl === invalidFallbackUrl) {
+    // These are generated caches with a positively identified old avatar
+    // fallback, not user media. Stop serving the known-wrong skin immediately.
+    assertTaskWriteAllowed();
+    await fs.unlink(localPath);
+    await fs.unlink(sourcePath).catch(() => {});
+    hasLocal = false;
+  }
 
   for (const url of Array.from(new Set(candidates.filter(Boolean)))) {
-    if (hasLocal && previousSource === url) return false;
+    if (hasLocal && previousSource?.url === url && Date.now() >= previousSource.checkedAt
+      && Date.now() - previousSource.checkedAt < IMAGE_REVALIDATE_MS) return false;
     await fs.mkdir(path.dirname(localPath), { recursive: true });
     const tempPath = `${localPath}.${process.pid}.tmp`;
     try {
@@ -57,7 +78,7 @@ async function downloadBestImage(
       await fs.unlink(tempPath).catch(() => {});
     }
     assertTaskWriteAllowed();
-    await fs.writeFile(sourcePath, url, "utf8");
+    await fs.writeFile(sourcePath, JSON.stringify({ url, checkedAt: Date.now() }), "utf8");
     return true;
   }
   return false;
@@ -99,10 +120,10 @@ export async function downloadAllImages(): Promise<{ heroes: number; skins: numb
       const skinUrl = config.skin_img_base.replace(/{id}/g, String(hero.heroId)).replace(/{idx}/g, String(skin.index));
       const standardUrl = skinUrl.replace("-bigskin-", "-mobileskin-");
       const skinPath = path.join(SKIN_IMG_DIR, String(hero.heroId), `${skin.index}.jpg`);
-      const candidates = [skinUrl, standardUrl, ...(Array.isArray(skin.imageUrls)
-        ? skin.imageUrls.filter((url: unknown): url is string => typeof url === "string" && url.length > 0)
-        : []), heroUrl];
-      if (await downloadBestImage(candidates, skinPath)) skinCount++;
+      // Never persist an avatar under a skin filename. Old metadata included
+      // the avatar as a fallback, permanently disguising missing skin images.
+      const candidates = [skinUrl, standardUrl];
+      if (await downloadBestImage(candidates, skinPath, heroUrl)) skinCount++;
     }
   }
 

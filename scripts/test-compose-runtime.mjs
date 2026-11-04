@@ -23,7 +23,8 @@ test("runtime defaults are supplied by shared scripts while Compose keeps topolo
   assert.equal(model.services.web.environment.PUBLIC_ORIGIN, "http://localhost:8001");
   assert.equal(model.services.web.environment.RESOURCE_EXTERNAL_CONCURRENCY, undefined);
   assert.equal(readResourceSettings(model.services.web.environment).RESOURCE_EXTERNAL_CONCURRENCY, 32);
-  assert.equal(model.services.web.mem_limit, "1g");
+  assert.equal(model.services.web.mem_limit, "512m");
+  for (const service of Object.values(model.services)) assert.equal(service.memswap_limit, service.mem_limit);
   assert.equal(model.services.web.environment.REDIS_URL, "redis://redis:6379/0");
   const resolved = runtimeEnvironment(model.services.web.environment);
   assert.equal(resolved.APP_RUNTIME, "docker"); assert.ok(resolved.DATABASE_URL.includes("@mysql:3306/site"));
@@ -36,10 +37,28 @@ test("custom configuration and explicit overrides follow one path into runtime a
     assert.equal(model.services[role].environment.RESOURCE_EXTERNAL_RPS, "9");
     assert.equal(model.services[role].environment.SPLIT_WORKER_HEAP_MB, "96");
   }
-  const planned = capacityPlan(model, { mysql: "container", ocr: "off" }, 8 * 1024 ** 3);
-  assert.equal(planned.plannedBytes / 1024 ** 2, 5120);
-  assert.equal(planned.oneShotBytes / 1024 ** 2, 768, "include the Cron-image media verification helper");
+  const planned = capacityPlan(model, { mysql: "container", ocr: "off" }, 16 * 1024 ** 3);
+  assert.equal(planned.plannedBytes / 1024 ** 2, 3520);
+  assert.equal(planned.oneShotBytes / 1024 ** 2, 768, "include the Web-image backup helper");
   assert.throws(() => build("RESOURCE_SUBSCRIPTION_CONCURRENCY=0\n"), /RESOURCE_SUBSCRIPTION_CONCURRENCY/);
+});
+
+test("the project ceiling covers residents, backup helpers and external services, even when the host has spare RAM", () => {
+  const selected = { mysql: "container", ocr: "off" };
+  const model = build();
+  const plan = capacityPlan(model, selected, 8 * 1024 ** 3);
+  assert.equal(plan.projectBytes / 1024 ** 2, 1984);
+  assert.equal(plan.projectBudgetBytes / 1024 ** 2, 2048);
+  assert.equal(plan.projectPercent, 25);
+  assert.equal(plan.oneShotBytes / 1024 ** 2, 512);
+  assert.throws(() => capacityPlan(model, selected, 8 * 1024 ** 3, { environment: { RESOURCE_PROJECT_MEMORY_PERCENT: "20" } }), /exceeds 20%/);
+  assert.throws(() => capacityPlan(model, selected, 4 * 1024 ** 3), /exceeds 25%/);
+  assert.throws(() => capacityPlan(build("WEB_MEMORY_LIMIT=1g\n"), selected, 8 * 1024 ** 3), /exceeds 25%/);
+  assert.throws(() => capacityPlan(model, selected, 8 * 1024 ** 3, { environment: { COMPOSE_EXTERNAL_MEMORY_MB: "128" } }), /exceeds 25%/);
+  for (const percent of ["0", "19", "31", "100", "25.5"]) assert.throws(() => build(`RESOURCE_PROJECT_MEMORY_PERCENT=${percent}\n`), /RESOURCE_PROJECT_MEMORY_PERCENT/);
+  assert.equal(capacityPlan(model, selected, 8 * 1024 ** 3, { environment: { RESOURCE_PROJECT_MEMORY_PERCENT: "30" } }).projectPercent, 30);
+  assert.throws(() => capacityPlan(model, { mysql: "container", ocr: "container" }, 8 * 1024 ** 3), /exceeds 25%/);
+  assert.equal(capacityPlan(model, { mysql: "container", ocr: "container" }, 16 * 1024 ** 3).projectBytes / 1024 ** 2, 4032);
 });
 
 test("each service receives only its credentials; root password never enters application or tool roles", () => {

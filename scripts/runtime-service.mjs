@@ -1,9 +1,10 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync, realpathSync, statSync } from "node:fs";
 import { resolve, dirname, isAbsolute, relative, delimiter } from "node:path";
-import { homedir } from "node:os";
+import { homedir, totalmem } from "node:os";
 import { execFileSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
-import { readDeployEnv } from "./deploy-env.mjs";
+import { readDeployEnv, parseSelectedEnv } from "./deploy-env.mjs";
+import { projectMemoryBudget, readResourceSettings } from "../src/core/resource-settings.ts";
 
 const managed = "# Managed by wzywt runtime-service v1";
 function quote(value) {
@@ -18,8 +19,11 @@ export function serviceFiles(config) {
   for (const id of [name, user]) if (!/^[a-zA-Z0-9_.-]+$/.test(id)) throw new Error("Invalid service name/user");
   for (const path of [current, pm2Home, pm2, node, configuration]) if (!isAbsolute(path) || path === "/") throw new Error("Service paths must be absolute non-root paths");
   const environment = `Environment=${quote(`PM2_HOME=${pm2Home}`)}\nEnvironment=${quote(`PATH=${dirname(node)}:${dirname(pm2)}:/usr/local/bin:/usr/bin:/bin`)}`;
+  const memoryPercent = readResourceSettings({ RESOURCE_PROJECT_MEMORY_PERCENT:
+    String(config.memoryPercent ?? 25) }).RESOURCE_PROJECT_MEMORY_PERCENT;
+  const memoryLimits = `MemoryAccounting=yes\nMemoryHigh=${Math.floor(memoryPercent * 0.8)}%\nMemoryMax=${memoryPercent}%\nMemorySwapMax=0`;
   return {
-    [`${name}.service`]: `${managed}\n[Unit]\nDescription=Website PM2 recovery (${name})\nWants=network-online.target\nAfter=network-online.target\nStartLimitIntervalSec=300\nStartLimitBurst=5\n\n[Service]\nType=forking\nUser=${user}\nWorkingDirectory=${quote(current)}\n${environment}\nPIDFile=${quote(resolve(pm2Home, "pm2.pid"))}\nExecStart=${quote(pm2)} resurrect\nExecReload=${quote(pm2)} reload ${quote(config.webName)} ${quote(config.cronName)}\nExecStop=${quote(pm2)} kill\nRestart=always\nRestartSec=10\nTimeoutStartSec=90\nTimeoutStopSec=320\nKillMode=process\nUMask=0077\n\n[Install]\nWantedBy=multi-user.target\n`,
+    [`${name}.service`]: `${managed}\n[Unit]\nDescription=Website PM2 recovery (${name})\nWants=network-online.target\nAfter=network-online.target\nStartLimitIntervalSec=300\nStartLimitBurst=5\n\n[Service]\nType=forking\nUser=${user}\nWorkingDirectory=${quote(current)}\n${environment}\n${memoryLimits}\nPIDFile=${quote(resolve(pm2Home, "pm2.pid"))}\nExecStart=${quote(pm2)} resurrect\nExecReload=${quote(pm2)} reload ${quote(config.webName)} ${quote(config.cronName)}\nExecStop=${quote(pm2)} kill\nRestart=always\nRestartSec=10\nTimeoutStartSec=90\nTimeoutStopSec=320\nKillMode=process\nUMask=0077\n\n[Install]\nWantedBy=multi-user.target\n`,
     [`${name}-watchdog.service`]: `${managed}\n[Unit]\nDescription=Website liveness and log retention (${name})\nAfter=${name}.service\nRequisite=${name}.service\n\n[Service]\nType=oneshot\nUser=${user}\nWorkingDirectory=${quote(current)}\n${environment}\nExecStart=${quote(node)} ${quote(resolve(current, "scripts/runtime-watchdog.mjs"))} ${quote(configuration)}\nTimeoutStartSec=50\nUMask=0077\n`,
     [`${name}-watchdog.timer`]: `${managed}\n[Unit]\nDescription=Check website process liveness every 30 seconds\n\n[Timer]\nOnBootSec=150\nOnUnitActiveSec=30\nUnit=${name}-watchdog.service\n\n[Install]\nWantedBy=timers.target\n`,
   };
@@ -27,6 +31,7 @@ export function serviceFiles(config) {
 
 export function resolveService(source = process.cwd(), environment = process.env, envFile = resolve(source, ".env")) {
   const values = existsSync(envFile) ? readDeployEnv(envFile) : new Map();
+  const resourceValues = existsSync(envFile) ? parseSelectedEnv(readFileSync(envFile, "utf8"), ["RESOURCE_PROJECT_MEMORY_PERCENT"]) : new Map();
   const get = key => environment[key] || values.get(key) || "";
   const packageName = String(JSON.parse(readFileSync(resolve(source, "package.json"), "utf8")).name)
     .replace(/^@/, "").replace(/[^A-Za-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "");
@@ -45,7 +50,9 @@ export function resolveService(source = process.cwd(), environment = process.env
     webName: get("DEPLOY_PM2_WEB_NAME") || `${name}-web`, cronName: get("DEPLOY_PM2_CRON_NAME") || `${name}-cron`,
     port: Number(get("DEPLOY_WEB_PORT") || get("PORT") || 8001),
     host: get("DEPLOY_WEB_HOST") || get("HOST") || "127.0.0.1",
-    heartbeatFile: resolve(current, ".runtime-cron-heartbeat"), stateFile: resolve(base, "shared/runtime-watchdog-state.json") };
+    heartbeatFile: resolve(current, ".runtime-cron-heartbeat"), stateFile: resolve(base, "shared/runtime-watchdog-state.json"),
+    memoryPercent: readResourceSettings({ RESOURCE_PROJECT_MEMORY_PERCENT:
+      environment.RESOURCE_PROJECT_MEMORY_PERCENT ?? resourceValues.get("RESOURCE_PROJECT_MEMORY_PERCENT") }).RESOURCE_PROJECT_MEMORY_PERCENT };
   const dump = JSON.parse(readFileSync(resolve(config.pm2Home, "dump.pm2"), "utf8"));
   if (!Array.isArray(dump) || dump.length !== 2) throw new Error("Use a dedicated PM2 home with exactly the project's saved Web/Cron processes");
   for (const expected of [config.webName, config.cronName]) {
@@ -54,6 +61,19 @@ export function resolveService(source = process.cwd(), environment = process.env
   }
   serviceFiles(config);
   return config;
+}
+
+/** Restart the verified dedicated daemon inside the unit's cgroup. */
+export function activateService(config, env, execute = execFileSync) {
+  execute(config.pm2, ["save"], { env, stdio: "inherit", timeout: 15_000 });
+  for (const name of [`${config.name}-watchdog.timer`, `${config.name}.service`]) {
+    let active = false;
+    try { execute("systemctl", ["is-active", "--quiet", name], { stdio: "ignore" }); active = true; }
+    catch (error) { if (![1, 3, 4].includes(error.status)) throw error; }
+    if (active) execute("systemctl", ["stop", name], { stdio: "inherit" });
+  }
+  execute(config.pm2, ["kill"], { env, stdio: "inherit", timeout: 320_000 });
+  execute("systemctl", ["enable", "--now", `${config.name}.service`, `${config.name}-watchdog.timer`], { stdio: "inherit" });
 }
 
 export function main(args = process.argv.slice(2)) {
@@ -72,7 +92,7 @@ export function main(args = process.argv.slice(2)) {
   mkdirSync(output, { recursive: true, mode: 0o700 });
   for (const [name, text] of Object.entries(files)) writeFileSync(resolve(output, name), text, { mode: 0o600 });
   writeFileSync(resolve(output, "runtime-service.json"), JSON.stringify(config, null, 2), { mode: 0o600 });
-  console.log(`Review service plan: ${output}; user=${config.user}; PM2_HOME=${config.pm2Home}`);
+  console.log(`Review service plan: ${output}; user=${config.user}; PM2_HOME=${config.pm2Home}; project memory ceiling=${config.memoryPercent}% (${Math.floor(projectMemoryBudget(totalmem(), config.memoryPercent) / 1_048_576)} MiB before any tighter parent cgroup)`);
   if (mode !== "--install") return;
   if (process.platform !== "linux" || process.getuid?.() !== 0) throw new Error("Installing systemd units requires Linux root; --plan is read-only outside .cache");
   for (const name of Object.keys(files)) {
@@ -81,6 +101,7 @@ export function main(args = process.argv.slice(2)) {
   }
   const env = { ...process.env, PM2_HOME: config.pm2Home, PATH: `${dirname(config.node)}${delimiter}${process.env.PATH || ""}` };
   const live = JSON.parse(execFileSync(config.pm2, ["jlist"], { env, encoding: "utf8", timeout: 15_000 }));
+  if (!Array.isArray(live) || live.length !== 2) throw new Error("Use a dedicated PM2 home with exactly the project's live Web/Cron processes before installing memory limits");
   for (const name of [config.webName, config.cronName]) {
     const app = live.find(app => app.name === name);
     if (!app || app.pm2_env?.status !== "online" || realpathSync(app.pm2_env.pm_cwd) !== realpathSync(config.current)) {
@@ -92,7 +113,11 @@ export function main(args = process.argv.slice(2)) {
   execFileSync("chown", [config.user, config.configuration]);
   for (const [name, text] of Object.entries(files)) writeFileSync(`/etc/systemd/system/${name}`, text, { mode: 0o644 });
   execFileSync("systemctl", ["daemon-reload"], { stdio: "inherit" });
-  execFileSync("systemctl", ["enable", "--now", `${config.name}.service`, `${config.name}-watchdog.timer`], { stdio: "inherit" });
+  // An existing daemon remains outside the new unit's cgroup if resurrect merely
+  // contacts it. Restart the verified dedicated daemon inside systemd so the
+  // kernel's aggregate memory ceiling actually covers PM2 and both applications.
+  console.log("Installing aggregate memory limits: briefly stop the project's dedicated PM2 daemon, then recover its saved Web/Cron processes inside systemd.");
+  activateService(config, env);
   console.log(`Recovery enabled: ${config.name}.service and ${config.name}-watchdog.timer`);
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {

@@ -479,6 +479,7 @@ prepare_case() {
   mkdir -p -- "$source/src/lib"
   cp -- "$REPO_ROOT/src/lib/public-origin.ts" "$source/src/lib/"
   cp -- "$SCRIPT_DIR/public-entry-smoke.mjs" "$source/scripts/"
+  cp -- "$SCRIPT_DIR/deployment-cleanup.mjs" "$SCRIPT_DIR/backup-integrity.mjs" "$source/scripts/"
   cp -- "$SCRIPT_DIR/check-ocr-config.mjs" "$source/scripts/"
   cp -- "$SCRIPT_DIR/deploy.sh" "$SCRIPT_DIR/deploy-env.mjs" "$SCRIPT_DIR/verify-deploy-state.mjs" \
     "$SCRIPT_DIR/inspect-deploy-host.mjs" "$SCRIPT_DIR/inspect-runtime-services.mjs" \
@@ -895,6 +896,34 @@ fi
 [[ "$(find "$custom_retention_case/app/releases" -mindepth 1 -maxdepth 1 -type d -name '[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]-*-*' | wc -l | tr -d ' ')" == "3" ]] \
   || fail "successful deployment did not honor the custom release retention count"
 assert_contains "$custom_retention_case/deploy.log" "release retention complete: kept=3"
+
+cleanup_preview_case="$(prepare_case cleanup-preview)"
+for release in 20260101000001-aaaaaaaaaaaa-101 20260101000002-bbbbbbbbbbbb-102 20260101000003-cccccccccccc-103 20260101000004-dddddddddddd-104 20260101000005-eeeeeeeeeeee-105 20260101000006-ffffffffffff-106; do
+  mkdir -p -- "$cleanup_preview_case/app/releases/$release"
+done
+run_deploy "$cleanup_preview_case" --cleanup >"$cleanup_preview_case/cleanup-preview.log" 2>&1 \
+  || fail "cleanup preview failed"
+assert_contains "$cleanup_preview_case/cleanup-preview.log" "[cleanup] Preview"
+[[ -d "$cleanup_preview_case/app/releases/20260101000001-aaaaaaaaaaaa-101" ]] || fail "cleanup preview deleted an old release"
+[[ ! -e "$cleanup_preview_case/app/shared/cleanup-reports" ]] || fail "cleanup preview wrote a report"
+assert_not_contains "$cleanup_preview_case/commands.log" "npm run build"
+run_deploy "$cleanup_preview_case" --cleanup --apply >"$cleanup_preview_case/cleanup-apply.log" 2>&1 \
+  || fail "cleanup apply failed"
+[[ ! -d "$cleanup_preview_case/app/releases/20260101000001-aaaaaaaaaaaa-101" ]] || fail "cleanup apply kept an eligible old release"
+[[ -d "$cleanup_preview_case/app/releases/old-release" ]] || fail "cleanup apply removed current release"
+assert_not_contains "$cleanup_preview_case/commands.log" "npm run build"
+assert_current_is_old "$cleanup_preview_case"
+
+cleanup_low_space_case="$(prepare_case cleanup-before-disk-gate)"
+for release in 20260101000001-aaaaaaaaaaaa-101 20260101000002-bbbbbbbbbbbb-102 20260101000003-cccccccccccc-103 20260101000004-dddddddddddd-104 20260101000005-eeeeeeeeeeee-105; do
+  mkdir -p -- "$cleanup_low_space_case/app/releases/$release"
+done
+if DEPLOY_MIN_FREE_BYTES=999999999999999 run_deploy "$cleanup_low_space_case" >"$cleanup_low_space_case/deploy.log" 2>&1; then
+  fail "impossible free-space gate unexpectedly passed"
+fi
+[[ ! -d "$cleanup_low_space_case/app/releases/20260101000001-aaaaaaaaaaaa-101" ]] || fail "disk preflight blocked cleanup before it had a chance to reclaim space"
+assert_not_contains "$cleanup_low_space_case/commands.log" "npm run build"
+assert_current_is_old "$cleanup_low_space_case"
 
 redis_failure_case="$(prepare_case redis-auth-failure)"
 if run_deploy "$redis_failure_case" TEST_REDIS_AUTH_FAILURE=1 >"$redis_failure_case/deploy.log" 2>&1; then

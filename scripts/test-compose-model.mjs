@@ -89,14 +89,16 @@ try {
     for (const role of ["web", "cron", "migrate", "mysql-client", "storage-init"]) assert.equal(model.services[role].environment?.MYSQL_ROOT_PASSWORD, undefined);
     assert.equal(!!model.services.mysql, mysql === "container");
     assert.equal(!!model.services.ocr, ocr === "container");
-    assert.equal(Number(model.services.web.mem_limit), 1024 ** 3);
-    assert.equal(Number(model.services.cron.mem_limit), 768 * 1024 ** 2);
+    assert.equal(Number(model.services.web.mem_limit), 512 * 1024 ** 2);
+    assert.equal(Number(model.services.cron.mem_limit), 256 * 1024 ** 2);
+    for (const service of Object.values(model.services)) assert.equal(Number(service.memswap_limit), Number(service.mem_limit));
     assert.equal(Number(model.services.web.cpus), 2);
     assert.equal(model.services.web.pids_limit, 256);
     assert.equal(model.services.web.build.context, root);
-    const plan = capacityPlan(model, selected, 8 * 1024 ** 3);
-    const expectedMiB = 5376 - (mysql === "external" ? 1024 : 0) + (ocr === "container" ? 2048 : ocr === "external" ? 256 : 0);
+    const plan = capacityPlan(model, selected, 16 * 1024 ** 3);
+    const expectedMiB = 3008 - (mysql === "external" ? 512 : 0) + (ocr === "container" ? 2048 : 0);
     assert.equal(plan.plannedBytes / 1024 ** 2, expectedMiB);
+    if (ocr === "container") assert.throws(() => capacityPlan(model, selected, 8 * 1024 ** 3), /Project memory budget/);
     console.log(`PASS: MySQL=${mysql}, OCR=${ocr}, storage=${mode}, budget=${expectedMiB} MiB; shared env inheritance, literal credentials and container boundaries verified.`);
   }
   assert.equal(readFileSync(sharedFile, "utf8"), sharedContent);

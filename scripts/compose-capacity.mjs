@@ -1,4 +1,5 @@
 import { parseSelectedEnv } from "./deploy-env.mjs";
+import { projectMemoryBudget, readResourceSettings } from "../src/core/resource-settings.ts";
 
 const MiB = 1_048_576;
 export function memoryBytes(value, label = "memory limit") {
@@ -10,17 +11,17 @@ export function memoryBytes(value, label = "memory limit") {
 
 export function assertLiveLimits(name, service, hostConfig) {
   const configured = memoryBytes(service.mem_limit, `${name}.mem_limit`);
-  const memory = Number(hostConfig.Memory), cpus = Number(hostConfig.NanoCpus), pids = Number(hostConfig.PidsLimit);
-  if (!(memory > 0 && memory <= configured) || !(cpus > 0 && cpus <= Number(service.cpus) * 1e9)
+  const memory = Number(hostConfig.Memory), swap = Number(hostConfig.MemorySwap), cpus = Number(hostConfig.NanoCpus), pids = Number(hostConfig.PidsLimit);
+  if (!(memory > 0 && memory <= configured) || !(swap > 0 && swap <= configured) || !(cpus > 0 && cpus <= Number(service.cpus) * 1e9)
     || !(pids > 0 && pids <= Number(service.pids_limit))) {
     throw new Error(`${name} still has old or missing container limits. Writers were not stopped. Back up first and follow the datastore resource maintenance procedure in docs/operations/docker.md; update never recreates datastores automatically.`);
   }
 }
 
 /** Capacity planning is conservative; OS/build/other applications need reserves. */
-export function capacityPlan(model, selected, daemonBytes, { action = "check", content = "", environment = {} } = {}) {
+export function capacityPlan(model, selected, daemonBytes, { content = "", environment = {} } = {}) {
   if (!Number.isSafeInteger(daemonBytes) || daemonBytes <= 0) throw new Error("Docker did not report its memory capacity.");
-  const keys = ["COMPOSE_MEMORY_RESERVE_MB", "COMPOSE_EXTERNAL_MEMORY_MB"];
+  const keys = ["COMPOSE_MEMORY_RESERVE_MB", "COMPOSE_EXTERNAL_MEMORY_MB", "RESOURCE_PROJECT_MEMORY_PERCENT"];
   const values = parseSelectedEnv(content, keys);
   const number = (key, fallback) => {
     const raw = (environment[key] ?? values.get(key) ?? "").trim();
@@ -29,6 +30,9 @@ export function capacityPlan(model, selected, daemonBytes, { action = "check", c
     return value * MiB;
   };
   const reserveBytes = number(keys[0], 1024), externalBytes = number(keys[1], 0);
+  const percent = readResourceSettings({ RESOURCE_PROJECT_MEMORY_PERCENT:
+    environment.RESOURCE_PROJECT_MEMORY_PERCENT ?? values.get("RESOURCE_PROJECT_MEMORY_PERCENT") }).RESOURCE_PROJECT_MEMORY_PERCENT;
+  const projectBudgetBytes = projectMemoryBudget(daemonBytes, percent);
   const resident = ["web", "cron", "redis", ...(selected.mysql === "container" ? ["mysql"] : []), ...(selected.ocr === "container" ? ["ocr"] : [])];
   const required = [...new Set([...resident, "storage-init", "migrate", "mysql-client"])];
   const limits = Object.fromEntries(required.map(name => {
@@ -52,9 +56,14 @@ export function capacityPlan(model, selected, daemonBytes, { action = "check", c
     if (limits.mysql < pool * 1.25 + connections * 2 * MiB + 128 * MiB) throw new Error("MYSQL_MEMORY_LIMIT is too small for MYSQL_BUFFER_POOL_SIZE and MYSQL_MAX_CONNECTIONS.");
   }
   const residentBytes = resident.reduce((sum, name) => sum + limits[name], 0);
-  const oneShotBytes = action === "sync-heroes" ? Math.max(limits.cron, limits["storage-init"])
-    : Math.max(limits.cron, limits.migrate, limits["storage-init"], limits["mysql-client"], selected.ocr === "external" ? limits.web : 0);
-  const plannedBytes = residentBytes + oneShotBytes + reserveBytes + externalBytes;
+  // Helpers run sequentially but alongside resident services: backups use Web,
+  // media/import/sync use Cron. Always reserve the largest possible helper so a
+  // later backup cannot silently exceed a successful deployment's budget.
+  const oneShotBytes = Math.max(limits.web, limits.cron, limits.migrate, limits["storage-init"], limits["mysql-client"]);
+  const projectBytes = residentBytes + oneShotBytes + externalBytes;
+  if (projectBytes > projectBudgetBytes) throw new Error(`Project memory budget exceeds ${percent}%: ${Math.ceil(projectBytes / MiB)} MiB > ${Math.floor(projectBudgetBytes / MiB)} MiB. Lower service limits within their safe operating requirements, move external services off-host, or increase Docker/host memory. RESOURCE_PROJECT_MEMORY_PERCENT only accepts 20 to 30; deployment was not started.`);
+  const plannedBytes = projectBytes + reserveBytes;
   if (plannedBytes > daemonBytes) throw new Error(`Memory budget exceeds Docker capacity: planned ${Math.ceil(plannedBytes / MiB)} MiB > ${Math.floor(daemonBytes / MiB)} MiB. Adjust service limits/reserves or increase Docker/host memory.`);
-  return { daemonBytes, residentBytes, oneShotBytes, reserveBytes, externalBytes, plannedBytes, limits };
+  return { daemonBytes, residentBytes, oneShotBytes, reserveBytes, externalBytes, plannedBytes, limits,
+    projectBytes, projectBudgetBytes, projectPercent: percent };
 }

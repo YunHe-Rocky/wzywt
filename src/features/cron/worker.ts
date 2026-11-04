@@ -1,6 +1,6 @@
 import "@/features/cron/load-env";
 import cron, { type ScheduledTask } from "node-cron";
-import { syncHeroes } from "@/features/heroes/server/sync";
+import { assertHeroSyncComplete, syncHeroes } from "@/features/heroes/server/sync";
 import { downloadAllImages } from "@/features/heroes/server/download-images";
 import { runQueuedHeroSync } from "@/features/heroes/server/sync-jobs";
 import { runMonitorCycle, runQueuedMonitorCycle } from "@/features/monitor/cycle";
@@ -52,6 +52,7 @@ async function runHeroSync(label: string, skipWhenRecent = false): Promise<void>
       console.log(`[hero-sync] ${label}: ${result.inserted} inserted, ${result.updated} updated`);
       const images = await downloadAllImages();
       console.log(`[hero-sync] ${label}: ${images.heroes} hero + ${images.skins} skin images refreshed`);
+      assertHeroSyncComplete(result);
       await recordHeroSyncSuccess();
     });
   } catch (error) {

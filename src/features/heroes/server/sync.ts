@@ -1,10 +1,11 @@
 import { prisma } from "@/lib/db";
 import { resourceCheckpoint, resourceGovernor } from "@/lib/resource-governor";
 import { load } from "cheerio";
-import * as iconv from "iconv-lite";
 import { createHash } from "crypto";
 import { getHeaders, validateCrawlUrl } from "@/lib/anti-bot";
 import { readResponseBytes } from "@/lib/http-response";
+import { decodeHtmlBytes } from "@/lib/html-encoding";
+export { decodeHtmlBytes as decodeHeroDetail } from "@/lib/html-encoding";
 import { cacheDel, cacheDelPattern } from "@/lib/redis";
 import {
   createHeroSkins,
@@ -15,6 +16,7 @@ import {
 
 import { getCrawlConfig } from "@/features/heroes/server/crawl-config";
 import type { CrawlConfig } from "@/features/heroes/crawl-config";
+import type { Prisma } from "@prisma/client";
 export { getCrawlConfig } from "@/features/heroes/server/crawl-config";
 
 interface RawHero {
@@ -55,13 +57,20 @@ function sanitize(s: string): string {
 }
 
 // ── Fetch hero detail page ──────────────────────────────────────────
-export async function fetchDetail(cfg: CrawlConfig, heroId: number, idName?: string): Promise<string> {
-  // 数字页优先（数据最新），拼音页兜底（部分重做英雄专属页可能有额外信息）
-  // Keep known fallback names here so sync and monitoring use the same source.
-  if (heroId === 119) idName = "bianque";
+export async function fetchDetail(
+  cfg: CrawlConfig,
+  heroId: number,
+  idName?: string,
+  options: { allowLegacyFallback?: boolean; expectedName?: string } = {},
+): Promise<string> {
+  // The numeric pages remain online but contain older skills. Official id_name
+  // pages are the current source (e.g. bianque/sunwukong). An outage must not
+  // roll a previously synchronized hero back to the still-HTTP-200 archive.
+  if (heroId === 119 && !idName) idName = "bianque";
+  if (idName && !/^[a-zA-Z0-9_-]+$/.test(idName)) throw new Error(`Invalid official hero page name for #${heroId}`);
   const base = cfg.hero_detail_base.replace(/\/$/, "");
-  const urls: string[] = [`${base}/${heroId}.shtml`];
-  if (idName) urls.push(`${base}/${idName}.shtml`);
+  const urls: string[] = idName ? [`${base}/${idName}.shtml`] : [];
+  if (!idName || options.allowLegacyFallback) urls.push(`${base}/${heroId}.shtml`);
 
   for (const url of urls) {
     for (let attempt = 0; attempt < 2; attempt++) {
@@ -76,15 +85,15 @@ export async function fetchDetail(cfg: CrawlConfig, heroId: number, idName?: str
           break;
         }
         const buf = Buffer.from(await readResponseBytes(res, 4 * 1024 * 1024));
-        // Try multiple encodings
-        for (const enc of ["gbk", "utf-8", "gb2312"]) {
-          const html = iconv.decode(buf, enc);
-          // Check if decoding worked (should contain Chinese characters)
-          if (html.includes("英雄") || html.includes("技能") || html.includes("玩法")) {
-            return html.replace(/\0/g, "").replace(/�/g, "?");
-          }
-        }
-        break; // Page loaded but encoding detection failed - use GBK
+        const html = decodeHtmlBytes(buf, res.headers.get("content-type") || "");
+        const $ = load(html);
+        const pageId = html.match(/\bename\s*=\s*['"]?(\d+)/)?.[1];
+        const pageName = sanitize($(".cover-name").first().text());
+        // A generic error page or another hero's page must never become data.
+        if (pageId ? Number(pageId) !== heroId : !options.expectedName || pageName !== options.expectedName) break;
+        if (options.expectedName && pageName && pageName !== options.expectedName) break;
+        if (parseSkills(html).length === 0) break;
+        return html;
       } catch {
         if (attempt === 0) await new Promise((r) => setTimeout(r, 500));
       }
@@ -112,8 +121,7 @@ async function imgExists(url: string): Promise<boolean> {
 
 // ── Parse skins ─────────────────────────────────────────────────────
 function parseDetailSkinNames(html: string): string | undefined {
-  const match = html.match(/data-imgname="([^"]*)"/);
-  return match?.[1];
+  return load(html)(".pic-pf-list[data-imgname], [data-imgname]").first().attr("data-imgname");
 }
 
 // ── Parse 命格 ─────────────────────────────────────────────────────
@@ -143,17 +151,21 @@ export function parseSkills(html: string): { name: string; cd: string; cost: str
 
   // 1. Standard page: .skill-show .show-list
   const skills: { name: string; cd: string; cost: string; desc: string }[] = [];
-  $(".skill-show .show-list").each((_, el: any) => {
+  let incomplete = false;
+  $(".skill-show .show-list").each((_, el) => {
     const name = sanitize($(el).find(".skill-name b").text());
+    const desc = sanitize($(el).find(".skill-desc").text());
     if (!name) return;
+    if (!desc) { incomplete = true; return; }
     const spans = $(el).find(".skill-name span");
     skills.push({
       name,
       cd: sanitize(spans.eq(0).text().replace(/冷却值[：:]\s*/, "")),
       cost: sanitize(spans.eq(1).text().replace(/消耗[：:]\s*/, "")),
-      desc: sanitize($(el).find(".skill-desc").text()),
+      desc,
     });
   });
+  if (incomplete) return [];
   if (skills.length >= 3) return skills;
 
   // 2. Preview page: .detail-js with <b> skill titles
@@ -174,33 +186,28 @@ export function parseSkills(html: string): { name: string; cd: string; cost: str
       previewSkills.push({ name: title, cd: "", cost: "", desc });
     }
 
-    // If regex found nothing, try text-based extraction
-    if (previewSkills.length === 0) {
-      const text = sanitize($detail.text());
-      const lines = text.split(/[。！？\n]/).filter((l) => l.length > 10);
-      if (lines.length >= 2) {
-        previewSkills.push({ name: "技能详情", cd: "", cost: "", desc: lines.slice(0, 3).join("。") });
-      }
-    }
-
     if (previewSkills.length >= 2) return previewSkills;
   }
 
-  // 3. 新版HTML（如bianque.shtml）：<b class="skill-name"><b>名</b></b> + <p class="skill-desc">
+  // 3. Redesigned HTML: pair each name with its own adjacent description.
+  // Zipping independent global name/description arrays shifts every later
+  // skill when one description is absent, associating the wrong effects.
   const newSkills: { name: string; cd: string; cost: string; desc: string }[] = [];
-  const nameRe = /skill-name"[^>]*>\s*<b>([^<]+)<\/b>/g;
-  const descRe = /skill-desc"[^>]*>([^<]+)/g;
-  const names: string[] = []; const descs: string[] = [];
-  let nm: RegExpExecArray | null;
-  while ((nm = nameRe.exec(html)) !== null) names.push(sanitize(nm[1]));
-  while ((nm = descRe.exec(html)) !== null) descs.push(sanitize(nm[1]));
-  for (let i = 0; i < Math.min(names.length, descs.length); i++) {
-    if (names[i].length > 20) continue;
-    newSkills.push({ name: names[i], cd: "", cost: "", desc: descs[i] });
-  }
+  $(".skill-name").each((_, element) => {
+    const name = sanitize($(element).find("b").first().text());
+    if (!name || name.length > 20) return;
+    const next = $(element).nextAll(".skill-name, .skill-desc").first();
+    const desc = next.is(".skill-desc") ? sanitize(next.text()) : "";
+    if (!desc) { incomplete = true; return; }
+    const spans = $(element).find("span");
+    newSkills.push({ name,
+      cd: sanitize(spans.eq(0).text().replace(/冷却值[：:]\s*/, "")),
+      cost: sanitize(spans.eq(1).text().replace(/消耗[：:]\s*/, "")), desc });
+  });
+  if (incomplete) return [];
   if (newSkills.length >= 2) return newSkills;
 
-  return [{ name: "数据暂缺", cd: "", cost: "", desc: "" }];
+  return [];
 }
 
 // ── Parse hero list from herolist.shtml ─────────────────────────────
@@ -214,6 +221,7 @@ export async function fetchHeroList(
     timeout: 15000,
     referer: "https://pvp.qq.com/",
     isJson: false,
+    isHtml: true,
   });
   const idMap = new Map<number, string>(); // ename → cname from HTML
   if (htmlRes.ok && htmlRes.text) {
@@ -247,9 +255,17 @@ export async function fetchHeroList(
 }
 
 export type SyncProgress = { phase: string; current: number; total: number; message: string };
+export type HeroSyncResult = { inserted: number; updated: number; preservedSkills: number };
+
+/** Call after the image phase, before recording the pipeline's success stamp. */
+export function assertHeroSyncComplete(result: HeroSyncResult): void {
+  if (result.preservedSkills > 0) {
+    throw new Error(`${result.preservedSkills} 位英雄的官方技能页不可用或校验失败；已保留原技能，其余数据和图片已继续刷新，请重试同步`);
+  }
+}
 
 // ── Main sync ───────────────────────────────────────────────────────
-export async function syncHeroes(onProgress?: (p: SyncProgress) => void): Promise<{ inserted: number; updated: number }> {
+export async function syncHeroes(onProgress?: (p: SyncProgress) => void): Promise<HeroSyncResult> {
   const cfg = await getCrawlConfig();
   const progress = (phase: string, current: number, total: number, message: string) => {
     onProgress?.({ phase, current, total, message });
@@ -257,7 +273,7 @@ export async function syncHeroes(onProgress?: (p: SyncProgress) => void): Promis
 
   console.log("[sync] Fetching hero list...");
   progress("list", 0, 1, "正在获取英雄列表...");
-  const heroes = await fetchHeroList(cfg);
+  const heroes = await fetchHeroList(cfg, { requireComplete: true });
   console.log(`[sync] ${heroes.length} heroes in list`);
   progress("list", 1, 1, `获取到 ${heroes.length} 个英雄`);
 
@@ -265,6 +281,7 @@ export async function syncHeroes(onProgress?: (p: SyncProgress) => void): Promis
   let updated = 0;
   let imageFallbacks = 0;
   let detail404s = 0;
+  let preservedSkills = 0;
 
   // Adapt each batch to current pressure; an internal job can take longer
   // instead of keeping the process at its peak concurrency throughout.
@@ -276,11 +293,15 @@ export async function syncHeroes(onProgress?: (p: SyncProgress) => void): Promis
     const results = await Promise.all(
       batch.map(async (h) => {
         const roleType = resolveRoleType(h);
-        const html = await fetchDetail(cfg, h.ename, (h as any).id_name);
+        const existing = await prisma.hero.findUnique({ where: { heroId: h.ename } });
+        const html = await fetchDetail(cfg, h.ename, h.id_name, {
+          allowLegacyFallback: !existing,
+          expectedName: h.cname,
+        });
 
         // Skills
-        const skills = html ? parseSkills(html) : [{ name: "数据暂缺", cd: "", cost: "", desc: "" }];
-        const skillsJson = JSON.stringify(skills);
+        const skills = html ? parseSkills(html) : [];
+        const skillsJson = skills.length ? JSON.stringify(skills) : existing?.skillsJson || "[]";
 
         // Skins
         const skins = createHeroSkins({
@@ -291,7 +312,8 @@ export async function syncHeroes(onProgress?: (p: SyncProgress) => void): Promis
           skinImageTemplate: cfg.skin_img_base,
           heroImageTemplate: cfg.hero_img_base,
         });
-        const skinsJson = JSON.stringify(skins);
+        const skinsJson = h.skin_name?.trim() || (html && parseDetailSkinNames(html))
+          ? JSON.stringify(skins) : existing?.skinsJson || JSON.stringify(skins);
 
         // 命格
         const mingGe = html ? parseMingGe(html) : { hasMingGe: false, mingGeName: null };
@@ -317,65 +339,74 @@ export async function syncHeroes(onProgress?: (p: SyncProgress) => void): Promis
     );
 
     for (const { h, roleType, skills, skillsJson, skinsJson, imageUrl, dataHash, mingGe } of results) {
-      const changed = false;
-      const existing = await prisma.hero.findUnique({ where: { heroId: h.ename } });
-      if (!existing) {
-        await prisma.hero.create({
-          data: { heroId: h.ename, name: h.cname, title: h.title, roleType, heroType: h.hero_type, heroType2: h.hero_type2 ?? 0, imageUrl, skinsJson, skillsJson, dataHash, mingge: mingGe.hasMingGe, minggeName: mingGe.mingGeName },
-        });
-        console.log(`[sync] NEW #${h.ename} ${h.cname}${mingGe.hasMingGe ? ` 命格:${mingGe.mingGeName || '?'}` : ""}`);
-        inserted++;
-      } else {
-        // Compare for changes
-        const changes: string[] = [];
-        if (existing.name !== h.cname) changes.push(`name:${existing.name}→${h.cname}`);
-        if (existing.title !== h.title) changes.push(`title:${existing.title}→${h.title}`);
-        if (existing.heroType !== h.hero_type) changes.push(`heroType:${existing.heroType}→${h.hero_type}`);
-        if (existing.heroType2 !== (h.hero_type2 ?? 0)) changes.push(`heroType2:${existing.heroType2}→${h.hero_type2 ?? 0}`);
-        if (existing.imageUrl !== imageUrl) changes.push(`imageUrl changed`);
-        if (existing.dataHash !== dataHash) changes.push(`data changed`);
-        if (mingGe.hasMingGe && existing.mingge !== mingGe.hasMingGe) changes.push(`mingge:${existing.mingge}→${mingGe.hasMingGe}`);
-        if (mingGe.hasMingGe && (existing.minggeName || null) !== mingGe.mingGeName) changes.push(`minggeName:${existing.minggeName}→${mingGe.mingGeName}`);
+      // Hero JSON and normalized skill rows must become visible together. A
+      // createMany failure rolls back the deletion instead of losing skills.
+      await prisma.$transaction(async (tx) => {
+        const existing = await tx.hero.findUnique({ where: { heroId: h.ename } });
+        if (!existing) {
+          await tx.hero.create({
+            data: { heroId: h.ename, name: h.cname, title: h.title, roleType, heroType: h.hero_type, heroType2: h.hero_type2 ?? 0, imageUrl, skinsJson, skillsJson, dataHash, mingge: mingGe.hasMingGe, minggeName: mingGe.mingGeName },
+          });
+          console.log(`[sync] NEW #${h.ename} ${h.cname}${mingGe.hasMingGe ? ` 命格:${mingGe.mingGeName || '?'}` : ""}`);
+          inserted++;
+        } else {
+          // Compare for changes
+          const changes: string[] = [];
+          if (existing.name !== h.cname) changes.push(`name:${existing.name}→${h.cname}`);
+          if (existing.title !== h.title) changes.push(`title:${existing.title}→${h.title}`);
+          if (existing.heroType !== h.hero_type) changes.push(`heroType:${existing.heroType}→${h.hero_type}`);
+          if (existing.heroType2 !== (h.hero_type2 ?? 0)) changes.push(`heroType2:${existing.heroType2}→${h.hero_type2 ?? 0}`);
+          if (existing.imageUrl !== imageUrl) changes.push(`imageUrl changed`);
+          if (existing.dataHash !== dataHash) changes.push(`data changed`);
+          if (mingGe.hasMingGe && existing.mingge !== mingGe.hasMingGe) changes.push(`mingge:${existing.mingge}→${mingGe.hasMingGe}`);
+          if (mingGe.hasMingGe && (existing.minggeName || null) !== mingGe.mingGeName) changes.push(`minggeName:${existing.minggeName}→${mingGe.mingGeName}`);
 
-        if (changes.length > 0) {
-          console.log(`[sync] #${h.ename} ${h.cname}: ${changes.join(" | ")}`);
+          if (changes.length > 0) {
+            console.log(`[sync] #${h.ename} ${h.cname}: ${changes.join(" | ")}`);
+          }
+
+          // Update official data fields, preserve roleType & mingge (manually maintained)
+          const updateData: Record<string, unknown> = {
+            name: h.cname, title: h.title, heroType: h.hero_type, heroType2: h.hero_type2 ?? 0, imageUrl, skinsJson, skillsJson, dataHash,
+          };
+          // Never clear existing mingge — only update if crawler positively detected it
+          if (mingGe.hasMingGe) {
+            updateData.mingge = true;
+            updateData.minggeName = mingGe.mingGeName;
+          }
+          await tx.hero.update({ where: { heroId: h.ename }, data: updateData });
+          updated++;
         }
 
-        // Update official data fields, preserve roleType & mingge (manually maintained)
-        const updateData: Record<string, unknown> = {
-          name: h.cname, title: h.title, heroType: h.hero_type, heroType2: h.hero_type2 ?? 0, imageUrl, skinsJson, skillsJson, dataHash,
-        };
-        // Never clear existing mingge — only update if crawler positively detected it
-        if (mingGe.hasMingGe) {
-          updateData.mingge = true;
-          updateData.minggeName = mingGe.mingGeName;
+        // Failed/partial parsing is not a new official skill set. Preserve both
+        // representations and report the degraded sync instead of publishing a
+        // successful placeholder that suppresses future change detection.
+        if (skills.length === 0) {
+          preservedSkills++;
+          return;
         }
-        await prisma.hero.update({ where: { heroId: h.ename }, data: updateData });
-        updated++;
-      }
-
-      // Upsert hero_skills rows — enrich via plugin pipeline
-      const { processSkill } = await import("@/core/game");
-      const skillRows = skills.map((s, i) => {
-        const enriched = processSkill({
-          heroId: h.ename, heroName: h.cname,
-          skillIndex: i, name: s.name, cd: s.cd, cost: s.cost, desc: s.desc,
+        // Upsert hero_skills rows — enrich via plugin pipeline
+        const { processSkill } = await import("@/core/game");
+        const skillRows = skills.map((s, i) => {
+          const enriched = processSkill({
+            heroId: h.ename, heroName: h.cname,
+            skillIndex: i, name: s.name, cd: s.cd, cost: s.cost, desc: s.desc,
+          });
+          return {
+            heroId: h.ename,
+            skillIndex: i,
+            name: s.name,
+            cd: s.cd,
+            cost: s.cost,
+            desc: s.desc,
+            dataHash: createHash("md5").update(JSON.stringify(s)).digest("hex"),
+            extraJson: enriched.extraJson as Prisma.InputJsonObject,
+          };
         });
-        return {
-          heroId: h.ename,
-          skillIndex: i,
-          name: s.name,
-          cd: s.cd,
-          cost: s.cost,
-          desc: s.desc,
-          dataHash: createHash("md5").update(JSON.stringify(s)).digest("hex"),
-          extraJson: enriched.extraJson as any,
-        };
+        // Delete old skills then create new
+        await tx.heroSkill.deleteMany({ where: { heroId: h.ename } });
+        await tx.heroSkill.createMany({ data: skillRows });
       });
-      // Delete old skills then create new
-      await prisma.heroSkill.deleteMany({ where: { heroId: h.ename } });
-      await prisma.heroSkill.createMany({ data: skillRows });
-
     }
 
     console.log(`[sync] ${Math.min(b + batchSize, heroes.length)}/${heroes.length} done`);
@@ -415,8 +446,9 @@ export async function syncHeroes(onProgress?: (p: SyncProgress) => void): Promis
   ]);
 
   console.log(`[sync] Complete: ${inserted} new, ${updated} updated, ${imageFallbacks} img fallback, ${detail404s} no detail page`);
-  progress("done", 1, 1, `同步完成: ${inserted} 新增, ${updated} 更新`);
-  return { inserted, updated };
+  progress(preservedSkills ? "partial" : "done", 1, 1,
+    `同步${preservedSkills ? "部分完成" : "完成"}: ${inserted} 新增, ${updated} 更新, ${preservedSkills} 位保留原技能`);
+  return { inserted, updated, preservedSkills };
 }
 
 // Self-execute only when run directly via the package sync-heroes script.

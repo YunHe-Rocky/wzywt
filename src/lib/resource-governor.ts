@@ -113,7 +113,7 @@ export class ResourceGovernor {
     const capacity = (this.runtime.capacity || memoryCapacity)();
     const roleBudget = setting(this.role === "web" ? "RESOURCE_WEB_MEMORY_MB" : "RESOURCE_CRON_MEMORY_MB", 0, 0, 1_048_576);
     const budget = resourceMemoryBudget(capacity.total, this.role === "web" ? "web" : "cron",
-      roleBudget, process.env.APP_RUNTIME).softBytes;
+      roleBudget, process.env.APP_RUNTIME, setting("RESOURCE_PROJECT_MEMORY_PERCENT", 25, 20, 30), capacity.hostTotal).softBytes;
     const memory = (this.runtime.memory || process.memoryUsage)();
     this.sampledMemory = { rss: memory.rss, heapUsed: memory.heapUsed, external: memory.external, arrayBuffers: memory.arrayBuffers, budgetBytes: budget };
     this.memoryRatio = Math.max(memory.rss / budget, capacity.used / capacity.total,

@@ -29,7 +29,7 @@
 
 生产 Cron 由 PM2 直接以 Node 加载 `scripts/cron.ts`，通过 `--import tsx` 在同一进程内支持 TypeScript 和路径别名。不要把 PM2 入口改回 `tsx` CLI：它会额外创建业务子进程，使 PM2 默认显示和检查启动器的 RSS，遗漏实际 Cron 内存。
 
-`max_memory_restart` 是定期检查后的兜底重启阈值，不是操作系统硬内存上限。PM2 与调度器共用预算算法：原生 Web/Cron 软预算为有效容量的 35%/20%，受 cgroup 限制时比例相同，PM2 重启阈值为软预算的 120%（最多有效容量）。显式 MiB 使用 `RESOURCE_WEB_MEMORY_MB` / `RESOURCE_CRON_MEMORY_MB`，最多有效容量的 85%。Docker 入口使用独立容器限额的 85% 作为默认软预算。MySQL、Redis、OCR 和构建需要另外规划容量。
+`max_memory_restart` 是定期检查后的兜底重启阈值，不是操作系统硬内存上限。PM2 与调度器共用预算算法：原生项目预算为宿主内存的 `RESOURCE_PROJECT_MEMORY_PERCENT`（默认25，只接受20–30）与有效 cgroup 限额中的较小值；Web/Cron 重启阈值各占项目预算60%/25%，软预算为各阈值的1/1.20。显式 `RESOURCE_WEB_MEMORY_MB` / `RESOURCE_CRON_MEMORY_MB` 只能进一步降低预算。通过 `runtime-service --install` 将专用PM2/Web/Cron置入systemd cgroup后，才有项目百分比的聚合硬上限；独立MySQL、Redis、OCR和构建仍需另外规划。Docker软预算为独立容器限额的85%，各容器硬限额及最大工具峰值必须另通过项目百分比总额核对。操作命令和8 GiB默认值见[资源调度运行手册](resource-governor.md)。
 
 自适应供给、任务日志、存活失败恢复和压力验收见 [资源调度与恢复运行手册](resource-governor.md)。日志使用 JSON 行，包含 UTC 时间、事件、级别、role、PID、bootId、release、requestId/taskId、阶段和耗时；错误保留脱敏消息和栈，资源摘要每 30 秒记录一次。既有服务输出补充相同身份字段。请求体、Cookie、认证头和完整连接串不作为日志字段。
 
