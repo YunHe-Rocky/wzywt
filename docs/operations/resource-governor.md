@@ -115,9 +115,15 @@ node scripts/runtime-service.mjs --plan
 node scripts/runtime-service.mjs --install
 ```
 
-安装再次检查在线进程所有权，要求已保存和在线的 PM2 列表都只有本项目 Web/Cron；拒绝接管包含其他进程的 PM2 home。它写入带管理标记的 systemd 主服务、watchdog service/timer，拒绝覆盖无管理标记的同名服务。配置在 runtime 的 `shared/runtime-service.json`，只包含路径、名称和恢复设置。主服务固定 PM2_HOME、Node PATH、PIDFile 和用户，并设置 `MemoryHigh=<项目百分比的80%>`、`MemoryMax=<项目百分比>%`、`MemorySwapMax=0`。
+安装再次检查进程所有权，要求保存的 PM2 列表只有本项目 Web/Cron；在线列表须是同一对进程，或上次安装失败后留下的空列表。空列表重试会保留已有 dump，不执行 `pm2 save`。包含其他进程、仅有一项进程或两项未正常运行时均拒绝接管。
 
-`--install` 会保存状态、停止旧的受管服务及本项目专用 PM2 daemon，再通过 systemd 的 `pm2 resurrect` 恢复，存在短暂停写/重启窗口。该步骤确保此前从终端启动的 daemon 也真正进入受限 cgroup；仅写入 unit 后联系旧 daemon 无法实施硬上限。先完成正常发布、数据库/媒体备份及健康验证，在维护窗口安装；失败时保留配置和日志，核对 systemctl 状态再恢复。watchdog 每 30 秒检查存活。Node/PM2 路径或项目百分比变化后重新生成计划并安装。
+安装先运行 `systemd-analyze verify` 检查计划中的全部三份文件，通过后才替换系统 unit、保存在线状态和停止 PM2。没有解析器或校验失败都会在停写前终止。`--plan` 只生成文件，不能单独证明系统可以加载服务。`WorkingDirectory` 与 `PIDFile` 使用单值绝对路径，不加 shell 引号；`Exec*` 命令参数和 `Environment` 继续按各自规则引用。Linux CI 的 `npm run test:systemd` 用真实解析器检查生成文件并复现旧的引号错误，无需启动任何服务。
+
+它写入带管理标记的 systemd 主服务、watchdog service/timer，拒绝覆盖无管理标记的同名服务。配置在 runtime 的 `shared/runtime-service.json`，只包含路径、名称和恢复设置。主服务固定 PM2_HOME、Node PATH、PIDFile 和用户，并设置 `MemoryHigh=<项目百分比的80%>`、`MemoryMax=<项目百分比>%`、`MemorySwapMax=0`。
+
+`--install` 会保存状态、停止旧的受管服务及本项目专用 PM2 daemon，再通过 systemd 的 `pm2 resurrect` 恢复，存在短暂停写/重启窗口。该步骤确保此前从终端启动的 daemon 也真正进入受限 cgroup；仅写入 unit 后联系旧 daemon 无法实施硬上限。先完成正常发布、数据库/媒体备份及健康验证，在维护窗口安装。watchdog 每 30 秒检查存活。Node/PM2 路径或项目百分比变化后重新生成计划并安装。
+
+如果 systemd 在停 PM2 后启动失败，安装会先停止部分启动的服务，再从已核对归属的 dump 恢复 Web/Cron，并检查进程名、目录及 online 状态；不会重新保存空列表，也不会重复启动已恢复的进程。恢复成功仍以失败退出，并明确提示合计硬限制尚未确认生效，需检查 `/api/health` 后修复重试。无法确认恢复时保留日志和 dump，按错误中的 `PM2_HOME` 执行 `pm2 resurrect`；恢复前不要运行 `pm2 save`。对于旧版安装已经停掉 PM2 的情况，更新源码后可直接重新执行 `--install`，新脚本支持读取原有 dump 完成空列表重试。
 
 安装后执行 `systemctl show <服务名>.service -p MemoryCurrent -p MemoryHigh -p MemoryMax -p EffectiveMemoryMax -p MemorySwapMax -p ControlGroup`，确认 8 GiB 主机默认 `MemoryMax=2147483648`，并检查 Web/Cron 的 `/proc/<pid>/cgroup` 都属于该服务。原有 PM2 单独重载只更新软预算/重启阈值；未安装此 unit 时不保证硬封顶。MemoryHigh 是压力节流机制，MemoryMax 才是最后的内核限制，触及上限可能触发组内 OOM；健康/恢复机制仍须验收。
 

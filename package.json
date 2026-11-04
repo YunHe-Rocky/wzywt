@@ -35,6 +35,7 @@
     "test:e2e:combat-admin": "node tests/e2e/combat-admin-regression.mjs",
     "test:resources": "tsx scripts/test-resource-scheduler.ts",
     "test:governor": "node --import tsx --test scripts/test-resource-governor.mjs scripts/test-resource-reclamation.mjs",
+    "test:systemd": "node --test scripts/test-systemd-units.mjs",
     "test:governor:http": "node scripts/test-resource-http.mjs",
     "test:task-fence": "tsx scripts/test-task-write-fence.ts",
     "test:api-use-cases": "tsx scripts/test-api-use-cases.ts",

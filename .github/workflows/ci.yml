@@ -46,6 +46,10 @@ jobs:
           node-version: ${{ matrix.node }}
           cache: npm
       - run: npm ci
+      - name: Verify native service units with the real systemd parser
+        run: |
+          systemd-analyze --version
+          npm run test:systemd
       - run: npx prisma generate
       - run: npx prisma validate
       - run: npx prisma migrate deploy

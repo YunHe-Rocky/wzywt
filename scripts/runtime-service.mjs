@@ -11,6 +11,12 @@ function quote(value) {
   if (/[\r\n\0$%]/.test(value)) throw new Error("Unsupported systemd path/user characters");
   return `"${value.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`;
 }
+// These directives consume one literal path, not an Exec/Environment word list.
+// Shell quotes become path characters and make WorkingDirectory non-absolute.
+function literalPath(value) {
+  if (/[\x00-\x1f\x7f$%]/.test(value) || value !== value.trim()) throw new Error("Unsupported systemd literal path characters");
+  return value;
+}
 function contained(child, parent) {
   const part = relative(parent, child); return part === "" || (!part.startsWith("..") && !isAbsolute(part));
 }
@@ -23,8 +29,8 @@ export function serviceFiles(config) {
     String(config.memoryPercent ?? 25) }).RESOURCE_PROJECT_MEMORY_PERCENT;
   const memoryLimits = `MemoryAccounting=yes\nMemoryHigh=${Math.floor(memoryPercent * 0.8)}%\nMemoryMax=${memoryPercent}%\nMemorySwapMax=0`;
   return {
-    [`${name}.service`]: `${managed}\n[Unit]\nDescription=Website PM2 recovery (${name})\nWants=network-online.target\nAfter=network-online.target\nStartLimitIntervalSec=300\nStartLimitBurst=5\n\n[Service]\nType=forking\nUser=${user}\nWorkingDirectory=${quote(current)}\n${environment}\n${memoryLimits}\nPIDFile=${quote(resolve(pm2Home, "pm2.pid"))}\nExecStart=${quote(pm2)} resurrect\nExecReload=${quote(pm2)} reload ${quote(config.webName)} ${quote(config.cronName)}\nExecStop=${quote(pm2)} kill\nRestart=always\nRestartSec=10\nTimeoutStartSec=90\nTimeoutStopSec=320\nKillMode=process\nUMask=0077\n\n[Install]\nWantedBy=multi-user.target\n`,
-    [`${name}-watchdog.service`]: `${managed}\n[Unit]\nDescription=Website liveness and log retention (${name})\nAfter=${name}.service\nRequisite=${name}.service\n\n[Service]\nType=oneshot\nUser=${user}\nWorkingDirectory=${quote(current)}\n${environment}\nExecStart=${quote(node)} ${quote(resolve(current, "scripts/runtime-watchdog.mjs"))} ${quote(configuration)}\nTimeoutStartSec=50\nUMask=0077\n`,
+    [`${name}.service`]: `${managed}\n[Unit]\nDescription=Website PM2 recovery (${name})\nWants=network-online.target\nAfter=network-online.target\nStartLimitIntervalSec=300\nStartLimitBurst=5\n\n[Service]\nType=forking\nUser=${user}\nWorkingDirectory=${literalPath(current)}\n${environment}\n${memoryLimits}\nPIDFile=${literalPath(resolve(pm2Home, "pm2.pid"))}\nExecStart=${quote(pm2)} resurrect\nExecReload=${quote(pm2)} reload ${quote(config.webName)} ${quote(config.cronName)}\nExecStop=${quote(pm2)} kill\nRestart=always\nRestartSec=10\nTimeoutStartSec=90\nTimeoutStopSec=320\nKillMode=process\nUMask=0077\n\n[Install]\nWantedBy=multi-user.target\n`,
+    [`${name}-watchdog.service`]: `${managed}\n[Unit]\nDescription=Website liveness and log retention (${name})\nAfter=${name}.service\nRequisite=${name}.service\n\n[Service]\nType=oneshot\nUser=${user}\nWorkingDirectory=${literalPath(current)}\n${environment}\nExecStart=${quote(node)} ${quote(resolve(current, "scripts/runtime-watchdog.mjs"))} ${quote(configuration)}\nTimeoutStartSec=50\nUMask=0077\n`,
     [`${name}-watchdog.timer`]: `${managed}\n[Unit]\nDescription=Check website process liveness every 30 seconds\n\n[Timer]\nOnBootSec=150\nOnUnitActiveSec=30\nUnit=${name}-watchdog.service\n\n[Install]\nWantedBy=timers.target\n`,
   };
 }
@@ -63,17 +69,66 @@ export function resolveService(source = process.cwd(), environment = process.env
   return config;
 }
 
-/** Restart the verified dedicated daemon inside the unit's cgroup. */
-export function activateService(config, env, execute = execFileSync) {
-  execute(config.pm2, ["save"], { env, stdio: "inherit", timeout: 15_000 });
-  for (const name of [`${config.name}-watchdog.timer`, `${config.name}.service`]) {
-    let active = false;
-    try { execute("systemctl", ["is-active", "--quiet", name], { stdio: "ignore" }); active = true; }
-    catch (error) { if (![1, 3, 4].includes(error.status)) throw error; }
-    if (active) execute("systemctl", ["stop", name], { stdio: "inherit" });
+export function verifyServicePlan(unitFiles, execute = execFileSync) {
+  if (!Array.isArray(unitFiles) || unitFiles.length !== 3 || unitFiles.some(path => !isAbsolute(path))) {
+    throw new Error("All three absolute planned unit paths are required before installation");
   }
-  execute(config.pm2, ["kill"], { env, stdio: "inherit", timeout: 320_000 });
-  execute("systemctl", ["enable", "--now", `${config.name}.service`, `${config.name}-watchdog.timer`], { stdio: "inherit" });
+  execute("systemd-analyze", ["verify", "--man=no", ...unitFiles], { stdio: "inherit", timeout: 30_000 });
+}
+
+function checkLiveProcesses(config, live, { allowEmpty = false } = {}) {
+  if (!Array.isArray(live) || (live.length !== 2 && !(allowEmpty && live.length === 0))) {
+    throw new Error("Use a dedicated PM2 home with exactly the project's Web/Cron processes");
+  }
+  for (const name of live.length ? [config.webName, config.cronName] : []) {
+    const app = live.find(app => app.name === name);
+    if (!app || app.pm2_env?.status !== "online" || realpathSync(app.pm2_env.pm_cwd) !== realpathSync(config.current)) {
+      throw new Error(`Deploy and verify ${name} before enabling reboot recovery`);
+    }
+  }
+}
+
+/** Validate before changing installed files or stopping any project writer. */
+export function activateService(config, env, execute = execFileSync, { unitFiles, prepare = () => {}, saveCurrent = true } = {}) {
+  verifyServicePlan(unitFiles, execute);
+  prepare();
+  // The validated dump remains the recovery source when an earlier failed
+  // installation left no live apps. Never replace it with an empty PM2 list.
+  if (saveCurrent) execute(config.pm2, ["save"], { env, stdio: "inherit", timeout: 15_000 });
+  let writersMayBeStopped = false;
+  try {
+    for (const name of [`${config.name}-watchdog.timer`, `${config.name}.service`]) {
+      let active = false;
+      try { execute("systemctl", ["is-active", "--quiet", name], { stdio: "ignore" }); active = true; }
+      catch (error) { if (![1, 3, 4].includes(error.status)) throw error; }
+      if (active) {
+        writersMayBeStopped = true;
+        execute("systemctl", ["stop", name], { stdio: "inherit" });
+      }
+    }
+    writersMayBeStopped = true;
+    execute(config.pm2, ["kill"], { env, stdio: "inherit", timeout: 320_000 });
+    execute("systemctl", ["enable", "--now", `${config.name}.service`, `${config.name}-watchdog.timer`], { stdio: "inherit" });
+  } catch (error) {
+    if (!writersMayBeStopped) throw error;
+    let recovery;
+    try {
+      // Stop partial activation before restoring the saved, ownership-checked
+      // process list. Avoid starting a second set if PM2 already recovered it.
+      for (const name of [`${config.name}-watchdog.timer`, `${config.name}.service`]) {
+        execute("systemctl", ["stop", name], { stdio: "inherit", timeout: 320_000 });
+      }
+      const readLive = () => JSON.parse(execute(config.pm2, ["jlist"], { env, encoding: "utf8", timeout: 15_000 }));
+      const live = readLive();
+      checkLiveProcesses(config, live, { allowEmpty: true });
+      if (!live.length) execute(config.pm2, ["resurrect"], { env, stdio: "inherit", timeout: 90_000 });
+      checkLiveProcesses(config, readLive());
+      recovery = "Saved Web/Cron processes are online through PM2 again; verify /api/health. The aggregate systemd memory limit is not confirmed active.";
+    } catch (recoveryError) {
+      recovery = `Automatic recovery could not be verified: ${recoveryError.message}. Keep the saved dump; inspect systemctl/journalctl and restore the project with PM2_HOME=${config.pm2Home} pm2 resurrect.`;
+    }
+    throw new Error(`Systemd activation failed: ${error.message}. ${recovery}`, { cause: error });
+  }
 }
 
 export function main(args = process.argv.slice(2)) {
@@ -101,23 +156,21 @@ export function main(args = process.argv.slice(2)) {
   }
   const env = { ...process.env, PM2_HOME: config.pm2Home, PATH: `${dirname(config.node)}${delimiter}${process.env.PATH || ""}` };
   const live = JSON.parse(execFileSync(config.pm2, ["jlist"], { env, encoding: "utf8", timeout: 15_000 }));
-  if (!Array.isArray(live) || live.length !== 2) throw new Error("Use a dedicated PM2 home with exactly the project's live Web/Cron processes before installing memory limits");
-  for (const name of [config.webName, config.cronName]) {
-    const app = live.find(app => app.name === name);
-    if (!app || app.pm2_env?.status !== "online" || realpathSync(app.pm2_env.pm_cwd) !== realpathSync(config.current)) {
-      throw new Error(`Deploy and verify ${name} before enabling reboot recovery`);
-    }
-  }
-  writeFileSync(config.configuration, JSON.stringify(config, null, 2), { mode: 0o600 });
-  // The selected service user must be able to read its non-secret configuration.
-  execFileSync("chown", [config.user, config.configuration]);
-  for (const [name, text] of Object.entries(files)) writeFileSync(`/etc/systemd/system/${name}`, text, { mode: 0o644 });
-  execFileSync("systemctl", ["daemon-reload"], { stdio: "inherit" });
+  checkLiveProcesses(config, live, { allowEmpty: true });
   // An existing daemon remains outside the new unit's cgroup if resurrect merely
   // contacts it. Restart the verified dedicated daemon inside systemd so the
   // kernel's aggregate memory ceiling actually covers PM2 and both applications.
-  console.log("Installing aggregate memory limits: briefly stop the project's dedicated PM2 daemon, then recover its saved Web/Cron processes inside systemd.");
-  activateService(config, env);
+  console.log("Verify planned systemd units before replacing files or stopping PM2; then install the project's aggregate memory limit.");
+  activateService(config, env, execFileSync, {
+    unitFiles: Object.keys(files).map(name => resolve(output, name)),
+    saveCurrent: live.length > 0,
+    prepare() {
+      writeFileSync(config.configuration, JSON.stringify(config, null, 2), { mode: 0o600 });
+      execFileSync("chown", [config.user, config.configuration]);
+      for (const [name, text] of Object.entries(files)) writeFileSync(`/etc/systemd/system/${name}`, text, { mode: 0o644 });
+      execFileSync("systemctl", ["daemon-reload"], { stdio: "inherit" });
+    },
+  });
   console.log(`Recovery enabled: ${config.name}.service and ${config.name}-watchdog.timer`);
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {

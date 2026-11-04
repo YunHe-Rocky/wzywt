@@ -277,6 +277,9 @@ test("systemd plan pins the dedicated PM2 home, toolchain, watchdog and selected
     pm2: "/opt/node/bin/pm2", node: "/opt/node/bin/node", configuration: "/srv/site/shared/service.json", webName: "site-web", cronName: "site-cron" });
   const unit = files["wzywt-test.service"];
   assert.ok(unit.includes("PM2_HOME=/srv/site/pm2")); assert.ok(unit.includes("resurrect"));
+  assert.ok(unit.split("\n").includes("WorkingDirectory=/srv/site/current"));
+  assert.ok(unit.split("\n").includes(`PIDFile=${resolve("/srv/site/pm2", "pm2.pid")}`));
+  assert.ok(files["wzywt-test-watchdog.service"].split("\n").includes("WorkingDirectory=/srv/site/current"));
   assert.ok(unit.includes('reload "site-web" "site-cron"')); assert.ok(unit.includes("Restart="));
   assert.match(unit, /MemoryAccounting=yes\nMemoryHigh=20%\nMemoryMax=25%\nMemorySwapMax=0/);
   const limited = serviceFiles({ name: "wzywt-test", user: "deploy", current: "/srv/site/current", pm2Home: "/srv/site/pm2",
@@ -284,6 +287,11 @@ test("systemd plan pins the dedicated PM2 home, toolchain, watchdog and selected
   assert.match(limited["wzywt-test.service"], /MemoryHigh=24%\nMemoryMax=30%/);
   assert.ok(files["wzywt-test-watchdog.timer"].includes("OnUnitActiveSec=30"));
   assert.throws(() => serviceFiles({ name: "bad\nunit", user: "deploy" }), /Invalid service/);
+  const spaced = serviceFiles({ name: "wzywt-test", user: "deploy", current: "/srv/site with spaces/current", pm2Home: "/srv/site with spaces/pm2",
+    pm2: "/opt/node with spaces/bin/pm2", node: "/opt/node with spaces/bin/node", configuration: "/srv/site with spaces/shared/service.json", webName: "site-web", cronName: "site-cron" });
+  assert.ok(spaced["wzywt-test.service"].split("\n").includes("WorkingDirectory=/srv/site with spaces/current"));
+  assert.ok(spaced["wzywt-test.service"].split("\n").includes(`PIDFile=${resolve("/srv/site with spaces/pm2", "pm2.pid")}`));
+  assert.ok(spaced["wzywt-test.service"].includes('ExecStart="/opt/node with spaces/bin/pm2" resurrect'));
 });
 
 test("service planning honors a custom env file and refuses another project's saved processes", async () => {
@@ -309,18 +317,73 @@ test("service planning honors a custom env file and refuses another project's sa
 });
 
 test("aggregate memory installation starts the dedicated PM2 daemon inside systemd on first install and upgrade", () => {
+  const unitFiles = ["/plan/site.service", "/plan/site-watchdog.service", "/plan/site-watchdog.timer"];
   for (const installed of [false, true]) {
     const calls = [];
     const config = { name: "wzywt-test", pm2: "/opt/node/bin/pm2" };
     activateService(config, { PM2_HOME: "/srv/site/pm2" }, (binary, args) => {
       calls.push([binary, ...args].join(" "));
       if (args[0] === "is-active" && !installed) throw Object.assign(Error("inactive or not installed"), { status: 4 });
-    });
-    assert.equal(calls[0], "/opt/node/bin/pm2 save");
+    }, { unitFiles, prepare: () => calls.push("install verified units") });
+    assert.equal(calls[0], `systemd-analyze verify --man=no ${unitFiles.join(" ")}`);
+    assert.equal(calls[1], "install verified units");
+    assert.equal(calls[2], "/opt/node/bin/pm2 save");
     assert.equal(calls.some(value => value.startsWith("systemctl stop")), installed);
     assert.ok(calls.indexOf("/opt/node/bin/pm2 kill") < calls.indexOf("systemctl enable --now wzywt-test.service wzywt-test-watchdog.timer"));
   }
   assert.throws(() => activateService({ name: "test", pm2: "pm2" }, {}, (_binary, args) => {
     if (args[0] === "is-active") throw Object.assign(Error("system bus unavailable"), { status: 5 });
-  }), /system bus unavailable/);
+  }, { unitFiles }), /system bus unavailable/);
+});
+
+test("invalid units fail before installed files change or any PM2 save/stop is attempted", () => {
+  const calls = [];
+  assert.throws(() => activateService({ name: "site", pm2: "pm2" }, {}, (binary, args) => {
+    calls.push([binary, ...args].join(" "));
+    if (binary === "systemd-analyze") throw new Error("WorkingDirectory path is not absolute");
+  }, { unitFiles: ["/plan/site.service", "/plan/site-watchdog.service", "/plan/site-watchdog.timer"],
+    prepare: () => calls.push("replace installed units") }), /WorkingDirectory path is not absolute/);
+  assert.equal(calls.length, 1);
+  assert.ok(calls[0].startsWith("systemd-analyze verify "));
+});
+
+test("retrying installation with no live apps preserves the saved dump instead of saving an empty list", () => {
+  const calls = [];
+  activateService({ name: "site", pm2: "pm2" }, {}, (binary, args) => {
+    calls.push([binary, ...args].join(" "));
+    if (args[0] === "is-active") throw Object.assign(Error("inactive"), { status: 3 });
+  }, { unitFiles: ["/plan/site.service", "/plan/site-watchdog.service", "/plan/site-watchdog.timer"], saveCurrent: false });
+  assert.ok(!calls.includes("pm2 save"));
+  assert.ok(calls.includes("pm2 kill"));
+  assert.ok(calls.includes("systemctl enable --now site.service site-watchdog.timer"));
+});
+
+test("systemd start failure restores only the verified saved project and reports the missing hard limit", () => {
+  for (const alreadyRecovered of [false, true]) {
+    const calls = [];
+    let reads = 0;
+    const config = { name: "site", pm2: "pm2", pm2Home: "/srv/site/pm2", current: process.cwd(), webName: "site-web", cronName: "site-cron" };
+    const live = [config.webName, config.cronName].map(name => ({ name, pm2_env: { status: "online", pm_cwd: config.current } }));
+    assert.throws(() => activateService(config, {}, (binary, args) => {
+      calls.push([binary, ...args].join(" "));
+      if (args[0] === "is-active") throw Object.assign(Error("inactive"), { status: 3 });
+      if (args[0] === "enable") throw new Error("systemd start failed");
+      if (args[0] === "jlist") return JSON.stringify(!alreadyRecovered && reads++ === 0 ? [] : live);
+    }, { unitFiles: ["/plan/site.service", "/plan/site-watchdog.service", "/plan/site-watchdog.timer"] }), /online through PM2 again.*memory limit is not confirmed active/);
+    assert.equal(calls.includes("pm2 resurrect"), !alreadyRecovered);
+    assert.equal(calls.filter(call => call === "pm2 save").length, 1, "recovery never saves an empty process list");
+    if (!alreadyRecovered) assert.ok(calls.indexOf("systemctl stop site.service") < calls.indexOf("pm2 resurrect"));
+  }
+});
+
+test("automatic recovery refuses unexpected live PM2 apps and preserves the saved dump", () => {
+  const calls = [];
+  assert.throws(() => activateService({ name: "site", pm2: "pm2", pm2Home: "/srv/site/pm2" }, {}, (binary, args) => {
+    calls.push([binary, ...args].join(" "));
+    if (args[0] === "is-active") throw Object.assign(Error("inactive"), { status: 3 });
+    if (args[0] === "enable") throw new Error("systemd start failed");
+    if (args[0] === "jlist") return JSON.stringify([{ name: "other-project" }]);
+  }, { unitFiles: ["/plan/site.service", "/plan/site-watchdog.service", "/plan/site-watchdog.timer"] }), /Automatic recovery could not be verified/);
+  assert.ok(!calls.includes("pm2 resurrect"));
+  assert.equal(calls.filter(call => call === "pm2 save").length, 1);
 });
