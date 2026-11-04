@@ -24,6 +24,9 @@ const storage = new LocalMediaStorage(path.join(root, "media"));
 setMediaStorageForTests(storage);
 const videos = new Map();
 const results = [];
+const diagnostics = [];
+const diagnosticDirectory = path.resolve(".cache/ci-diagnostics/video-compatibility");
+await mkdir(diagnosticDirectory, { recursive: true });
 const run = args => {
   const result = spawnSync(ffmpeg, ["-nostdin", "-hide_banner", "-loglevel", "error", ...args], { windowsHide: true, timeout: 60000 });
   assert.equal(result.status, 0, result.error?.message || result.stderr?.toString());
@@ -72,7 +75,7 @@ try {
   form.set("video", new File([fake],"unplayable.mp4",{type:"video/mp4"}));
   await assert.rejects(()=>readCombatPostUpload(new Request("http://localhost/api/combat-posts",{method:"POST",body:form}),"fixture",1,async()=>assert.fail("must not attach an undecodable movie")),/解码/);
 
-  const bundle = await build({stdin:{contents:`import React from 'react';import {createRoot} from 'react-dom/client';import '@/web/styles/arena.css';import {CombatVideoPlayer} from '@/web/components/content/CombatVideoPlayer';const id=new URLSearchParams(location.search).get('id')||'1';createRoot(document.getElementById('root')).render(<React.StrictMode><CombatVideoPlayer src={'/api/combat-posts/'+id+'/video'}/></React.StrictMode>);`,loader:"tsx",resolveDir:process.cwd()},bundle:true,write:false,outdir:root,format:"iife",jsx:"automatic",define:{"process.env.NODE_ENV":'"development"'}});
+  const bundle = await build({stdin:{contents:`import React from 'react';import {createRoot} from 'react-dom/client';import '@/web/styles/arena.css';import {CombatVideoPlayer} from '@/web/components/content/CombatVideoPlayer';const id=new URLSearchParams(location.search).get('id')||'1';const root=createRoot(document.getElementById('root'));window.setPlayerSource=src=>root.render(<React.StrictMode>{src&&<CombatVideoPlayer src={src}/>}</React.StrictMode>);window.setPlayerSource('/api/combat-posts/'+id+'/video');`,loader:"tsx",resolveDir:process.cwd()},bundle:true,write:false,outdir:root,format:"iife",jsx:"automatic",define:{"process.env.NODE_ENV":'"development"'}});
   const js=bundle.outputFiles.find(f=>f.path.endsWith(".js")).contents;
   const css=bundle.outputFiles.find(f=>f.path.endsWith(".css")).contents;
   server=createServer((req,res)=>{
@@ -99,9 +102,34 @@ try {
     const browser=await engine.launch({headless:true,...options});
     try{
       const context=await browser.newContext(engine===webkit?devices["iPhone 13"]:devices["Pixel 7"]);
+      await context.addInitScript(() => {
+        window.videoDiagnostics = [];
+        const originalFetch = window.fetch;
+        window.fetch = function(input, options) {
+          if (options?.method === "HEAD") {
+            const diagnostic = { url: String(input), aborted: false };
+            window.videoDiagnostics.push(diagnostic);
+            options.signal?.addEventListener("abort", () => { diagnostic.aborted = true; }, { once: true });
+          }
+          return originalFetch.call(this, input, options);
+        };
+      });
       context.setDefaultTimeout(15000);
       const page=await context.newPage();
-      const errors=[];page.on("pageerror",error=>errors.push(error.stack || error.message));
+      const record=(event,detail)=>diagnostics.push({browser:engine.name(),event,...detail});
+      const errors=[];page.on("pageerror",error=>{errors.push(error.stack || error.message);record("pageerror",{message:error.stack || error.message});});
+      page.on("framenavigated",frame=>{if(frame===page.mainFrame())record("navigation",{url:frame.url()});});
+      // All traffic here uses synthetic loopback fixtures, with no sessions or
+      // business data. Preserve enough evidence to distinguish a refused fetch,
+      // an HTTP status and a navigation cancellation in Linux CI.
+      page.on("request",request=>{
+        if(!new URL(request.url()).pathname.match(/^\/api\/combat-posts\/\d+\/video$/))return;
+        record("request",{url:request.url(),method:request.method(),origin:request.headers().origin,referer:request.headers().referer});
+      });
+      page.on("requestfailed",request=>record("requestfailed",{url:request.url(),method:request.method(),failure:request.failure()?.errorText}));
+      page.on("response",response=>{
+        if(new URL(response.url()).pathname.match(/^\/api\/combat-posts\/\d+\/video$/))record("response",{url:response.url(),method:response.request().method(),status:response.status()});
+      });
       for(const id of videos.keys()){
         console.log(`Checking ${engine.name()} sample ${id}: audible tap and seeking`);
         await page.goto(`${base}/?id=${id}`);
@@ -145,6 +173,63 @@ try {
         assert.equal(await page.getByRole("status").count(),0);
         await page.getByRole("button",{name:"重新加载视频"}).waitFor();
       }
+      // Full navigation can discard the document without unmounting React.
+      // Late play rejections and media events must not fetch from that page.
+      await page.goto(`${base}/?id=1`);
+      await page.getByRole("button",{name:"点击播放视频"}).waitFor();
+      await page.locator("video").evaluate(v=>{v.play=()=>new Promise((_,reject)=>{window.rejectDepartingPlay=reject;});});
+      await page.getByRole("button",{name:"点击播放视频"}).click();
+      const beforeDeparture=await page.evaluate(()=>window.videoDiagnostics.length);
+      await page.evaluate(()=>{
+        window.dispatchEvent(new PageTransitionEvent("pagehide",{persisted:true}));
+        window.rejectDepartingPlay(new DOMException("document is leaving","AbortError"));
+        document.querySelector("video").dispatchEvent(new Event("error"));
+      });
+      await page.waitForTimeout(300);
+      assert.equal(await page.evaluate(()=>window.videoDiagnostics.length),beforeDeparture,"departing playback must not start diagnostics");
+      assert.equal(await page.getByRole("alert").count(),0,"cancelled playback must not become a failure after pagehide");
+      // Returning from the back/forward cache must reactivate the same player.
+      await page.evaluate(()=>window.dispatchEvent(new PageTransitionEvent("pageshow",{persisted:true})));
+      await page.getByRole("button",{name:"点击播放视频"}).waitFor();
+      await page.locator("video").evaluate(v=>{v.play=()=>Promise.reject(new DOMException("fixture","NotSupportedError"));});
+      await page.getByRole("button",{name:"点击播放视频"}).click();
+      await page.getByRole("alert").waitFor();
+      assert.ok(await page.evaluate(()=>window.videoDiagnostics.length)>beforeDeparture,"restored player must diagnose active failures");
+      // Suspend while a real HEAD is pending. Abort the request and invalidate
+      // its result; no stale status may overwrite the restored player.
+      let releaseProbe;
+      const probeGate=new Promise(resolve=>{releaseProbe=resolve;});
+      await page.route("**/api/combat-posts/1/video",async route=>{
+        if(route.request().method()!=="HEAD")return route.continue();
+        await probeGate;
+        await route.fulfill({status:404,body:""});
+      });
+      const pendingProbe=page.waitForRequest(r=>r.method()==="HEAD");
+      await page.getByRole("button",{name:"重新加载视频"}).click();
+      await pendingProbe;
+      await page.evaluate(()=>window.dispatchEvent(new PageTransitionEvent("pagehide",{persisted:true})));
+      assert.equal(await page.evaluate(()=>window.videoDiagnostics.at(-1).aborted),true,"pagehide must abort a pending diagnostic");
+      releaseProbe();
+      await page.unrouteAll({behavior:"wait"});
+      await page.evaluate(()=>window.dispatchEvent(new PageTransitionEvent("pageshow",{persisted:true})));
+      await page.getByRole("button",{name:"点击播放视频"}).waitFor();
+      await page.waitForTimeout(300);
+      assert.equal(await page.getByRole("alert").count(),0,"an obsolete diagnostic must not update the restored player");
+      // Source replacement/unmount must also invalidate a pending play promise.
+      for(const nextSource of ["/api/combat-posts/2/video",null]){
+        await page.goto(`${base}/?id=1`);
+        await page.getByRole("button",{name:"点击播放视频"}).waitFor();
+        await page.locator("video").evaluate(v=>{v.play=()=>new Promise((_,reject)=>{window.rejectOldPlay=reject;});});
+        await page.getByRole("button",{name:"点击播放视频"}).click();
+        const beforeReplacement=await page.evaluate(()=>window.videoDiagnostics.length);
+        await page.evaluate(src=>window.setPlayerSource(src),nextSource);
+        if(nextSource)await page.getByRole("button",{name:"点击播放视频"}).waitFor();
+        else await page.locator("video").waitFor({state:"detached"});
+        await page.evaluate(()=>window.rejectOldPlay(new DOMException("old source","AbortError")));
+        await page.waitForTimeout(300);
+        assert.equal(await page.evaluate(()=>window.videoDiagnostics.length),beforeReplacement,"obsolete play promises must not diagnose a replaced/unmounted source");
+        assert.equal(await page.getByRole("alert").count(),0);
+      }
       // The explicit tap target and recovery actions must fit a narrow phone.
       await page.setViewportSize({width:320,height:700});await page.goto(`${base}/?id=1`);
       const target=page.getByRole("button",{name:"点击播放视频"});await target.waitFor();
@@ -153,7 +238,7 @@ try {
       await target.click();await page.waitForFunction(()=>document.querySelector("video").currentTime>0.1);
       assert.deepEqual(errors,[],"player must not leave uncaught playback errors");
       await context.close();
-      results.push({browser:engine.name(),checks:"all 5 samples: unmuted tap+seek; retry activation; 401/404; idle preload; repeated stall timeout; rejected play promises; 320px layout"});
+      results.push({browser:engine.name(),checks:"all 5 samples: unmuted tap+seek; retry activation; 401/404; idle preload; repeated stall timeout; rejected play promises; pagehide/pageshow; pending HEAD cancellation; source replacement/unmount; 320px layout"});
     }finally{await browser.close();}
   }
   console.log(JSON.stringify(results,null,2));
@@ -162,5 +247,6 @@ try {
   if(server){server.closeAllConnections();await new Promise(resolve=>server.close(resolve));}
   setMediaStorageForTests(undefined);
   await writeFile(path.join(root,"results.json"),JSON.stringify(results,null,2));
+  await writeFile(path.join(diagnosticDirectory,`${path.basename(root)}.json`),JSON.stringify({results,diagnostics},null,2));
   console.log(`Isolated video artifacts: ${root}`);
 }
