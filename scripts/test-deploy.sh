@@ -727,6 +727,7 @@ mkdir -p -- "$ordinary_root/.git" "$ordinary_root/scripts"
 mkdir -p -- "$ordinary_root/src/lib"
 cp -- "$REPO_ROOT/src/lib/public-origin.ts" "$ordinary_root/src/lib/"
 cp -- "$SCRIPT_DIR/public-entry-smoke.mjs" "$ordinary_root/scripts/"
+cp -- "$SCRIPT_DIR/deployment-cleanup.mjs" "$SCRIPT_DIR/backup-integrity.mjs" "$ordinary_root/scripts/"
 cp -- "$SCRIPT_DIR/check-ocr-config.mjs" "$ordinary_root/scripts/"
 cp -- "$SCRIPT_DIR/deploy.sh" "$SCRIPT_DIR/deploy-env.mjs" "$SCRIPT_DIR/verify-deploy-state.mjs" \
   "$SCRIPT_DIR/inspect-deploy-host.mjs" "$SCRIPT_DIR/inspect-runtime-services.mjs" "$ordinary_root/scripts/"
