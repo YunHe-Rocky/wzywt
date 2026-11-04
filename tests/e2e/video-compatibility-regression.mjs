@@ -209,6 +209,7 @@ try {
       await page.locator("video").evaluate(v=>{v.play=()=>Promise.reject(new DOMException("fixture","NotSupportedError"));});
       await page.getByRole("button",{name:"点击播放视频"}).click();
       await page.getByRole("alert").waitFor();
+      await page.waitForFunction(before=>window.videoDiagnostics.length>before,beforeDeparture);
       assert.ok(await page.evaluate(()=>window.videoDiagnostics.length)>beforeDeparture,"restored player must diagnose active failures");
       // Suspend while a real HEAD is pending. Abort the request and invalidate
       // its result; no stale status may overwrite the restored player.
