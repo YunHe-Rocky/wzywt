@@ -41,11 +41,11 @@ jobs:
             Authorization: `Bearer ${process.env.GH_TOKEN}`,
             'X-GitHub-Api-Version': '2022-11-28',
           };
-          // These are the two branch heads approved for consolidation on 2026-10-18.
+          // These are the two branch heads approved for consolidation on 2026-11-04.
           // A moved head requires another explicit review; no other branch is eligible.
           const branches = [
-            ['codex/audit-redis-20261018-65a98fe', '65a98fe2d51eb6e398a8a2a7ee70c6a611fed753'],
-            ['codex/history-theme-system', '9ccaee7def63525619e20216950525613aafe1d8'],
+            ['codex/internal-v1.1.0', '29d00ba5b6c96638e008f1aeb9449d5cb1805873'],
+            ['codex/review-followup-2026-11-04', 'ccc321e338c917de9a8e5b5f7730be466d86b0b9'],
           ];
           async function get(path, allowMissing = false) {
             const response = await fetch(`${api}/repos/${repo}/${path}`, { headers });
