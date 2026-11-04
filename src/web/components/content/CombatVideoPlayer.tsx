@@ -11,6 +11,7 @@ export function CombatVideoPlayer({ src }: { src: string }) {
   const position = useRef(0);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const probe = useRef<AbortController | null>(null);
+  const diagnosticTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingPlay = useRef(false);
   const failed = useRef(false);
   const attempt = useRef(0);
@@ -22,15 +23,24 @@ export function CombatVideoPlayer({ src }: { src: string }) {
   function clearPending() {
     if (timer.current) clearTimeout(timer.current);
     timer.current = null;
+    if (diagnosticTimer.current !== null) clearTimeout(diagnosticTimer.current);
+    diagnosticTimer.current = null;
     probe.current?.abort(); probe.current = null;
   }
   function showFailure(message: string) {
     if (!active.current) return;
     clearPending(); pendingPlay.current = false; failed.current = true; setBuffering(false); setError(message);
-    const controller = new AbortController(); probe.current = controller;
-    void inspectCombatVideoSource(src, controller.signal).then(detail => {
-      if (!controller.signal.aborted && detail) setError(detail);
-    }).catch(() => { /* Keep the playback error if the diagnostic request fails. */ });
+    // WebKit may cancel media and reject play() before it dispatches pagehide.
+    // Let that lifecycle task finish before starting network work; suspension,
+    // retry and unmount can then cancel the queued diagnostic as well.
+    diagnosticTimer.current = setTimeout(() => {
+      diagnosticTimer.current = null;
+      if (!active.current) return;
+      const controller = new AbortController(); probe.current = controller;
+      void inspectCombatVideoSource(src, controller.signal).then(detail => {
+        if (!controller.signal.aborted && detail) setError(detail);
+      }).catch(() => { /* Keep the playback error if the diagnostic request fails. */ });
+    }, 0);
   }
   function waitForVideo() {
     // Metadata preloading may stop until the user taps Play, especially on

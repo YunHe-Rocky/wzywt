@@ -104,6 +104,9 @@ try {
       const context=await browser.newContext(engine===webkit?devices["iPhone 13"]:devices["Pixel 7"]);
       await context.addInitScript(() => {
         window.videoDiagnostics = [];
+        for (const type of ["pagehide", "pageshow"]) window.addEventListener(type, event => {
+          console.debug("video-fixture-lifecycle:" + JSON.stringify({type,persisted:event.persisted,url:location.href}));
+        });
         const originalFetch = window.fetch;
         window.fetch = function(input, options) {
           if (options?.method === "HEAD") {
@@ -116,7 +119,10 @@ try {
       });
       context.setDefaultTimeout(15000);
       const page=await context.newPage();
-      const record=(event,detail)=>diagnostics.push({browser:engine.name(),event,...detail});
+      const record=(event,detail)=>diagnostics.push({browser:engine.name(),event,time:Date.now(),...detail});
+      page.on("console",message=>{
+        if(message.text().startsWith("video-fixture-lifecycle:"))record("lifecycle",JSON.parse(message.text().slice("video-fixture-lifecycle:".length)));
+      });
       const errors=[];page.on("pageerror",error=>{errors.push(error.stack || error.message);record("pageerror",{message:error.stack || error.message});});
       page.on("framenavigated",frame=>{if(frame===page.mainFrame())record("navigation",{url:frame.url()});});
       // All traffic here uses synthetic loopback fixtures, with no sessions or
@@ -176,6 +182,15 @@ try {
       // Full navigation can discard the document without unmounting React.
       // Late play rejections and media events must not fetch from that page.
       await page.goto(`${base}/?id=1`);
+      await page.getByRole("button",{name:"点击播放视频"}).waitFor();
+      const beforeLifecycleTask=await page.evaluate(()=>window.videoDiagnostics.length);
+      await page.locator("video").evaluate(v=>{
+        v.dispatchEvent(new Event("error"));
+        window.dispatchEvent(new PageTransitionEvent("pagehide",{persisted:true}));
+      });
+      await page.waitForTimeout(300);
+      assert.equal(await page.evaluate(()=>window.videoDiagnostics.length),beforeLifecycleTask,"a media error before pagehide must not start diagnostics in the departing task");
+      await page.evaluate(()=>window.dispatchEvent(new PageTransitionEvent("pageshow",{persisted:true})));
       await page.getByRole("button",{name:"点击播放视频"}).waitFor();
       await page.locator("video").evaluate(v=>{v.play=()=>new Promise((_,reject)=>{window.rejectDepartingPlay=reject;});});
       await page.getByRole("button",{name:"点击播放视频"}).click();
