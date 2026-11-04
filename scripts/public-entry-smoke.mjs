@@ -30,7 +30,12 @@ export async function verifyPublicEntry(origin, expectedRelease) {
     const response = await request(path, ua);
     await response.body?.cancel();
     assert.equal(response.status, 307, `Expected temporary redirect for ${path}`);
-    assert.equal(response.headers.get("location"), `${origin}${location}`, `Wrong public redirect for ${path}`);
+    const actualLocation = response.headers.get("location");
+    assert.ok(actualLocation, `Missing public redirect for ${path}`);
+    // HTTP permits relative Location values. Next can serialize a same-origin
+    // redirect that way; compare the complete resolved target, including origin
+    // and query, so internal/external hosts and lost parameters still fail.
+    assert.equal(new URL(actualLocation, `${origin}${path}`).href, `${origin}${location}`, `Wrong public redirect for ${path}`);
   }
   for (const path of ["/api/health", "/robots.txt"]) {
     const response = await request(path, mobile);

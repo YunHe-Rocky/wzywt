@@ -63,7 +63,7 @@ try {
     const page = await context.newPage();
     const errors = []; page.on("pageerror", e => errors.push(e.message));
     await page.goto(`${base}${prefix}/tournaments/101`);
-    await page.getByTitle("点击复制房间号").click();
+    await page.getByRole("button", { name: "复制房间号 628319", exact: true }).click();
     await page.waitForFunction(() => window.__copied === "628319");
     await page.getByRole("button", { name: "确认加入", exact: true }).click();
     const avatar = page.getByRole("img", { name: "test7的头像", exact: true });
