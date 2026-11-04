@@ -26,5 +26,5 @@ export function useHero(heroId: string | number) {
     return () => controller.abort();
   }, [fetchHero]);
 
-  return { hero, loading, refetch: () => fetchHero() };
+  return { hero, loading, refetch: fetchHero };
 }

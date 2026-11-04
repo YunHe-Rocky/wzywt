@@ -23,6 +23,12 @@ export async function commitTournamentSplit({
 }: CommitTournamentSplitInput): Promise<void> {
   try {
     await prisma.$transaction(async (tx) => {
+      // Splitting can outlive a resignation/demotion while the worker computes.
+      const admin = await tx.tournamentAdmin.findUnique({
+        where: { tournamentId_userId: { tournamentId, userId: adminId } },
+        select: { role: true },
+      });
+      if (!admin || !["owner", "co_owner"].includes(admin.role)) throw new SplitConflictError();
       const currentPlayers = await tx.tournamentPlayer.findMany({
         where: { tournamentId, isSpectator: false },
         select: { userId: true },

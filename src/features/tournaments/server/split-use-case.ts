@@ -51,7 +51,8 @@ export async function executeTournamentSplit(tournamentId: number, userId: numbe
     throw new ServiceError("SERVICE_UNAVAILABLE", error.code === "SPLIT_BUSY" ? "分队任务较多，请稍后重试" : "分队计算暂时不可用，请稍后重试", { retryAfterSeconds: 2 });
   }
   if (!result) throw new ServiceError("BUSINESS_VALIDATION_FAILED", "分队输入无效");
-  const usernameById = new Map(players.map((player) => [player.userId, player.user.username]));
+  const usernameById = new Map(players.map((player) => [player.userId,
+    player.isTemporary || player.user.isTemporary ? player.tempName?.trim() || "临时选手" : player.user.username]));
   const assignments = [...result.teamRed, ...result.teamBlue].map((member) => ({
     userId: member.userId,
     username: usernameById.get(member.userId) ?? "未知玩家",
@@ -62,7 +63,7 @@ export async function executeTournamentSplit(tournamentId: number, userId: numbe
   const unknownStrengthCount = 10 - result.strengthCoverage;
   const splitData = {
     ...result,
-    playerDetails: players.map((player) => ({ userId: player.userId, username: player.user.username })),
+    playerDetails: players.map((player) => ({ userId: player.userId, username: usernameById.get(player.userId)! })),
     explanation: {
       algorithmVersion: "team-balancing-v2-preference-first",
       policy: "先逐级最大化第一至第五志愿满足人数；偏好相同时，再比较双方总强度、分路强度、段位差与确定性签名。",

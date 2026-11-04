@@ -62,7 +62,7 @@ async function handlePOST(req: NextRequest) {
   }
 
   const token = await createPasswordResetToken(user.id, user.sessionVersion);
-  await clearPasswordResetLimits(username, ip);
+  await clearPasswordResetLimits(username);
   return NextResponse.json({ ok: true, resetToken: token, expiresIn: 600 });
 }
 
@@ -110,7 +110,7 @@ async function completePasswordReset(body: Record<string, unknown>, resetToken: 
     }
     throw error;
   }
-  await clearPasswordResetCompletionLimits(tokenHash, ip);
+  await clearPasswordResetCompletionLimits(tokenHash);
   return NextResponse.json({ ok: true });
 }
 

@@ -10,10 +10,11 @@ export function listCombatPosts<T>(page = 1, signal?: AbortSignal) {
 
 export function getCombatVideoPolicy(signal?: AbortSignal) { return apiRequest<CombatVideoPolicy & { error?: string }>("/api/combat-posts/policy", { signal }); }
 
-/** Probe two bytes, never an entire movie, to distinguish access and decoding. */
+/** Inspect authorized metadata without opening/cancelling a media body stream. */
 export async function inspectCombatVideoSource(src: string, signal: AbortSignal): Promise<string | null> {
   const url = new URL(src, window.location.href);
   if (url.origin !== window.location.origin || !/^\/api\/combat-posts\/\d+\/video$/.test(url.pathname)) return null;
+  if (signal.aborted) return null;
   // Older Android vendor browsers lack AbortSignal.any/timeout.
   const controller = new AbortController();
   const abort = () => controller.abort();
@@ -21,16 +22,19 @@ export async function inspectCombatVideoSource(src: string, signal: AbortSignal)
   if (signal.aborted) abort();
   const timer = setTimeout(abort, 6000);
   try {
-    const response = await fetch(url, { credentials: "same-origin", headers: { Range: "bytes=0-1" }, cache: "no-store", signal: controller.signal });
+    const response = await fetch(url, { method: "HEAD", credentials: "same-origin", cache: "no-store", signal: controller.signal });
     if (response.ok && response.headers.get("content-type")?.startsWith("video/")) {
-      await response.body?.cancel(); return null;
+      return null;
     }
     const messages: Record<number, string> = {
       401: "登录已失效，请重新登录后播放视频。", 403: "当前账号无权播放这条视频。",
       404: "视频文件不存在或已被删除，请联系发布者。", 503: "视频服务暂时繁忙，请稍后重试。",
     };
-    await response.body?.cancel();
     return messages[response.status] || "视频读取失败，请稍后重试。";
+  } catch {
+    // Diagnosis is best effort. Keep the player's original failure message
+    // when navigation, timeout or a disconnected source cancels this request.
+    return null;
   } finally {
     clearTimeout(timer); signal.removeEventListener("abort", abort);
   }

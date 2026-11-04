@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {chromium} from 'playwright';
 const base=process.env.E2E_BASE_URL||'http://localhost:8001';
-const browser=await chromium.launch({headless:true,executablePath:process.env.E2E_BROWSER_PATH||'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe'});
+const browser=await chromium.launch({headless:true,executablePath:process.env.E2E_BROWSER_PATH||(process.platform==='win32'?'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe':undefined)});
 try {
  const page=await browser.newPage({reducedMotion:'reduce'});
  const errors=[]; page.on('pageerror',error=>errors.push(error.message));
@@ -58,4 +58,44 @@ try {
  assert.equal(leases,2,'Expired lease automatically recovers data and its live subscription');
  assert.deepEqual(errors,[],'Refresh failures are represented in the UI without unhandled promises');
  console.log('Hero live refresh passed: lease ordering, stable subscription, error feedback, retry and automatic expired-lease recovery.');
+ await page.close();
+ for (const width of [1280, 390]) {
+   const context=await browser.newContext({viewport:{width,height:900},reducedMotion:'reduce',userAgent:width<640?'Mozilla/5.0 iPhone Mobile':'Mozilla/5.0 Windows'});
+   await context.addInitScript(()=>{
+     window.heroStreams=[];
+     window.EventSource=class {
+       constructor(url){this.url=url;this.closed=false;window.heroStreams.push(this);}
+       close(){this.closed=true;}
+     };
+   });
+   let reads=0;
+   await context.route('**/api/**',route=>{
+     const path=new URL(route.request().url()).pathname;
+     if(path==='/api/auth/me') return route.fulfill({json:{user:null}});
+     if(path==='/api/heroes/131') {
+       reads++;
+       return route.fulfill({json:{...heroes[0],skills:[],meta:{skinsJson:'[]'}}});
+     }
+     return route.fulfill({json:{ok:true}});
+   });
+   const detail=await context.newPage();
+   const detailErrors=[];detail.on('pageerror',error=>detailErrors.push(error.message));
+   await detail.goto(base+(width<640?'/m':'')+'/heroes/131',{waitUntil:'domcontentloaded'});
+   await detail.getByRole('heading',{name:'李白',exact:true}).waitFor();
+   await detail.waitForFunction(()=>window.heroStreams.length===1);
+   const emitChange=heroId=>detail.evaluate(id=>window.heroStreams.filter(s=>!s.closed).forEach(s=>s.onmessage?.({data:JSON.stringify({type:'heroes-updated',changes:[{heroId:id}]})})),heroId);
+   await emitChange(132);
+   await detail.waitForTimeout(200);
+   assert.equal(reads,1,'Unrelated hero does not reload this detail');
+   for(const heroId of [0,131]) {
+     const before=reads;
+     await Promise.all([detail.waitForResponse(r=>new URL(r.url()).pathname==='/api/heroes/131'),emitChange(heroId)]);
+     await detail.getByRole('heading',{name:'李白',exact:true}).waitFor();
+     assert.equal(reads,before+1,'Full-catalog and individual hero changes both refresh detail');
+     assert.equal(await detail.evaluate(()=>window.heroStreams.length),1,'Detail refresh keeps the same SSE connection');
+   }
+   assert.deepEqual(detailErrors,[]);
+   await context.close();
+   console.log(`Hero detail live refresh passed at ${width}px: catalog updates, scoped updates and stable subscription.`);
+ }
 } finally {await browser.close();}

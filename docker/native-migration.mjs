@@ -109,8 +109,13 @@ export async function restoreNativeMedia(directory, { directories = migrationDir
     const input = openSync(resolve(directory, name), "r");
     try {
       const result = run(tarBin, ["--extract", "--gzip", "--file", "-", "--directory", destination,
-        "--no-same-owner", "--no-same-permissions", "--keep-old-files", "--no-overwrite-dir"], { ...applicationIdentity(), stdio: [input, "pipe", "pipe"], encoding: "utf8", maxBuffer: 1024 * 1024, windowsHide: true });
-      if (result.error || result.status !== 0) throw new Error(`Native media extraction failed: ${name}; pending marker retained`);
+        "--no-same-owner", "--no-same-permissions", "--keep-old-files"], { ...applicationIdentity(), stdio: [input, "pipe", "pipe"], encoding: "utf8", maxBuffer: 1024 * 1024, windowsHide: true });
+      // GNU tar rejects --keep-old-files combined with --no-overwrite-dir.
+      // Keep existing-file protection; extraction still runs as the app user.
+      if (result.error || result.status !== 0) {
+        const detail = String(result.stderr || result.error?.code || "").slice(0, 2048).replace(/[\u0000-\u001f\u007f]/g, " ");
+        throw new Error(`Native media extraction failed: ${name} (exit ${result.status ?? "unknown"}); pending marker retained; ${detail}`);
+      }
     } finally { closeSync(input); }
   }
   return { mediaRestored: true, state: "pending" };

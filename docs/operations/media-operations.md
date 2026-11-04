@@ -59,6 +59,8 @@ Docker 运行镜像已安装 FFmpeg。原生开发与 PM2 需要自行安装含 
 
 验证命令为 `npm run test:combat-video`（解析与边界）、`npm run test:e2e:combat-streaming`（Next 入口的大请求完整性）和 `npm run test:e2e:video-compatibility`（真实特殊编码、MOV、WebM 转换与 Chromium/WebKit 播放、拖动、重试、错误恢复）。第三项需要 FFmpeg 和 Playwright 浏览器；模拟环境不能代替 vivo 浏览器或 iOS 真机验收。上线后必须用实际手机重新上传并播放验证。
 
+播放器失败诊断使用经过相同登录、动态可见性和文件存在性检查的 `HEAD /api/combat-posts/:id/video`，只返回元数据，不打开媒体流。实际播放仍使用 GET/Range。诊断断网或取消时保留原播放提示；HEAD 成功不能证明视频可解码或拖动播放成功。`npm run test:e2e:video-probe` 在已启动的 Next 服务上使用隔离 API/媒体验证 404、重试和断网提示，不连接业务数据库。
+
 ## 建立媒体备份集
 
 MEDIA_BACKUP_DIR 应是受权限保护的异地挂载目录或会被独立同步到异地的目录，不能放在 release 目录。先使用部署预检打印的 runtime 路径确认三个目录，再执行：

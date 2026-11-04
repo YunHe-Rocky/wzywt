@@ -65,7 +65,7 @@ jobs:
         run: npm run test:e2e:settings
       - name: Complete video streaming through the Next entry
         run: npm run test:e2e:combat-streaming
-      - name: Tournament error and split status regression (desktop and 320px mobile)
+      - name: Tournament boundaries, hero refresh and video diagnostics (desktop and mobile)
         env:
           DEPLOY_ENVIRONMENT: local
           PUBLIC_ORIGIN: http://localhost:8001
@@ -78,6 +78,8 @@ jobs:
             sleep 1
           done
           npm run test:e2e:tournament-boundaries
+          npm run test:e2e:hero-live
+          npm run test:e2e:video-probe
       - name: History theme session preview regression
         run: npm run test:e2e:history-theme
       - name: Combat feed and admin browser regression

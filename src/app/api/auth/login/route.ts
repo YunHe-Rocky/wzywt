@@ -36,7 +36,7 @@ async function handlePOST(req: NextRequest) {
     return NextResponse.json({ error: INVALID_CREDENTIALS }, { status: 401 });
   }
 
-  await clearLoginLimits(username, ip);
+  await clearLoginLimits(username);
   const session = await getSession();
   session.userId = user.id;
   session.username = user.username;

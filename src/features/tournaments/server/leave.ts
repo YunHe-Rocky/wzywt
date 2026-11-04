@@ -11,6 +11,7 @@ export async function leaveTournament(tournamentId: number, userId: number) {
     if (owner) throw new ServiceError("BUSINESS_VALIDATION_FAILED", "房主不能退出，请取消赛事");
     const deleted = await tx.tournamentPlayer.deleteMany({ where: { tournamentId, userId } });
     if (deleted.count !== 1) throw new ServiceError("NOT_FOUND", "你不在该房间中");
+    await tx.tournamentAdmin.deleteMany({ where: { tournamentId, userId, role: "co_owner" } });
     await reconcileOrDeleteTournament(tx, tournamentId);
   });
 }

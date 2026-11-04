@@ -83,6 +83,7 @@ try {
     if(match){
       const id=match[1];
       if(id==="401"||id==="404"){res.writeHead(Number(id),{"content-type":"application/json"});res.end('{"error":"fixture"}');return;}
+      if(req.method==="HEAD"){res.writeHead(200,{"content-type":"video/mp4"});res.end();return;}
       if(id==="99"&&req.headers.range!=="bytes=0-1"){res.writeHead(200,{"content-type":"video/mp4","content-length":"200000"});res.flushHeaders();return;}
       const movie=videos.get(id)||videos.get("1"),range=parseByteRange(req.headers.range||null,movie.body.length);
       if(range.kind==="invalid"){res.writeHead(416,{"content-range":`bytes */${movie.body.length}`});res.end();return;}

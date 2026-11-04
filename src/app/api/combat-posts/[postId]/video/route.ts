@@ -13,7 +13,7 @@ type Context = { params: Promise<{ postId: string }> };
 async function handleGET(request: NextRequest, context: Context) {
   try {
     const { postId } = await context.params;
-    const video = await openCombatPostVideo(parseRouteId(postId, "动态 ID"), request.headers.get("range"));
+    const video = await openCombatPostVideo(parseRouteId(postId, "动态 ID"), request.headers.get("range"), request.method === "HEAD");
     if (video.kind === "invalid") {
       return new Response(null, { status: 416, headers: { "Content-Range": `bytes */${video.size}`, "Accept-Ranges": "bytes" } });
     }
@@ -24,6 +24,9 @@ async function handleGET(request: NextRequest, context: Context) {
       "X-Content-Type-Options": "nosniff",
       "X-Accel-Buffering": "no",
     };
+    if (video.kind === "head") {
+      return new Response(null, { headers: { ...baseHeaders, "Content-Length": String(video.size) } });
+    }
     if (video.kind === "full") {
       return new Response(Readable.toWeb(video.stream) as ReadableStream, { headers: { ...baseHeaders, "Content-Length": String(video.size) } });
     }
@@ -38,3 +41,4 @@ async function handleGET(request: NextRequest, context: Context) {
 }
 
 export const GET = withRequestCapacity(handleGET);
+export const HEAD = withRequestCapacity(handleGET);

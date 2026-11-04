@@ -158,8 +158,8 @@ export function HeroDetailView() {
     es.onmessage = (e) => {
       try {
         const msg = JSON.parse(e.data);
-        if (msg.type === "heroes-updated" && msg.changes?.some((c: { heroId: number }) => c.heroId === parseInt(heroId))) {
-          refetch();
+        if (msg.type === "heroes-updated" && msg.changes?.some((c: { heroId: number }) => c.heroId === 0 || c.heroId === Number(heroId))) {
+          void refetch();
         }
       } catch {}
     };

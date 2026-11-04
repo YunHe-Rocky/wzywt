@@ -264,6 +264,7 @@ export async function uploadMatchScreenshot(
   const storage = getMediaStorage();
   const reservation = await reserveMediaUpload(actorUserId, "match-screenshot", media.data.byteLength);
   let stored: { key: string; size: number } | null = null;
+  let committed = false;
   try {
     stored = await storage.save({ namespace: "match-screenshots", extension: media.extension, data: media.data });
     const saved = stored;
@@ -331,13 +332,25 @@ export async function uploadMatchScreenshot(
       await consumeMediaReservation(tx, reservation.id, actorUserId, saved.key, saved.size);
       return { screenshot, previousStorageKey: previous?.storageKey ?? null };
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    committed = true;
     if (result.previousStorageKey && result.previousStorageKey !== saved.key) {
-      await deleteOrQueueMedia(storage, result.previousStorageKey, "screenshot-replaced");
+      try {
+        await deleteOrQueueMedia(storage, result.previousStorageKey, "screenshot-replaced");
+      } catch {
+        // The replacement is already authoritative. Retain both files if even
+        // cleanup queueing fails, and report the orphan without failing upload.
+        console.error("[match-screenshot] Previous file cleanup failed", { matchId, type });
+      }
     }
     return result.screenshot;
   } catch (error) {
-    await releaseMediaReservation(reservation.id, actorUserId).catch(() => undefined);
-    if (stored) await deleteOrQueueMedia(storage, stored.key, "screenshot-database-failure");
+    if (!committed) {
+      await releaseMediaReservation(reservation.id, actorUserId).catch(() => undefined);
+      if (stored) {
+        try { await deleteOrQueueMedia(storage, stored.key, "screenshot-database-failure"); }
+        catch { console.error("[match-screenshot] Uncommitted file cleanup failed", { matchId, type }); }
+      }
+    }
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034") {
       throw new ServiceError("CONFLICT", "并发截图上传冲突，请刷新后重试");
     }

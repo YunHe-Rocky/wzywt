@@ -101,12 +101,13 @@ async function consumeLimit(scope: string, key: string, maxAttempts: number): Pr
 }
 
 export async function consumeLoginLimits(username: string, ip: string): Promise<void> {
-  await consumeLimit("login_account", username.trim().toLowerCase(), 8);
   await consumeLimit("login_ip", ip, 30);
+  await consumeLimit("login_account", username.trim().toLowerCase(), 8);
 }
 
-export async function clearLoginLimits(username: string, ip: string): Promise<void> {
-  const keys = [["login_account", username.trim().toLowerCase()], ["login_ip", ip]] as const;
+export async function clearLoginLimits(username: string): Promise<void> {
+  // A successful account must not reset the shared source's abuse budget.
+  const keys = [["login_account", username.trim().toLowerCase()]] as const;
   await clearRedisLimits(keys);
   await prisma.authRateLimit.deleteMany({
     where: { OR: keys.map(([scope, value]) => ({ scope, keyHash: hash(`${scope}:${value}`) })) },
@@ -123,8 +124,8 @@ export async function consumePasswordResetCompletionLimits(tokenHash: string, ip
   await consumeLimit("reset_complete_ip", ip, 20);
 }
 
-export async function clearPasswordResetCompletionLimits(tokenHash: string, ip: string): Promise<void> {
-  const keys = [["reset_complete_token", tokenHash], ["reset_complete_ip", ip]] as const;
+export async function clearPasswordResetCompletionLimits(tokenHash: string): Promise<void> {
+  const keys = [["reset_complete_token", tokenHash]] as const;
   await clearRedisLimits(keys);
   await prisma.authRateLimit.deleteMany({
     where: { OR: keys.map(([scope, value]) => ({ scope, keyHash: hash(`${scope}:${value}`) })) },
@@ -136,10 +137,9 @@ export async function consumePasswordResetLimits(username: string, ip: string): 
   await consumeLimit("password_reset_ip", ip, 10);
 }
 
-export async function clearPasswordResetLimits(username: string, ip: string): Promise<void> {
+export async function clearPasswordResetLimits(username: string): Promise<void> {
   const keys = [
     ["password_reset_account", username.trim().toLowerCase()],
-    ["password_reset_ip", ip],
   ] as const;
   await clearRedisLimits(keys);
   await prisma.authRateLimit.deleteMany({

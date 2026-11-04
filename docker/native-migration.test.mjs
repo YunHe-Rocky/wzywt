@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, chownSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
+import { spawnSync } from "node:child_process";
 import { assertEmptyMigrationTargets, auditMedia, beginNativeImport, checkTargetDatabase, guardNativeImport, preflightNativeImport, readImportMarker, restoreNativeMedia, verifyNativeImport } from "./native-migration.mjs";
 
 const identity = { serverUuid: "12345678-1234-1234-1234-123456789abc", database: "wzywt" };
@@ -46,7 +47,7 @@ test("restore keeps application uid files separate, never overwrites and rejects
   const options = setup(t); await beginNativeImport(options.root, options); const commands = [];
   await restoreNativeMedia(options.root, { ...options, run: (command, args, settings) => { commands.push([command, args, settings]); return { status: 0 }; } });
   assert.equal(commands.length, 3);
-  assert.ok(commands.every(([, args]) => args.includes("--no-same-owner") && args.includes("--no-same-permissions") && args.includes("--keep-old-files") && args.includes("--no-overwrite-dir")));
+  assert.ok(commands.every(([, args]) => args.includes("--no-same-owner") && args.includes("--no-same-permissions") && args.includes("--keep-old-files")));
   assert.ok(commands[1][1].includes(options.directories.avatars));
   assert.ok(commands[2][1].includes(options.directories.heroes));
   assert.ok(commands.every(([, args, settings]) => args[args.indexOf("--file") + 1] === "-" && Number.isInteger(settings.stdio[0])));
@@ -54,6 +55,34 @@ test("restore keeps application uid files separate, never overwrites and rejects
   await assert.rejects(restoreNativeMedia(options.root, { ...options, verify: async () => ({ ...bundle, bundleSha256: "b".repeat(64) }) }), /matching pending/);
   writeFileSync(join(options.directories.media, "imported.mp4"), "partial import");
   assert.throws(() => assertEmptyMigrationTargets(options.directories, { allowMarker: true }), /already contains files/);
+});
+test("real GNU tar restores all three private archives and preserves the pending fence", async t => {
+  const tarBin = process.env.GNU_TAR_BIN || "tar";
+  const version = spawnSync(tarBin, ["--version"], { encoding: "utf8", windowsHide: true });
+  if (version.status !== 0 || !version.stdout.includes("GNU tar")) return t.skip("GNU tar is required; Linux CI executes this extraction regression");
+  const options = setup(t);
+  if (typeof process.getuid === "function" && process.getuid() === 0) {
+    chmodSync(options.root, 0o755);
+    for (const directory of [options.directories.media, options.directories.avatars, options.directories.heroes,
+      join(options.directories.heroes, "images"), join(options.directories.heroes, "skins")]) chownSync(directory, 1000, 1000);
+  }
+  const entries = [["media.tar.gz", "post-videos/clip.mp4", options.directories.media],
+    ["avatars.tar.gz", "avatar.png", options.directories.avatars],
+    ["hero-assets.tar.gz", "images/hero.png", options.directories.heroes]];
+  for (const [name, entry] of entries) {
+    const source = join(options.root, `${name}-source`);
+    const parts = entry.split("/"); parts.pop();
+    mkdirSync(join(source, ...parts), { recursive: true, mode: 0o700 });
+    writeFileSync(join(source, entry), `private ${name}`, { mode: 0o600 });
+    const result = spawnSync(tarBin, ["--force-local", "-czf", join(options.root, name), "-C", source, "."], { encoding: "utf8", windowsHide: true });
+    assert.equal(result.status, 0, result.stderr);
+  }
+  await beginNativeImport(options.root, options);
+  const marker = readFileSync(join(options.directories.media, ".native-import.json"), "utf8");
+  await restoreNativeMedia(options.root, { ...options, tarBin });
+  for (const [name, entry, destination] of entries) assert.equal(readFileSync(join(destination, entry), "utf8"), `private ${name}`);
+  assert.equal(readFileSync(join(options.directories.media, ".native-import.json"), "utf8"), marker);
+  await assert.rejects(restoreNativeMedia(options.root, { ...options, tarBin }), /already contains files/);
 });
 test("verify clears pending only after exact manifest verification and successful audit command", async t => {
   const options = setup(t); await beginNativeImport(options.root, options);

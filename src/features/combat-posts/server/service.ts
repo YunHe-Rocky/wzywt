@@ -244,7 +244,7 @@ export async function moderateCombatPost(postId: number, action: unknown) {
   return { ok: true };
 }
 
-export async function openCombatPostVideo(postId: number, rangeHeader: string | null) {
+export async function openCombatPostVideo(postId: number, rangeHeader: string | null, headOnly = false) {
   const user = await requireAuth();
   const post = await prisma.combatPost.findUnique({
     where: { id: postId },
@@ -255,6 +255,7 @@ export async function openCombatPostVideo(postId: number, rangeHeader: string | 
   const storage = getMediaStorage();
   const info = await storage.stat(post.videoStorageKey);
   if (!info || info.size !== post.size) throw new ServiceError("NOT_FOUND", "视频文件不存在");
+  if (headOnly) return { kind: "head" as const, size: post.size, mimeType: post.mimeType };
   const range = parseByteRange(rangeHeader, post.size);
   if (range.kind === "invalid") return { kind: "invalid" as const, size: post.size };
   if (range.kind === "full") {

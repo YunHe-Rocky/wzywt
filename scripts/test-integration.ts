@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/db";
 import { addRegisteredTournamentPlayer } from "@/features/tournaments/server/capacity";
 import { commitTournamentSplit, SplitConflictError } from "@/features/tournaments/server/split";
+import { leaveTournament } from "@/features/tournaments/server/leave";
 import { completeMatchRecognition, recoverInterruptedRecognitions } from "@/features/matches/server/recognition";
 import { applyMatchCorrection } from "@/features/matches/server/records";
 import { deleteUserAndOwnedTournaments } from "@/features/users/server/deleteUser";
@@ -99,6 +100,10 @@ try {
   assert.equal(await prisma.tournamentPlayer.count({
     where: { tournamentId: capacityTournament.id, isSpectator: false },
   }), 10);
+  await prisma.tournamentAdmin.create({ data: { tournamentId: capacityTournament.id, userId: userIds[1], role: "co_owner" } });
+  await leaveTournament(capacityTournament.id, userIds[1]);
+  assert.equal(await prisma.tournamentAdmin.count({ where: { tournamentId: capacityTournament.id, userId: userIds[1] } }), 0,
+    "leaving a room must revoke co-owner access in the same transaction");
 
   const splitTournament = await prisma.tournament.create({
     data: {
@@ -118,6 +123,11 @@ try {
   tournamentIds.push(splitTournament.id);
   const expectedPlayerIds = [...userIds.slice(0, 10)].sort((a, b) => a - b);
   const splitData = { version: 2, teamRed: [], teamBlue: [] };
+  await prisma.tournamentAdmin.deleteMany({ where: { tournamentId: splitTournament.id, userId: userIds[1] } });
+  await assert.rejects(commitTournamentSplit({ tournamentId: splitTournament.id, adminId: userIds[1], expectedPlayerIds, splitData }), SplitConflictError,
+    "a completed worker job cannot commit after administrator rights are revoked");
+  assert.equal((await prisma.tournament.findUniqueOrThrow({ where: { id: splitTournament.id } })).status, "locked");
+  await prisma.tournamentAdmin.create({ data: { tournamentId: splitTournament.id, userId: userIds[1], role: "co_owner" } });
   const splitResults = await Promise.allSettled([
     commitTournamentSplit({
       tournamentId: splitTournament.id,
