@@ -16,6 +16,7 @@ export function CombatVideoPlayer({ src }: { src: string }) {
   const failed = useRef(false);
   const attempt = useRef(0);
   const active = useRef(false);
+  const departing = useRef(false);
   const [error, setError] = useState("");
   const [buffering, setBuffering] = useState(false);
   const [started, setStarted] = useState(false);
@@ -30,12 +31,13 @@ export function CombatVideoPlayer({ src }: { src: string }) {
   function showFailure(message: string) {
     if (!active.current) return;
     clearPending(); pendingPlay.current = false; failed.current = true; setBuffering(false); setError(message);
+    if (departing.current) return;
     // WebKit may cancel media and reject play() before it dispatches pagehide.
     // Let that lifecycle task finish before starting network work; suspension,
     // retry and unmount can then cancel the queued diagnostic as well.
     diagnosticTimer.current = setTimeout(() => {
       diagnosticTimer.current = null;
-      if (!active.current) return;
+      if (!active.current || departing.current) return;
       const controller = new AbortController(); probe.current = controller;
       void inspectCombatVideoSource(src, controller.signal).then(detail => {
         if (!controller.signal.aborted && detail) setError(detail);
@@ -59,6 +61,7 @@ export function CombatVideoPlayer({ src }: { src: string }) {
   useEffect(() => {
     const video = ref.current;
     active.current = true;
+    departing.current = false;
     clearPending(); pendingPlay.current = false; failed.current = false;
     setStarted(false); setBuffering(false); setError(""); setAspectRatio("16 / 9");
     position.current = 0;
@@ -74,15 +77,26 @@ export function CombatVideoPlayer({ src }: { src: string }) {
       clearPending(); pendingPlay.current = false;
       video?.pause();
     };
+    const prepareToLeave = () => {
+      // Navigation can spend several event tasks stopping media before
+      // pagehide. Do not start diagnostics in that interval. This handler
+      // never prompts or pauses media: a cancelled navigation can keep playing.
+      departing.current = true;
+      attempt.current += 1;
+      clearPending(); pendingPlay.current = false; setBuffering(false);
+    };
     const resume = (event: PageTransitionEvent) => {
       if (!event.persisted) return;
       active.current = true;
+      departing.current = false;
       failed.current = false;
       setStarted(false); setBuffering(false); setError("");
     };
+    window.addEventListener("beforeunload", prepareToLeave);
     window.addEventListener("pagehide", suspend);
     window.addEventListener("pageshow", resume);
     return () => {
+      window.removeEventListener("beforeunload", prepareToLeave);
       window.removeEventListener("pagehide", suspend);
       window.removeEventListener("pageshow", resume);
       suspend();
@@ -91,6 +105,9 @@ export function CombatVideoPlayer({ src }: { src: string }) {
   }, [src]);
   function play(reload = false) {
     const video = ref.current; if (!video || !active.current) return;
+    // If another handler cancelled navigation, an explicit user retry starts
+    // a fresh attempt on the still-active page.
+    departing.current = false;
     const currentAttempt = ++attempt.current;
     clearPending(); pendingPlay.current = true; failed.current = false;
     if (reload && Number.isFinite(video.currentTime) && video.currentTime > 0) position.current = video.currentTime;

@@ -30,7 +30,12 @@ const server = createServer((req, res) => {
     res.end("User-agent: *");
   } else if (expected.has(req.url)) {
     let location = origin + expected.get(req.url);
+    if (fault === "relative-location") location = expected.get(req.url);
     if (fault === "internal-origin") location = "https://localhost:8001/login";
+    if (fault === "external-origin") location = "https://untrusted.invalid" + expected.get(req.url);
+    if (fault === "protocol-relative-origin") location = "//untrusted.invalid" + expected.get(req.url);
+    if (fault === "missing-location") { res.writeHead(307); res.end(); return; }
+    if (fault === "relative-lost-query" && req.url === "/me?tab=history") location = "/login?redirect=%2Fme";
     if (fault === "lost-query" && req.url === "/me?tab=history") location = `${origin}/login?redirect=%2Fme`;
     res.writeHead(307, { Location: location });
     res.end();
@@ -49,7 +54,9 @@ try {
   }), /activated release/, "local CLI must reject a stale release");
   const health = await verifyPublicEntry(origin, "test-release");
   assert.equal(health.checks.redis, "degraded", "optional Redis degradation remains visible");
-  for (fault of ["not-ready", "stale-release", "internal-origin", "lost-query", "static-redirect"]) {
+  fault = "relative-location";
+  await verifyPublicEntry(origin, "test-release");
+  for (fault of ["not-ready", "stale-release", "internal-origin", "external-origin", "protocol-relative-origin", "missing-location", "lost-query", "relative-lost-query", "static-redirect"]) {
     await assert.rejects(() => verifyPublicEntry(origin, "test-release"), undefined, `smoke must reject ${fault}`);
   }
 } finally {

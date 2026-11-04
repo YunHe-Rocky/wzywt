@@ -104,7 +104,7 @@ try {
       const context=await browser.newContext(engine===webkit?devices["iPhone 13"]:devices["Pixel 7"]);
       await context.addInitScript(() => {
         window.videoDiagnostics = [];
-        for (const type of ["pagehide", "pageshow"]) window.addEventListener(type, event => {
+        for (const type of ["beforeunload", "pagehide", "pageshow"]) window.addEventListener(type, event => {
           console.debug("video-fixture-lifecycle:" + JSON.stringify({type,persisted:event.persisted,url:location.href}));
         });
         const originalFetch = window.fetch;
@@ -181,6 +181,18 @@ try {
       }
       // Full navigation can discard the document without unmounting React.
       // Late play rejections and media events must not fetch from that page.
+      await page.goto(`${base}/?id=1`);
+      await page.getByRole("button",{name:"点击播放视频"}).waitFor();
+      const beforeNavigationStart=await page.evaluate(()=>window.videoDiagnostics.length);
+      await page.evaluate(()=>window.dispatchEvent(new Event("beforeunload")));
+      await page.locator("video").evaluate(v=>v.dispatchEvent(new Event("error")));
+      await page.waitForTimeout(300);
+      assert.equal(await page.evaluate(()=>window.videoDiagnostics.length),beforeNavigationStart,"navigation preparation must block diagnostics even before pagehide");
+      // A cancelled navigation leaves this document active. Its explicit retry
+      // must still diagnose a real failure without requiring pageshow.
+      await page.locator("video").evaluate(v=>{v.play=()=>Promise.reject(new DOMException("fixture","NotSupportedError"));});
+      await page.getByRole("button",{name:"重新加载视频"}).click();
+      await page.waitForFunction(before=>window.videoDiagnostics.length>before,beforeNavigationStart);
       await page.goto(`${base}/?id=1`);
       await page.getByRole("button",{name:"点击播放视频"}).waitFor();
       const beforeLifecycleTask=await page.evaluate(()=>window.videoDiagnostics.length);

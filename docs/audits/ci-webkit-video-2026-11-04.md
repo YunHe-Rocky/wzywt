@@ -21,18 +21,23 @@ CI 出错 URL 与页面使用相同的 `http://127.0.0.1:<fixture-port>` 源；�
 
 据此补充第二个受控复现：在同一事件任务内先触发媒体错误、再 pagehide。同步诊断时额外 HEAD 为 1；把诊断放入可取消的下一事件任务后为 0。通用播放错误仍立即显示，正常 HEAD 状态仍在下一任务请求；页面离开、重试、卸载可以取消尚未开始的请求。**本机仍无法启动 WebKit，最终 Linux 验证以 PR 最新提交的 Actions 为准。**
 
+[后续 CI 41766485101](https://github.com/YunHe-Rocky/wzywt/actions/runs/41766485101) 中 Node 26/local 的完整视频、系统设置、流式上传、赛事/英雄/视频诊断、历史主题、复盘后台均通过，另外三个视频任务仍有过期诊断，说明延后单个任务仍存在竞争。因此在 `beforeunload` 导航开始阶段就取消诊断；该监听器不触发确认提示或暂停媒体，若其他逻辑取消导航，用户显式重试会重置离开标记。新增跨任务窗口复现从 1 次额外 HEAD 降为 0，取消导航后的显式重试仍能获取 HEAD 404。
+
+已通过视频的 Node 26/local 随后暴露独立的测试契约问题：Next 返回 `/login?...` 相对 Location，入口冒烟测试只接受绝对字符串。HTTP 允许相对 Location，本次按实际请求 URL 解析后与完整预期 URL 精确比较，仍校验协议、主机、端口、路径和参数；新增相对地址通过，以及外部/协议相对外部地址、缺失 Location、相对地址丢失参数的拒绝用例。没有修改应用跳转或放开外部地址。
+
 此外，[WebKit 的 ThreadableLoader 错误记录实现](https://github.com/WebKit/WebKit/blob/main/Source/WebCore/loader/ThreadableLoader.cpp) 会主动生成该 Fetch 诊断消息；捕获 Promise 拒绝并不等于阻止浏览器生成诊断。因此原有 catch 已存在，继续加 catch 不能解决任务仍被启动的问题。报错文字本身不足以证明生产 CORS 漏洞。
 
 ## 本地修改
 
 - `CombatVideoPlayer` 在 `pagehide` 时先标记播放器失活、递增播放尝试编号，取消缓冲定时器和 HEAD，暂停媒体。旧播放拒绝及媒体事件不再启动新诊断或更新已离开的界面。
 - HEAD 诊断安排到下一事件任务，不在媒体错误/播放拒绝回调中同步启动；同一生命周期任务内发生的页面离开、重试或卸载同时取消这个待执行任务。
+- `beforeunload` 取消导航开始后尚未完成/启动的诊断，覆盖媒体停止和 pagehide 之间的多任务窗口；取消导航后显式重试可恢复诊断。
 - React 卸载及源变化复用同一失效处理；保留 StrictMode 清理后恢复媒体源的行为。
 - `pageshow.persisted` 恢复播放器可交互状态，允许用户重新点击播放及正常故障诊断。
 - 原完整视频回归增加离开页面后的延迟拒绝/媒体错误、缓存页面恢复、挂起 HEAD 的取消和过期结果、源替换/卸载测试。原 pageerror 断言和所有视频样本保留。
 - 保存隔离 fixture 的导航、视频请求方法、Origin/Referer、响应状态、requestfailed 和 pageerror 到 `.cache/ci-diagnostics/video-compatibility/`，由 CI 现有的 `if: always()` 制品步骤收集。数据仅来自测试自建服务，没有业务身份和生产媒体。
 
-没有修改 API 授权、CORS、视频编码参数、工作流门禁或依赖锁文件。原有 `src/instrumentation.ts` 未提交修改保留在工作区，不属于本次修复。
+入口冒烟与其单元回归另修改 `scripts/public-entry-smoke.mjs` 和 `scripts/test-public-entry-smoke.mjs`。没有修改 API 授权、CORS、视频编码参数、工作流门禁或依赖锁文件。原有 `src/instrumentation.ts` 未提交修改保留在工作区，不属于本次修复。
 
 ## 本地验证与限制
 
@@ -64,6 +69,8 @@ CI 出错 URL 与页面使用相同的 `http://127.0.0.1:<fixture-port>` 源；�
 本地日志包括 `.cache/player-lifecycle-before.log`、`.cache/player-lifecycle-after.log`、`.cache/ci-video-typescript.log`、`.cache/ci-video-node24.log`、`.cache/ci-fix-next-browser-results.json` 以及 `.cache/ci-fix-*.log`。临时构建辅助脚本及媒体均在忽略目录，没有进入项目依赖或发布流程。
 
 补充时序复现见 `.cache/player-lifecycle-before-deferred.log` 和 `.cache/player-lifecycle-after-deferred.log`。第一次 PR 的 Linux 标准检查、生产构建、容器迁入、数据库矩阵、OCR、Redis 及依赖审计均已通过；完整视频仍失败，后续浏览器步骤因此尚未执行。不能把这次上传或部分成功描述为 CI 全通过。
+
+导航开始跨任务窗口的修复前后日志为 `.cache/player-before-navigation-guard.log`、`.cache/player-after-navigation-guard.log`；入口 Location 单元回归为 `.cache/ci-public-entry-relative.log`。最新类型检查与修改文件 lint 通过。完整部署浏览器集合尚须在最新提交上重新执行。
 
 ## 尚需完成的验证
 
