@@ -43,6 +43,12 @@ function resolveBash() {
 }
 
 try {
+  const nativeRuntimeTests = spawnSync(process.execPath, ["--test", "scripts/test-native-runtime.mjs"], {
+    cwd: repoRoot, env: process.env, stdio: "inherit", shell: false, windowsHide: true,
+  });
+  if (nativeRuntimeTests.error) throw nativeRuntimeTests.error;
+  if (nativeRuntimeTests.status !== 0) process.exit(nativeRuntimeTests.status ?? 1);
+
   const deployStateTests = spawnSync(process.execPath, ["--test", "scripts/test-deploy-state.mjs"], {
     cwd: repoRoot, env: process.env, stdio: "inherit", shell: false, windowsHide: true,
   });

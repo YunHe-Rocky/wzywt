@@ -717,7 +717,7 @@ ln -s -- "$ENV_FILE" "$RELEASE_DIR/.env"
 
 cd -- "$RELEASE_DIR"
 log "install locked dependencies"
-"$NPM_BIN" ci
+"$NPM_BIN" ci --include=dev
 log "verify Redis authentication with the release environment before build"
 "$NODE_BIN" scripts/redis-doctor.mjs --env-file "$ENV_FILE"
 "$NPX_BIN" --no-install prisma generate
@@ -725,6 +725,10 @@ log "verify Redis authentication with the release environment before build"
 
 log "build before touching the running service"
 "$NPM_BIN" run build
+
+log "prepare production dependencies and remove candidate build caches before stopping writers"
+"$NODE_BIN" "$SCRIPT_DIR/prepare-native-runtime.mjs" "$RELEASE_DIR" "$RELEASES_DIR" "$CURRENT_TARGET" "$NPM_BIN" \
+  || fail "candidate runtime preparation failed; project writers were not stopped"
 
 # A native release now uses an explicit stop-write window. PM2 stop honors the
 # configured graceful timeout; watchdogs preserve intentionally stopped apps.

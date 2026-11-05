@@ -167,7 +167,7 @@ endpoint 可达时，自定义/容器化服务不要求存在标准 systemd unit
 
 ## 发布与回滚边界
 
-发布顺序固定为：archive → install/build → backup → `prisma migrate deploy` → 原子切换 → PM2 验证 → release-aware health → `pm2 save`。
+发布顺序固定为：archive → install/build → 新 release 生产依赖裁剪与运行文件校验 → 停止写入 → backup → `prisma migrate deploy` → 原子切换 → PM2 验证 → release-aware health → `pm2 save`。裁剪只移除开发依赖及明确的 webpack/swc 编译缓存，完整规则见 [原生发布指南](deploy.md#3-脚本会自动处理什么)；校验失败不会停止当前服务。
 
 PM2、health 或 `pm2 save` 失败时，应用和 `current` 会回到旧 release。数据库 migration 不会自动用备份覆盖恢复，因为 migration 后可能已经出现新写入；数据库回退需要停写窗口和人工判断。
 

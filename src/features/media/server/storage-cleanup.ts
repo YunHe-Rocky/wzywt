@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { prisma } from "@/lib/db";
 import type { MediaStorage } from "@/lib/storage";
 import { processExpiredMediaReservations } from "./quota";
-import { processAvatarCleanup } from "@/features/profile/server/avatar-upload";
+import { processAvatarCleanup } from "@/features/profile/server/avatar-cleanup";
 
 const CLEANUP_PREFIX = "media_cleanup:";
 
