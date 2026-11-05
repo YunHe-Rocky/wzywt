@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { mkdtemp, readFile, rm, writeFile, mkdir, symlink } from "node:fs/promises";
+import { copyFile, mkdtemp, readFile, rm, writeFile, mkdir, symlink } from "node:fs/promises";
+import { spawnSync } from "node:child_process";
+import { pathToFileURL } from "node:url";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { AdaptiveResourcePolicy, AdmissionBucket, externalRequestCost } from "../src/core/resource-policy.ts";
@@ -260,6 +262,44 @@ test("native watchdog restart budget has thresholds and cooldown", () => {
   assert.equal(recoveryDecision({ failures: 2, restarts: [99_000] }, false, 100_000).restart, false);
   assert.equal(recoveryDecision({ failures: 2, restarts: [1, 2, 3] }, false, 200_000).restart, false);
   assert.equal(recoveryDecision({ failures: 10 }, true, 100_000).failures, 0);
+});
+
+test("native watchdog CLI runs through the current release link while imports stay inert", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "wzywt-watchdog-entry-"));
+  const release = join(directory, "releases", "release with spaces"), current = join(directory, "current");
+  try {
+    await mkdir(join(release, "scripts"), { recursive: true });
+    await mkdir(join(release, "src", "lib"), { recursive: true });
+    for (const file of ["scripts/runtime-watchdog.mjs", "scripts/runtime-liveness.mjs", "scripts/local-health-url.mjs", "src/lib/runtime-logging.mjs"]) {
+      await copyFile(resolve(file), join(release, file));
+    }
+    await symlink(release, current, process.platform === "win32" ? "junction" : "dir");
+    const invalidConfig = join(directory, "invalid-config.json");
+    // Fail before checkRuntime can invoke PM2 or contact a running service.
+    await writeFile(invalidConfig, "{");
+    const run = args => spawnSync(process.execPath, args, {
+      cwd: directory, env: { ...process.env, NODE_OPTIONS: "" }, encoding: "utf8", timeout: 10_000, windowsHide: true,
+    });
+    for (const [label, args] of [
+      ["release", [join(release, "scripts/runtime-watchdog.mjs"), invalidConfig]],
+      ["current", [join(current, "scripts/runtime-watchdog.mjs"), invalidConfig]],
+      ["preserved current", ["--preserve-symlinks-main", join(current, "scripts/runtime-watchdog.mjs"), invalidConfig]],
+    ]) {
+      const result = run(args);
+      assert.ifError(result.error);
+      assert.equal(result.status, 1, `${label}: invalid config must reach main; ${result.stderr}`);
+      assert.match(result.stderr, /"event":"watchdog.failed"/);
+    }
+    for (const target of [release, current]) {
+      const importer = join(directory, "import-only.mjs");
+      await writeFile(importer, `await import(${JSON.stringify(pathToFileURL(join(target, "scripts/runtime-watchdog.mjs")).href)});\nconsole.log("import-only");\n`);
+      const result = run([importer, invalidConfig]);
+      assert.ifError(result.error);
+      assert.equal(result.status, 0, result.stderr);
+      assert.equal(result.stdout.trim(), "import-only");
+      assert.equal(result.stderr, "");
+    }
+  } finally { await rm(directory, { recursive: true, force: true }); }
 });
 
 test("native log rotation retains evidence and refuses a path outside the PM2 home", async () => {

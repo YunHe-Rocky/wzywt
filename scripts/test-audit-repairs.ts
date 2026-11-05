@@ -86,6 +86,9 @@ async function main() {
     const barrier = new Promise<void>(resolve => { allRead = resolve; });
     const avatar = loadModule("src/features/profile/server/avatar-upload.ts", {
       "./avatar": avatarType, "./avatar-storage": { getAvatarDirectory: () => avatarDirectory, ensureAvatarDirectory: async () => avatarDirectory },
+      "./avatar-cleanup": loadModule("src/features/profile/server/avatar-cleanup.ts", {
+        "./avatar-storage": { getAvatarDirectory: () => avatarDirectory }, "@/lib/db": { prisma: {} },
+      }),
       "@/lib/service-error": { ServiceError }, "@/lib/db": { prisma: { user: {
         findUnique: async () => { const row = { avatar: currentAvatar, sessionVersion: 1 }; if (++reads === 2) allRead(); await barrier; return row; },
         updateMany: async ({ where, data }: { where: { avatar: string }; data: { avatar: string } }) => {
@@ -100,7 +103,8 @@ async function main() {
     const png = await sharp({ create: { width: 16, height: 16, channels: 3, background: "red" } }).png().toBuffer();
     await writeFile(join(avatarDirectory, currentAvatar), png);
     const results = await Promise.allSettled([1, 2].map(() => avatar.uploadAccountAvatar(1, new File([new Uint8Array(png)], "avatar.png", { type: "image/png" }))));
-    assert.equal(results.filter(result => result.status === "fulfilled").length, 1);
+    assert.equal(results.filter(result => result.status === "fulfilled").length, 1,
+      results.map(result => result.status === "rejected" ? String(result.reason) : result.status).join("; "));
     assert.deepEqual(await readdir(avatarDirectory), [currentAvatar]);
   } finally { await rm(avatarDirectory, { recursive: true, force: true }); }
   console.log("Audit repairs: credential boundaries/revocation, recovery reauthentication, role inputs, secure cookies, Redis cache hits/types/stale-fill isolation passed");

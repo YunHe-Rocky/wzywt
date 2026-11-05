@@ -1,39 +1,12 @@
 import { randomUUID } from "node:crypto";
-import { rename, unlink, writeFile } from "node:fs/promises";
+import { rename, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 import sharp from "sharp";
 import { prisma } from "@/lib/db";
 import { ServiceError } from "@/lib/service-error";
 import { detectAvatarImageType, MAX_AVATAR_SIZE } from "./avatar";
-import { ensureAvatarDirectory, getAvatarDirectory } from "./avatar-storage";
-
-const CLEANUP = "avatar_cleanup:";
-export async function deleteOrQueueAvatar(filename: string) {
-  if (basename(filename) !== filename) throw new Error("Invalid avatar filename");
-  try { await unlink(join(getAvatarDirectory(), filename)); }
-  catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
-    const key = `${CLEANUP}${filename}`;
-    const value = JSON.stringify({ filename });
-    await prisma.kvCache.upsert({ where: { key }, create: { key, value }, update: { value } });
-  }
-}
-
-export async function processAvatarCleanup(limit = 50) {
-  const jobs = await prisma.kvCache.findMany({ where: { key: { startsWith: CLEANUP } }, take: limit, orderBy: { key: "asc" } });
-  let processed = 0; let failed = 0;
-  for (const job of jobs) {
-    try {
-      const { filename } = JSON.parse(job.value);
-      if (typeof filename !== "string" || basename(filename) !== filename) throw new Error("Invalid cleanup job");
-      if (await prisma.user.count({ where: { avatar: filename } })) continue;
-      try { await unlink(join(getAvatarDirectory(), filename)); }
-      catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
-      await prisma.kvCache.delete({ where: { key: job.key } }); processed++;
-    } catch { failed++; }
-  }
-  return { processed, failed };
-}
+import { ensureAvatarDirectory } from "./avatar-storage";
+import { deleteOrQueueAvatar } from "./avatar-cleanup";
 
 export async function uploadAccountAvatar(userId: number, file: FormDataEntryValue | null) {
   if (!(file instanceof File) || file.size <= 0) throw new ServiceError("VALIDATION_ERROR", "请选择有效图片文件");

@@ -129,6 +129,8 @@ node scripts/runtime-service.mjs --install
 
 watchdog 连续三次失败后尝试恢复，间隔至少 120 秒，每 10 分钟最多三次尝试，先保存重试预算再调用 PM2；只操作 cwd 匹配的指定进程。`stopped` 是有意维护状态，不自动拉起。原生专用 home 内日志按 10 MiB、3 份历史保留，copytruncate 存在很小的并发日志窗口；服务自身日志按 journald 策略保留。
 
+watchdog 通过 `current/scripts/runtime-watchdog.mjs` 启动，入口比较使用双方的真实文件路径。旧版只比较模块 URL 与命令行路径，Node 解析 `current` 符号链接后会跳过整个巡检却返回成功。因此 timer 显示 active 或 service 显示成功，不能单独证明轮转已执行；还应检查 `<runtime>/shared/runtime-watchdog-state.json` 的修改时间持续更新，以及超限日志是否轮转。真实 Node 回归覆盖直接路径、`current` 链接和 `--preserve-symlinks-main`，并确认普通模块导入不会执行巡检。
+
 将脚本打印的实际服务名填入下面命令：
 
 ```bash
@@ -139,6 +141,24 @@ journalctl -u <服务名>.service -u <服务名>-watchdog.service --since today
 日常使用原有 `bash scripts/stop.sh` 停止本项目；需要禁用整套恢复时停止并禁用主服务和 watchdog timer。专用 PM2 home 不再加入其他项目。
 
 旧 crontab 中的 `scripts/memory-cleanup.sh` 现在只记录整机低可用内存，不再凭空闲快照重载 Web；任务回收和恢复由上述机制协调执行。
+
+## 只读内存趋势
+
+先看 `free -m` 的 `available`，不要只看 `free` 或把全部 `buff/cache` 当作程序占用。例如 total=7680、used=1976、buff/cache=5843、available=5704 MiB，表示当时约 25.7% 已用、仍有约 5.6 GiB 可用；单次快照不能排除长期增长。Linux 会按需求回收可回收缓存，定时 `drop_caches` 会增加重新读取的 I/O/CPU 开销，不作为日常释放方案。字段含义见 [free 手册](https://man7.org/linux/man-pages/man1/free.1.html)，缓存行为见 [Linux 内核说明](https://docs.kernel.org/admin-guide/sysctl/vm.html#drop-caches)。
+
+在源码目录读取本项目现有 PM2 日志，不需要安装依赖或调用 PM2：
+
+```bash
+node scripts/memory-report.mjs --pm2-home /root/.pm2 --minutes 120
+```
+
+`--pm2-home` 必须显式指定绝对路径，应替换为实际部署使用的 PM2 home；它不会探测或启动 daemon。默认读取 `wangzhe-yanwutang-web` / `wangzhe-yanwutang-cron`，自定义进程名可加 `--web-name` / `--cron-name`。`--minutes` 为 1–10080 分钟，默认 120。脚本只读日志和 Linux `/proc/meminfo`，不读取 `.env`、不重启、不删文件。
+
+报告按角色、PID 和 bootId 分组，显示 RSS、JS 堆、原生/外部内存的首末、最低与最高值，以及最近三次任务完成样本；不同重启不会串成一条增长曲线。另列出采样时 activeJobs/queuedJobs/activeRequests 均为零的空闲基线，这只表示受管任务和请求空闲，不能保证所有原生后台活动已停止。任务完成瞬间的值不能直接当作空闲回落值，应在重复执行同类任务后比较同一进程的空闲基线。
+
+每个角色只读 out/error 当前日志及 `.1`–`.3` 三代，每文件最多 2 MiB，总读取量最多 32 MiB；保留最新 6000 个有效样本，最多显示最近 20 次进程生命周期。截尾、文件变动、缺失和样本不足都会提示，因此窗口不保证完整。没有有效样本不等于没有内存占用；需核对进程名、日志权限、时间窗口及资源采样是否开启。输出只含验证过的身份、时间和数值，不回显原始日志、任务参数或连接串。
+
+该趋势只覆盖 Web/Cron，宿主快照包含整机；PM2 daemon、MySQL、Redis、OCR 应分别测量，不能相加 RSS 后当作精确整机用量。进程列表中未观察到 OCR，也不能仅凭“同机部署”就认定模型正占用大量内存。RSS 上涨但 heapUsed 稳定时还需区分外部内存、分配器保留和碎片；报告不会自动将增长判成泄漏。验证入口为 `npm run test:memory-report`。
 
 ## 日志与验收
 

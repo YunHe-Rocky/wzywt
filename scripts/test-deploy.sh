@@ -11,6 +11,14 @@ bash "$SCRIPT_DIR/test-ocr-python.sh"
 TEST_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/wzywt-deploy-test.XXXXXX")"
 SERVICE_PID=""
 cleanup() {
+  local exit_code=$?
+  if ((exit_code != 0)); then
+    printf '[test-deploy] Failure details from fixture logs:\n' >&2
+    while IFS= read -r -d '' file; do
+      printf '[test-deploy] %s\n' "$file" >&2
+      tail -n 30 -- "$file" >&2 || true
+    done < <(find "$TEST_ROOT" -maxdepth 2 -type f -name '*.log' -print0)
+  fi
   [[ -n "$SERVICE_PID" ]] && kill "$SERVICE_PID" >/dev/null 2>&1 || true
   case "$TEST_ROOT" in
     "${TMPDIR:-/tmp}"/wzywt-deploy-test.*) rm -rf -- "$TEST_ROOT" ;;
@@ -18,6 +26,7 @@ cleanup() {
   esac
 }
 trap cleanup EXIT
+trap 'printf "[test-deploy] Command failed at line %s: %s\n" "$LINENO" "$BASH_COMMAND" >&2' ERR
 
 fail() {
   printf '[test-deploy] FAIL: %s\n' "$*" >&2
@@ -480,6 +489,17 @@ prepare_case() {
   cp -- "$REPO_ROOT/src/lib/public-origin.ts" "$source/src/lib/"
   cp -- "$SCRIPT_DIR/public-entry-smoke.mjs" "$source/scripts/"
   cp -- "$SCRIPT_DIR/deployment-cleanup.mjs" "$SCRIPT_DIR/backup-integrity.mjs" "$source/scripts/"
+  # The real helper's pruning, file boundaries and dependency failures are
+  # exercised by test-native-runtime.mjs. This fixture isolates activation order.
+  cat >"$source/scripts/prepare-native-runtime.mjs" <<'JS'
+import { appendFileSync } from "node:fs";
+import assert from "node:assert/strict";
+import { resolve } from "node:path";
+assert.equal(resolve(process.argv[2]), process.cwd());
+assert.notEqual(resolve(process.argv[2]), resolve(process.argv[4]));
+appendFileSync(process.env.TEST_COMMAND_LOG, "native runtime preparation\n");
+if (process.env.TEST_FAIL_RUNTIME_PREPARE === "1") process.exit(1);
+JS
   cp -- "$SCRIPT_DIR/check-ocr-config.mjs" "$source/scripts/"
   cp -- "$SCRIPT_DIR/deploy.sh" "$SCRIPT_DIR/deploy-env.mjs" "$SCRIPT_DIR/verify-deploy-state.mjs" \
     "$SCRIPT_DIR/inspect-deploy-host.mjs" "$SCRIPT_DIR/inspect-runtime-services.mjs" \
@@ -585,7 +605,7 @@ ENV
 
 run_deploy() {
   local case_dir="$1" fail_pm2=0 fail_health=0 fail_public=0 pm2_version=6.0.0 argument
-  local fail_redis=0 fail_pm2_stop_name="" pm2_stop_leaves_running=0 pm2_after_build=""
+  local fail_redis=0 fail_pm2_stop_name="" pm2_stop_leaves_running=0 pm2_after_build="" fail_runtime_prepare=0
   local git_status="" git_diff_summary=""
   local web_pid_json="$case_dir/web.pid" cron_pid_json="$case_dir/cron.pid"
   local -a deploy_args=()
@@ -596,13 +616,14 @@ run_deploy() {
       TEST_FAIL_HEALTH_NEW=1) fail_health=1 ;;
       TEST_FAIL_PUBLIC_SMOKE=1) fail_public=1 ;;
       TEST_REDIS_AUTH_FAILURE=1) fail_redis=1 ;;
+      TEST_FAIL_RUNTIME_PREPARE=1) fail_runtime_prepare=1 ;;
       TEST_FAIL_PM2_STOP_NAME=*) fail_pm2_stop_name="${argument#*=}" ;;
       TEST_PM2_STOP_LEAVES_RUNNING=1) pm2_stop_leaves_running=1 ;;
       TEST_PM2_AFTER_BUILD=*) pm2_after_build="${argument#*=}" ;;
       TEST_PM2_VERSION=*) pm2_version="${argument#*=}" ;;
       TEST_GIT_STATUS=*) git_status="${argument#*=}" ;;
       TEST_GIT_DIFF_SUMMARY=*) git_diff_summary="${argument#*=}" ;;
-      --check) deploy_args+=("--check") ;;
+      --check|--cleanup|--apply) deploy_args+=("$argument") ;;
       *) fail "unsupported run_deploy argument: $argument" ;;
     esac
   done
@@ -618,6 +639,7 @@ run_deploy() {
       TEST_FAIL_HEALTH_NEW="$fail_health" \
       TEST_FAIL_PUBLIC_SMOKE="$fail_public" \
       TEST_REDIS_AUTH_FAILURE="$fail_redis" \
+      TEST_FAIL_RUNTIME_PREPARE="$fail_runtime_prepare" \
       TEST_FAIL_PM2_STOP_NAME="$fail_pm2_stop_name" \
       TEST_PM2_STOP_LEAVES_RUNNING="$pm2_stop_leaves_running" \
       TEST_PM2_AFTER_BUILD="$pm2_after_build" \
@@ -852,6 +874,27 @@ assert_contains "$success_case/commands.log" "pm2 save"
 assert_contains "$success_case/commands.log" "public-entry https://arena.example"
 assert_not_contains "$success_case/commands.log" "systemctl start"
 assert_contains "$success_case/commands.log" "redis authentication check"
+"$TEST_REAL_NODE" --input-type=module - "$success_case/commands.log" <<'NODE'
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+const commands = readFileSync(process.argv[2], "utf8").split(/\r?\n/);
+const build = commands.indexOf("npm run build");
+const prepare = commands.indexOf("native runtime preparation");
+const stop = commands.findIndex(line => line.startsWith("pm2 stop "));
+assert.ok(build >= 0 && build < prepare && prepare < stop, "must build, prepare the runtime, then stop writers");
+NODE
+
+runtime_failure_case="$(prepare_case runtime-prepare-failure)"
+if run_deploy "$runtime_failure_case" TEST_FAIL_RUNTIME_PREPARE=1 >"$runtime_failure_case/deploy.log" 2>&1; then
+  fail "runtime preparation failure unexpectedly activated the release"
+fi
+assert_current_is_old "$runtime_failure_case"
+assert_contains "$runtime_failure_case/commands.log" "npm run build"
+assert_contains "$runtime_failure_case/commands.log" "native runtime preparation"
+assert_contains "$runtime_failure_case/deploy.log" "candidate runtime preparation failed; project writers were not stopped"
+assert_not_contains "$runtime_failure_case/commands.log" "pm2 stop "
+assert_not_contains "$runtime_failure_case/commands.log" "pm2 startOrReload"
+[[ ! -e "$runtime_failure_case/backup.marker" ]] || fail "runtime preparation failure reached backup"
 
 retention_case="$(prepare_case release-retention)"
 mkdir -p -- "$retention_case/app/releases/operator-notes"

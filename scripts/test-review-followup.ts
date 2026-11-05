@@ -92,7 +92,7 @@ async function verifyScreenshotFailureSafety() {
   };
   const cleanup = load<typeof import("../src/features/media/server/storage-cleanup")>("src/features/media/server/storage-cleanup.ts", {
     "@/lib/db": { prisma: { kvCache: { upsert: async () => { throw new Error("cleanup queue unavailable"); } } } },
-    "./quota": {}, "@/features/profile/server/avatar-upload": {},
+    "./quota": {}, "@/features/profile/server/avatar-cleanup": {},
   });
   const tx = {
     internalMatch: { updateMany: async () => ({ count: 1 }), update: async () => ({}) },
