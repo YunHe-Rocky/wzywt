@@ -1,6 +1,6 @@
-import { closeSync, constants, fstatSync, lstatSync, openSync, readFileSync, readSync } from "node:fs";
+import { closeSync, constants, existsSync, fstatSync, lstatSync, openSync, readFileSync, readSync, realpathSync } from "node:fs";
 import { isAbsolute, resolve } from "node:path";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 
 const MiB = 1024 * 1024;
 const tailBytes = 2 * MiB;
@@ -175,7 +175,7 @@ export function formatMemoryReport(report) {
   return lines.join("\n");
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+if (process.argv[1] && existsSync(process.argv[1]) && realpathSync(fileURLToPath(import.meta.url)) === realpathSync(process.argv[1])) {
   try { console.log(formatMemoryReport(collectMemoryReport(parseArguments(process.argv.slice(2))))); }
   catch (error) { console.error(`[memory-report] ${error.message}`); process.exitCode = 1; }
 }

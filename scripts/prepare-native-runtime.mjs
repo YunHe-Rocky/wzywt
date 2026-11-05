@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, lstatSync, readFileSync, readdirSync, realpathSync, rmSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 
 const buildCaches = [".next/cache/webpack", ".next/cache/swc"];
 const runtimeFiles = [
@@ -101,7 +101,7 @@ export function prepareNativeRuntime({ release, releasesRoot, currentRelease, np
   return { beforeBytes, afterBytes };
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+if (process.argv[1] && existsSync(process.argv[1]) && realpathSync(fileURLToPath(import.meta.url)) === realpathSync(process.argv[1])) {
   const [release, releasesRoot, currentRelease, npm] = process.argv.slice(2);
   try { prepareNativeRuntime({ release, releasesRoot, currentRelease, npm }); }
   catch (error) { console.error(`[native-runtime] ${error.message}`); process.exitCode = 1; }

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -6,6 +7,17 @@ import { afterEach, test } from "node:test";
 import { prepareNativeRuntime } from "./prepare-native-runtime.mjs";
 
 const roots = [];
+test("runtime preparation CLI does not silently skip when invoked through current", t => {
+  const root = mkdtempSync(join(tmpdir(), "wzywt-native-runtime-")); roots.push(root);
+  const current = join(root, "current");
+  try { symlinkSync(import.meta.dirname, current, process.platform === "win32" ? "junction" : "dir"); }
+  catch (error) { if (["EPERM", "EACCES"].includes(error.code)) { t.skip("symlink permission unavailable"); return; } throw error; }
+  for (const flags of [[], ["--preserve-symlinks-main"]]) {
+    const result = spawnSync(process.execPath, [...flags, join(current, "prepare-native-runtime.mjs")], { encoding: "utf8", windowsHide: true, timeout: 10000 });
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /Runtime preparation requires absolute/);
+  }
+});
 afterEach(() => {
   for (const root of roots.splice(0)) {
     assert.equal(dirname(root), tmpdir());

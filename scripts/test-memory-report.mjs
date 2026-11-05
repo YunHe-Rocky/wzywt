@@ -1,9 +1,23 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync, symlinkSync } from "node:fs";
+import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { collectMemoryReport, formatMemoryReport, parseArguments, parseMeminfo, readLogTail } from "./memory-report.mjs";
+
+test("CLI executes through a current directory symlink", t => {
+  const f = fixture(t);
+  const current = join(f.root, "current");
+  try { symlinkSync(import.meta.dirname, current, process.platform === "win32" ? "junction" : "dir"); }
+  catch (error) { if (["EPERM", "EACCES"].includes(error.code)) { t.skip("symlink permission unavailable"); return; } throw error; }
+  for (const flags of [[], ["--preserve-symlinks-main"]]) {
+    const result = spawnSync(process.execPath, [...flags, join(current, "memory-report.mjs"), "--pm2-home", f.root], { encoding: "utf8", windowsHide: true, timeout: 10000 });
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /Memory report \(read only/);
+    assert.match(result.stdout, /NO VALID SAMPLES/);
+  }
+});
 
 const MiB = 1024 * 1024;
 const now = Date.parse("2026-11-05T00:00:00.000Z");

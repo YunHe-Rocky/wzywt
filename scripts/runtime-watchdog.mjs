@@ -2,7 +2,7 @@ import { copyFileSync, existsSync, lstatSync, readFileSync, realpathSync, rename
 import { dirname, isAbsolute, relative, resolve, delimiter } from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 import { probeLiveness } from "./runtime-liveness.mjs";
 import { runtimeLog } from "../src/lib/runtime-logging.mjs";
 const execute = promisify(execFile);
@@ -60,7 +60,11 @@ export async function checkRuntime(config) {
   if (existsSync(daemonLog)) rotateLog(daemonLog, config.pm2Home);
   writeFileSync(config.stateFile, JSON.stringify(state), { mode: 0o600 });
 }
-if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+// systemd invokes current/scripts/... through the release symlink. Node normally
+// resolves import.meta.url to the real release while argv keeps current; compare
+// the real files so both normal and --preserve-symlinks-main launches run checks.
+if (process.argv[1] && existsSync(process.argv[1])
+  && realpathSync(fileURLToPath(import.meta.url)) === realpathSync(resolve(process.argv[1]))) {
   process.env.APP_ROLE = "watchdog";
   try {
     const config = JSON.parse(readFileSync(process.argv[2], "utf8"));

@@ -129,6 +129,8 @@ node scripts/runtime-service.mjs --install
 
 watchdog 连续三次失败后尝试恢复，间隔至少 120 秒，每 10 分钟最多三次尝试，先保存重试预算再调用 PM2；只操作 cwd 匹配的指定进程。`stopped` 是有意维护状态，不自动拉起。原生专用 home 内日志按 10 MiB、3 份历史保留，copytruncate 存在很小的并发日志窗口；服务自身日志按 journald 策略保留。
 
+watchdog 通过 `current/scripts/runtime-watchdog.mjs` 启动，入口比较使用双方的真实文件路径。旧版只比较模块 URL 与命令行路径，Node 解析 `current` 符号链接后会跳过整个巡检却返回成功。因此 timer 显示 active 或 service 显示成功，不能单独证明轮转已执行；还应检查 `<runtime>/shared/runtime-watchdog-state.json` 的修改时间持续更新，以及超限日志是否轮转。真实 Node 回归覆盖直接路径、`current` 链接和 `--preserve-symlinks-main`，并确认普通模块导入不会执行巡检。
+
 将脚本打印的实际服务名填入下面命令：
 
 ```bash
